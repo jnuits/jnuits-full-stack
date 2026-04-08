@@ -1,0 +1,38 @@
+import { claimProfile } from "@/app/(auth)/actions";
+
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const error =
+    typeof resolvedSearchParams.error === "string"
+      ? resolvedSearchParams.error
+      : null;
+
+  return (
+    <div>
+      <span className="eyebrow">Claim flow</span>
+      <h1 className="section-title mt-4 text-[2.4rem]">
+        Claim your member profile with invitation credentials.
+      </h1>
+      <p className="section-copy mt-3">
+        This route is wired to the new `member_invitations` table so claims stop
+        depending on the legacy Strapi user bridge.
+      </p>
+      {error ? (
+        <p className="mt-4 text-sm font-semibold text-[var(--brand-rust)]">{error}</p>
+      ) : null}
+      <form className="mt-8 grid gap-4">
+        <input name="jnuitsId" placeholder="JnUITS ID" required />
+        <input name="invitationCode" placeholder="Invitation code" required />
+        <input name="email" type="email" placeholder="Email address" required />
+        <input name="password" type="password" placeholder="Create password" required />
+        <button className="primary-button" formAction={claimProfile}>
+          Claim profile
+        </button>
+      </form>
+    </div>
+  );
+}
