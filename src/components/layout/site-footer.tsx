@@ -37,7 +37,7 @@ export function SiteFooter() {
           </p>
           <div className="mt-3 grid gap-2 text-sm text-white/80">
             <span>Phases 00-02 established the secure core</span>
-            <span>Phases 03-05 are the current user-facing focus</span>
+            <span>Phases 03-05 now include the live public-content rebuild lane</span>
             <span>Dark and light modes now share the same brand system</span>
           </div>
         </div>

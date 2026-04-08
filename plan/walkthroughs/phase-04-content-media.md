@@ -6,12 +6,14 @@ Move notices, blogs, events, gallery, about content, and media handling into the
 
 ## Implementation checklist
 
+- Rebuild the placeholder public routes into structured content pages using legacy field mapping as the migration contract.
 - Model the legacy public collections in Supabase-backed tables or approved content storage.
 - Port media ingestion and delivery rules.
 - Add safe admin/editor workflows for content moderation and publishing.
 
 ## Verification checklist
 
+- Confirm the rebuilt public content routes render meaningfully before the final data import.
 - Compare public page counts against the legacy site.
 - Confirm image and file delivery behave correctly in preview and production.
 - Confirm draft/publish or moderation states work as designed.

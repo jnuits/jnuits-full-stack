@@ -45,7 +45,7 @@ export const implementationPhases: ImplementationPhase[] = [
   {
     id: "Phase 04",
     summary: "Content collections, media handling, notices, blogs, events, gallery, and about content.",
-    status: "Queued",
+    status: "In Progress",
   },
   {
     id: "Phase 05",
