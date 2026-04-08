@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { brandProfile } from "@/lib/branding";
 import type { Json } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -44,8 +45,12 @@ export type HomePageContent = {
 };
 
 export type ContactContent = {
+  address: string;
   email: string;
+  foundedLabel: string;
+  googleBusinessHref: string;
   location: string;
+  organizationType: string;
   phone: string;
   socialLinks: Array<{ href: string; label: string }>;
   summary: string;
@@ -56,6 +61,7 @@ export type ContactContent = {
 export type FooterContent = {
   email: string;
   location: string;
+  phone: string;
   subtitle: string;
   summary: string;
   title: string;
@@ -65,84 +71,85 @@ export type FooterContent = {
 const fallbackHomePageContent: HomePageContent = {
   aboutSection: {
     buttonLink: "/about",
-    buttonText: "Learn More",
+    buttonText: "About JnUITS",
     description:
-      "JnUITS connects students, builders, and operators around practical digital work.",
+      `${brandProfile.shortName} is the non-profit university IT club of ${brandProfile.university}, helping students build practical digital skills, community, and leadership.`,
     imageSrc: "/images/home-group.jpg",
-    title: "Institutional profile",
+    title: brandProfile.fullName,
   },
   achievements: [
     {
       description:
-        "Certificates, identity, and public content are being rebuilt on safer foundations.",
-      icon: "Shield",
-      title: "Secure platform",
+        "Founded and registered on 11 Nov 2015, then approved by the University on 18 Nov 2015, JnUITS continues to operate as a student-centered non-profit technology community.",
+      icon: "Landmark",
+      title: "Institutional continuity",
     },
     {
       description:
-        "Membership, operators, and publishing no longer depend on a brittle proxy chain.",
+        "The society brings together workshops, competitions, certificates, publishing, and member operations in one reliable institutional platform.",
       icon: "Users",
-      title: "Unified workflow",
+      title: "Campus community",
     },
     {
       description:
-        "The public site, portal, and admin workspace now share a single delivery path.",
-      icon: "Layers",
-      title: "One stack",
+        `${brandProfile.slogan} remains the core promise behind every program, course, event, and public activity.`,
+      icon: "ArrowUpRight",
+      title: "Step Ahead with IT",
     },
   ],
   achievementsImageSrc: "/images/home-group.jpg",
-  achievementsTitle: "Migration milestones",
-  eyebrow: "Unified public site, portal, and operator stack",
+  achievementsTitle: "Institutional highlights",
+  eyebrow: brandProfile.slogan,
   heroImageSrc: "/images/home-group.jpg",
   heroSlides: [
     {
-      buttonLink: "/certificates",
-      buttonText: "Verify certificates",
+      buttonLink: "/about",
+      buttonText: "Learn more",
       description:
-        "One institutional home for the website, certificates, member identity, and internal operations.",
+        `${brandProfile.slogan}. ${brandProfile.fullName} is a non-profit university IT club based at ${brandProfile.university}, Dhaka.`,
       imageSrc: "/images/home-group.jpg",
-      title: "JnUITS digital rebuild",
+      title: brandProfile.fullName,
     },
   ],
   recentActivities: [
     {
       description:
-        "Certificate verification, member onboarding, and public content migration are all moving in the same release train.",
-      link: "/certificates",
-      title: "Execution lane",
+        "Courses, certificate programs, workshops, and member development tracks continue to shape the public face of the society.",
+      link: "/events",
+      title: "Programs and activities",
     },
   ],
   recentActivitiesImageSrc: "/images/home-group.jpg",
-  recentActivitiesTitle: "Current delivery readout",
+  recentActivitiesTitle: "Current focus",
   summary:
-    "The project is no longer an empty shell, but it is still in active delivery. Secure foundations, certificates, and membership transition flows are already in place; content depth and richer operational tools are what come next.",
-  title:
-    "One institutional home for the website, certificates, member identity, and internal operations.",
+    `${brandProfile.fullName} (${brandProfile.shortName}) is the official university IT club of ${brandProfile.university}, operating from ${brandProfile.address}.`,
+  title: brandProfile.fullName,
 };
 
 const fallbackContactContent: ContactContent = {
-  email: "support@jnuits.org.bd",
-  location: "Jagannath University, Dhaka, Bangladesh",
-  phone: "+880 1XXX-XXXXXX",
-  socialLinks: [
-    { href: "https://www.facebook.com/jnuitsbd", label: "Facebook" },
-    { href: "https://www.linkedin.com", label: "LinkedIn" },
-  ],
+  address: brandProfile.address,
+  email: brandProfile.email,
+  foundedLabel: brandProfile.foundedLabel,
+  googleBusinessHref: brandProfile.googleBusinessHref,
+  location: brandProfile.university,
+  organizationType: brandProfile.type,
+  phone: brandProfile.phone,
+  socialLinks: [...brandProfile.socialLinks],
   summary:
-    "Reach the JnUITS team without routing through the legacy proxy.",
-  title: "Contact JnUITS",
-  university: "Jagannath University IT Society (JnUITS)",
+    `Reach ${brandProfile.shortName} for programs, certificates, membership, collaborations, and public information.`,
+  title: `Contact ${brandProfile.shortName}`,
+  university: brandProfile.fullName,
 };
 
 const fallbackFooterContent: FooterContent = {
-  email: "support@jnuits.org.bd",
-  location: "Jagannath University, Dhaka, Bangladesh",
-  subtitle: "Unified website, portal, and operator stack",
+  email: brandProfile.email,
+  location: brandProfile.address,
+  phone: brandProfile.phone,
+  subtitle: brandProfile.type,
   summary:
-    "The platform foundation is live, but the content migration, richer portal workflows, and operator queues are still moving through the execution plan.",
-  title: "JnUITS Full Stack",
-  university: "Jagannath University IT Society (JnUITS)",
+    `${brandProfile.slogan}. ${brandProfile.fullName} is the official university IT club of ${brandProfile.university}.`,
+  title: brandProfile.fullName,
+  university: brandProfile.fullName,
 };
 
 function asObject(value: Json | null | undefined) {
@@ -318,8 +325,18 @@ export const getContactContent = cache(async () => {
   const body = asObject(data.body);
 
   return {
+    address: asString(body?.address, fallbackContactContent.address),
     email: asString(body?.email, fallbackContactContent.email),
+    foundedLabel: asString(body?.foundedLabel, fallbackContactContent.foundedLabel),
+    googleBusinessHref: asString(
+      body?.googleBusinessHref,
+      fallbackContactContent.googleBusinessHref
+    ),
     location: asString(body?.location, fallbackContactContent.location),
+    organizationType: asString(
+      body?.organizationType,
+      fallbackContactContent.organizationType
+    ),
     phone: asString(body?.phone, fallbackContactContent.phone),
     socialLinks: normalizeSocialLinks(
       body?.socialLinks,
@@ -349,6 +366,7 @@ export const getFooterContent = cache(async () => {
   return {
     email: asString(body?.email, fallbackFooterContent.email),
     location: asString(body?.location, fallbackFooterContent.location),
+    phone: asString(body?.phone, fallbackFooterContent.phone),
     subtitle: asString(body?.subtitle, fallbackFooterContent.subtitle),
     summary: data.summary || fallbackFooterContent.summary,
     title: data.title || fallbackFooterContent.title,

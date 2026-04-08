@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { brandProfile } from "@/lib/branding";
 import type { Json, Tables } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -67,36 +68,35 @@ const fallbackEventImage = "/images/workshop.jpg";
 const fallbackNoticeHref = "/notices";
 
 export const fallbackAboutContent = {
-  eyebrow: "Institutional profile",
-  title:
-    "JnUITS connects students, builders, and operators around practical digital work.",
+  eyebrow: brandProfile.slogan,
+  title: brandProfile.fullName,
   summary:
-    "The old site already proved that JnUITS needs more than a brochure. It needs a public face for announcements and history, a safe member space, and operator tooling that can survive real organizational work without depending on an opaque proxy chain.",
+    `${brandProfile.fullName} (${brandProfile.shortName}) is the non-profit university IT club of ${brandProfile.university}, founded and registered on 11 Nov 2015 and approved by the University on 18 Nov 2015.`,
   story: [
-    "The society sits at the intersection of technical learning, campus community, and operational stewardship.",
-    "This rebuild keeps the public mission visible while making internal workflows more explicit, more auditable, and less fragile.",
+    `${brandProfile.shortName} brings together students who want to learn, build, and lead through practical work in information technology.`,
+    `From ${brandProfile.address}, the society runs programs, courses, workshops, certificates, and community activities that help students move forward with confidence.`,
   ],
-  missionTitle: "What Phase 04 is restoring from the previous platform",
+  missionTitle: "What JnUITS stands for",
   missionPoints: [
-    "Public storytelling for achievements, events, notices, and committee history.",
-    "Route-by-route parity with the legacy site so migration can happen without breaking trust.",
-    "A content architecture that later moves from local previews into Supabase-backed collections and media delivery.",
+    "Practical skill development through courses, workshops, seminars, and technical events.",
+    "A collaborative community for technology-minded students at Jagannath University.",
+    "Visible institutional trust through certificate verification, public communication, and durable digital operations.",
   ],
   values: [
     {
       title: "Practical learning",
       description:
-        "Programs, workshops, and member work should produce visible outcomes, not just announcements.",
+        "Programs, workshops, and member work should produce real technical confidence and visible outcomes.",
     },
     {
-      title: "Safe participation",
+      title: "Community growth",
       description:
-        "Members should contribute through focused tools instead of broad access to unsafe admin surfaces.",
+        "The society grows by bringing students together around shared curiosity, teamwork, and peer support.",
     },
     {
-      title: "Operational clarity",
+      title: "Institutional trust",
       description:
-        "Approvals, publishing, and member-state changes should leave evidence that operators can trust later.",
+        "Public communication, certificates, and member records should always feel official, clear, and trustworthy.",
     },
   ] satisfies AboutValue[],
   imageSrc: "/images/workshop.jpg",

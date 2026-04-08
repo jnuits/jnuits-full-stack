@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { brandProfile } from "@/lib/branding";
 import {
   formatDisplayDate,
   getPublishedNotices,
@@ -23,7 +24,7 @@ export default async function HomePage() {
         <div className="shell hero-grid">
           <div>
             <span className="eyebrow">{homeContent.eyebrow}</span>
-            <p className="hero-brand mt-6">Stay ahead with IT</p>
+            <p className="hero-brand mt-6">{brandProfile.slogan}</p>
             {heroSlide?.title ? (
               <p className="mt-3 text-sm font-semibold uppercase tracking-[0.18em] text-[var(--brand-blue)]">
                 {heroSlide.title}

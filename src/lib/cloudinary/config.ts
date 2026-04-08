@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import { CLOUDINARY_PROJECT_ROOT_FOLDER } from "@/lib/branding";
 
 export type CloudinaryConfig = {
   apiKey: string;
@@ -73,7 +74,21 @@ export function normalizeCloudinaryFolder(value: string) {
     .replace(/^\/+|\/+$/g, "")
     .slice(0, 180);
 
-  return normalized || "jnuits/uploads";
+  if (!normalized) {
+    return CLOUDINARY_PROJECT_ROOT_FOLDER;
+  }
+
+  if (
+    normalized === CLOUDINARY_PROJECT_ROOT_FOLDER ||
+    normalized.startsWith(`${CLOUDINARY_PROJECT_ROOT_FOLDER}/`)
+  ) {
+    return normalized;
+  }
+
+  const withoutLegacyPrefix = normalized.replace(/^jnuits\//, "");
+  const withoutProjectRoot = withoutLegacyPrefix.replace(/^jnuits-full-stack\//, "");
+
+  return `${CLOUDINARY_PROJECT_ROOT_FOLDER}/${withoutProjectRoot}`.replace(/\/{2,}/g, "/");
 }
 
 export function createCloudinarySignature(

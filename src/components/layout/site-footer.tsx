@@ -34,6 +34,7 @@ export async function SiteFooter() {
           <div className="mt-3 grid gap-2 text-sm text-white/80">
             <span>{footerContent.university}</span>
             <Link href={`mailto:${footerContent.email}`}>{footerContent.email}</Link>
+            <Link href={`tel:${footerContent.phone.replace(/\s+/g, "")}`}>{footerContent.phone}</Link>
             <span>{footerContent.location}</span>
           </div>
         </div>

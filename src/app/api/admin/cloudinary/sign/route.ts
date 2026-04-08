@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { CLOUDINARY_PROJECT_ROOT_FOLDER } from "@/lib/branding";
 import {
   createCloudinarySignature,
   getCloudinaryPublicConfig,
@@ -41,7 +42,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const config = getCloudinaryPublicConfig();
-    const folder = normalizeCloudinaryFolder(parsed.data.folder || "jnuits/gallery");
+    const folder = normalizeCloudinaryFolder(
+      parsed.data.folder || CLOUDINARY_PROJECT_ROOT_FOLDER
+    );
     const timestamp = Math.floor(Date.now() / 1000);
     const paramsToSign = {
       folder,

@@ -50,12 +50,28 @@ export default async function ContactPage({
             </p>
           </article>
           <article className="route-tile">
-            <h3>Location</h3>
+            <h3>Type</h3>
+            <p>{contactContent.organizationType}</p>
+          </article>
+          <article className="route-tile">
+            <h3>Located in</h3>
             <p>{contactContent.location}</p>
           </article>
           <article className="route-tile">
+            <h3>Address</h3>
+            <p>{contactContent.address}</p>
+          </article>
+          <article className="route-tile">
             <h3>Phone</h3>
-            <p>{contactContent.phone}</p>
+            <p>
+              <Link href={`tel:${contactContent.phone.replace(/\s+/g, "")}`}>
+                {contactContent.phone}
+              </Link>
+            </p>
+          </article>
+          <article className="route-tile">
+            <h3>Founded</h3>
+            <p>{contactContent.foundedLabel}</p>
           </article>
           <article className="route-tile">
             <h3>Social links</h3>
@@ -66,6 +82,14 @@ export default async function ContactPage({
                 </Link>
               ))}
             </div>
+          </article>
+          <article className="route-tile">
+            <h3>Google Business</h3>
+            <p>
+              <Link href={contactContent.googleBusinessHref} target="_blank">
+                View public business listing
+              </Link>
+            </p>
           </article>
         </div>
       </div>

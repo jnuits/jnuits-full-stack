@@ -5,6 +5,7 @@ import {
   IBM_Plex_Mono,
   Space_Grotesk,
 } from "next/font/google";
+import { brandProfile } from "@/lib/branding";
 import "./globals.css";
 
 const headingFont = Space_Grotesk({
@@ -49,11 +50,11 @@ const themeInitScript = `
 export const metadata: Metadata = {
   metadataBase: new URL("https://jnuits.org.bd"),
   title: {
-    default: "JnUITS Full Stack",
-    template: "%s | JnUITS",
+    default: `${brandProfile.fullName} (${brandProfile.shortName})`,
+    template: `%s | ${brandProfile.shortName}`,
   },
   description:
-    "Stay ahead with IT. Unified Next.js and Supabase platform for the JnUITS public website, member portal, certificate verification, and operator workflows.",
+    `${brandProfile.slogan}. ${brandProfile.fullName} is the non-profit university IT club of ${brandProfile.university}, based at ${brandProfile.address}.`,
 };
 
 export default function RootLayout({

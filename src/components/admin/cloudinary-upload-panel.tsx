@@ -192,7 +192,9 @@ export function CloudinaryUploadPanel({
       <p className="section-copy">
         Large gallery photos and videos bypass Supabase storage entirely. This
         uploader signs the request server-side, sends the file directly to
-        Cloudinary, then registers only the metadata in Supabase.
+        Cloudinary, then registers only the metadata in Supabase. All new media
+        is kept under the project root folder <code>{defaultFolder}</code>, and
+        you can append deeper subfolders when needed.
       </p>
 
       {!configured ? (
@@ -229,7 +231,7 @@ export function CloudinaryUploadPanel({
             <input
               name="folder"
               onChange={(event) => setFolder(event.target.value)}
-              placeholder={defaultFolder}
+              placeholder={`${defaultFolder}/gallery`}
               value={folder}
             />
           </label>

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { brandProfile } from "@/lib/branding";
 
 type SiteBrandProps = {
   compact?: boolean;
@@ -33,8 +34,8 @@ export function SiteBrand({
           />
         </div>
         <div className="brand-copy">
-          <div className="brand-title">JnUITS</div>
-          <div className="brand-slogan">Stay ahead with IT</div>
+          <div className="brand-title">{brandProfile.shortName}</div>
+          <div className="brand-slogan">{brandProfile.slogan}</div>
           {subtitle ? <div className="brand-subtitle">{subtitle}</div> : null}
         </div>
       </div>

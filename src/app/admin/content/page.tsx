@@ -16,6 +16,7 @@ import {
   getCloudinaryPublicConfig,
   isCloudinaryConfigured,
 } from "@/lib/cloudinary/config";
+import { CLOUDINARY_PROJECT_ROOT_FOLDER } from "@/lib/branding";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type MediaAssetOption = {
@@ -214,7 +215,7 @@ export default async function AdminContentPage() {
       <CloudinaryUploadPanel
         cloudName={cloudinaryConfig?.cloudName || "unconfigured"}
         configured={cloudinaryConfigured}
-        defaultFolder="jnuits/gallery"
+        defaultFolder={CLOUDINARY_PROJECT_ROOT_FOLDER}
       />
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
@@ -292,7 +293,7 @@ export default async function AdminContentPage() {
               Metadata JSON
               <textarea
                 name="metadataJson"
-                placeholder='{"source":"cloudinary","folder":"jnuits/events"}'
+                placeholder='{"source":"cloudinary","folder":"jnuits/jnuits-full-stack/gallery"}'
                 rows={4}
               />
             </label>
