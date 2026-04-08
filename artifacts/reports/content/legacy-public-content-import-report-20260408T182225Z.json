@@ -1,0 +1,213 @@
+{
+  "generatedAt": "2026-04-08T18:22:26.408Z",
+  "legacySource": {
+    "frontendRoot": "M:/jnuits/jnuits.org.bd",
+    "hasAbout": true,
+    "hasContact": true,
+    "hasDeveloperInfo": true,
+    "hasHome": true,
+    "publishedBlogs": 1,
+    "publishedEvents": 2,
+    "publishedNotices": 1
+  },
+  "mode": "apply",
+  "assets": {
+    "imported": [
+      {
+        "id": "01739b29-01df-428f-b748-d4d34045df15",
+        "publicId": "jnuits/legacy/about/intro",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672220/jnuits/legacy/about/intro.jpg",
+        "title": "About intro image"
+      },
+      {
+        "id": "a377b440-ba02-4b90-9e3f-c452fbcb834a",
+        "publicId": "jnuits/legacy/home/achievements",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672222/jnuits/legacy/home/achievements.jpg",
+        "title": "Homepage achievements banner"
+      },
+      {
+        "id": "2ed6fbb5-6628-4a6b-805b-c40a62d47a0c",
+        "publicId": "jnuits/legacy/events/bcc-course",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672223/jnuits/legacy/events/bcc-course.jpg",
+        "title": "BCC course feature image"
+      },
+      {
+        "id": "41a3d24c-f77d-43f3-8797-c1677cacb6c7",
+        "publicId": "jnuits/legacy/gallery/group-pic-1",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672225/jnuits/legacy/gallery/group-pic-1.jpg",
+        "title": "Group photo 1"
+      },
+      {
+        "id": "278060e1-6d20-4df1-b1de-347a2c6284ae",
+        "publicId": "jnuits/legacy/gallery/group-pic-2",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672227/jnuits/legacy/gallery/group-pic-2.jpg",
+        "title": "Group photo 2"
+      },
+      {
+        "id": "d985156c-ef3f-44b9-83ef-1303eb4bacd3",
+        "publicId": "jnuits/legacy/gallery/group-pic-3",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672231/jnuits/legacy/gallery/group-pic-3.jpg",
+        "title": "Group photo 3"
+      },
+      {
+        "id": "7cbdac51-7426-4902-8f6c-579ce3753a65",
+        "publicId": "jnuits/legacy/gallery/group-pic-4",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672232/jnuits/legacy/gallery/group-pic-4.jpg",
+        "title": "Group photo 4"
+      },
+      {
+        "id": "086fd319-b2ce-4aac-af7d-b6337581ebee",
+        "publicId": "jnuits/legacy/home/hero-slide-1",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672235/jnuits/legacy/home/hero-slide-1.jpg",
+        "title": "Homepage hero slide 1"
+      },
+      {
+        "id": "49d09924-42af-4d3e-ab07-9f46a3c54969",
+        "publicId": "jnuits/legacy/home/recent-activities",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672237/jnuits/legacy/home/recent-activities.jpg",
+        "title": "Homepage recent activities banner"
+      },
+      {
+        "id": "f983429a-65ab-4494-b32c-412d3cbc21fe",
+        "publicId": "jnuits/legacy/gallery/archive-01",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672238/jnuits/legacy/gallery/archive-01.jpg",
+        "title": "Archive photo 01"
+      },
+      {
+        "id": "dd039211-1497-4966-96a4-bf1144b881b9",
+        "publicId": "jnuits/legacy/gallery/archive-02",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672240/jnuits/legacy/gallery/archive-02.jpg",
+        "title": "Archive photo 02"
+      },
+      {
+        "id": "5163034f-ed48-4c26-8d07-16a8809135ca",
+        "publicId": "jnuits/legacy/developers/mt-asfi",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672243/jnuits/legacy/developers/mt-asfi.png",
+        "title": "MT Asfi profile photo"
+      },
+      {
+        "id": "97c7bc34-b388-46bc-acf0-6167bd9030b8",
+        "publicId": "jnuits/legacy/developers/juwel-rana",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672245/jnuits/legacy/developers/juwel-rana.jpg",
+        "title": "Juwel Rana profile photo"
+      },
+      {
+        "id": "2ed6fbb5-6628-4a6b-805b-c40a62d47a0c",
+        "publicId": "jnuits/legacy/events/bcc-course",
+        "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672223/jnuits/legacy/events/bcc-course.jpg",
+        "title": "BCC course feature image"
+      }
+    ],
+    "skipped": [
+      {
+        "publicId": "jnuits/legacy/events/speak-up-workshop",
+        "reason": "Source not found: /uploads/IMG_4975_8aab96b417.jpeg",
+        "title": "Speak Up workshop photo"
+      },
+      {
+        "publicId": "jnuits/legacy/blogs/jnu-it-society-6th-election-2025-প-রয-ক-ত-র-পথয-ত-র-য-নত-ন-ন-ত-ত-ব/cover",
+        "reason": "Source not found: /uploads/20250706_124549_d25b1e9a00.jpg",
+        "title": "20250706_124549.jpg"
+      },
+      {
+        "publicId": "jnuits/legacy/events/speak-up-workshop",
+        "reason": "Source not found: /uploads/IMG_4975_8aab96b417.jpeg",
+        "title": "Speak Up workshop photo"
+      }
+    ]
+  },
+  "pages": [
+    {
+      "id": "334d0e3c-c5d8-4646-b54a-e89a8492b0de",
+      "slug": "home",
+      "title": "Welcome to JnUITS"
+    },
+    {
+      "id": "e7fcec04-0e2c-4604-a912-3c193e2b74c5",
+      "slug": "about",
+      "title": "About Our JnUITS Society"
+    },
+    {
+      "id": "683abdae-c3a7-46a7-a532-56f5e6983e71",
+      "slug": "contact",
+      "title": "Contact JnUITS"
+    },
+    {
+      "id": "b689380e-44bb-4774-8f11-b484a4aa43ee",
+      "slug": "footer",
+      "title": "Jagannath University IT Society(JnUITS)"
+    }
+  ],
+  "posts": [
+    {
+      "id": "944373d6-3933-475e-a758-8f74b38d28d2",
+      "slug": "jnu-it-society-6th-election-2025-প-রয-ক-ত-র-পথয-ত-র-য-নত-ন-ন-ত-ত-ব",
+      "title": "🎉 JNU IT Society 6th Election 2025 – প্রযুক্তির পথযাত্রায় নতুন নেতৃত্ব",
+      "type": "blog"
+    },
+    {
+      "id": "3ac074fd-1bad-4337-a859-488f12b2615c",
+      "slug": "jnuits-bcc-4ir-season-8",
+      "title": "JnUITS BCC-4IR Season 8",
+      "type": "event"
+    },
+    {
+      "id": "970d560c-779d-4c8a-a616-f7e44da73aa2",
+      "slug": "speak-up-interactive-public-speaking-workshop",
+      "title": "Speak Up: Interactive Public Speaking Workshop",
+      "type": "event"
+    },
+    {
+      "id": "dffdf109-5cfa-4831-948b-695099fc4139",
+      "slug": "jnuits-general-member-recruitment-2025-viva-process",
+      "title": "JnUITS General Member Recruitment - 2025 | Viva Process",
+      "type": "notice"
+    }
+  ],
+  "developers": [
+    {
+      "id": "602d2dfa-5884-45f9-b40f-ec1392f2f2b6",
+      "isLead": true,
+      "name": "MT Asfi"
+    },
+    {
+      "id": "b187d3c5-68aa-4d99-8237-5635867a959e",
+      "isLead": false,
+      "name": "Juwel Rana"
+    }
+  ],
+  "gallery": [
+    {
+      "id": "6456f8ab-09a9-4e41-a083-c26cb602beff",
+      "title": "Legacy group photo 1"
+    },
+    {
+      "id": "6d80ec61-f2ee-40cc-a55b-044220c3dac1",
+      "title": "Legacy group photo 2"
+    },
+    {
+      "id": "6a2ffe3d-5d08-4e9a-baa0-1608e458f119",
+      "title": "Legacy group photo 3"
+    },
+    {
+      "id": "3d34f2a0-6a20-46b3-b040-0b2fa8df2154",
+      "title": "Legacy group photo 4"
+    },
+    {
+      "id": "2783ab27-f8bb-4e52-b811-46325e610631",
+      "title": "Archive photo 01"
+    },
+    {
+      "id": "bd2fab6b-f83c-422c-b953-2e9462046878",
+      "title": "Archive photo 02"
+    }
+  ],
+  "downloads": [
+    {
+      "reason": "Legacy file not found: M:\\jnuits\\admin.jnuits.org.bd\\public\\uploads\\viva_notice_88c78a62d8.pdf",
+      "source": "/uploads/viva_notice_88c78a62d8.pdf",
+      "status": "missing",
+      "target": null
+    }
+  ]
+}

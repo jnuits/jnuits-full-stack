@@ -2,40 +2,30 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   formatDisplayDate,
-  formatDateRange,
-  getPublishedBlogs,
-  getPublishedEvents,
   getPublishedNotices,
 } from "@/lib/content/public-content";
+import { getHomePageContent } from "@/lib/content/site-singletons";
 import { implementationPhases } from "@/lib/site";
 
 export default async function HomePage() {
-  const [publicBlogs, publicEvents, publicNotices] = await Promise.all([
-    getPublishedBlogs(),
-    getPublishedEvents(),
+  const [homeContent, publicNotices] = await Promise.all([
+    getHomePageContent(),
     getPublishedNotices(),
   ]);
-  const featuredEvent = publicEvents[0];
-  const featuredBlog = publicBlogs[0];
   const featuredNotice = publicNotices[0];
+  const heroSlide = homeContent.heroSlides[0];
+  const highlightedActivities = homeContent.recentActivities.slice(0, 3);
+  const highlightedAchievements = homeContent.achievements.slice(0, 3);
 
   return (
     <div className="pb-16">
       <section className="hero-plane">
         <div className="shell hero-grid">
           <div>
-            <span className="eyebrow">Unified public site, portal, and operator stack</span>
-            <p className="hero-brand mt-6">JnUITS digital rebuild</p>
-            <h1 className="hero-title mt-4">
-              One institutional home for the website, certificates, member identity,
-              and internal operations.
-            </h1>
-            <p className="section-copy mt-6">
-              The project is no longer an empty shell, but it is still in active
-              delivery. Secure foundations, certificates, and membership transition
-              flows are already in place; content depth and richer operational tools
-              are what come next.
-            </p>
+            <span className="eyebrow">{homeContent.eyebrow}</span>
+            <p className="hero-brand mt-6">{heroSlide?.title || "JnUITS digital rebuild"}</p>
+            <h1 className="hero-title mt-4">{homeContent.title}</h1>
+            <p className="section-copy mt-6">{homeContent.summary}</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/certificates" className="primary-button">
                 Verify certificates
@@ -56,12 +46,12 @@ export default async function HomePage() {
             <article className="hero-stage-card">
               <div className="absolute inset-0 opacity-42">
                 <Image
-                  alt="JnUITS public program gathering"
+                  alt={heroSlide?.title || "JnUITS public program gathering"}
                   className="object-cover"
                   fill
                   priority
                   sizes="(min-width: 980px) 42vw, 100vw"
-                  src="/images/home-group.jpg"
+                  src={homeContent.heroImageSrc}
                 />
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-[rgba(17,31,56,0.78)] via-[rgba(17,31,56,0.24)] to-transparent" />
@@ -77,12 +67,10 @@ export default async function HomePage() {
               </div>
               <div className="hero-stage-copy">
                 <p className="hero-stage-title text-white">
-                  Real public content is now shaping the route system, not just the shell.
+                  {homeContent.aboutSection.title}
                 </p>
                 <p className="mt-4 max-w-xl text-sm leading-7 text-white/84">
-                  Legacy imagery and route-level content structure are now back in
-                  play so the site can feel institutional while the database-backed
-                  import path is still being built.
+                  {heroSlide?.description || homeContent.aboutSection.description}
                 </p>
               </div>
             </article>
@@ -142,17 +130,14 @@ export default async function HomePage() {
             <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.96fr)_minmax(280px,0.64fr)]">
               <div>
                 <h2 className="font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,3rem)] leading-[0.96] tracking-[-0.04em]">
-                  Public content is no longer a set of migration placeholders.
+                  {homeContent.aboutSection.title}
                 </h2>
                 <p className="section-copy mt-4">
-                  About, blogs, events, gallery, notices, and developer credits
-                  are now being rebuilt as structured public surfaces. The next
-                  step is swapping this preview layer into Supabase-backed
-                  collections and moderated media delivery.
+                  {homeContent.aboutSection.description}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3">
-                  <Link href="/about" className="primary-button">
-                    View the about route
+                  <Link href={homeContent.aboutSection.buttonLink} className="primary-button">
+                    {homeContent.aboutSection.buttonText}
                   </Link>
                   <Link href="/blogs" className="secondary-button">
                     Read editorial previews
@@ -161,30 +146,17 @@ export default async function HomePage() {
               </div>
 
               <div className="grid gap-4">
-                <div className="route-tile">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--brand-blue)]">
-                    Featured event
-                  </p>
-                  <h3 className="mt-3">{featuredEvent.title}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-                    {featuredEvent.summary}
-                  </p>
-                  <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-                    {formatDateRange(featuredEvent.start, featuredEvent.end)}
-                  </p>
-                </div>
-                <div className="route-tile">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--brand-blue)]">
-                    Featured article
-                  </p>
-                  <h3 className="mt-3">{featuredBlog.title}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-                    {featuredBlog.summary}
-                  </p>
-                  <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-                    {formatDisplayDate(featuredBlog.publishedAt)}
-                  </p>
-                </div>
+                {highlightedActivities.map((activity) => (
+                  <div key={activity.title} className="route-tile">
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--brand-blue)]">
+                      {homeContent.recentActivitiesTitle}
+                    </p>
+                    <h3 className="mt-3">{activity.title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                      {activity.description}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </article>
@@ -213,6 +185,36 @@ export default async function HomePage() {
               </Link>
             </div>
           </article>
+        </div>
+      </section>
+
+      <section className="shell mt-8">
+        <div className="section-band">
+          <p className="section-divider">{homeContent.achievementsTitle}</p>
+          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="grid gap-4 md:grid-cols-3">
+              {highlightedAchievements.map((achievement) => (
+                <article key={achievement.title} className="route-tile">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--brand-blue)]">
+                    {achievement.icon}
+                  </p>
+                  <h3 className="mt-3">{achievement.title}</h3>
+                  <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                    {achievement.description}
+                  </p>
+                </article>
+              ))}
+            </div>
+            <div className="relative min-h-[260px] overflow-hidden rounded-[1.6rem] border border-[var(--line)]">
+              <Image
+                alt={homeContent.achievementsTitle}
+                className="object-cover"
+                fill
+                sizes="(min-width: 1024px) 24vw, 100vw"
+                src={homeContent.achievementsImageSrc}
+              />
+            </div>
+          </div>
         </div>
       </section>
     </div>

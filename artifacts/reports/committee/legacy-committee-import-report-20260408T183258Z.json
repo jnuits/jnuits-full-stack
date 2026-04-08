@@ -1,0 +1,144 @@
+{
+  "generatedAt": "2026-04-08T18:32:58.068Z",
+  "mode": "dry-run",
+  "options": {
+    "advisorySlug": "advisory-committee",
+    "advisoryTitle": "Advisory Committee",
+    "endsOn": null,
+    "executiveSlug": "5th-committee",
+    "executiveTitle": "5th Committee",
+    "startsOn": "2026-01-01"
+  },
+  "sourceCounts": {
+    "advisoryRows": 8,
+    "executiveRows": 64
+  },
+  "target": {
+    "advisoryAssignments": 4,
+    "executiveAssignments": 32,
+    "termsUpserted": 2,
+    "rolesUpserted": 0
+  },
+  "terms": [
+    {
+      "id": "advisory-committee-planned",
+      "slug": "advisory-committee",
+      "status": "active",
+      "title": "Advisory Committee"
+    },
+    {
+      "id": "5th-committee-planned",
+      "slug": "5th-committee",
+      "status": "active",
+      "title": "5th Committee"
+    }
+  ],
+  "roles": [
+    {
+      "code": "chief-advisor",
+      "sortOrder": 10,
+      "title": "Chief Advisor"
+    },
+    {
+      "code": "president",
+      "sortOrder": 10,
+      "title": "President"
+    },
+    {
+      "code": "mentor-moderator",
+      "sortOrder": 20,
+      "title": "Mentor / Moderator"
+    },
+    {
+      "code": "vice-president",
+      "sortOrder": 20,
+      "title": "Vice President"
+    },
+    {
+      "code": "respected-advisor",
+      "sortOrder": 30,
+      "title": "Respected Advisor"
+    },
+    {
+      "code": "general-secretary",
+      "sortOrder": 30,
+      "title": "General Secretary"
+    },
+    {
+      "code": "assistant-general-secretary",
+      "sortOrder": 35,
+      "title": "Asst. General Secretary"
+    },
+    {
+      "code": "organizing-secretary",
+      "sortOrder": 50,
+      "title": "Organizing Secretary"
+    },
+    {
+      "code": "workshop-secretary",
+      "sortOrder": 55,
+      "title": "Workshop Secretary"
+    },
+    {
+      "code": "office-secretary",
+      "sortOrder": 60,
+      "title": "Office Secretary"
+    },
+    {
+      "code": "treasurer",
+      "sortOrder": 70,
+      "title": "Treasurer"
+    },
+    {
+      "code": "public-relations-secretary",
+      "sortOrder": 80,
+      "title": "Public Relation Secretary"
+    },
+    {
+      "code": "publication-secretary",
+      "sortOrder": 90,
+      "title": "Publication Secretary"
+    },
+    {
+      "code": "it-secretary",
+      "sortOrder": 91,
+      "title": "IT Secretary"
+    },
+    {
+      "code": "international-secretary",
+      "sortOrder": 92,
+      "title": "International Secretary"
+    },
+    {
+      "code": "education-research-secretary",
+      "sortOrder": 95,
+      "title": "Edu & Research Secretary"
+    },
+    {
+      "code": "executive-member",
+      "sortOrder": 110,
+      "title": "Executive"
+    },
+    {
+      "code": "sub-executive-member",
+      "sortOrder": 115,
+      "title": "Sub-Executive"
+    }
+  ],
+  "assignments": {
+    "advisory": {
+      "created": 4,
+      "existing": 4,
+      "linkedMembers": 0,
+      "placeholders": 4,
+      "uniquePlanned": 4
+    },
+    "executive": {
+      "created": 32,
+      "existing": 32,
+      "linkedMembers": 0,
+      "placeholders": 32,
+      "uniquePlanned": 32
+    }
+  }
+}

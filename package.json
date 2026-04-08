@@ -13,8 +13,11 @@
     "typecheck": "tsc --noEmit",
     "certificates:import": "node scripts/import-certificates.mjs",
     "certificates:verify": "node scripts/verify-certificates.mjs",
+    "content:import:legacy": "node scripts/import-legacy-public-content.mjs",
+    "committee:import:legacy": "node scripts/import-legacy-committee.mjs",
     "members:onboard": "node scripts/onboard-members.mjs",
-    "members:reconcile": "node scripts/reconcile-members.mjs"
+    "members:reconcile": "node scripts/reconcile-members.mjs",
+    "rehearse:cutover": "node scripts/rehearse-cutover.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.47.0",
@@ -22,6 +25,7 @@
     "@supabase/supabase-js": "^2.88.0",
     "csv-parse": "^5.6.0",
     "dotenv": "^17.2.3",
+    "mysql2": "^3.20.0",
     "next": "16.2.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",

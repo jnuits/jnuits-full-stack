@@ -1,8 +1,12 @@
+import Link from "next/link";
+import { getContactContent } from "@/lib/content/site-singletons";
+
 export default async function ContactPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const contactContent = await getContactContent();
   const resolvedSearchParams = await searchParams;
   const message =
     typeof resolvedSearchParams.message === "string"
@@ -18,12 +22,8 @@ export default async function ContactPage({
       <div className="glass-card grid gap-8 px-6 py-8 sm:px-8 lg:grid-cols-[1.1fr_0.9fr]">
         <div>
           <span className="eyebrow">Contact</span>
-          <h1 className="section-title mt-4">Reach the JnUITS team without routing through the legacy proxy.</h1>
-          <p className="section-copy mt-4">
-            This form posts directly to the new `POST /api/contact/submit` route.
-            Delivery is phase-gated on Resend environment variables, but the input
-            validation, honeypot, and request surface are already scaffolded.
-          </p>
+          <h1 className="section-title mt-4">{contactContent.title}</h1>
+          <p className="section-copy mt-4">{contactContent.summary}</p>
           {message ? <p className="status-pill mt-6">{message}</p> : null}
           {error ? (
             <p className="mt-4 text-sm font-semibold text-[var(--brand-rust)]">{error}</p>
@@ -44,16 +44,28 @@ export default async function ContactPage({
 
         <div className="route-grid content-start">
           <article className="route-tile">
-            <h3>Email delivery</h3>
-            <p>Uses Resend once `RESEND_API_KEY` and sender variables are configured.</p>
+            <h3>{contactContent.university}</h3>
+            <p>
+              <Link href={`mailto:${contactContent.email}`}>{contactContent.email}</Link>
+            </p>
           </article>
           <article className="route-tile">
-            <h3>Bot protection</h3>
-            <p>Honeypot field stays in place to silently absorb low-effort spam.</p>
+            <h3>Location</h3>
+            <p>{contactContent.location}</p>
           </article>
           <article className="route-tile">
-            <h3>Safe rollout</h3>
-            <p>Public route exists now, but delivery can stay disabled until secrets are set.</p>
+            <h3>Phone</h3>
+            <p>{contactContent.phone}</p>
+          </article>
+          <article className="route-tile">
+            <h3>Social links</h3>
+            <div className="grid gap-2 text-sm leading-7 text-[var(--brand-ink)]">
+              {contactContent.socialLinks.map((item) => (
+                <Link key={item.href} href={item.href} target="_blank">
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           </article>
         </div>
       </div>

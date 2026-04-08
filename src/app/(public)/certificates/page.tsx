@@ -7,11 +7,19 @@ export default async function CertificatesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const certificateId =
-    typeof resolvedSearchParams.certificateId === "string"
-      ? normalizeCertificateId(resolvedSearchParams.certificateId)
-      : "";
+  const rawCertificateQuery =
+    typeof resolvedSearchParams.q === "string"
+      ? resolvedSearchParams.q
+      : typeof resolvedSearchParams.certificateId === "string"
+        ? resolvedSearchParams.certificateId
+        : "";
+  const certificateId = rawCertificateQuery
+    ? normalizeCertificateId(rawCertificateQuery)
+    : "";
   const certificate = certificateId ? await findCertificateById(certificateId) : null;
+  const certificateName = certificate
+    ? [certificate.first_name, certificate.last_name].filter(Boolean).join(" ")
+    : "";
 
   return (
     <div className="shell py-12">
@@ -29,9 +37,9 @@ export default async function CertificatesPage({
 
           <form className="mt-8 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
             <input
-              name="certificateId"
+              name="q"
               defaultValue={certificateId}
-              placeholder="Enter a certificate ID"
+              placeholder="Enter a certificate ID, e.g. 24007"
             />
             <button className="primary-button" type="submit">
               Verify
@@ -44,13 +52,19 @@ export default async function CertificatesPage({
                 <div className="grid gap-3">
                   <p className="status-pill">Certificate found</p>
                   <h2 className="font-[family-name:var(--font-heading)] text-2xl font-bold">
-                    {certificate.first_name} {certificate.last_name}
+                    {certificateName}
                   </h2>
                   <p className="text-sm text-[var(--muted)]">
                     {certificate.certificate_id} · {certificate.exam_or_event_name}
                   </p>
                   <p className="text-sm text-[var(--brand-ink)]">{certificate.details}</p>
                   <div className="flex flex-wrap gap-3">
+                    <Link
+                      href={`/certificates?q=${certificate.certificate_id}`}
+                      className="secondary-button"
+                    >
+                      Share verification link
+                    </Link>
                     <Link
                       href={`/certificates/${certificate.certificate_id}`}
                       className="secondary-button"
@@ -80,7 +94,11 @@ export default async function CertificatesPage({
         <div className="route-grid content-start">
           <article className="route-tile">
             <h3>Single lookup</h3>
-            <p>`/certificates/[certificateId]` shows the canonical public verification view.</p>
+            <p>
+              Legacy QR links can resolve directly at
+              ` /certificates?q=[certificateId]`, and the detail page at
+              ` /certificates/[certificateId]` remains available.
+            </p>
           </article>
           <article className="route-tile">
             <h3>Batch lookup</h3>

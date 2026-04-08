@@ -21,45 +21,62 @@ function resolveRelation<T>(value: T | T[] | null | undefined) {
   return value || null;
 }
 
-export const getPublicCommitteeSnapshot = cache(async () => {
+export const getPublicCommitteeDirectory = cache(async () => {
   const supabase = await createClient();
-  const { data: term } = await supabase
+  const { data: terms } = await supabase
     .from("committee_terms")
     .select("id, slug, title, summary, starts_on, ends_on, status")
     .eq("is_public", true)
     .in("status", ["active", "upcoming", "archived"])
     .order("starts_on", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("title", { ascending: true })
+    .limit(12);
 
-  if (!term) {
-    return null;
+  if (!terms?.length) {
+    return [];
   }
 
+  const termIds = terms.map((term) => term.id);
   const { data: assignments } = await supabase
     .from("committee_assignments")
     .select(
-      "id, display_name, bio, sort_order, status, starts_on, ends_on, committee_roles(title, code, is_executive, sort_order), members(full_name, jnuits_id, designation, current_organization)"
+      "id, term_id, display_name, bio, sort_order, status, starts_on, ends_on, committee_roles(title, code, is_executive, sort_order), members(full_name, jnuits_id, designation, current_organization)"
     )
-    .eq("term_id", term.id)
+    .in("term_id", termIds)
     .neq("status", "planned")
     .order("sort_order", { ascending: true })
-    .limit(64);
+    .limit(256);
 
-  return {
-    term: term as CommitteeTermRecord,
-    assignments: ((assignments || []) as (CommitteeAssignmentRecord & {
+  const assignmentsByTerm = new Map<
+    string,
+    (CommitteeAssignmentRecord & {
       committee_roles?: CommitteeRoleRecord | CommitteeRoleRecord[] | null;
       members?: MemberRecord | MemberRecord[] | null;
-    })[]).map((assignment) => {
+      term_id: string;
+    })[]
+  >();
+
+  for (const assignment of ((assignments || []) as (CommitteeAssignmentRecord & {
+    committee_roles?: CommitteeRoleRecord | CommitteeRoleRecord[] | null;
+    members?: MemberRecord | MemberRecord[] | null;
+    term_id: string;
+  })[])) {
+    const list = assignmentsByTerm.get(assignment.term_id) || [];
+    list.push(assignment);
+    assignmentsByTerm.set(assignment.term_id, list);
+  }
+
+  return (terms as CommitteeTermRecord[]).map((term) => ({
+    assignments: (assignmentsByTerm.get(term.id) || []).map((assignment) => {
       const role = resolveRelation(assignment.committee_roles);
       const member = resolveRelation(assignment.members);
 
       return {
-        id: assignment.id,
         bio: assignment.bio,
         displayName: assignment.display_name || member?.full_name || "Committee member",
         endsOn: assignment.ends_on,
+        id: assignment.id,
+        jnuitsId: member?.jnuits_id,
         organization: member?.current_organization,
         roleCode: role?.code || "committee-role",
         roleTitle: role?.title || "Committee role",
@@ -67,8 +84,8 @@ export const getPublicCommitteeSnapshot = cache(async () => {
         startsOn: assignment.starts_on,
         status: assignment.status,
         subtitle: member?.designation,
-        jnuitsId: member?.jnuits_id,
       };
     }),
-  };
+    term,
+  }));
 });

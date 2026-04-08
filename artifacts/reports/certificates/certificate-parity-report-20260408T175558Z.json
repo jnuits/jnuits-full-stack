@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-04-08T17:55:58.565Z",
+  "source": {
+    "filePath": "M:\\jnuits\\admin.jnuits.org.bd\\database\\exports\\certificates\\certificates-import-ready-20260407T161456Z.csv",
+    "checksum": "f6e126f7754369762f601421f67ed9e3cd08b83158b322c1a082ea5c1b803d5e",
+    "requestedRows": 135,
+    "normalizedRows": 135
+  },
+  "parity": {
+    "databaseRowsMatched": 135,
+    "missingCount": 0,
+    "mismatchCount": 0,
+    "duplicateCertificateIds": [],
+    "missingSample": [],
+    "mismatchSample": []
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-04-08T18:16:36.494Z",
+  "legacySource": {
+    "frontendRoot": "M:/jnuits/jnuits.org.bd",
+    "hasAbout": true,
+    "hasContact": true,
+    "hasDeveloperInfo": true,
+    "hasHome": true,
+    "publishedBlogs": 1,
+    "publishedEvents": 2,
+    "publishedNotices": 1
+  },
+  "mode": "dry-run",
+  "assets": {
+    "imported": [],
+    "skipped": []
+  },
+  "pages": [],
+  "posts": [],
+  "developers": [],
+  "gallery": [],
+  "downloads": []
+}

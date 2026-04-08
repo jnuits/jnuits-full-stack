@@ -118,7 +118,6 @@ export function normalizeCertificateRow(record, rowNumber) {
 
   if (!certificateId) errors.push("certificate_id is required");
   if (!firstName) errors.push("first_name is required");
-  if (!lastName) errors.push("last_name is required");
   if (!examOrEvent) errors.push("exam_or_event is required");
   if (!examOrEventName) errors.push("exam_or_event_name is required");
   if (!issueDate) errors.push("issue_date must be a valid date");

@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { SiteBrand } from "@/components/layout/site-brand";
+import { getFooterContent } from "@/lib/content/site-singletons";
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const footerContent = await getFooterContent();
+
   return (
     <footer
       className="mt-20 border-t border-[var(--line)] text-white"
@@ -11,11 +14,9 @@ export function SiteFooter() {
     >
       <div className="shell grid gap-8 py-12 md:grid-cols-3">
         <div>
-          <SiteBrand inverted subtitle="Unified website, portal, and operator stack" />
+          <SiteBrand inverted subtitle={footerContent.subtitle} />
           <p className="mt-4 max-w-sm text-sm leading-7 text-white/72">
-            The platform foundation is live, but the content migration, richer
-            portal workflows, and operator queues are still moving through the
-            execution plan. This is the beginning of the rollout, not the end state.
+            {footerContent.summary}
           </p>
         </div>
 
@@ -33,12 +34,12 @@ export function SiteFooter() {
 
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/55">
-            Delivery Path
+            Contact
           </p>
           <div className="mt-3 grid gap-2 text-sm text-white/80">
-            <span>Phases 00-02 established the secure core</span>
-            <span>Phases 03-05 now include the live public-content rebuild lane</span>
-            <span>Dark and light modes now share the same brand system</span>
+            <span>{footerContent.university}</span>
+            <Link href={`mailto:${footerContent.email}`}>{footerContent.email}</Link>
+            <span>{footerContent.location}</span>
           </div>
         </div>
       </div>

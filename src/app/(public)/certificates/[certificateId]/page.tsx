@@ -10,6 +10,9 @@ export default async function CertificateDetailsPage({
   const { certificateId: rawCertificateId } = await params;
   const certificateId = normalizeCertificateId(rawCertificateId);
   const certificate = await findCertificateById(certificateId);
+  const certificateName = certificate
+    ? [certificate.first_name, certificate.last_name].filter(Boolean).join(" ")
+    : "";
 
   if (!certificate) {
     notFound();
@@ -19,9 +22,7 @@ export default async function CertificateDetailsPage({
     <div className="shell py-12">
       <section className="glass-card px-6 py-8 sm:px-8">
         <span className="eyebrow">Verified certificate</span>
-        <h1 className="section-title mt-4">
-          {certificate.first_name} {certificate.last_name}
-        </h1>
+        <h1 className="section-title mt-4">{certificateName}</h1>
         <p className="section-copy mt-4">
           {certificate.certificate_id} · {certificate.exam_or_event_name}
         </p>

@@ -1,0 +1,39 @@
+{
+  "mode": "dry-run",
+  "generatedAt": "2026-04-08T17:53:51.669Z",
+  "source": {
+    "name": "certificates-import-ready-20260407T161456Z",
+    "filePath": "M:\\jnuits\\admin.jnuits.org.bd\\database\\exports\\certificates\\certificates-import-ready-20260407T161456Z.csv",
+    "checksum": "f6e126f7754369762f601421f67ed9e3cd08b83158b322c1a082ea5c1b803d5e",
+    "rowCount": 135
+  },
+  "validation": {
+    "validRows": 131,
+    "rejectedRows": 4,
+    "duplicateCertificateIds": [],
+    "rejectedSamples": [
+      {
+        "rowNumber": 7,
+        "parseError": "last_name is required"
+      },
+      {
+        "rowNumber": 42,
+        "parseError": "last_name is required"
+      },
+      {
+        "rowNumber": 43,
+        "parseError": "last_name is required"
+      },
+      {
+        "rowNumber": 78,
+        "parseError": "last_name is required"
+      }
+    ]
+  },
+  "execution": {
+    "batchId": null,
+    "inserted": 0,
+    "updated": 0,
+    "rejected": 4
+  }
+}
