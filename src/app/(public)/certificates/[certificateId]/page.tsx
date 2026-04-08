@@ -74,10 +74,6 @@ export default async function CertificateDetailsPage({
               <dd>{certificate.certificate_id}</dd>
             </div>
             <div className="certificate-table__row">
-              <dt>Type</dt>
-              <dd>{certificateType.label}</dd>
-            </div>
-            <div className="certificate-table__row">
               <dt>{certificateSubjectLabel}</dt>
               <dd>{certificate.exam_or_event_name}</dd>
             </div>
