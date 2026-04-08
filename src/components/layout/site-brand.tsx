@@ -12,11 +12,15 @@ export function SiteBrand({
   compact = false,
   href = "/",
   inverted = false,
-  subtitle = "Public site + member portal",
+  subtitle,
 }: SiteBrandProps) {
   return (
     <Link aria-label="Go to JnUITS home" className="inline-flex" href={href}>
-      <div className="brand-lockup">
+      <div
+        className="brand-lockup"
+        data-compact={compact ? "true" : "false"}
+        data-inverted={inverted ? "true" : "false"}
+      >
         <div
           className={`brand-mark ${inverted ? "brand-mark--inverted" : ""} ${compact ? "size-12" : "size-14"}`}
         >
@@ -28,13 +32,10 @@ export function SiteBrand({
             width={56}
           />
         </div>
-        <div>
-          <div className="font-[family-name:var(--font-heading)] text-lg font-bold tracking-tight">
-            JnUITS
-          </div>
-          <div className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted)]">
-            {subtitle}
-          </div>
+        <div className="brand-copy">
+          <div className="brand-title">JnUITS</div>
+          <div className="brand-slogan">Stay ahead with IT</div>
+          {subtitle ? <div className="brand-subtitle">{subtitle}</div> : null}
         </div>
       </div>
     </Link>

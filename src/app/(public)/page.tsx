@@ -23,7 +23,12 @@ export default async function HomePage() {
         <div className="shell hero-grid">
           <div>
             <span className="eyebrow">{homeContent.eyebrow}</span>
-            <p className="hero-brand mt-6">{heroSlide?.title || "JnUITS digital rebuild"}</p>
+            <p className="hero-brand mt-6">Stay ahead with IT</p>
+            {heroSlide?.title ? (
+              <p className="mt-3 text-sm font-semibold uppercase tracking-[0.18em] text-[var(--brand-blue)]">
+                {heroSlide.title}
+              </p>
+            ) : null}
             <h1 className="hero-title mt-4">{homeContent.title}</h1>
             <p className="section-copy mt-6">{homeContent.summary}</p>
             <div className="mt-8 flex flex-wrap gap-3">

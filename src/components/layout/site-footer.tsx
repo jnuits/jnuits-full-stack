@@ -6,12 +6,7 @@ export async function SiteFooter() {
   const footerContent = await getFooterContent();
 
   return (
-    <footer
-      className="mt-20 border-t border-[var(--line)] text-white"
-      style={{
-        background: "color-mix(in oklab, var(--foreground) 88%, black 12%)",
-      }}
-    >
+    <footer className="site-footer mt-20">
       <div className="shell grid gap-8 py-12 md:grid-cols-3">
         <div>
           <SiteBrand inverted subtitle={footerContent.subtitle} />
@@ -21,7 +16,7 @@ export async function SiteFooter() {
         </div>
 
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/55">
+          <p className="site-footer__column-title">
             Key Surfaces
           </p>
           <div className="mt-3 grid gap-2 text-sm text-white/80">
@@ -33,7 +28,7 @@ export async function SiteFooter() {
         </div>
 
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/55">
+          <p className="site-footer__column-title">
             Contact
           </p>
           <div className="mt-3 grid gap-2 text-sm text-white/80">

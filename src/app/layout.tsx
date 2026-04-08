@@ -53,7 +53,7 @@ export const metadata: Metadata = {
     template: "%s | JnUITS",
   },
   description:
-    "Unified Next.js and Supabase platform for the JnUITS public website, member portal, certificate verification, and operator workflows.",
+    "Stay ahead with IT. Unified Next.js and Supabase platform for the JnUITS public website, member portal, certificate verification, and operator workflows.",
 };
 
 export default function RootLayout({

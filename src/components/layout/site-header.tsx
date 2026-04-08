@@ -14,20 +14,16 @@ export function SiteHeader() {
       <div className="shell py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SiteBrand />
-          <nav className="hidden items-center gap-2 xl:flex">
+          <nav className="site-nav hidden xl:flex">
             {publicNavigation.map((item) => {
               const active = pathname === item.href;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="rounded-full px-4 py-2 text-sm font-semibold transition"
-                  style={{
-                    color: active ? "var(--primary-foreground)" : "var(--brand-ink)",
-                    background: active
-                      ? "linear-gradient(135deg, var(--brand-deep), var(--brand-blue))"
-                      : "transparent",
-                  }}
+                  aria-current={active ? "page" : undefined}
+                  className="site-nav-link"
+                  data-active={active ? "true" : "false"}
                 >
                   {item.label}
                 </Link>
@@ -43,20 +39,16 @@ export function SiteHeader() {
           </div>
         </div>
 
-        <nav className="mt-4 flex gap-2 overflow-x-auto pb-1 xl:hidden">
+        <nav className="site-nav mt-4 overflow-x-auto pb-1 xl:hidden">
           {publicNavigation.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap transition"
-                style={{
-                  color: active ? "var(--primary-foreground)" : "var(--brand-ink)",
-                  background: active
-                    ? "linear-gradient(135deg, var(--brand-deep), var(--brand-blue))"
-                    : "color-mix(in oklab, var(--panel) 78%, transparent)",
-                }}
+                aria-current={active ? "page" : undefined}
+                className="site-nav-link"
+                data-active={active ? "true" : "false"}
               >
                 {item.label}
               </Link>
