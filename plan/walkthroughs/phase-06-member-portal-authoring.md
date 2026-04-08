@@ -7,10 +7,10 @@ Deliver a safe non-technical portal for claimed members, including profile flows
 ## Implementation checklist
 
 - Build claimed-member profile and profile-edit surfaces.
-- Keep direct sensitive mutations disabled until step-up verification is complete and route sensitive edits through moderated change requests.
+- Keep moderated profile requests available, but ship final step-up verification for direct sensitive edits.
 - Add password-change continuity inside the portal with reauthentication support.
 - Expose workplace request history and submission for alumni.
-- Add committee/general-member blog drafting in the portal, not `/admin`.
+- Add committee/general-member blog drafting in the portal, not `/admin`, with admin-side publish/return review.
 
 ## Verification checklist
 
@@ -29,7 +29,7 @@ Deliver a safe non-technical portal for claimed members, including profile flows
 
 ## Acceptance gate
 
-Non-technical members can complete core self-service flows, including moderated profile updates, without touching the technical admin workspace.
+Non-technical members can complete core self-service flows, including step-up protected direct edits and portal blog drafting, without touching the technical admin workspace.
 
 ## Rollback or recovery notes
 

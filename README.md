@@ -13,7 +13,9 @@ Unified Next.js + Supabase application for the JnUITS public site, member portal
 - Committee term and assignment administration in `/admin/committee`
 - Operator reporting snapshots and reconciliation views in `/admin/reports`
 - Richer portal moderation flows for workplace requests and profile change requests
-- Supabase-backed content/admin models for public pages, with Cloudinary reserved for large media storage
+- Step-up protected direct profile edits and member blog authoring in the portal
+- Supabase-backed content/admin models for public pages, with direct Cloudinary upload plus metadata registration for large media
+- Repo-managed CSV onboarding and reconciliation scripts with archived reports
 - Phase tracker and walkthrough documents in [`plan`](./plan)
 
 ## Required environment variables
@@ -41,6 +43,10 @@ Deferred until their phases:
 - `SENTRY_PROJECT`
 - `SENTRY_RELEASE`
 
+Optional for script-persisted operator reports:
+
+- `SUPABASE_REPORT_ACTOR_USER_ID`
+
 ## Local development
 
 ```bash
@@ -56,6 +62,8 @@ npm run typecheck
 npm run build
 npm run certificates:import -- --file path/to/certificates-import-ready.csv --dry-run
 npm run certificates:verify -- --file path/to/certificates-import-ready.csv
+npm run members:onboard -- --file artifacts/templates/member-onboarding-template.csv --dry-run
+npm run members:reconcile -- --dry-run
 ```
 
 Sentry smoke test in local development:
@@ -82,4 +90,5 @@ curl http://localhost:3000/api/debug/sentry
 ## Reports and evidence
 
 - Certificate import and parity reports are written to `artifacts/reports/certificates/`.
+- Membership onboarding and reconciliation reports are written to `artifacts/reports/membership/`.
 - Phase tracking and verification gates are maintained in [`plan/IMPLEMENTATION_TRACKER.md`](./plan/IMPLEMENTATION_TRACKER.md).

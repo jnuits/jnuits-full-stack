@@ -11,7 +11,7 @@ Replace the old operator-only workflows with technical but task-first admin queu
 - Build moderation queues for profile/workplace updates.
 - Port committee, tenure, and role-assignment workflows.
 - Add operator reporting snapshots and reconciliation visibility inside `/admin/reports`.
-- Port CSV onboarding and reconciliation scripts with dry-run/apply reporting.
+- Port CSV onboarding and reconciliation scripts with dry-run/apply reporting and archived JSON evidence.
 - Add audit exploration for sensitive operations.
 
 ## Verification checklist

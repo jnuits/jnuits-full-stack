@@ -213,6 +213,7 @@ export type Database = {
           id: string;
           member_id: string | null;
           role_id: string;
+          rollover_source_assignment_id: string | null;
           sort_order: number;
           starts_on: string | null;
           status: string;
@@ -228,6 +229,7 @@ export type Database = {
           id?: string;
           member_id?: string | null;
           role_id: string;
+          rollover_source_assignment_id?: string | null;
           sort_order?: number;
           starts_on?: string | null;
           status?: string;
@@ -243,6 +245,7 @@ export type Database = {
           id?: string;
           member_id?: string | null;
           role_id?: string;
+          rollover_source_assignment_id?: string | null;
           sort_order?: number;
           starts_on?: string | null;
           status?: string;
@@ -262,6 +265,13 @@ export type Database = {
             columns: ["role_id"];
             isOneToOne: false;
             referencedRelation: "committee_roles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "committee_assignments_rollover_source_assignment_id_fkey";
+            columns: ["rollover_source_assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "committee_assignments";
             referencedColumns: ["id"];
           },
           {
@@ -313,6 +323,7 @@ export type Database = {
           ends_on: string | null;
           id: string;
           is_public: boolean;
+          rollover_source_term_id: string | null;
           slug: string;
           starts_on: string;
           status: string;
@@ -326,6 +337,7 @@ export type Database = {
           ends_on?: string | null;
           id?: string;
           is_public?: boolean;
+          rollover_source_term_id?: string | null;
           slug: string;
           starts_on: string;
           status?: string;
@@ -339,6 +351,7 @@ export type Database = {
           ends_on?: string | null;
           id?: string;
           is_public?: boolean;
+          rollover_source_term_id?: string | null;
           slug?: string;
           starts_on?: string;
           status?: string;
@@ -346,7 +359,15 @@ export type Database = {
           title?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "committee_terms_rollover_source_term_id_fkey";
+            columns: ["rollover_source_term_id"];
+            isOneToOne: false;
+            referencedRelation: "committee_terms";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       content_pages: {
         Row: {
@@ -389,6 +410,7 @@ export type Database = {
       };
       content_posts: {
         Row: {
+          author_member_id: string | null;
           body: string | null;
           category: string | null;
           content_type: string;
@@ -402,14 +424,19 @@ export type Database = {
           media_asset_id: string | null;
           published_at: string | null;
           read_time: string | null;
+          review_note: string | null;
+          reviewed_at: string | null;
+          reviewed_by_user_id: string | null;
           slug: string;
           starts_at: string | null;
           status: string;
+          submitted_at: string | null;
           summary: string | null;
           title: string;
           updated_at: string;
         };
         Insert: {
+          author_member_id?: string | null;
           body?: string | null;
           category?: string | null;
           content_type: string;
@@ -423,14 +450,19 @@ export type Database = {
           media_asset_id?: string | null;
           published_at?: string | null;
           read_time?: string | null;
+          review_note?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by_user_id?: string | null;
           slug: string;
           starts_at?: string | null;
           status?: string;
+          submitted_at?: string | null;
           summary?: string | null;
           title: string;
           updated_at?: string;
         };
         Update: {
+          author_member_id?: string | null;
           body?: string | null;
           category?: string | null;
           content_type?: string;
@@ -444,14 +476,25 @@ export type Database = {
           media_asset_id?: string | null;
           published_at?: string | null;
           read_time?: string | null;
+          review_note?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by_user_id?: string | null;
           slug?: string;
           starts_at?: string | null;
           status?: string;
+          submitted_at?: string | null;
           summary?: string | null;
           title?: string;
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "content_posts_author_member_id_fkey";
+            columns: ["author_member_id"];
+            isOneToOne: false;
+            referencedRelation: "members";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "content_posts_media_asset_id_fkey";
             columns: ["media_asset_id"];

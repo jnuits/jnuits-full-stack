@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "certificates:import": "node scripts/import-certificates.mjs",
-    "certificates:verify": "node scripts/verify-certificates.mjs"
+    "certificates:verify": "node scripts/verify-certificates.mjs",
+    "members:onboard": "node scripts/onboard-members.mjs",
+    "members:reconcile": "node scripts/reconcile-members.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.47.0",

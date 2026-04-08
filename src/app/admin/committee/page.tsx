@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import {
+  rolloverCommitteeTerm,
   saveCommitteeAssignment,
   saveCommitteeTerm,
 } from "@/app/admin/committee/actions";
@@ -14,6 +15,7 @@ type CommitteeTermRecord = {
   ends_on: string | null;
   id: string;
   is_public: boolean;
+  rollover_source_term_id: string | null;
   slug: string;
   starts_on: string;
   status: string;
@@ -82,7 +84,9 @@ export default async function AdminCommitteePage() {
   const [termsResult, rolesResult, membersResult] = await Promise.all([
     admin
       .from("committee_terms")
-      .select("id, slug, title, summary, starts_on, ends_on, status, is_public, created_at")
+      .select(
+        "id, slug, title, summary, starts_on, ends_on, status, is_public, created_at, rollover_source_term_id"
+      )
       .order("starts_on", { ascending: false }),
     admin
       .from("committee_roles")
@@ -322,6 +326,127 @@ export default async function AdminCommitteePage() {
         </form>
       </section>
 
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <form action={rolloverCommitteeTerm} className="section-band grid gap-4">
+          <div>
+            <span className="eyebrow">Tenure automation</span>
+            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
+              Roll one committee term into the next without re-entering the roster
+            </h2>
+          </div>
+          <p className="section-copy">
+            This creates a new term, preserves lineage back to the source term,
+            optionally carries active assignments, and saves a committee rollover
+            report for operator evidence.
+          </p>
+          <div className="portal-form-grid">
+            <label className="input-label sm:col-span-2">
+              Source term
+              <select name="sourceTermId" required>
+                <option value="">Select a source term</option>
+                {terms.map((term) => (
+                  <option key={term.id} value={term.id}>
+                    {term.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="input-label sm:col-span-2">
+              New term title
+              <input name="title" placeholder="Sixth Executive Committee" required />
+            </label>
+            <label className="input-label">
+              Slug
+              <input name="slug" placeholder="sixth-executive-committee" />
+            </label>
+            <label className="input-label">
+              Status
+              <select defaultValue="upcoming" name="status">
+                <option value="draft">Draft</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="active">Active</option>
+              </select>
+            </label>
+            <label className="input-label">
+              Starts on
+              <input name="startsOn" type="date" required />
+            </label>
+            <label className="input-label">
+              Ends on
+              <input name="endsOn" type="date" />
+            </label>
+            <label className="input-label sm:col-span-2">
+              Summary override
+              <textarea
+                name="summary"
+                placeholder="Leave blank to copy the source term summary."
+                rows={4}
+              />
+            </label>
+            <label className="input-label">
+              New term visibility
+              <select defaultValue="false" name="isPublic">
+                <option value="false">Internal until ready</option>
+                <option value="true">Public route enabled</option>
+              </select>
+            </label>
+            <label className="input-label">
+              Carry assignments
+              <select defaultValue="true" name="carryAssignments">
+                <option value="true">Clone active assignments</option>
+                <option value="false">Create empty term</option>
+              </select>
+            </label>
+            <label className="input-label">
+              Carried assignment status
+              <select defaultValue="planned" name="assignmentStatus">
+                <option value="planned">Planned</option>
+                <option value="active">Active</option>
+              </select>
+            </label>
+            <label className="input-label">
+              Close source term
+              <select defaultValue="true" name="closeSourceTerm">
+                <option value="true">Archive source term</option>
+                <option value="false">Leave source unchanged</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button className="primary-button" type="submit">
+              Run rollover
+            </button>
+          </div>
+        </form>
+
+        <article className="section-band">
+          <span className="eyebrow">Rollover notes</span>
+          <div className="mt-5 grid gap-3">
+            <article className="route-tile">
+              <h3>Lineage preserved</h3>
+              <p>
+                New terms and carried assignments retain source references so the
+                history is auditable instead of being overwritten.
+              </p>
+            </article>
+            <article className="route-tile">
+              <h3>Operator evidence</h3>
+              <p>
+                Every rollover writes an operator report entry and an audit
+                event so committee changes are traceable later.
+              </p>
+            </article>
+            <article className="route-tile">
+              <h3>Safer roster preparation</h3>
+              <p>
+                Carried assignments can start as planned, giving operators room
+                to adjust the new term before it is exposed publicly.
+              </p>
+            </article>
+          </div>
+        </article>
+      </section>
+
       <section className="section-band">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -369,6 +494,9 @@ export default async function AdminCommitteePage() {
                         {term.starts_on}
                         {term.ends_on ? ` • ${term.ends_on}` : ""}
                       </span>
+                      {term.rollover_source_term_id ? (
+                        <span className="detail-chip">Rolled over</span>
+                      ) : null}
                     </div>
                   </div>
 

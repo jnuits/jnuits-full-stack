@@ -6,11 +6,16 @@ import {
   saveGalleryEntry,
   saveMediaAsset,
 } from "@/app/admin/content/actions";
+import { CloudinaryUploadPanel } from "@/components/admin/cloudinary-upload-panel";
+import { MemberBlogSubmissionsPanel } from "@/components/admin/member-blog-submissions-panel";
 import {
   ADMIN_FLASH_COOKIE_NAME,
   parseAdminFlash,
 } from "@/lib/admin/flash";
-import { isCloudinaryConfigured } from "@/lib/cloudinary/config";
+import {
+  getCloudinaryPublicConfig,
+  isCloudinaryConfigured,
+} from "@/lib/cloudinary/config";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type MediaAssetOption = {
@@ -52,14 +57,42 @@ type DeveloperRecord = {
   status: string;
 };
 
+type MemberBlogSubmission = {
+  author_member_id: string | null;
+  category: string | null;
+  id: string;
+  read_time: string | null;
+  review_note: string | null;
+  slug: string;
+  submitted_at: string | null;
+  summary: string | null;
+  title: string;
+  updated_at: string;
+  members?:
+    | { email?: string | null; full_name?: string | null; jnuits_id?: string | null }
+    | { email?: string | null; full_name?: string | null; jnuits_id?: string | null }[]
+    | null;
+};
+
 export default async function AdminContentPage() {
   const admin = createAdminClient();
   const cookieStore = await cookies();
+  const cloudinaryConfigured = isCloudinaryConfigured();
+  const cloudinaryConfig = cloudinaryConfigured
+    ? getCloudinaryPublicConfig()
+    : null;
   const flash = parseAdminFlash(
     cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value
   );
 
-  const [mediaResult, pagesResult, postsResult, galleryResult, developersResult] =
+  const [
+    mediaResult,
+    pagesResult,
+    postsResult,
+    galleryResult,
+    developersResult,
+    submittedBlogsResult,
+  ] =
     await Promise.all([
       admin
         .from("media_assets")
@@ -85,6 +118,15 @@ export default async function AdminContentPage() {
         .select("id, name, role, status, is_lead")
         .order("updated_at", { ascending: false })
         .limit(12),
+      admin
+        .from("content_posts")
+        .select(
+          "id, title, slug, summary, category, read_time, submitted_at, updated_at, review_note, author_member_id, members!content_posts_author_member_id_fkey(full_name, jnuits_id, email)"
+        )
+        .eq("content_type", "blog")
+        .eq("status", "submitted")
+        .order("submitted_at", { ascending: true })
+        .limit(8),
     ]);
 
   const mediaAssets = (mediaResult.data || []) as MediaAssetOption[];
@@ -92,6 +134,8 @@ export default async function AdminContentPage() {
   const postRows = (postsResult.data || []) as ContentPostRecord[];
   const galleryRows = (galleryResult.data || []) as GalleryRecord[];
   const developerRows = (developersResult.data || []) as DeveloperRecord[];
+  const submittedBlogs =
+    (submittedBlogsResult.data || []) as MemberBlogSubmission[];
 
   return (
     <div className="grid gap-8">
@@ -99,7 +143,7 @@ export default async function AdminContentPage() {
         <div className="workspace-topbar">
           <span className="eyebrow">Content and media admin</span>
           <span className="status-pill">
-            {isCloudinaryConfigured()
+            {cloudinaryConfigured
               ? "Cloudinary env detected"
               : "Cloudinary env still needed"}
           </span>
@@ -167,12 +211,18 @@ export default async function AdminContentPage() {
         </article>
       </section>
 
+      <CloudinaryUploadPanel
+        cloudName={cloudinaryConfig?.cloudName || "unconfigured"}
+        configured={cloudinaryConfigured}
+        defaultFolder="jnuits/gallery"
+      />
+
       <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <form action={saveMediaAsset} className="section-band grid gap-4">
           <div>
-            <span className="eyebrow">Cloudinary registry</span>
+            <span className="eyebrow">Manual Cloudinary registry</span>
             <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-              Register a Cloudinary asset without storing binary media in Supabase
+              Register an existing Cloudinary asset when upload happened elsewhere
             </h2>
           </div>
           <div className="portal-form-grid">
@@ -478,6 +528,8 @@ export default async function AdminContentPage() {
           </div>
         </article>
       </section>
+
+      <MemberBlogSubmissionsPanel submissions={submittedBlogs} />
 
       <section className="grid gap-4 xl:grid-cols-2">
         <form action={saveGalleryEntry} className="section-band grid gap-4">

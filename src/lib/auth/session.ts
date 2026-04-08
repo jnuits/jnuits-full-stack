@@ -11,6 +11,16 @@ export type AuthContext = {
   roles: string[];
 };
 
+export function hasOperatorRole(roles: string[]) {
+  return roles.some(
+    (role) =>
+      role === "admin" ||
+      role === "moderator" ||
+      role === "content_editor" ||
+      role === "committee_author"
+  );
+}
+
 export async function getAuthContext(): Promise<AuthContext> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();

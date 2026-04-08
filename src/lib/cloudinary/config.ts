@@ -1,9 +1,15 @@
+import "server-only";
+
+import { createHash } from "node:crypto";
+
 export type CloudinaryConfig = {
   apiKey: string;
   apiSecret: string;
   cloudName: string;
   uploadPreset: string | null;
 };
+
+export type CloudinaryPublicConfig = Omit<CloudinaryConfig, "apiSecret">;
 
 function clean(value: string | undefined) {
   const trimmed = value?.trim();
@@ -38,6 +44,16 @@ export function isCloudinaryConfigured() {
   );
 }
 
+export function getCloudinaryPublicConfig(): CloudinaryPublicConfig {
+  const config = getCloudinaryConfig();
+
+  return {
+    apiKey: config.apiKey,
+    cloudName: config.cloudName,
+    uploadPreset: config.uploadPreset,
+  };
+}
+
 export function isCloudinaryAssetUrl(value: string) {
   try {
     const url = new URL(value);
@@ -46,4 +62,31 @@ export function isCloudinaryAssetUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+export function normalizeCloudinaryFolder(value: string) {
+  const normalized = value
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/[^a-zA-Z0-9/_-]+/g, "-")
+    .replace(/\/{2,}/g, "/")
+    .replace(/^\/+|\/+$/g, "")
+    .slice(0, 180);
+
+  return normalized || "jnuits/uploads";
+}
+
+export function createCloudinarySignature(
+  params: Record<string, boolean | number | string | null | undefined>,
+  apiSecret: string
+) {
+  const serialized = Object.entries(params)
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join("&");
+
+  return createHash("sha1")
+    .update(`${serialized}${apiSecret}`)
+    .digest("hex");
 }

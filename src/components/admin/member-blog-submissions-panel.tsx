@@ -1,0 +1,156 @@
+import {
+  publishMemberBlogSubmission,
+  returnMemberBlogSubmission,
+} from "@/app/admin/content/actions";
+
+type MemberBlogSubmission = {
+  author_member_id: string | null;
+  category: string | null;
+  id: string;
+  read_time: string | null;
+  review_note: string | null;
+  slug: string;
+  submitted_at: string | null;
+  summary: string | null;
+  title: string;
+  updated_at: string;
+  members?:
+    | {
+        email?: string | null;
+        full_name?: string | null;
+        jnuits_id?: string | null;
+      }
+    | {
+        email?: string | null;
+        full_name?: string | null;
+        jnuits_id?: string | null;
+      }[]
+    | null;
+};
+
+function resolveRelation<T>(value: T | T[] | null | undefined) {
+  if (Array.isArray(value)) {
+    return value[0] || null;
+  }
+
+  return value || null;
+}
+
+export function MemberBlogSubmissionsPanel({
+  submissions,
+}: {
+  submissions: MemberBlogSubmission[];
+}) {
+  return (
+    <section className="grid gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <span className="eyebrow">Member blog review</span>
+          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.7rem)] leading-[0.96] tracking-[-0.04em]">
+            Submitted portal drafts waiting for editorial review
+          </h2>
+        </div>
+        <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
+          Members can now draft inside the portal. Publishing still stays in the
+          admin workspace with review notes and audit evidence.
+        </p>
+      </div>
+
+      {submissions.length === 0 ? (
+        <article className="route-tile">
+          <h3>No submitted member drafts</h3>
+          <p>The review queue is empty right now.</p>
+        </article>
+      ) : (
+        submissions.map((submission) => {
+          const author = resolveRelation(submission.members);
+
+          return (
+            <article key={submission.id} className="application-card">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.04fr)_minmax(320px,0.96fr)]">
+                <div className="application-card__meta">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="eyebrow">Submitted draft</span>
+                    {author?.jnuits_id ? (
+                      <span className="detail-chip">{author.jnuits_id}</span>
+                    ) : null}
+                    {submission.category ? (
+                      <span className="detail-chip">{submission.category}</span>
+                    ) : null}
+                  </div>
+                  <div>
+                    <h3 className="font-[family-name:var(--font-heading)] text-3xl font-semibold tracking-[-0.04em]">
+                      {submission.title}
+                    </h3>
+                    <p className="mt-2 text-base font-semibold text-[var(--brand-blue)]">
+                      {author?.full_name || "Linked member author"}
+                    </p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="route-tile">
+                      <h3>Submitted</h3>
+                      <p>
+                        {new Date(
+                          submission.submitted_at || submission.updated_at
+                        ).toLocaleString("en-BD")}
+                      </p>
+                    </div>
+                    <div className="route-tile">
+                      <h3>Read time</h3>
+                      <p>{submission.read_time || "Not set"}</p>
+                    </div>
+                    <div className="route-tile sm:col-span-2">
+                      <h3>Summary</h3>
+                      <p>{submission.summary || "No summary provided."}</p>
+                    </div>
+                    <div className="route-tile sm:col-span-2">
+                      <h3>Slug</h3>
+                      <p>{submission.slug}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <form className="application-card__actions">
+                  <input name="postId" type="hidden" value={submission.id} />
+                  <label className="input-label">
+                    Review note
+                    <textarea
+                      defaultValue={submission.review_note || ""}
+                      name="reviewNote"
+                      placeholder="Editorial feedback or moderation context"
+                      rows={5}
+                    />
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="input-label">
+                      Publish at
+                      <input name="publishedAt" type="datetime-local" />
+                    </label>
+                    <label className="input-label">
+                      Review status
+                      <input readOnly value="submitted" />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      className="primary-button"
+                      formAction={publishMemberBlogSubmission}
+                    >
+                      Publish blog
+                    </button>
+                    <button
+                      className="secondary-button"
+                      formAction={returnMemberBlogSubmission}
+                    >
+                      Return to author
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </article>
+          );
+        })
+      )}
+    </section>
+  );
+}

@@ -8,7 +8,7 @@ Move notices, blogs, events, gallery, about content, and media handling into the
 
 - Rebuild the placeholder public routes into structured content pages using legacy field mapping as the migration contract.
 - Model the legacy public collections in Supabase-backed tables and keep large media in Cloudinary with metadata stored in Supabase.
-- Port media ingestion and delivery rules with a Cloudinary URL contract and safe publish-state handling.
+- Port media ingestion and delivery rules with direct Cloudinary upload, a metadata registry, and safe publish-state handling.
 - Add safe admin/editor workflows for content moderation and publishing in `/admin/content`.
 
 ## Verification checklist

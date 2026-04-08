@@ -645,8 +645,9 @@ export default async function AdminPage() {
           <article className="route-tile" id="reconcile">
             <h3>Reconcile and CSV onboarding</h3>
             <p>
-              The old onboarding scripts are still waiting to be ported into
-              deterministic dry-run and apply flows with archived reports.
+              Dry-run and apply scripts now live in the repo with archived
+              membership reports. The remaining work is operator polish and
+              rehearsal against production-like source files.
             </p>
           </article>
         </div>

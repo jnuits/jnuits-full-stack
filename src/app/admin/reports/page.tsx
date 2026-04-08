@@ -164,6 +164,15 @@ export default async function AdminReportsPage() {
                 Save full snapshot
               </button>
             </form>
+            <article className="route-tile grid gap-3">
+              <h3>CSV + reconciliation scripts</h3>
+              <p>
+                `npm run members:onboard -- --file artifacts/templates/member-onboarding-template.csv --dry-run`
+              </p>
+              <p>
+                `npm run members:reconcile -- --dry-run --persist-report`
+              </p>
+            </article>
           </div>
         </article>
 

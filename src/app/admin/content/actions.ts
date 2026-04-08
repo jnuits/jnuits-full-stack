@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { setAdminFlash } from "@/lib/admin/flash";
-import { isCloudinaryAssetUrl } from "@/lib/cloudinary/config";
+import {
+  insertAuditEvent as recordAuditEvent,
+  upsertCloudinaryMediaAsset,
+} from "@/lib/content/media-assets";
 import type { Json } from "@/lib/db/types";
 import { requireAdminUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -44,6 +47,16 @@ function slugify(value: string) {
     .slice(0, 120);
 }
 
+function parseDateTime(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
 async function insertAuditEvent(options: {
   action: string;
   actorUserId: string;
@@ -53,13 +66,7 @@ async function insertAuditEvent(options: {
 }) {
   const admin = createAdminClient();
 
-  await admin.from("audit_events").insert({
-    action: options.action,
-    actor_user_id: options.actorUserId,
-    entity_id: options.entityId,
-    entity_type: options.entityType,
-    metadata: options.metadata || {},
-  });
+  await recordAuditEvent(admin, options);
 }
 
 export async function saveMediaAsset(formData: FormData) {
@@ -97,54 +104,25 @@ export async function saveMediaAsset(formData: FormData) {
     redirect("/admin/content");
   }
 
-  if (!isCloudinaryAssetUrl(secureUrl)) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Media asset not saved",
-      message: "Use a Cloudinary delivery URL for secure_url.",
-    });
-    redirect("/admin/content");
-  }
-
   try {
-    const payload = {
-      alt_text: altText || null,
-      bytes: bytes ? asInteger(bytes) : null,
-      created_by_user_id: actorUserId,
-      duration_seconds: durationSeconds ? asFloat(durationSeconds) : null,
-      format: format || null,
-      height: height ? asInteger(height) : null,
-      is_public: isPublic,
-      media_kind: mediaKind,
-      metadata: parseJsonField(metadataJson, {}),
-      provider: "cloudinary",
-      public_id: publicId,
-      resource_type: resourceType,
-      secure_url: secureUrl,
-      thumbnail_url: thumbnailUrl || null,
-      title: title || null,
-      width: width ? asInteger(width) : null,
-    };
-
-    const query = assetId
-      ? admin.from("media_assets").update(payload).eq("id", assetId).select("id").single()
-      : admin.from("media_assets").insert(payload).select("id").single();
-
-    const { data, error } = await query;
-
-    if (error || !data) {
-      throw new Error(error?.message || "Unable to save the Cloudinary asset.");
-    }
-
-    await insertAuditEvent({
-      action: assetId ? "content.media_asset_updated" : "content.media_asset_created",
+    await upsertCloudinaryMediaAsset(admin, {
       actorUserId,
-      entityId: data.id,
-      entityType: "media_asset",
-      metadata: {
+      assetId: assetId || null,
+      input: {
+        altText,
+        bytes: bytes ? asInteger(bytes) : null,
+        durationSeconds: durationSeconds ? asFloat(durationSeconds) : null,
+        format,
+        height: height ? asInteger(height) : null,
         isPublic,
-        mediaKind,
+        mediaKind: mediaKind === "video" ? "video" : "image",
+        metadata: parseJsonField(metadataJson, {}),
         publicId,
+        resourceType,
+        secureUrl,
+        thumbnailUrl,
+        title,
+        width: width ? asInteger(width) : null,
       },
     });
 
@@ -353,6 +331,206 @@ export async function saveContentPost(formData: FormData) {
     });
   }
 
+  redirect("/admin/content");
+}
+
+async function loadSubmittedBlog(
+  admin: ReturnType<typeof createAdminClient>,
+  postId: string
+) {
+  const { data } = await admin
+    .from("content_posts")
+    .select("id, author_member_id, content_type, slug, status, title")
+    .eq("id", postId)
+    .eq("content_type", "blog")
+    .maybeSingle();
+
+  return data;
+}
+
+export async function publishMemberBlogSubmission(formData: FormData) {
+  const auth = await requireAdminUser();
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login");
+  }
+
+  const admin = createAdminClient();
+  const postId = asString(formData.get("postId"));
+  const publishedAt = parseDateTime(asString(formData.get("publishedAt")));
+  const reviewNote = asString(formData.get("reviewNote"));
+
+  if (!postId) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Blog review failed",
+      message: "The member blog identifier is missing.",
+    });
+    redirect("/admin/content");
+  }
+
+  const post = await loadSubmittedBlog(admin, postId);
+
+  if (!post) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Blog review failed",
+      message: "The submitted member draft could not be found.",
+    });
+    redirect("/admin/content");
+  }
+
+  if (post.status !== "submitted") {
+    await setAdminFlash({
+      tone: "error",
+      title: "Blog review failed",
+      message: "Only submitted member drafts can be published from this queue.",
+    });
+    redirect("/admin/content");
+  }
+
+  const reviewTimestamp = new Date().toISOString();
+  const { error } = await admin
+    .from("content_posts")
+    .update({
+      published_at: publishedAt || reviewTimestamp,
+      review_note: reviewNote || null,
+      reviewed_at: reviewTimestamp,
+      reviewed_by_user_id: actorUserId,
+      status: "published",
+      updated_at: reviewTimestamp,
+    })
+    .eq("id", postId);
+
+  if (error) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Blog review failed",
+      message: error.message,
+    });
+    redirect("/admin/content");
+  }
+
+  if (post.author_member_id) {
+    await admin.from("membership_lifecycle_events").insert({
+      member_id: post.author_member_id,
+      event_type: "blog_draft_published",
+      summary: "A member-authored blog draft was published.",
+      created_by_user_id: actorUserId,
+      metadata: {
+        postId,
+        slug: post.slug,
+      },
+    });
+  }
+
+  await insertAuditEvent({
+    action: "content.member_blog_published",
+    actorUserId,
+    entityId: postId,
+    entityType: "content_post",
+    metadata: {
+      authorMemberId: post.author_member_id,
+      slug: post.slug,
+    },
+  });
+
+  revalidatePath("/admin/content");
+  revalidatePath("/blogs");
+  revalidatePath("/portal/blogs");
+  await setAdminFlash({
+    tone: "success",
+    title: "Member blog published",
+    message: `${post.title} is now live on the public blog route.`,
+  });
+  redirect("/admin/content");
+}
+
+export async function returnMemberBlogSubmission(formData: FormData) {
+  const auth = await requireAdminUser();
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login");
+  }
+
+  const admin = createAdminClient();
+  const postId = asString(formData.get("postId"));
+  const reviewNote = asString(formData.get("reviewNote"));
+
+  if (!postId) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Blog review failed",
+      message: "The member blog identifier is missing.",
+    });
+    redirect("/admin/content");
+  }
+
+  const post = await loadSubmittedBlog(admin, postId);
+
+  if (!post) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Blog review failed",
+      message: "The submitted member draft could not be found.",
+    });
+    redirect("/admin/content");
+  }
+
+  const reviewTimestamp = new Date().toISOString();
+  const { error } = await admin
+    .from("content_posts")
+    .update({
+      review_note: reviewNote || "Returned to the author for revision.",
+      reviewed_at: reviewTimestamp,
+      reviewed_by_user_id: actorUserId,
+      status: "draft",
+      updated_at: reviewTimestamp,
+    })
+    .eq("id", postId);
+
+  if (error) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Blog review failed",
+      message: error.message,
+    });
+    redirect("/admin/content");
+  }
+
+  if (post.author_member_id) {
+    await admin.from("membership_lifecycle_events").insert({
+      member_id: post.author_member_id,
+      event_type: "blog_draft_returned",
+      summary: "A member-authored blog draft was returned for revision.",
+      created_by_user_id: actorUserId,
+      metadata: {
+        postId,
+        slug: post.slug,
+      },
+    });
+  }
+
+  await insertAuditEvent({
+    action: "content.member_blog_returned",
+    actorUserId,
+    entityId: postId,
+    entityType: "content_post",
+    metadata: {
+      authorMemberId: post.author_member_id,
+      slug: post.slug,
+    },
+  });
+
+  revalidatePath("/admin/content");
+  revalidatePath("/portal/blogs");
+  await setAdminFlash({
+    tone: "success",
+    title: "Member blog returned",
+    message: `${post.title} is back in the author's draft queue with your review note.`,
+  });
   redirect("/admin/content");
 }
 

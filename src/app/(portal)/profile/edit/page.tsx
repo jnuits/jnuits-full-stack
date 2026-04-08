@@ -1,7 +1,11 @@
+import { cookies } from "next/headers";
+import { DirectProfileEditForm } from "@/components/portal/direct-profile-edit-form";
 import { DirectoryVerificationForm } from "@/components/portal/directory-verification-form";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { ProfileChangeRequestForm } from "@/components/portal/profile-change-request-form";
+import { StepUpVerificationForm } from "@/components/portal/step-up-verification-form";
 import { WorkplaceRequestForm } from "@/components/portal/workplace-request-form";
+import { isStepUpActiveForUser } from "@/lib/auth/step-up";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 
@@ -13,12 +17,14 @@ export default async function EditProfilePage() {
     return null;
   }
 
+  const cookieStore = await cookies();
   const snapshot = await getPortalMemberSnapshot(user.id);
+  const stepUpActive = isStepUpActiveForUser(cookieStore, user.id);
 
   return (
     <PortalShell
       title="Edit profile"
-      summary="Phase 06 now opens the real safe edit surface: directory verification and workplace updates are live here, while direct sensitive mutation stays gated until step-up policy is completed."
+      summary="Directory verification, workplace moderation, and final step-up protected direct edits now live together in one safe member edit surface."
     >
       {!snapshot.member ? (
         <section className="section-band grid gap-4">
@@ -33,18 +39,17 @@ export default async function EditProfilePage() {
         </section>
       ) : (
         <div className="grid gap-4">
-          <section className="section-band grid gap-4">
-            <span className="eyebrow">Step-up policy</span>
-            <h2 className="font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3vw,2.4rem)] leading-[0.96] tracking-[-0.04em]">
-              Sensitive direct mutations remain intentionally locked
-            </h2>
-            <p className="section-copy">
-              Until the full step-up verification policy is finished, the portal
-              keeps direct identity edits disabled instead of silently weakening
-              security. The working self-service lanes below are request-based or
-              verification-gated.
-            </p>
-          </section>
+          <StepUpVerificationForm initiallyActive={stepUpActive} />
+
+          <DirectProfileEditForm
+            currentValues={{
+              fullName: snapshot.member.full_name,
+              linkedinUrl: snapshot.member.linkedin_url,
+              phone: snapshot.member.phone,
+              websiteUrl: snapshot.member.website_url,
+            }}
+            stepUpActive={stepUpActive}
+          />
 
           <DirectoryVerificationForm
             initiallyVerified={snapshot.directoryVerified}

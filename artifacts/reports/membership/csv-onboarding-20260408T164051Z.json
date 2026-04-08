@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2026-04-08T16:40:51.212Z",
+  "mode": "dry-run",
+  "sourceFile": "M:\\jnuits\\jnuits-full-stack\\artifacts\\templates\\member-onboarding-template.csv",
+  "summary": {
+    "created": 0,
+    "invitationsGenerated": 0,
+    "updated": 0,
+    "validationErrors": 0
+  },
+  "rows": [
+    {
+      "action": "create_member",
+      "invitationGenerated": false,
+      "invitationCode": null,
+      "jnuitsId": "JNUITS-2026001",
+      "memberId": null,
+      "mode": "dry-run",
+      "rowNumber": 2,
+      "row": {
+        "alumniSince": null,
+        "batchNo": 58,
+        "currentOrganization": "Example Org",
+        "departmentCode": "CSE",
+        "designation": "Software Engineer",
+        "email": "member@example.com",
+        "expiresAt": null,
+        "fullName": "Example Member",
+        "generateInvitation": true,
+        "jnuitsId": "",
+        "linkedinUrl": "https://linkedin.com/in/example",
+        "maxUses": 1,
+        "memberType": "current",
+        "phone": "+8801XXXXXXXXX",
+        "professionalVisibility": "members-only",
+        "websiteUrl": "https://example.com/",
+        "workLocation": "Dhaka"
+      }
+    }
+  ]
+}

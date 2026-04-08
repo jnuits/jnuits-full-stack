@@ -22,6 +22,17 @@ function slugify(value: string) {
     .slice(0, 80);
 }
 
+function toPreviousDay(value: string) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
 export async function saveCommitteeTerm(formData: FormData) {
   const auth = await requireAdminUser();
   const actorUserId = auth.user?.id;
@@ -197,6 +208,180 @@ export async function saveCommitteeAssignment(formData: FormData) {
       ? "Committee assignment updated"
       : "Committee assignment created",
     message: "The committee roster change is now saved.",
+  });
+  redirect("/admin/committee");
+}
+
+export async function rolloverCommitteeTerm(formData: FormData) {
+  const auth = await requireAdminUser();
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login");
+  }
+
+  const admin = createAdminClient();
+  const sourceTermId = asString(formData.get("sourceTermId"));
+  const title = asString(formData.get("title"));
+  const slug = slugify(asString(formData.get("slug")) || title);
+  const summary = asString(formData.get("summary"));
+  const startsOn = asString(formData.get("startsOn"));
+  const endsOn = asString(formData.get("endsOn"));
+  const status = asString(formData.get("status")) || "upcoming";
+  const isPublic = asBoolean(formData.get("isPublic"));
+  const carryAssignments = asBoolean(formData.get("carryAssignments"));
+  const closeSourceTerm = asBoolean(formData.get("closeSourceTerm"));
+  const assignmentStatus = asString(formData.get("assignmentStatus")) || "planned";
+
+  if (!sourceTermId || !title || !slug || !startsOn) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Committee rollover failed",
+      message: "Choose a source term, title, slug, and new start date.",
+    });
+    redirect("/admin/committee");
+  }
+
+  const { data: sourceTerm, error: sourceError } = await admin
+    .from("committee_terms")
+    .select("id, title, slug, summary, starts_on, ends_on, status")
+    .eq("id", sourceTermId)
+    .maybeSingle();
+
+  if (sourceError || !sourceTerm) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Committee rollover failed",
+      message: "The source committee term could not be loaded.",
+    });
+    redirect("/admin/committee");
+  }
+
+  const { data: newTerm, error: insertError } = await admin
+    .from("committee_terms")
+    .insert({
+      created_by_user_id: actorUserId,
+      ends_on: endsOn || null,
+      is_public: isPublic,
+      rollover_source_term_id: sourceTerm.id,
+      slug,
+      starts_on: startsOn,
+      status,
+      summary: summary || sourceTerm.summary,
+      title,
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !newTerm) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Committee rollover failed",
+      message: insertError?.message || "Unable to create the rollover term.",
+    });
+    redirect("/admin/committee");
+  }
+
+  let clonedAssignments = 0;
+
+  if (carryAssignments) {
+    const { data: sourceAssignments, error: assignmentLoadError } = await admin
+      .from("committee_assignments")
+      .select(
+        "id, role_id, member_id, display_name, bio, sort_order, starts_on, ends_on, status"
+      )
+      .eq("term_id", sourceTerm.id)
+      .neq("status", "completed")
+      .order("sort_order", { ascending: true });
+
+    if (assignmentLoadError) {
+      await setAdminFlash({
+        tone: "error",
+        title: "Committee rollover failed",
+        message: assignmentLoadError.message,
+      });
+      redirect("/admin/committee");
+    }
+
+    if ((sourceAssignments || []).length > 0) {
+      const { error: assignmentInsertError } = await admin
+        .from("committee_assignments")
+        .insert(
+          (sourceAssignments || []).map((assignment) => ({
+            bio: assignment.bio,
+            created_by_user_id: actorUserId,
+            display_name: assignment.display_name,
+            ends_on: null,
+            member_id: assignment.member_id,
+            role_id: assignment.role_id,
+            rollover_source_assignment_id: assignment.id,
+            sort_order: assignment.sort_order,
+            starts_on: startsOn,
+            status: assignmentStatus,
+            term_id: newTerm.id,
+          }))
+        );
+
+      if (assignmentInsertError) {
+        await setAdminFlash({
+          tone: "error",
+          title: "Committee rollover failed",
+          message: assignmentInsertError.message,
+        });
+        redirect("/admin/committee");
+      }
+
+      clonedAssignments = sourceAssignments?.length || 0;
+    }
+  }
+
+  if (closeSourceTerm) {
+    const sourceEndsOn = toPreviousDay(startsOn);
+
+    await admin
+      .from("committee_terms")
+      .update({
+        ends_on: sourceEndsOn || sourceTerm.ends_on,
+        status: "archived",
+      })
+      .eq("id", sourceTerm.id);
+  }
+
+  await admin.from("operator_reports").insert({
+    created_by_user_id: actorUserId,
+    report: {
+      carryAssignments,
+      clonedAssignments,
+      closeSourceTerm,
+      newTermId: newTerm.id,
+      sourceTermId: sourceTerm.id,
+    },
+    report_type: "committee_rollover",
+    status: "completed",
+    summary: `${sourceTerm.title} rolled into ${title}.`,
+    title: `Committee rollover: ${sourceTerm.title} -> ${title}`,
+  });
+
+  await admin.from("audit_events").insert({
+    actor_user_id: actorUserId,
+    action: "committee.term_rolled_over",
+    entity_type: "committee_term",
+    entity_id: newTerm.id,
+    metadata: {
+      carryAssignments,
+      clonedAssignments,
+      closeSourceTerm,
+      sourceTermId: sourceTerm.id,
+    },
+  });
+
+  revalidatePath("/admin/committee");
+  revalidatePath("/committee");
+  revalidatePath("/admin/reports");
+  await setAdminFlash({
+    tone: "success",
+    title: "Committee rollover completed",
+    message: `${title} was created from ${sourceTerm.title}${carryAssignments ? ` with ${clonedAssignments} carried assignments` : ""}.`,
   });
   redirect("/admin/committee");
 }
