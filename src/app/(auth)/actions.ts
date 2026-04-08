@@ -1,11 +1,10 @@
 "use server";
 
-import { createHmac } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
-import { getSupabaseAdminKey } from "@/lib/supabase/config";
+import { hashInvitationCode } from "@/lib/members/invitation-code";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,12 +18,6 @@ function encodeMessage(message: string) {
 
 function getEmailRedirect(pathname: string) {
   return `${getAppBaseUrl()}/auth/confirm?next=${encodeURIComponent(pathname)}`;
-}
-
-function hashInvitationCode(value: string) {
-  return createHmac("sha256", getSupabaseAdminKey())
-    .update(value.trim().toUpperCase())
-    .digest("hex");
 }
 
 type InvitationLookup = Database["public"]["Tables"]["member_invitations"]["Row"] & {

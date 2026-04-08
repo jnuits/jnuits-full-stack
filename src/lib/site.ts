@@ -39,7 +39,7 @@ export const implementationPhases: ImplementationPhase[] = [
   },
   {
     id: "Phase 03",
-    summary: "Branded public shell, homepage composition, header, footer, and key public routes.",
+    summary: "Branded public shell, refined light/dark theme, header, footer, and key public routes.",
     status: "In Progress",
   },
   {
@@ -60,7 +60,7 @@ export const implementationPhases: ImplementationPhase[] = [
   {
     id: "Phase 07",
     summary: "Admin queues, invitation batches, committees, audits, and reconciliation tooling.",
-    status: "Queued",
+    status: "In Progress",
   },
   {
     id: "Phase 08",
@@ -79,8 +79,9 @@ export const portalNavigation: NavItem[] = [
 
 export const adminNavigation: NavItem[] = [
   { href: "/admin", label: "Overview" },
+  { href: "/admin#applications", label: "Applications" },
   { href: "/admin#invitations", label: "Invitations" },
-  { href: "/admin#moderation", label: "Moderation" },
+  { href: "/admin#decisions", label: "Decisions" },
   { href: "/admin#certificates", label: "Certificates" },
   { href: "/admin#reconcile", label: "Reconcile" },
 ];

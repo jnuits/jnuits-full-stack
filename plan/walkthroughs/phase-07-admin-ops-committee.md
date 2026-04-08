@@ -7,6 +7,7 @@ Replace the old operator-only workflows with technical but task-first admin queu
 ## Implementation checklist
 
 - Build invitation management, resend, and audit views.
+- Build the first operator queue for membership application review and invitation generation.
 - Build moderation queues for profile/workplace updates.
 - Port committee, tenure, and role-assignment workflows.
 - Port CSV onboarding and reconciliation scripts with dry-run/apply reporting.

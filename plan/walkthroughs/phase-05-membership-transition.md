@@ -7,13 +7,14 @@ Run the old public membership intake and the new invitation/claim model side by 
 ## Implementation checklist
 
 - Build the public membership application form and status-check workflow.
+- Build the admin review queue that converts pending applications into approved members plus invitations.
 - Keep invitation-based claim as the preferred member activation path.
 - Preserve the directory verification gate for sensitive workplace data.
 - Add member and alumni directory read paths based on safe projections.
 
 ## Verification checklist
 
-- Confirm public application inserts succeed and can be reviewed by operators.
+- Confirm public application inserts succeed and can be reviewed, approved, or rejected by operators.
 - Confirm claim flow consumes a valid invitation and links the member.
 - Confirm directory verification cookies are scoped to the authenticated member.
 

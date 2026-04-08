@@ -50,9 +50,9 @@ export default function HomePage() {
               <div className="hero-stage-copy">
                 <p className="hero-stage-title">Built around the official mark, not placeholder styling.</p>
                 <p className="section-copy mt-4">
-                  The public shell now carries the same indigo, brass, and parchment
-                  character in both light and dark mode so later phases inherit a real
-                  design system instead of a scaffold.
+                  The public shell now uses a cleaner brand system with indigo,
+                  brass, and crisp neutral surfaces so later phases inherit a real
+                  interface foundation instead of a scaffold.
                 </p>
               </div>
             </article>
@@ -82,7 +82,8 @@ export default function HomePage() {
                 <li>
                   <strong>Design system established</strong>
                   The interface is moving from placeholder cards to a branded visual
-                  language that the later content and admin phases can reuse.
+                  language with a proper light/dark theme that the later content and
+                  admin phases can reuse.
                 </li>
               </ul>
             </div>

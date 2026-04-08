@@ -52,7 +52,7 @@ export function PortalShell({
 
           <main className="workspace-main p-6 sm:p-8">
             <div className="workspace-topbar">
-              <span className="status-pill">Phase 06 queued after current migration work</span>
+              <span className="status-pill">Phase 06 is next after the active admin and membership work</span>
             </div>
             <h1 className="section-title text-[2.45rem]">{title}</h1>
             <p className="section-copy mt-3">{summary}</p>

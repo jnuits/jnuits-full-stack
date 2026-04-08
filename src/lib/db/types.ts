@@ -374,10 +374,15 @@ export type Database = {
           email: string;
           facebook_url: string | null;
           id: string;
+          invitation_id: string | null;
           linkedin_url: string | null;
           name: string;
           phone: string | null;
           photo_url: string | null;
+          processed_member_id: string | null;
+          review_note: string | null;
+          reviewed_at: string | null;
+          reviewed_by_user_id: string | null;
           status: string;
           student_id: string | null;
           updated_at: string;
@@ -389,10 +394,15 @@ export type Database = {
           email: string;
           facebook_url?: string | null;
           id?: string;
+          invitation_id?: string | null;
           linkedin_url?: string | null;
           name: string;
           phone?: string | null;
           photo_url?: string | null;
+          processed_member_id?: string | null;
+          review_note?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by_user_id?: string | null;
           status?: string;
           student_id?: string | null;
           updated_at?: string;
@@ -404,21 +414,40 @@ export type Database = {
           email?: string;
           facebook_url?: string | null;
           id?: string;
+          invitation_id?: string | null;
           linkedin_url?: string | null;
           name?: string;
           phone?: string | null;
           photo_url?: string | null;
+          processed_member_id?: string | null;
+          review_note?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by_user_id?: string | null;
           status?: string;
           student_id?: string | null;
           updated_at?: string;
         };
         Relationships: [
           {
+            foreignKeyName: "membership_applications_invitation_id_fkey";
+            columns: ["invitation_id"];
+            isOneToOne: false;
+            referencedRelation: "member_invitations";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "membership_applications_department_code_fkey";
             columns: ["department_code"];
             isOneToOne: false;
             referencedRelation: "departments";
             referencedColumns: ["code"];
+          },
+          {
+            foreignKeyName: "membership_applications_processed_member_id_fkey";
+            columns: ["processed_member_id"];
+            isOneToOne: false;
+            referencedRelation: "members";
+            referencedColumns: ["id"];
           },
         ];
       };

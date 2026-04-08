@@ -40,9 +40,9 @@ export function AdminShell({
               ))}
             </nav>
             <div className="workspace-callout mt-5">
-              The admin area remains functional-first. The visual system is now in
-              place, while the later phases fill these queues with real moderation,
-              invitation, and reconciliation workflows.
+              Operator flows are now moving past placeholder copy. Membership
+              review and invitation generation live here first; moderation,
+              committee management, and reconciliation continue in the next passes.
             </div>
           </aside>
           <main className="workspace-main p-6 sm:p-8">{children}</main>
