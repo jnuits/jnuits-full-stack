@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Link from "next/link";
 import {
   saveContentPage,
   saveContentPost,
@@ -28,34 +29,56 @@ type MediaAssetOption = {
 };
 
 type ContentPageRecord = {
+  body: unknown;
+  eyebrow: string | null;
   slug: string;
   status: string;
+  summary: string | null;
   title: string;
   updated_at: string;
 };
 
 type ContentPostRecord = {
+  body: string | null;
+  category: string | null;
+  cta_href: string | null;
   id: string;
   content_type: string;
+  ends_at: string | null;
+  excerpt: string | null;
+  location: string | null;
+  media_asset_id: string | null;
+  published_at: string | null;
+  read_time: string | null;
   slug: string;
+  starts_at: string | null;
   status: string;
+  summary: string | null;
   title: string;
   updated_at: string;
 };
 
 type GalleryRecord = {
+  caption: string | null;
   id: string;
+  media_asset_id: string;
+  sort_order: number;
   status: string;
   title: string;
-  media_asset_id: string;
+  updated_at: string;
 };
 
 type DeveloperRecord = {
+  bio: string;
+  focus: string;
   id: string;
   is_lead: boolean;
+  media_asset_id: string | null;
   name: string;
   role: string;
+  sort_order: number;
   status: string;
+  updated_at: string;
 };
 
 type MemberBlogSubmission = {
@@ -75,9 +98,48 @@ type MemberBlogSubmission = {
     | null;
 };
 
-export default async function AdminContentPage() {
+function resolveSearchParam(
+  value: string | string[] | undefined
+) {
+  return typeof value === "string" ? value : "";
+}
+
+function serializeJson(value: unknown) {
+  if (!value) {
+    return "";
+  }
+
+  return JSON.stringify(value, null, 2);
+}
+
+function formatDateTimeInput(value: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+export default async function AdminContentPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const admin = createAdminClient();
   const cookieStore = await cookies();
+  const resolvedSearchParams = await searchParams;
   const cloudinaryConfigured = isCloudinaryConfigured();
   const cloudinaryConfig = cloudinaryConfigured
     ? getCloudinaryPublicConfig()
@@ -102,21 +164,21 @@ export default async function AdminContentPage() {
         .limit(20),
       admin
         .from("content_pages")
-        .select("slug, status, title, updated_at")
+        .select("slug, status, title, eyebrow, summary, body, updated_at")
         .order("slug", { ascending: true }),
       admin
         .from("content_posts")
-        .select("id, content_type, slug, status, title, updated_at")
+        .select("id, content_type, slug, status, title, category, summary, excerpt, body, read_time, published_at, starts_at, ends_at, location, cta_href, media_asset_id, updated_at")
         .order("updated_at", { ascending: false })
         .limit(16),
       admin
         .from("gallery_entries")
-        .select("id, title, status, media_asset_id")
+        .select("id, title, caption, status, sort_order, media_asset_id, updated_at")
         .order("updated_at", { ascending: false })
         .limit(12),
       admin
         .from("developer_profiles")
-        .select("id, name, role, status, is_lead")
+        .select("id, name, role, focus, bio, status, is_lead, sort_order, media_asset_id, updated_at")
         .order("updated_at", { ascending: false })
         .limit(12),
       admin
@@ -137,6 +199,18 @@ export default async function AdminContentPage() {
   const developerRows = (developersResult.data || []) as DeveloperRecord[];
   const submittedBlogs =
     (submittedBlogsResult.data || []) as MemberBlogSubmission[];
+  const selectedPageSlug = resolveSearchParam(resolvedSearchParams.editPage);
+  const selectedPostId = resolveSearchParam(resolvedSearchParams.editPost);
+  const selectedGalleryId = resolveSearchParam(resolvedSearchParams.editGallery);
+  const selectedDeveloperId = resolveSearchParam(resolvedSearchParams.editDeveloper);
+  const selectedPage =
+    pageRows.find((page) => page.slug === selectedPageSlug) || null;
+  const selectedPost =
+    postRows.find((post) => post.id === selectedPostId) || null;
+  const selectedGallery =
+    galleryRows.find((entry) => entry.id === selectedGalleryId) || null;
+  const selectedDeveloper =
+    developerRows.find((profile) => profile.id === selectedDeveloperId) || null;
 
   return (
     <div className="grid gap-8">
@@ -217,6 +291,57 @@ export default async function AdminContentPage() {
         configured={cloudinaryConfigured}
         defaultFolder={CLOUDINARY_PROJECT_ROOT_FOLDER}
       />
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <article className="section-band">
+          <span className="eyebrow">Editing status</span>
+          <div className="mt-5 grid gap-3">
+            <article className="route-tile">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3>{selectedPage ? `Editing page: ${selectedPage.slug}` : "Singleton editor idle"}</h3>
+                <span className="status-pill">
+                  {selectedPage ? selectedPage.status : "Create"}
+                </span>
+              </div>
+              <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                {selectedPage
+                  ? "The singleton form below is prefilled from the current published or draft row."
+                  : "Pick a page row below to load its current content into the editor."}
+              </p>
+            </article>
+            <article className="route-tile">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3>{selectedPost ? `Editing post: ${selectedPost.slug}` : "Collection editor idle"}</h3>
+                <span className="status-pill">
+                  {selectedPost ? selectedPost.status : "Create"}
+                </span>
+              </div>
+              <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                {selectedPost
+                  ? "The blog, notice, or event form is loaded with the selected row for update."
+                  : "Use the recent collection list to edit an existing row or create a new one."}
+              </p>
+            </article>
+          </div>
+        </article>
+        <article className="section-band">
+          <span className="eyebrow">Operator note</span>
+          <div className="mt-5 grid gap-3">
+            <article className="route-tile">
+              <h3>Brand-managed singleton content</h3>
+              <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                Home, about, contact, and footer are now editable from this workspace, and the public routes read them directly.
+              </p>
+            </article>
+            <article className="route-tile">
+              <h3>Cloudinary project root</h3>
+              <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                New uploads are constrained under <code>{CLOUDINARY_PROJECT_ROOT_FOLDER}</code> so gallery, album, and video media stay organized.
+              </p>
+            </article>
+          </div>
+        </article>
+      </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <form action={saveMediaAsset} className="section-band grid gap-4">
@@ -340,13 +465,13 @@ export default async function AdminContentPage() {
           <div>
             <span className="eyebrow">Singleton pages</span>
             <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-              Save public page copy and structured body JSON
+              {selectedPage ? `Update ${selectedPage.slug}` : "Save public page copy and structured body JSON"}
             </h2>
           </div>
           <div className="portal-form-grid">
             <label className="input-label">
               Page
-              <select defaultValue="about" name="slug">
+              <select defaultValue={selectedPage?.slug || "about"} name="slug">
                 <option value="home">Home</option>
                 <option value="about">About</option>
                 <option value="contact">Contact</option>
@@ -355,26 +480,41 @@ export default async function AdminContentPage() {
             </label>
             <label className="input-label">
               Status
-              <select defaultValue="draft" name="status">
+              <select defaultValue={selectedPage?.status || "draft"} name="status">
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
               </select>
             </label>
             <label className="input-label sm:col-span-2">
               Eyebrow
-              <input name="eyebrow" placeholder="Institutional profile" />
+              <input
+                defaultValue={selectedPage?.eyebrow || ""}
+                name="eyebrow"
+                placeholder="Institutional profile"
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Title
-              <input name="title" placeholder="Public page title" required />
+              <input
+                defaultValue={selectedPage?.title || ""}
+                name="title"
+                placeholder="Public page title"
+                required
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Summary
-              <textarea name="summary" placeholder="Page summary" rows={4} />
+              <textarea
+                defaultValue={selectedPage?.summary || ""}
+                name="summary"
+                placeholder="Page summary"
+                rows={4}
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Body JSON
               <textarea
+                defaultValue={serializeJson(selectedPage?.body)}
                 name="bodyJson"
                 placeholder='{"story":["..."],"missionTitle":"...","missionPoints":["..."]}'
                 rows={8}
@@ -383,8 +523,13 @@ export default async function AdminContentPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <button className="primary-button" type="submit">
-              Save content page
+              {selectedPage ? "Update content page" : "Save content page"}
             </button>
+            {selectedPage ? (
+              <Link href="/admin/content" className="ghost-button">
+                Clear editor
+              </Link>
+            ) : null}
           </div>
         </form>
 
@@ -405,6 +550,14 @@ export default async function AdminContentPage() {
                   <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
                     {page.slug}
                   </p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link href={`/admin/content?editPage=${page.slug}`} className="queue-link">
+                      Edit page row
+                    </Link>
+                    <span className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                      Updated {new Date(page.updated_at).toLocaleDateString("en-BD")}
+                    </span>
+                  </div>
                 </article>
               ))
             )}
@@ -417,13 +570,16 @@ export default async function AdminContentPage() {
           <div>
             <span className="eyebrow">Collection posts</span>
             <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-              Create blogs, notices, and events in one publishing model
+              {selectedPost
+                ? `Update ${selectedPost.content_type}: ${selectedPost.title}`
+                : "Create blogs, notices, and events in one publishing model"}
             </h2>
           </div>
+          <input type="hidden" name="postId" value={selectedPost?.id || ""} />
           <div className="portal-form-grid">
             <label className="input-label">
               Content type
-              <select defaultValue="blog" name="contentType">
+              <select defaultValue={selectedPost?.content_type || "blog"} name="contentType">
                 <option value="blog">Blog</option>
                 <option value="notice">Notice</option>
                 <option value="event">Event</option>
@@ -431,7 +587,7 @@ export default async function AdminContentPage() {
             </label>
             <label className="input-label">
               Status
-              <select defaultValue="draft" name="status">
+              <select defaultValue={selectedPost?.status || "draft"} name="status">
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
                 <option value="archived">Archived</option>
@@ -439,55 +595,107 @@ export default async function AdminContentPage() {
             </label>
             <label className="input-label sm:col-span-2">
               Title
-              <input name="title" placeholder="Public content title" required />
+              <input
+                defaultValue={selectedPost?.title || ""}
+                name="title"
+                placeholder="Public content title"
+                required
+              />
             </label>
             <label className="input-label">
               Slug
-              <input name="slug" placeholder="generated-if-empty" />
+              <input
+                defaultValue={selectedPost?.slug || ""}
+                name="slug"
+                placeholder="generated-if-empty"
+              />
             </label>
             <label className="input-label">
               Category or focus
-              <input name="category" placeholder="Platform, Operations, Workshop" />
+              <input
+                defaultValue={selectedPost?.category || ""}
+                name="category"
+                placeholder="Platform, Operations, Workshop"
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Summary
-              <textarea name="summary" placeholder="Short summary" rows={3} />
+              <textarea
+                defaultValue={selectedPost?.summary || ""}
+                name="summary"
+                placeholder="Short summary"
+                rows={3}
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Excerpt
-              <textarea name="excerpt" placeholder="Optional excerpt" rows={3} />
+              <textarea
+                defaultValue={selectedPost?.excerpt || ""}
+                name="excerpt"
+                placeholder="Optional excerpt"
+                rows={3}
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Body
-              <textarea name="body" placeholder="Body copy or notice detail" rows={6} />
+              <textarea
+                defaultValue={selectedPost?.body || ""}
+                name="body"
+                placeholder="Body copy or notice detail"
+                rows={6}
+              />
             </label>
             <label className="input-label">
               Published at
-              <input name="publishedAt" type="datetime-local" />
+              <input
+                defaultValue={formatDateTimeInput(selectedPost?.published_at || null)}
+                name="publishedAt"
+                type="datetime-local"
+              />
             </label>
             <label className="input-label">
               Read time
-              <input name="readTime" placeholder="5 min read" />
+              <input
+                defaultValue={selectedPost?.read_time || ""}
+                name="readTime"
+                placeholder="5 min read"
+              />
             </label>
             <label className="input-label">
               Starts at
-              <input name="startsAt" type="datetime-local" />
+              <input
+                defaultValue={formatDateTimeInput(selectedPost?.starts_at || null)}
+                name="startsAt"
+                type="datetime-local"
+              />
             </label>
             <label className="input-label">
               Ends at
-              <input name="endsAt" type="datetime-local" />
+              <input
+                defaultValue={formatDateTimeInput(selectedPost?.ends_at || null)}
+                name="endsAt"
+                type="datetime-local"
+              />
             </label>
             <label className="input-label">
               Location
-              <input name="location" placeholder="Event location" />
+              <input
+                defaultValue={selectedPost?.location || ""}
+                name="location"
+                placeholder="Event location"
+              />
             </label>
             <label className="input-label">
               CTA href
-              <input name="ctaHref" placeholder="https:// or internal route" />
+              <input
+                defaultValue={selectedPost?.cta_href || ""}
+                name="ctaHref"
+                placeholder="https:// or internal route"
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Media asset
-              <select name="mediaAssetId">
+              <select defaultValue={selectedPost?.media_asset_id || ""} name="mediaAssetId">
                 <option value="">No linked media asset</option>
                 {mediaAssets.map((asset) => (
                   <option key={asset.id} value={asset.id}>
@@ -499,8 +707,13 @@ export default async function AdminContentPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <button className="primary-button" type="submit">
-              Save content post
+              {selectedPost ? "Update content post" : "Save content post"}
             </button>
+            {selectedPost ? (
+              <Link href="/admin/content" className="ghost-button">
+                Clear editor
+              </Link>
+            ) : null}
           </div>
         </form>
 
@@ -523,6 +736,14 @@ export default async function AdminContentPage() {
                   <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
                     {post.slug}
                   </p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link href={`/admin/content?editPost=${post.id}`} className="queue-link">
+                      Edit content row
+                    </Link>
+                    <span className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                      Updated {new Date(post.updated_at).toLocaleDateString("en-BD")}
+                    </span>
+                  </div>
                 </article>
               ))
             )}
@@ -537,21 +758,34 @@ export default async function AdminContentPage() {
           <div>
             <span className="eyebrow">Gallery</span>
             <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-              Link gallery captions to Cloudinary assets
+              {selectedGallery
+                ? `Update gallery entry: ${selectedGallery.title}`
+                : "Link gallery captions to Cloudinary assets"}
             </h2>
           </div>
+          <input type="hidden" name="entryId" value={selectedGallery?.id || ""} />
           <div className="portal-form-grid">
             <label className="input-label sm:col-span-2">
               Title
-              <input name="title" placeholder="Gallery headline" required />
+              <input
+                defaultValue={selectedGallery?.title || ""}
+                name="title"
+                placeholder="Gallery headline"
+                required
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Caption
-              <textarea name="caption" placeholder="Gallery caption" rows={4} />
+              <textarea
+                defaultValue={selectedGallery?.caption || ""}
+                name="caption"
+                placeholder="Gallery caption"
+                rows={4}
+              />
             </label>
             <label className="input-label">
               Status
-              <select defaultValue="draft" name="status">
+              <select defaultValue={selectedGallery?.status || "draft"} name="status">
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
                 <option value="archived">Archived</option>
@@ -559,11 +793,16 @@ export default async function AdminContentPage() {
             </label>
             <label className="input-label">
               Sort order
-              <input defaultValue={100} min={1} name="sortOrder" type="number" />
+              <input
+                defaultValue={selectedGallery?.sort_order || 100}
+                min={1}
+                name="sortOrder"
+                type="number"
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Media asset
-              <select name="mediaAssetId" required>
+              <select defaultValue={selectedGallery?.media_asset_id || ""} name="mediaAssetId" required>
                 <option value="">Select Cloudinary media</option>
                 {mediaAssets.map((asset) => (
                   <option key={asset.id} value={asset.id}>
@@ -575,8 +814,13 @@ export default async function AdminContentPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <button className="primary-button" type="submit">
-              Save gallery entry
+              {selectedGallery ? "Update gallery entry" : "Save gallery entry"}
             </button>
+            {selectedGallery ? (
+              <Link href="/admin/content" className="ghost-button">
+                Clear editor
+              </Link>
+            ) : null}
           </div>
         </form>
 
@@ -584,29 +828,53 @@ export default async function AdminContentPage() {
           <div>
             <span className="eyebrow">Developer credits</span>
             <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-              Publish developer and contributor profiles
+              {selectedDeveloper
+                ? `Update contributor profile: ${selectedDeveloper.name}`
+                : "Publish developer and contributor profiles"}
             </h2>
           </div>
+          <input type="hidden" name="profileId" value={selectedDeveloper?.id || ""} />
           <div className="portal-form-grid">
             <label className="input-label">
               Name
-              <input name="name" placeholder="Contributor name" required />
+              <input
+                defaultValue={selectedDeveloper?.name || ""}
+                name="name"
+                placeholder="Contributor name"
+                required
+              />
             </label>
             <label className="input-label">
               Role
-              <input name="role" placeholder="Frontend systems lead" required />
+              <input
+                defaultValue={selectedDeveloper?.role || ""}
+                name="role"
+                placeholder="Frontend systems lead"
+                required
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Focus
-              <input name="focus" placeholder="Migration delivery, content surfaces, operations" required />
+              <input
+                defaultValue={selectedDeveloper?.focus || ""}
+                name="focus"
+                placeholder="Migration delivery, content surfaces, operations"
+                required
+              />
             </label>
             <label className="input-label sm:col-span-2">
               Bio
-              <textarea name="bio" placeholder="Short public bio" rows={4} required />
+              <textarea
+                defaultValue={selectedDeveloper?.bio || ""}
+                name="bio"
+                placeholder="Short public bio"
+                rows={4}
+                required
+              />
             </label>
             <label className="input-label">
               Status
-              <select defaultValue="draft" name="status">
+              <select defaultValue={selectedDeveloper?.status || "draft"} name="status">
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
                 <option value="archived">Archived</option>
@@ -614,18 +882,26 @@ export default async function AdminContentPage() {
             </label>
             <label className="input-label">
               Sort order
-              <input defaultValue={100} min={1} name="sortOrder" type="number" />
+              <input
+                defaultValue={selectedDeveloper?.sort_order || 100}
+                min={1}
+                name="sortOrder"
+                type="number"
+              />
             </label>
             <label className="input-label">
               Lead profile
-              <select defaultValue="false" name="isLead">
+              <select
+                defaultValue={selectedDeveloper?.is_lead ? "true" : "false"}
+                name="isLead"
+              >
                 <option value="false">Regular profile</option>
                 <option value="true">Lead profile</option>
               </select>
             </label>
             <label className="input-label">
               Media asset
-              <select name="mediaAssetId">
+              <select defaultValue={selectedDeveloper?.media_asset_id || ""} name="mediaAssetId">
                 <option value="">No linked media asset</option>
                 {mediaAssets.map((asset) => (
                   <option key={asset.id} value={asset.id}>
@@ -637,8 +913,13 @@ export default async function AdminContentPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <button className="primary-button" type="submit">
-              Save developer profile
+              {selectedDeveloper ? "Update contributor profile" : "Save developer profile"}
             </button>
+            {selectedDeveloper ? (
+              <Link href="/admin/content" className="ghost-button">
+                Clear editor
+              </Link>
+            ) : null}
           </div>
         </form>
       </section>
@@ -659,6 +940,14 @@ export default async function AdminContentPage() {
                   <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
                     Asset {entry.media_asset_id}
                   </p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link href={`/admin/content?editGallery=${entry.id}`} className="queue-link">
+                      Edit gallery row
+                    </Link>
+                    <span className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                      Updated {new Date(entry.updated_at).toLocaleDateString("en-BD")}
+                    </span>
+                  </div>
                 </article>
               ))
             )}
@@ -682,6 +971,14 @@ export default async function AdminContentPage() {
                   <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
                     {developer.role}
                   </p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link href={`/admin/content?editDeveloper=${developer.id}`} className="queue-link">
+                      Edit contributor row
+                    </Link>
+                    <span className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                      Updated {new Date(developer.updated_at).toLocaleDateString("en-BD")}
+                    </span>
+                  </div>
                 </article>
               ))
             )}

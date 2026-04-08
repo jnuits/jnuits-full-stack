@@ -260,7 +260,7 @@ export default async function AdminPage() {
       <div>
         <div className="workspace-topbar">
           <span className="eyebrow">Technical operator workspace</span>
-          <span className="status-pill">Phase 05 and 07 now active</span>
+          <span className="status-pill">Operations live</span>
         </div>
         <h1 className="section-title text-[2.5rem]">
           Admin queues, invitation review, and protected operations.
@@ -637,17 +637,17 @@ export default async function AdminPage() {
           <article className="route-tile">
             <h3>Certificates</h3>
             <p>
-              The public verification path is live. The next operator pass still
-              needs import run history, parity evidence, and recovery tooling in
-              this workspace.
+              Public verification and the legacy QR-compatible route are live.
+              The remaining operator work is better import-run visibility and
+              recovery tooling inside the admin workspace.
             </p>
           </article>
           <article className="route-tile" id="reconcile">
             <h3>Reconcile and CSV onboarding</h3>
             <p>
-              Dry-run and apply scripts now live in the repo with archived
-              membership reports. The remaining work is operator polish and
-              rehearsal against production-like source files.
+              Dry-run and apply scripts already live in the repo with archived
+              membership reports. What remains is operator rehearsal against
+              production-like source files and final walkthrough evidence.
             </p>
           </article>
         </div>

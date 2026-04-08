@@ -54,10 +54,10 @@ export function AdminShell({
               })}
             </nav>
             <div className="workspace-callout workspace-sidebar__callout mt-5">
-              Operator flows are now moving past placeholder copy. Membership
-              review, committee tooling, and reporting now live here; richer
-              moderation, reconciliation, and content administration continue in
-              the next passes.
+              This workspace is for moderators and operators handling approvals,
+              invitations, committees, reports, and public content changes.
+              Member-safe tasks stay in the portal instead of this wider control
+              surface.
             </div>
           </aside>
           <main className="workspace-main p-6 sm:p-8">{children}</main>
