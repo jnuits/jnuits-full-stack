@@ -12,7 +12,7 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="shell py-4">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <SiteBrand />
           <nav className="hidden items-center gap-2 xl:flex">
             {publicNavigation.map((item) => {
@@ -34,10 +34,11 @@ export function SiteHeader() {
               );
             })}
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:ml-auto">
             <ThemeToggle />
             <Link href="/login" className="primary-button text-sm">
-              Sign In
+              <span className="hidden sm:inline">Sign In</span>
+              <span className="sm:hidden">Portal</span>
             </Link>
           </div>
         </div>

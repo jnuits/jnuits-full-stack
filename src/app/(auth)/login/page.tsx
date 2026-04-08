@@ -32,8 +32,20 @@ export default async function LoginPage({
         <p className="mt-4 text-sm font-semibold text-[var(--brand-rust)]">{error}</p>
       ) : null}
       <form className="mt-8 grid gap-4">
-        <input name="email" type="email" placeholder="Email address" required />
-        <input name="password" type="password" placeholder="Password" required />
+        <input
+          autoComplete="email"
+          name="email"
+          type="email"
+          placeholder="Email address"
+          required
+        />
+        <input
+          autoComplete="current-password"
+          name="password"
+          type="password"
+          placeholder="Password"
+          required
+        />
         <input type="hidden" name="next" value={next} />
         <button className="primary-button" formAction={login}>
           Sign in

@@ -7,8 +7,8 @@ Deliver a safe non-technical portal for claimed members, including profile flows
 ## Implementation checklist
 
 - Build claimed-member profile and profile-edit surfaces.
-- Require step-up verification for sensitive profile mutations.
-- Add password-change and recovery continuity inside the portal.
+- Keep direct sensitive mutations disabled until step-up verification is complete.
+- Add password-change continuity inside the portal with reauthentication support.
 - Expose workplace request history and submission for alumni.
 - Add committee/general-member blog drafting in the portal, not `/admin`.
 

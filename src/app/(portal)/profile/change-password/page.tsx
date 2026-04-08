@@ -1,19 +1,26 @@
+import { ChangePasswordForm } from "@/components/portal/change-password-form";
 import { PortalShell } from "@/components/portal/portal-shell";
 
 export default function ChangePasswordPage() {
   return (
     <PortalShell
       title="Change password"
-      summary="Password changes will be handled through Supabase Auth while keeping the portal route stable for users."
+      summary="Password changes now stay inside the member portal and use Supabase Auth directly, with reauthentication support when the project policy requires a fresh proof of identity."
     >
-      <form className="grid gap-4">
-        <input type="password" placeholder="Current password" />
-        <input type="password" placeholder="New password" />
-        <input type="password" placeholder="Confirm new password" />
-        <button type="button" className="primary-button w-full sm:w-fit">
-          Update password
-        </button>
-      </form>
+      <section className="section-band grid gap-5">
+        <div>
+          <span className="eyebrow">Password security</span>
+          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3vw,2.4rem)] leading-[0.96] tracking-[-0.04em]">
+            Update the password for the current signed-in account
+          </h2>
+        </div>
+        <p className="section-copy">
+          If Supabase requires reauthentication, send the one-time code to your
+          email first and paste that nonce into the form before retrying the
+          password update.
+        </p>
+        <ChangePasswordForm />
+      </section>
     </PortalShell>
   );
 }

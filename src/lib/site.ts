@@ -54,8 +54,8 @@ export const implementationPhases: ImplementationPhase[] = [
   },
   {
     id: "Phase 06",
-    summary: "Portal profile flows, workplace moderation, timeline, and member authoring.",
-    status: "Queued",
+    summary: "Portal profile flows, workplace moderation, timeline, password security, and member authoring.",
+    status: "In Progress",
   },
   {
     id: "Phase 07",

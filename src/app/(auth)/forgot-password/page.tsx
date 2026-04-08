@@ -23,7 +23,13 @@ export default async function ForgotPasswordPage({
         <p className="mt-4 text-sm font-semibold text-[var(--brand-rust)]">{error}</p>
       ) : null}
       <form className="mt-8 grid gap-4">
-        <input name="email" type="email" placeholder="Email address" required />
+        <input
+          autoComplete="email"
+          name="email"
+          type="email"
+          placeholder="Email address"
+          required
+        />
         <button className="primary-button" formAction={requestPasswordReset}>
           Send recovery link
         </button>

@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { SiteBrand } from "@/components/layout/site-brand";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { portalNavigation } from "@/lib/site";
@@ -12,12 +15,14 @@ export function PortalShell({
   summary: string;
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
   return (
     <div className="portal-shell flex-1">
       <div className="shell py-8">
         <div className="workspace-frame">
           <aside className="workspace-sidebar h-fit p-5">
-            <div className="flex items-start justify-between gap-3">
+            <div className="workspace-sidebar__utility">
               <SiteBrand compact subtitle="Protected member workspace" />
               <ThemeToggle />
             </div>
@@ -29,10 +34,11 @@ export function PortalShell({
                 Personal tools with safe boundaries
               </p>
             </div>
-            <nav className="grid gap-2">
+            <nav className="workspace-nav-list">
               {portalNavigation.map((item) => (
                 <Link
                   key={item.href}
+                  data-active={pathname === item.href ? "true" : "false"}
                   href={item.href}
                   className="workspace-nav-link"
                 >
@@ -43,7 +49,7 @@ export function PortalShell({
                 </Link>
               ))}
             </nav>
-            <div className="workspace-callout mt-5">
+            <div className="workspace-callout workspace-sidebar__callout mt-5">
               This portal is intentionally narrower than <code>/admin</code>.
               Sensitive review queues and migration controls remain in the
               operator workspace.

@@ -23,8 +23,15 @@ export default async function ResetPasswordPage({
         <p className="mt-4 text-sm font-semibold text-[var(--brand-rust)]">{error}</p>
       ) : null}
       <form className="mt-8 grid gap-4">
-        <input name="password" type="password" placeholder="New password" required />
         <input
+          autoComplete="new-password"
+          name="password"
+          type="password"
+          placeholder="New password"
+          required
+        />
+        <input
+          autoComplete="new-password"
           name="confirmPassword"
           type="password"
           placeholder="Confirm new password"

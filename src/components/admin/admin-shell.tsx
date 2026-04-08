@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { SiteBrand } from "@/components/layout/site-brand";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { adminNavigation } from "@/lib/site";
@@ -8,12 +11,14 @@ export function AdminShell({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
   return (
     <div className="admin-shell flex-1">
       <div className="shell py-8">
         <div className="workspace-frame">
           <aside className="workspace-sidebar h-fit p-5">
-            <div className="flex items-start justify-between gap-3">
+            <div className="workspace-sidebar__utility">
               <SiteBrand compact subtitle="Operator workspace" />
               <ThemeToggle />
             </div>
@@ -25,10 +30,11 @@ export function AdminShell({
                 Moderation, migration, and review queues
               </p>
             </div>
-            <nav className="grid gap-2">
-              {adminNavigation.map((item) => (
+            <nav className="workspace-nav-list">
+              {adminNavigation.map((item, index) => (
                 <Link
                   key={item.href}
+                  data-active={index === 0 && pathname === "/admin" ? "true" : "false"}
                   href={item.href}
                   className="workspace-nav-link"
                 >
@@ -39,7 +45,7 @@ export function AdminShell({
                 </Link>
               ))}
             </nav>
-            <div className="workspace-callout mt-5">
+            <div className="workspace-callout workspace-sidebar__callout mt-5">
               Operator flows are now moving past placeholder copy. Membership
               review and invitation generation live here first; moderation,
               committee management, and reconciliation continue in the next passes.

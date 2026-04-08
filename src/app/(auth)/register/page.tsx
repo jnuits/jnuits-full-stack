@@ -25,10 +25,27 @@ export default async function RegisterPage({
         <p className="mt-4 text-sm font-semibold text-[var(--brand-rust)]">{error}</p>
       ) : null}
       <form className="mt-8 grid gap-4">
-        <input name="jnuitsId" placeholder="JnUITS ID" required />
-        <input name="invitationCode" placeholder="Invitation code" required />
-        <input name="email" type="email" placeholder="Email address" required />
-        <input name="password" type="password" placeholder="Create password" required />
+        <input autoComplete="off" name="jnuitsId" placeholder="JnUITS ID" required />
+        <input
+          autoComplete="one-time-code"
+          name="invitationCode"
+          placeholder="Invitation code"
+          required
+        />
+        <input
+          autoComplete="email"
+          name="email"
+          type="email"
+          placeholder="Email address"
+          required
+        />
+        <input
+          autoComplete="new-password"
+          name="password"
+          type="password"
+          placeholder="Create password"
+          required
+        />
         <button className="primary-button" formAction={claimProfile}>
           Claim profile
         </button>

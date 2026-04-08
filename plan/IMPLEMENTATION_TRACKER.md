@@ -8,7 +8,7 @@
 | Phase 03: Public site shell | In progress | Legacy content parity pass still pending | Codex + content owner | Bootstrap routes exist | Home/about/events/blogs/gallery/notices/developers/contact routes, refined brand theme, light/dark switch | Public shell reaches design/content parity for global sections |
 | Phase 04: Content + media | In progress | Supabase-backed content tables and media moderation are still pending | Codex + content owner | Phase 03 | Structured public-content layer, legacy media reuse, route rebuild for about/blogs/events/gallery/notices/developers | Public collections render from Supabase-backed models |
 | Phase 05: Membership transition | In progress | Directory verification gate and directory read paths still need to be completed | Codex + membership operators | Phases 00-01 | Claim flow validation, public intake, admin review queue, invitation generation evidence | Application intake and invitation claim are both operational |
-| Phase 06: Member portal | Pending | Profile edit and step-up verification policy not implemented yet | Codex | Member schema and auth flows live | Portal profile, change password, workplace request, timeline, authoring evidence | Claimed members can safely manage profile flows |
+| Phase 06: Member portal | In progress | Full direct profile mutation still waits on the final step-up policy | Codex | Member schema and auth flows live | Live portal profile view, directory verification form, workplace request flow, password change UX, timeline evidence | Claimed members can safely manage profile flows |
 | Phase 07: Admin ops | In progress | Moderation, committee, and reconciliation tooling are still pending | Codex + technical operators | Earlier data phases complete | Membership review queue, invitation generation, audit trail, queue UX | Operators can complete sensitive workflows without legacy admin |
 | Phase 08: Rehearsal + cutover | Pending | Migration rehearsal data and parity reports not prepared yet | Codex + project owner | All earlier phases | Smoke tests, rollback drill, parity reports, screenshots | Production cutover approved and rehearsed |
 
@@ -23,3 +23,4 @@
 
 - Vercel still needs its project-level Node version aligned to `24.x`.
 - The app will not run end-to-end until the required `.env.local` values are set locally and in Vercel, especially `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- The current `SENTRY_AUTH_TOKEN` can build with Sentry enabled, but it does not currently have enough read scope to verify event ingestion back through the Sentry API.
