@@ -8,7 +8,7 @@ Sentry.init({
   enabled: Boolean(dsn),
   sendDefaultPii: true,
   environment,
-  release: process.env.SENTRY_RELEASE,
+  release: process.env.SENTRY_RELEASE ?? process.env.VERCEL_GIT_COMMIT_SHA,
   tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
   includeLocalVariables: true,
   enableLogs: true,

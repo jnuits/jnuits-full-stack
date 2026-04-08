@@ -1,7 +1,15 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
+const sentryRelease =
+  process.env.SENTRY_RELEASE ?? process.env.VERCEL_GIT_COMMIT_SHA;
+
 const nextConfig: NextConfig = {
+  env: sentryRelease
+    ? {
+        NEXT_PUBLIC_SENTRY_RELEASE: sentryRelease,
+      }
+    : {},
   images: {
     remotePatterns: [
       {

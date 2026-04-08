@@ -8,6 +8,7 @@ Sentry.init({
   enabled: Boolean(dsn),
   sendDefaultPii: true,
   environment,
+  release: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
   tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
   replaysSessionSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
   replaysOnErrorSampleRate: 1.0,

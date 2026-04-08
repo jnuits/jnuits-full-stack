@@ -3,6 +3,12 @@ export type NavItem = {
   label: string;
 };
 
+export type ImplementationPhase = {
+  id: string;
+  summary: string;
+  status: "Foundation" | "In Progress" | "Queued";
+};
+
 export const publicNavigation: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/about", label: "About" },
@@ -15,16 +21,52 @@ export const publicNavigation: NavItem[] = [
   { href: "/contact", label: "Contact" },
 ];
 
-export const implementationPhases = [
-  "Phase 00: bootstrap, project standards, env contract, deployment wiring",
-  "Phase 01: identity schema, RBAC, profiles, members, RLS baseline",
-  "Phase 02: certificates import, parity report, verification, batch lookup",
-  "Phase 03: public site shell, homepage, navbar, footer, contact, developers",
-  "Phase 04: content collections, media handling, notices, blogs, events, gallery",
-  "Phase 05: membership transition, public intake, claim flow, directory gate",
-  "Phase 06: portal profile flows, workplace moderation, timeline, authoring",
-  "Phase 07: admin queues, invitation batches, committees, audits, reconciliation",
-  "Phase 08: rehearsal, rollback drill, cutover, stabilization",
+export const implementationPhases: ImplementationPhase[] = [
+  {
+    id: "Phase 00",
+    summary: "Bootstrap, project standards, environment contract, and deployment wiring.",
+    status: "Foundation",
+  },
+  {
+    id: "Phase 01",
+    summary: "Identity schema, RBAC, profiles, members, and the RLS baseline.",
+    status: "Foundation",
+  },
+  {
+    id: "Phase 02",
+    summary: "Certificates import, parity reporting, public verification, and batch lookup.",
+    status: "Foundation",
+  },
+  {
+    id: "Phase 03",
+    summary: "Branded public shell, homepage composition, header, footer, and key public routes.",
+    status: "In Progress",
+  },
+  {
+    id: "Phase 04",
+    summary: "Content collections, media handling, notices, blogs, events, gallery, and about content.",
+    status: "Queued",
+  },
+  {
+    id: "Phase 05",
+    summary: "Membership transition, public intake, claim flow, and directory verification.",
+    status: "In Progress",
+  },
+  {
+    id: "Phase 06",
+    summary: "Portal profile flows, workplace moderation, timeline, and member authoring.",
+    status: "Queued",
+  },
+  {
+    id: "Phase 07",
+    summary: "Admin queues, invitation batches, committees, audits, and reconciliation tooling.",
+    status: "Queued",
+  },
+  {
+    id: "Phase 08",
+    summary: "Rehearsal, rollback drill, cutover preparation, and production stabilization.",
+    status: "Queued",
+  },
 ];
 
 export const portalNavigation: NavItem[] = [

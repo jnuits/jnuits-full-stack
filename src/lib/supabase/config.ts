@@ -19,13 +19,10 @@ export function getSupabasePublishableKey() {
 }
 
 export function getSupabaseAdminKey() {
-  const value =
-    process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const value = process.env.SUPABASE_SECRET_KEY;
 
   if (!value) {
-    throw new Error(
-      "SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is required."
-    );
+    throw new Error("SUPABASE_SECRET_KEY is required.");
   }
 
   return value;

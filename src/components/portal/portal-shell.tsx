@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { SiteBrand } from "@/components/layout/site-brand";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { portalNavigation } from "@/lib/site";
 
 export function PortalShell({
@@ -12,35 +14,51 @@ export function PortalShell({
 }) {
   return (
     <div className="portal-shell flex-1">
-      <div className="shell grid gap-6 py-10 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="glass-card h-fit p-4">
-          <div className="mb-4">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--muted)]">
-              Member Portal
-            </p>
-            <p className="mt-2 font-[family-name:var(--font-heading)] text-xl font-bold">
-              Limited safe workspace
-            </p>
-          </div>
-          <nav className="grid gap-2">
-            {portalNavigation.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-2xl border border-[rgba(17,32,45,0.08)] bg-white/70 px-4 py-3 text-sm font-semibold"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </aside>
+      <div className="shell py-8">
+        <div className="workspace-frame">
+          <aside className="workspace-sidebar h-fit p-5">
+            <div className="flex items-start justify-between gap-3">
+              <SiteBrand compact subtitle="Protected member workspace" />
+              <ThemeToggle />
+            </div>
+            <div className="mt-6 mb-5">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+                Member portal
+              </p>
+              <p className="mt-2 font-[family-name:var(--font-heading)] text-[1.65rem] font-bold leading-tight">
+                Personal tools with safe boundaries
+              </p>
+            </div>
+            <nav className="grid gap-2">
+              {portalNavigation.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="workspace-nav-link"
+                >
+                  <span>{item.label}</span>
+                  <span className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                    Open
+                  </span>
+                </Link>
+              ))}
+            </nav>
+            <div className="workspace-callout mt-5">
+              This portal is intentionally narrower than <code>/admin</code>.
+              Sensitive review queues and migration controls remain in the
+              operator workspace.
+            </div>
+          </aside>
 
-        <main className="glass-card p-6 sm:p-8">
-          <span className="status-pill">Portal phase scaffolded</span>
-          <h1 className="section-title mt-4 text-[2.4rem]">{title}</h1>
-          <p className="section-copy mt-3">{summary}</p>
-          <div className="mt-8">{children}</div>
-        </main>
+          <main className="workspace-main p-6 sm:p-8">
+            <div className="workspace-topbar">
+              <span className="status-pill">Phase 06 queued after current migration work</span>
+            </div>
+            <h1 className="section-title text-[2.45rem]">{title}</h1>
+            <p className="section-copy mt-3">{summary}</p>
+            <div className="mt-8">{children}</div>
+          </main>
+        </div>
       </div>
     </div>
   );

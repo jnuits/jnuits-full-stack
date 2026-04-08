@@ -9,15 +9,19 @@ export default function PortalOverviewPage() {
       <div className="route-grid">
         <article className="route-tile">
           <h3>Profile management</h3>
-          <p>View and update personal/member fields without exposing raw admin controls.</p>
+          <p>View and update personal and member-facing fields without exposing raw operator controls.</p>
         </article>
         <article className="route-tile">
           <h3>Workplace moderation</h3>
-          <p>Alumni workplace requests feed a dedicated moderation queue rather than direct edits.</p>
+          <p>Alumni workplace requests move through review instead of direct edits, preserving auditability.</p>
         </article>
         <article className="route-tile">
           <h3>Blog drafting</h3>
-          <p>Committee members draft articles from a role-limited workspace, not `/admin`.</p>
+          <p>Committee members will draft articles from a role-limited workspace, not <code>/admin</code>.</p>
+        </article>
+        <article className="route-tile">
+          <h3>Step-up verification</h3>
+          <p>Sensitive profile updates are planned to require fresh password verification before mutation.</p>
         </article>
       </div>
     </PortalShell>

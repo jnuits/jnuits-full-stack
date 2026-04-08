@@ -1,17 +1,21 @@
 import Link from "next/link";
+import { SiteBrand } from "@/components/layout/site-brand";
 
 export function SiteFooter() {
   return (
-    <footer className="mt-16 border-t border-[var(--line)] bg-[rgba(16,35,49,0.96)] text-white">
-      <div className="shell grid gap-8 py-10 md:grid-cols-3">
+    <footer
+      className="mt-20 border-t border-[var(--line)] text-white"
+      style={{
+        background: "color-mix(in oklab, var(--foreground) 88%, black 12%)",
+      }}
+    >
+      <div className="shell grid gap-8 py-12 md:grid-cols-3">
         <div>
-          <p className="font-[family-name:var(--font-heading)] text-xl font-bold">
-            JnUITS Full Stack
-          </p>
-          <p className="mt-3 max-w-sm text-sm leading-7 text-white/70">
-            Unified platform bootstrap for the public website, member portal, and
-            operator workflows. Early phases prioritize security, certificates, and
-            migration tooling.
+          <SiteBrand inverted subtitle="Unified website, portal, and operator stack" />
+          <p className="mt-4 max-w-sm text-sm leading-7 text-white/72">
+            The platform foundation is live, but the content migration, richer
+            portal workflows, and operator queues are still moving through the
+            execution plan. This is the beginning of the rollout, not the end state.
           </p>
         </div>
 
@@ -29,12 +33,12 @@ export function SiteFooter() {
 
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/55">
-            Planning Artifacts
+            Delivery Path
           </p>
           <div className="mt-3 grid gap-2 text-sm text-white/80">
-            <Link href="/about">Execution summary</Link>
-            <Link href="/contact">Contact workflow</Link>
-            <span>Supabase + Vercel deployment path</span>
+            <span>Phases 00-02 established the secure core</span>
+            <span>Phases 03-05 are the current user-facing focus</span>
+            <span>Dark and light modes now share the same brand system</span>
           </div>
         </div>
       </div>

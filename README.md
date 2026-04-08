@@ -18,7 +18,7 @@ Create `.env.local` from `.env.example` and set:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_SECRET_KEY`
 - `APP_BASE_URL`
 
 Deferred until their phases:
@@ -62,8 +62,8 @@ curl http://localhost:3000/api/debug/sentry
 
 ## Platform notes
 
-- Node is pinned to `22.x` in `package.json` and `.nvmrc`.
-- Set the Vercel project Node version to `22.x` as well. The project was previously defaulting to `24.x`.
+- Node is pinned to `24.14.1` in `.nvmrc` and `24.x` in `package.json`.
+- Set the Vercel project Node version to `24.x` as well.
 - Supabase email templates should route confirmation and recovery links to:
 
 ```text
