@@ -41,6 +41,7 @@ export async function getPortalMemberSnapshot(userId: string) {
       member: null,
       departmentName: null,
       directoryVerified: false,
+      profileChangeRequests: [] as WorkplaceRequestRecord[],
       timeline: [] as TimelineRecord[],
       workplaceRequests: [] as WorkplaceRequestRecord[],
     };
@@ -67,8 +68,12 @@ export async function getPortalMemberSnapshot(userId: string) {
     member: typedMember,
     departmentName: resolveDepartmentName(typedMember),
     directoryVerified: isDirectoryVerifiedForUser(cookieStore, userId),
+    profileChangeRequests: ((workplaceRequestResult.data || []) as WorkplaceRequestRecord[]).filter(
+      (request) => request.request_type === "profile_change"
+    ),
     timeline: (timelineResult.data || []) as TimelineRecord[],
-    workplaceRequests:
-      (workplaceRequestResult.data || []) as WorkplaceRequestRecord[],
+    workplaceRequests: ((workplaceRequestResult.data || []) as WorkplaceRequestRecord[]).filter(
+      (request) => request.request_type === "workplace_update"
+    ),
   };
 }

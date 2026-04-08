@@ -1,10 +1,14 @@
 import Image from "next/image";
-import { formatDisplayDate, publicBlogs } from "@/lib/content/public-content";
+import {
+  formatDisplayDate,
+  getPublishedBlogs,
+} from "@/lib/content/public-content";
 
-const featuredBlog = publicBlogs[0];
-const remainingBlogs = publicBlogs.slice(1);
+export default async function BlogsPage() {
+  const publicBlogs = await getPublishedBlogs();
+  const featuredBlog = publicBlogs[0];
+  const remainingBlogs = publicBlogs.slice(1);
 
-export default function BlogsPage() {
   return (
     <div className="shell py-12">
       <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">

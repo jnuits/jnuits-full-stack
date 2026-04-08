@@ -1,11 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Database } from "@/lib/db/types";
 import { requireAdminUser } from "@/lib/auth/session";
-import { ADMIN_FLASH_COOKIE_NAME, type AdminFlash } from "@/lib/admin/flash";
+import { setAdminFlash } from "@/lib/admin/flash";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   DEFAULT_INVITATION_EXPIRY_DAYS,
@@ -32,22 +31,6 @@ type ProfileUpdateRequestRow =
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-async function setAdminFlash(payload: AdminFlash) {
-  const cookieStore = await cookies();
-
-  cookieStore.set(
-    ADMIN_FLASH_COOKIE_NAME,
-    JSON.stringify(payload),
-    {
-      httpOnly: true,
-      maxAge: 180,
-      path: "/admin",
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-    }
-  );
 }
 
 async function loadPendingApplication(applicationId: string) {
@@ -958,4 +941,289 @@ export async function rejectWorkplaceUpdateRequest(formData: FormData) {
     jnuitsId: member?.jnuits_id,
   });
   redirect("/admin#workplace");
+}
+
+export async function approveProfileChangeRequest(formData: FormData) {
+  const auth = await requireAdminUser();
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login");
+  }
+
+  const requestId = asString(formData.get("requestId"));
+  const reviewNote = asString(formData.get("reviewNote"));
+
+  if (!requestId) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile approval failed",
+      message: "The profile change request identifier is missing.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  const admin = createAdminClient();
+  const requestResult = await loadPendingProfileUpdateRequest(requestId);
+  const request = requestResult.data as ProfileUpdateRequestRow | null;
+
+  if (requestResult.error || !request) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile approval failed",
+      message: "The selected profile change request could not be loaded.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  if (request.request_type !== "profile_change") {
+    await setAdminFlash({
+      tone: "error",
+      title: "Unsupported request type",
+      message: "Only profile change requests can be approved from this queue.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  if (request.status !== "pending") {
+    await setAdminFlash({
+      tone: "error",
+      title: "Request already processed",
+      message: "This profile change request has already been moderated.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  const payload =
+    request.payload && typeof request.payload === "object" && !Array.isArray(request.payload)
+      ? (request.payload as Record<string, unknown>)
+      : null;
+
+  if (!payload) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile approval failed",
+      message: "This request does not contain a valid profile change payload.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  const fullName =
+    typeof payload.fullName === "string" && payload.fullName.trim()
+      ? payload.fullName.trim()
+      : null;
+  const phone =
+    typeof payload.phone === "string" && payload.phone.trim()
+      ? payload.phone.trim()
+      : null;
+  const linkedinUrl =
+    typeof payload.linkedinUrl === "string" && payload.linkedinUrl.trim()
+      ? payload.linkedinUrl.trim()
+      : null;
+  const websiteUrl =
+    typeof payload.websiteUrl === "string" && payload.websiteUrl.trim()
+      ? payload.websiteUrl.trim()
+      : null;
+
+  if (!fullName && !phone && !linkedinUrl && !websiteUrl) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile approval failed",
+      message: "This request does not contain any valid profile fields.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  const { data: member } = await admin
+    .from("members")
+    .select("id, full_name, jnuits_id")
+    .eq("id", request.member_id)
+    .maybeSingle();
+
+  if (!member) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile approval failed",
+      message: "The member linked to this request could not be found.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  const nowIso = new Date().toISOString();
+  const changedFields = [
+    fullName ? "full_name" : null,
+    phone ? "phone" : null,
+    linkedinUrl ? "linkedin_url" : null,
+    websiteUrl ? "website_url" : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const { error: memberError } = await admin
+    .from("members")
+    .update({
+      full_name: fullName || member.full_name,
+      linkedin_url: linkedinUrl,
+      phone,
+      updated_at: nowIso,
+      website_url: websiteUrl,
+    })
+    .eq("id", member.id);
+
+  if (memberError) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile approval failed",
+      message: memberError.message,
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  const { error: requestError } = await admin
+    .from("profile_update_requests")
+    .update({
+      review_note: reviewNote || null,
+      reviewed_at: nowIso,
+      reviewed_by_user_id: actorUserId,
+      status: "approved",
+      updated_at: nowIso,
+    })
+    .eq("id", request.id);
+
+  if (requestError) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile approval failed",
+      message: requestError.message,
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  await admin.from("membership_lifecycle_events").insert({
+    member_id: member.id,
+    event_type: "profile_change_approved",
+    summary: "A moderated profile change request was approved.",
+    created_by_user_id: actorUserId,
+    metadata: {
+      changedFields,
+      requestId: request.id,
+    },
+  });
+
+  await admin.from("audit_events").insert({
+    actor_user_id: actorUserId,
+    action: "member.profile_change_request_approved",
+    entity_type: "profile_update_request",
+    entity_id: request.id,
+    metadata: {
+      changedFields,
+      jnuitsId: member.jnuits_id,
+      memberId: member.id,
+      reviewNote: reviewNote || null,
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/profile");
+  revalidatePath("/profile/edit");
+  await setAdminFlash({
+    tone: "success",
+    title: "Profile request approved",
+    message: `${member.full_name}'s profile details have been updated.`,
+    jnuitsId: member.jnuits_id,
+  });
+  redirect("/admin#profile-requests");
+}
+
+export async function rejectProfileChangeRequest(formData: FormData) {
+  const auth = await requireAdminUser();
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login");
+  }
+
+  const requestId = asString(formData.get("requestId"));
+  const reviewNote = asString(formData.get("reviewNote"));
+
+  if (!requestId) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile rejection failed",
+      message: "The profile change request identifier is missing.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  const admin = createAdminClient();
+  const requestResult = await loadPendingProfileUpdateRequest(requestId);
+  const request = requestResult.data as ProfileUpdateRequestRow | null;
+
+  if (requestResult.error || !request) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile rejection failed",
+      message: "The selected profile change request could not be loaded.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  if (request.status !== "pending") {
+    await setAdminFlash({
+      tone: "error",
+      title: "Request already processed",
+      message: "This profile change request has already been moderated.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  const { data: member } = await admin
+    .from("members")
+    .select("id, full_name, jnuits_id")
+    .eq("id", request.member_id)
+    .maybeSingle();
+
+  const nowIso = new Date().toISOString();
+
+  const { error } = await admin
+    .from("profile_update_requests")
+    .update({
+      review_note: reviewNote || null,
+      reviewed_at: nowIso,
+      reviewed_by_user_id: actorUserId,
+      status: "rejected",
+      updated_at: nowIso,
+    })
+    .eq("id", request.id);
+
+  if (error) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile rejection failed",
+      message: error.message,
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  await admin.from("audit_events").insert({
+    actor_user_id: actorUserId,
+    action: "member.profile_change_request_rejected",
+    entity_type: "profile_update_request",
+    entity_id: request.id,
+    metadata: {
+      jnuitsId: member?.jnuits_id || null,
+      memberId: request.member_id,
+      reviewNote: reviewNote || null,
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/profile/edit");
+  await setAdminFlash({
+    tone: "success",
+    title: "Profile request rejected",
+    message: member
+      ? `${member.full_name}'s request has been marked as rejected.`
+      : "The profile change request has been marked as rejected.",
+    jnuitsId: member?.jnuits_id,
+  });
+  redirect("/admin#profile-requests");
 }

@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+
 export const ADMIN_FLASH_COOKIE_NAME = "jnuits-admin-flash";
 
 export type AdminFlash = {
@@ -33,4 +35,16 @@ export function parseAdminFlash(value: string | undefined): AdminFlash | null {
   } catch {}
 
   return null;
+}
+
+export async function setAdminFlash(payload: AdminFlash, path = "/admin") {
+  const cookieStore = await cookies();
+
+  cookieStore.set(ADMIN_FLASH_COOKIE_NAME, JSON.stringify(payload), {
+    httpOnly: true,
+    maxAge: 180,
+    path,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
 }

@@ -203,6 +203,264 @@ export type Database = {
           },
         ];
       };
+      committee_assignments: {
+        Row: {
+          bio: string | null;
+          created_at: string;
+          created_by_user_id: string | null;
+          display_name: string | null;
+          ends_on: string | null;
+          id: string;
+          member_id: string | null;
+          role_id: string;
+          sort_order: number;
+          starts_on: string | null;
+          status: string;
+          term_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          bio?: string | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          display_name?: string | null;
+          ends_on?: string | null;
+          id?: string;
+          member_id?: string | null;
+          role_id: string;
+          sort_order?: number;
+          starts_on?: string | null;
+          status?: string;
+          term_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          bio?: string | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          display_name?: string | null;
+          ends_on?: string | null;
+          id?: string;
+          member_id?: string | null;
+          role_id?: string;
+          sort_order?: number;
+          starts_on?: string | null;
+          status?: string;
+          term_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "committee_assignments_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "members";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "committee_assignments_role_id_fkey";
+            columns: ["role_id"];
+            isOneToOne: false;
+            referencedRelation: "committee_roles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "committee_assignments_term_id_fkey";
+            columns: ["term_id"];
+            isOneToOne: false;
+            referencedRelation: "committee_terms";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      committee_roles: {
+        Row: {
+          code: string;
+          created_at: string;
+          id: string;
+          is_executive: boolean;
+          is_public: boolean;
+          sort_order: number;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          code: string;
+          created_at?: string;
+          id?: string;
+          is_executive?: boolean;
+          is_public?: boolean;
+          sort_order?: number;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          code?: string;
+          created_at?: string;
+          id?: string;
+          is_executive?: boolean;
+          is_public?: boolean;
+          sort_order?: number;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      committee_terms: {
+        Row: {
+          created_at: string;
+          created_by_user_id: string | null;
+          ends_on: string | null;
+          id: string;
+          is_public: boolean;
+          slug: string;
+          starts_on: string;
+          status: string;
+          summary: string | null;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_user_id?: string | null;
+          ends_on?: string | null;
+          id?: string;
+          is_public?: boolean;
+          slug: string;
+          starts_on: string;
+          status?: string;
+          summary?: string | null;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string | null;
+          ends_on?: string | null;
+          id?: string;
+          is_public?: boolean;
+          slug?: string;
+          starts_on?: string;
+          status?: string;
+          summary?: string | null;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      content_pages: {
+        Row: {
+          body: Json;
+          created_at: string;
+          created_by_user_id: string | null;
+          eyebrow: string | null;
+          id: string;
+          slug: string;
+          status: string;
+          summary: string | null;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          body?: Json;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          eyebrow?: string | null;
+          id?: string;
+          slug: string;
+          status?: string;
+          summary?: string | null;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: Json;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          eyebrow?: string | null;
+          id?: string;
+          slug?: string;
+          status?: string;
+          summary?: string | null;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      content_posts: {
+        Row: {
+          body: string | null;
+          category: string | null;
+          content_type: string;
+          created_at: string;
+          created_by_user_id: string | null;
+          cta_href: string | null;
+          ends_at: string | null;
+          excerpt: string | null;
+          id: string;
+          location: string | null;
+          media_asset_id: string | null;
+          published_at: string | null;
+          read_time: string | null;
+          slug: string;
+          starts_at: string | null;
+          status: string;
+          summary: string | null;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          body?: string | null;
+          category?: string | null;
+          content_type: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          cta_href?: string | null;
+          ends_at?: string | null;
+          excerpt?: string | null;
+          id?: string;
+          location?: string | null;
+          media_asset_id?: string | null;
+          published_at?: string | null;
+          read_time?: string | null;
+          slug: string;
+          starts_at?: string | null;
+          status?: string;
+          summary?: string | null;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string | null;
+          category?: string | null;
+          content_type?: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          cta_href?: string | null;
+          ends_at?: string | null;
+          excerpt?: string | null;
+          id?: string;
+          location?: string | null;
+          media_asset_id?: string | null;
+          published_at?: string | null;
+          read_time?: string | null;
+          slug?: string;
+          starts_at?: string | null;
+          status?: string;
+          summary?: string | null;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "content_posts_media_asset_id_fkey";
+            columns: ["media_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "media_assets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       departments: {
         Row: {
           code: string;
@@ -227,6 +485,169 @@ export type Database = {
           name?: string;
           sort_order?: number;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      developer_profiles: {
+        Row: {
+          bio: string;
+          created_at: string;
+          created_by_user_id: string | null;
+          focus: string;
+          id: string;
+          is_lead: boolean;
+          media_asset_id: string | null;
+          name: string;
+          role: string;
+          sort_order: number;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          bio: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          focus: string;
+          id?: string;
+          is_lead?: boolean;
+          media_asset_id?: string | null;
+          name: string;
+          role: string;
+          sort_order?: number;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          bio?: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          focus?: string;
+          id?: string;
+          is_lead?: boolean;
+          media_asset_id?: string | null;
+          name?: string;
+          role?: string;
+          sort_order?: number;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "developer_profiles_media_asset_id_fkey";
+            columns: ["media_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "media_assets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      gallery_entries: {
+        Row: {
+          caption: string | null;
+          created_at: string;
+          created_by_user_id: string | null;
+          id: string;
+          media_asset_id: string;
+          sort_order: number;
+          status: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          caption?: string | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          id?: string;
+          media_asset_id: string;
+          sort_order?: number;
+          status?: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          caption?: string | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          id?: string;
+          media_asset_id?: string;
+          sort_order?: number;
+          status?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "gallery_entries_media_asset_id_fkey";
+            columns: ["media_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "media_assets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      media_assets: {
+        Row: {
+          alt_text: string | null;
+          bytes: number | null;
+          created_at: string;
+          created_by_user_id: string | null;
+          duration_seconds: number | null;
+          format: string | null;
+          height: number | null;
+          id: string;
+          is_public: boolean;
+          media_kind: string;
+          metadata: Json;
+          provider: string;
+          public_id: string;
+          resource_type: string;
+          secure_url: string;
+          thumbnail_url: string | null;
+          title: string | null;
+          updated_at: string;
+          width: number | null;
+        };
+        Insert: {
+          alt_text?: string | null;
+          bytes?: number | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          duration_seconds?: number | null;
+          format?: string | null;
+          height?: number | null;
+          id?: string;
+          is_public?: boolean;
+          media_kind: string;
+          metadata?: Json;
+          provider?: string;
+          public_id: string;
+          resource_type: string;
+          secure_url: string;
+          thumbnail_url?: string | null;
+          title?: string | null;
+          updated_at?: string;
+          width?: number | null;
+        };
+        Update: {
+          alt_text?: string | null;
+          bytes?: number | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          duration_seconds?: number | null;
+          format?: string | null;
+          height?: number | null;
+          id?: string;
+          is_public?: boolean;
+          media_kind?: string;
+          metadata?: Json;
+          provider?: string;
+          public_id?: string;
+          resource_type?: string;
+          secure_url?: string;
+          thumbnail_url?: string | null;
+          title?: string | null;
+          updated_at?: string;
+          width?: number | null;
         };
         Relationships: [];
       };
@@ -491,6 +912,39 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      operator_reports: {
+        Row: {
+          created_at: string;
+          created_by_user_id: string | null;
+          id: string;
+          report: Json;
+          report_type: string;
+          status: string;
+          summary: string | null;
+          title: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_user_id?: string | null;
+          id?: string;
+          report?: Json;
+          report_type: string;
+          status?: string;
+          summary?: string | null;
+          title: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string | null;
+          id?: string;
+          report?: Json;
+          report_type?: string;
+          status?: string;
+          summary?: string | null;
+          title?: string;
+        };
+        Relationships: [];
       };
       profile_update_requests: {
         Row: {

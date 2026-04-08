@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { aboutContent } from "@/lib/content/public-content";
+import { getAboutContent } from "@/lib/content/public-content";
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const aboutContent = await getAboutContent();
+
   return (
     <div className="shell py-12">
       <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">

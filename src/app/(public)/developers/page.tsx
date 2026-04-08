@@ -1,7 +1,13 @@
 import Image from "next/image";
-import { developerCredits } from "@/lib/content/public-content";
+import { getPublishedDevelopers } from "@/lib/content/public-content";
 
-export default function DevelopersPage() {
+export default async function DevelopersPage() {
+  const developers = await getPublishedDevelopers();
+  const lead =
+    developers.find(
+      (developer) => "lead" in developer && Boolean(developer.lead)
+    ) || developers[0];
+
   return (
     <div className="shell py-12">
       <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">
@@ -28,12 +34,12 @@ export default function DevelopersPage() {
             <div className="grid gap-5 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center">
               <div className="relative mx-auto min-h-[180px] w-[180px] overflow-hidden rounded-[1.4rem] border border-[var(--line)]">
                 <Image
-                  alt={developerCredits.lead.name}
+                  alt={lead.name}
                   className="object-cover"
                   fill
                   priority
                   sizes="180px"
-                  src={developerCredits.lead.imageSrc || "/logo.svg"}
+                  src={lead.imageSrc || "/logo.svg"}
                 />
               </div>
               <div>
@@ -41,13 +47,13 @@ export default function DevelopersPage() {
                   Lead contributor
                 </p>
                 <h2 className="mt-3 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
-                  {developerCredits.lead.name}
+                  {lead.name}
                 </h2>
                 <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
-                  {developerCredits.lead.role}
+                  {lead.role}
                 </p>
                 <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-                  {developerCredits.lead.bio}
+                  {lead.bio}
                 </p>
               </div>
             </div>
@@ -58,7 +64,7 @@ export default function DevelopersPage() {
       <section className="mt-8 section-band">
         <p className="section-divider">Team credits</p>
         <div className="mt-6 grid gap-4 lg:grid-cols-3">
-          {[developerCredits.lead, ...developerCredits.team].map((developer) => (
+          {developers.map((developer) => (
             <article
               key={developer.name}
               className="rounded-[1.35rem] border border-[var(--line)] p-5"

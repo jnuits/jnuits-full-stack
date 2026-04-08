@@ -1,7 +1,9 @@
 import Image from "next/image";
-import { publicGallery } from "@/lib/content/public-content";
+import { getPublishedGallery } from "@/lib/content/public-content";
 
-export default function GalleryPage() {
+export default async function GalleryPage() {
+  const publicGallery = await getPublishedGallery();
+
   return (
     <div className="shell py-12">
       <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">

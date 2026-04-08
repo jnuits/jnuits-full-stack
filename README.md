@@ -10,6 +10,10 @@ Unified Next.js + Supabase application for the JnUITS public site, member portal
 - Public certificate verification routes and import/parity scripts
 - Temporary public membership application and status-check flow
 - Initial auth flows for sign-in, password recovery, email confirmation, and invitation-based claim
+- Committee term and assignment administration in `/admin/committee`
+- Operator reporting snapshots and reconciliation views in `/admin/reports`
+- Richer portal moderation flows for workplace requests and profile change requests
+- Supabase-backed content/admin models for public pages, with Cloudinary reserved for large media storage
 - Phase tracker and walkthrough documents in [`plan`](./plan)
 
 ## Required environment variables
@@ -64,6 +68,7 @@ curl http://localhost:3000/api/debug/sentry
 
 - Node is pinned to `24.14.1` in `.nvmrc` and `24.x` in `package.json`.
 - Set the Vercel project Node version to `24.x` as well.
+- Large videos and photos should live in Cloudinary; Supabase stores media metadata, moderation state, and relational links.
 - Supabase email templates should route confirmation and recovery links to:
 
 ```text

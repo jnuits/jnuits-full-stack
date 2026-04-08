@@ -1,5 +1,6 @@
 import { DirectoryVerificationForm } from "@/components/portal/directory-verification-form";
 import { PortalShell } from "@/components/portal/portal-shell";
+import { ProfileChangeRequestForm } from "@/components/portal/profile-change-request-form";
 import { WorkplaceRequestForm } from "@/components/portal/workplace-request-form";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
@@ -48,6 +49,16 @@ export default async function EditProfilePage() {
           <DirectoryVerificationForm
             initiallyVerified={snapshot.directoryVerified}
             jnuitsId={snapshot.member.jnuits_id}
+          />
+
+          <ProfileChangeRequestForm
+            currentValues={{
+              fullName: snapshot.member.full_name,
+              linkedinUrl: snapshot.member.linkedin_url,
+              phone: snapshot.member.phone,
+              websiteUrl: snapshot.member.website_url,
+            }}
+            initialRequests={snapshot.profileChangeRequests}
           />
 
           <WorkplaceRequestForm

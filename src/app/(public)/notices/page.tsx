@@ -1,7 +1,12 @@
 import Link from "next/link";
-import { formatDisplayDate, publicNotices } from "@/lib/content/public-content";
+import {
+  formatDisplayDate,
+  getPublishedNotices,
+} from "@/lib/content/public-content";
 
-export default function NoticesPage() {
+export default async function NoticesPage() {
+  const publicNotices = await getPublishedNotices();
+
   return (
     <div className="shell py-12">
       <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">

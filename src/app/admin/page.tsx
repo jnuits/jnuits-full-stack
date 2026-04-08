@@ -4,6 +4,7 @@ import {
   rejectMembershipApplication,
 } from "@/app/admin/actions";
 import { InvitationsPanel } from "@/components/admin/invitations-panel";
+import { ProfileChangeRequestsPanel } from "@/components/admin/profile-change-requests-panel";
 import { WorkplaceRequestsPanel } from "@/components/admin/workplace-requests-panel";
 import {
   ADMIN_FLASH_COOKIE_NAME,
@@ -91,6 +92,35 @@ type WorkplaceRequestRecord = {
     | null;
 };
 
+type ProfileChangeRequestRecord = {
+  id: string;
+  member_id: string;
+  payload: unknown;
+  request_type: string;
+  requested_at: string;
+  review_note: string | null;
+  reviewed_at: string | null;
+  status: string;
+  members?:
+    | {
+        email?: string | null;
+        full_name?: string | null;
+        jnuits_id?: string | null;
+        phone?: string | null;
+        linkedin_url?: string | null;
+        website_url?: string | null;
+      }
+    | {
+        email?: string | null;
+        full_name?: string | null;
+        jnuits_id?: string | null;
+        phone?: string | null;
+        linkedin_url?: string | null;
+        website_url?: string | null;
+      }[]
+    | null;
+};
+
 function resolveDepartmentName(
   departments: ApplicationRecord["departments"],
   fallbackCode: string | null
@@ -119,6 +149,8 @@ export default async function AdminPage() {
     pendingWorkplaceRequestsResult,
     pendingWorkplaceCountResult,
     recentWorkplaceDecisionsResult,
+    pendingProfileChangeRequestsResult,
+    pendingProfileChangeCountResult,
   ] = await Promise.all([
     admin
       .from("membership_applications")
@@ -178,6 +210,20 @@ export default async function AdminPage() {
       .neq("status", "pending")
       .order("reviewed_at", { ascending: false })
       .limit(6),
+    admin
+      .from("profile_update_requests")
+      .select(
+        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, phone, linkedin_url, website_url)"
+      )
+      .eq("request_type", "profile_change")
+      .eq("status", "pending")
+      .order("requested_at", { ascending: true })
+      .limit(8),
+    admin
+      .from("profile_update_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("request_type", "profile_change")
+      .eq("status", "pending"),
   ]);
 
   const pendingApplications =
@@ -190,6 +236,8 @@ export default async function AdminPage() {
     (pendingWorkplaceRequestsResult.data || []) as WorkplaceRequestRecord[];
   const recentWorkplaceDecisions =
     (recentWorkplaceDecisionsResult.data || []) as WorkplaceRequestRecord[];
+  const pendingProfileChangeRequests =
+    (pendingProfileChangeRequestsResult.data || []) as ProfileChangeRequestRecord[];
 
   const processedMemberIds = recentDecisions
     .map((decision) => decision.processed_member_id)
@@ -253,7 +301,7 @@ export default async function AdminPage() {
         </section>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <article className="metric-card">
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
             Pending applications
@@ -273,7 +321,7 @@ export default async function AdminPage() {
           </p>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
             Invitation creation is now live; resend and lifecycle controls
-            follow in the next operator pass.
+            now sit inside the same operator stack.
           </p>
         </article>
         <article className="metric-card" id="workplace">
@@ -286,6 +334,17 @@ export default async function AdminPage() {
           <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
             Alumni workplace changes are now queued for operator moderation
             instead of being applied directly from the member portal.
+          </p>
+        </article>
+        <article className="metric-card" id="profile-requests">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+            Pending profile changes
+          </p>
+          <p className="metric-card__value mt-3">
+            {pendingProfileChangeCountResult.count || 0}
+          </p>
+          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+            Core member profile edits now have their own moderated approval path.
           </p>
         </article>
         <article className="metric-card">
@@ -480,6 +539,8 @@ export default async function AdminPage() {
       <InvitationsPanel invitations={activeInvitationRows} />
 
       <WorkplaceRequestsPanel requests={pendingWorkplaceRequests} />
+
+      <ProfileChangeRequestsPanel requests={pendingProfileChangeRequests} />
 
       <section
         id="decisions"

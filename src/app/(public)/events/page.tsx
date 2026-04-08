@@ -1,9 +1,13 @@
 import Image from "next/image";
-import { formatDateRange, publicEvents } from "@/lib/content/public-content";
+import {
+  formatDateRange,
+  getPublishedEvents,
+} from "@/lib/content/public-content";
 
-const featuredEvent = publicEvents[0];
+export default async function EventsPage() {
+  const publicEvents = await getPublishedEvents();
+  const featuredEvent = publicEvents[0];
 
-export default function EventsPage() {
   return (
     <div className="shell py-12">
       <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">

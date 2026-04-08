@@ -31,24 +31,33 @@ export function AdminShell({
               </p>
             </div>
             <nav className="workspace-nav-list">
-              {adminNavigation.map((item, index) => (
-                <Link
-                  key={item.href}
-                  data-active={index === 0 && pathname === "/admin" ? "true" : "false"}
-                  href={item.href}
-                  className="workspace-nav-link"
-                >
-                  <span>{item.label}</span>
-                  <span className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-                    Queue
-                  </span>
-                </Link>
-              ))}
+              {adminNavigation.map((item) => {
+                const [baseHref] = item.href.split("#");
+                const isOverviewAnchor = item.href.startsWith("/admin#");
+                const active = isOverviewAnchor
+                  ? pathname === "/admin"
+                  : pathname === baseHref;
+
+                return (
+                  <Link
+                    key={item.href}
+                    data-active={active ? "true" : "false"}
+                    href={item.href}
+                    className="workspace-nav-link"
+                  >
+                    <span>{item.label}</span>
+                    <span className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                      {isOverviewAnchor ? "Queue" : "Workspace"}
+                    </span>
+                  </Link>
+                );
+              })}
             </nav>
             <div className="workspace-callout workspace-sidebar__callout mt-5">
               Operator flows are now moving past placeholder copy. Membership
-              review and invitation generation live here first; moderation,
-              committee management, and reconciliation continue in the next passes.
+              review, committee tooling, and reporting now live here; richer
+              moderation, reconciliation, and content administration continue in
+              the next passes.
             </div>
           </aside>
           <main className="workspace-main p-6 sm:p-8">{children}</main>

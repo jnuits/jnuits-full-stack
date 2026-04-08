@@ -1,3 +1,7 @@
+import { cache } from "react";
+import type { Json, Tables } from "@/lib/db/types";
+import { createClient } from "@/lib/supabase/server";
+
 export type AboutValue = {
   title: string;
   description: string;
@@ -50,9 +54,22 @@ export type DeveloperPreview = {
   lead?: boolean;
 };
 
-export const aboutContent = {
+type ContentPostRecord = Tables<"content_posts">;
+type DeveloperProfileRecord = Tables<"developer_profiles">;
+type GalleryEntryRecord = Tables<"gallery_entries">;
+type MediaAssetRecord = Pick<
+  Tables<"media_assets">,
+  "alt_text" | "media_kind" | "secure_url" | "thumbnail_url" | "title"
+>;
+
+const fallbackBlogImage = "/images/home-group.jpg";
+const fallbackEventImage = "/images/workshop.jpg";
+const fallbackNoticeHref = "/notices";
+
+export const fallbackAboutContent = {
   eyebrow: "Institutional profile",
-  title: "JnUITS connects students, builders, and operators around practical digital work.",
+  title:
+    "JnUITS connects students, builders, and operators around practical digital work.",
   summary:
     "The old site already proved that JnUITS needs more than a brochure. It needs a public face for announcements and history, a safe member space, and operator tooling that can survive real organizational work without depending on an opaque proxy chain.",
   story: [
@@ -85,7 +102,7 @@ export const aboutContent = {
   imageSrc: "/images/workshop.jpg",
 };
 
-export const publicBlogs: BlogPreview[] = [
+export const fallbackPublicBlogs: BlogPreview[] = [
   {
     slug: "building-the-unified-stack",
     title: "Building the unified stack without repeating the proxy-era mistakes",
@@ -124,7 +141,7 @@ export const publicBlogs: BlogPreview[] = [
   },
 ];
 
-export const publicEvents: EventPreview[] = [
+export const fallbackPublicEvents: EventPreview[] = [
   {
     slug: "spring-builder-session",
     title: "Spring Builder Session",
@@ -163,7 +180,7 @@ export const publicEvents: EventPreview[] = [
   },
 ];
 
-export const publicNotices: NoticePreview[] = [
+export const fallbackPublicNotices: NoticePreview[] = [
   {
     title: "Membership review queue is now live in the unified admin workspace",
     category: "Operations",
@@ -192,7 +209,8 @@ export const publicNotices: NoticePreview[] = [
     href: "/about",
   },
   {
-    title: "Attachment handling remains phase-gated until media import rules are finalized",
+    title:
+      "Attachment handling remains phase-gated until media import rules are finalized",
     category: "Media",
     publishedAt: "2026-04-05",
     summary:
@@ -201,7 +219,7 @@ export const publicNotices: NoticePreview[] = [
   },
 ];
 
-export const publicGallery: GalleryPreview[] = [
+export const fallbackPublicGallery: GalleryPreview[] = [
   {
     title: "Community orientation and project showcase",
     caption:
@@ -222,7 +240,7 @@ export const publicGallery: GalleryPreview[] = [
   },
 ];
 
-export const developerCredits = {
+export const fallbackDeveloperCredits = {
   lead: {
     name: "Md. Redwan Ahmed",
     role: "Platform architecture and migration lead",
@@ -248,6 +266,13 @@ export const developerCredits = {
   ] satisfies DeveloperPreview[],
 };
 
+export const aboutContent = fallbackAboutContent;
+export const publicBlogs = fallbackPublicBlogs;
+export const publicEvents = fallbackPublicEvents;
+export const publicNotices = fallbackPublicNotices;
+export const publicGallery = fallbackPublicGallery;
+export const developerCredits = fallbackDeveloperCredits;
+
 const shortDate = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -258,6 +283,76 @@ const compactDate = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
 });
+
+function asObject(value: Json | null | undefined) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, Json | undefined>)
+    : null;
+}
+
+function asString(value: Json | undefined, fallback = "") {
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function asStringArray(value: Json | undefined, fallback: string[]) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter(Boolean);
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function asAboutValues(value: Json | undefined, fallback: AboutValue[]) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, Json | undefined>;
+      const title = asString(record.title);
+      const description = asString(record.description);
+
+      if (!title || !description) {
+        return null;
+      }
+
+      return { title, description };
+    })
+    .filter((entry): entry is AboutValue => Boolean(entry));
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function resolveRelation<T>(value: T | T[] | null | undefined) {
+  if (Array.isArray(value)) {
+    return value[0] || null;
+  }
+
+  return value || null;
+}
+
+function resolveImage(media: MediaAssetRecord | MediaAssetRecord[] | null | undefined, fallback: string) {
+  const resolved = resolveRelation(media);
+
+  if (!resolved) {
+    return fallback;
+  }
+
+  if (resolved.media_kind === "video") {
+    return resolved.thumbnail_url || fallback;
+  }
+
+  return resolved.secure_url || fallback;
+}
 
 export function formatDisplayDate(value: string) {
   return shortDate.format(new Date(value));
@@ -279,3 +374,226 @@ export function formatDateRange(start: string, end: string) {
 
   return `${compactDate.format(startDate)} - ${shortDate.format(endDate)}`;
 }
+
+export const getAboutContent = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("content_pages")
+    .select("slug, title, eyebrow, summary, body")
+    .eq("slug", "about")
+    .eq("status", "published")
+    .maybeSingle();
+
+  if (!data) {
+    return fallbackAboutContent;
+  }
+
+  const body = asObject(data.body);
+
+  return {
+    eyebrow: data.eyebrow || fallbackAboutContent.eyebrow,
+    title: data.title || fallbackAboutContent.title,
+    summary: data.summary || fallbackAboutContent.summary,
+    story: asStringArray(body?.story, fallbackAboutContent.story),
+    missionTitle: asString(body?.missionTitle, fallbackAboutContent.missionTitle),
+    missionPoints: asStringArray(
+      body?.missionPoints,
+      fallbackAboutContent.missionPoints
+    ),
+    values: asAboutValues(body?.values, fallbackAboutContent.values),
+    imageSrc: asString(body?.imageSrc, fallbackAboutContent.imageSrc),
+  };
+});
+
+export const getPublishedBlogs = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("content_posts")
+    .select(
+      "slug, title, category, summary, excerpt, published_at, read_time, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)"
+    )
+    .eq("content_type", "blog")
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+    .limit(24);
+
+  if (!data || data.length === 0) {
+    return fallbackPublicBlogs;
+  }
+
+  return data.map((record, index) => {
+    const media = (
+      record as ContentPostRecord & {
+        media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
+      }
+    ).media_assets;
+
+    return {
+      slug: record.slug,
+      title: record.title,
+      category: record.category || "Blog",
+      summary: record.summary || record.excerpt || "Public editorial item.",
+      excerpt:
+        record.excerpt ||
+        record.summary ||
+        "This public editorial entry is now served from the moderated content model.",
+      publishedAt:
+        record.published_at ||
+        fallbackPublicBlogs[index]?.publishedAt ||
+        new Date().toISOString(),
+      readTime: record.read_time || fallbackPublicBlogs[index]?.readTime || "5 min read",
+      imageSrc: resolveImage(media, fallbackPublicBlogs[index]?.imageSrc || fallbackBlogImage),
+    } satisfies BlogPreview;
+  });
+});
+
+function mapEventStatus(value: string | null | undefined): EventPreview["status"] {
+  if (value === "archived") {
+    return "Archive";
+  }
+
+  if (value === "published") {
+    return "Ongoing";
+  }
+
+  return "Upcoming";
+}
+
+export const getPublishedEvents = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("content_posts")
+    .select(
+      "slug, title, category, summary, location, starts_at, ends_at, status, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)"
+    )
+    .eq("content_type", "event")
+    .eq("status", "published")
+    .order("starts_at", { ascending: true })
+    .limit(24);
+
+  if (!data || data.length === 0) {
+    return fallbackPublicEvents;
+  }
+
+  return data.map((record, index) => {
+    const media = (
+      record as ContentPostRecord & {
+        media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
+      }
+    ).media_assets;
+
+    return {
+      slug: record.slug,
+      title: record.title,
+      status: mapEventStatus(record.status),
+      summary: record.summary || "Public event entry.",
+      location: record.location || "Location to be confirmed",
+      start:
+        record.starts_at ||
+        fallbackPublicEvents[index]?.start ||
+        new Date().toISOString(),
+      end:
+        record.ends_at ||
+        record.starts_at ||
+        fallbackPublicEvents[index]?.end ||
+        new Date().toISOString(),
+      imageSrc: resolveImage(media, fallbackPublicEvents[index]?.imageSrc || fallbackEventImage),
+      focus: record.category || fallbackPublicEvents[index]?.focus || "Program stream",
+    } satisfies EventPreview;
+  });
+});
+
+export const getPublishedNotices = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("content_posts")
+    .select("title, category, summary, published_at, cta_href")
+    .eq("content_type", "notice")
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+    .limit(24);
+
+  if (!data || data.length === 0) {
+    return fallbackPublicNotices;
+  }
+
+  return data.map((record, index) => ({
+    title: record.title,
+    category: record.category || "Notice",
+    publishedAt:
+      record.published_at ||
+      fallbackPublicNotices[index]?.publishedAt ||
+      new Date().toISOString(),
+    summary: record.summary || "Public notice entry.",
+    delivery: record.cta_href ? "External action" : "Read route ready",
+    href: record.cta_href || fallbackPublicNotices[index]?.href || fallbackNoticeHref,
+  })) satisfies NoticePreview[];
+});
+
+export const getPublishedGallery = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("gallery_entries")
+    .select("title, caption, sort_order, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)")
+    .eq("status", "published")
+    .order("sort_order", { ascending: true })
+    .limit(24);
+
+  if (!data || data.length === 0) {
+    return fallbackPublicGallery;
+  }
+
+  return data.map((record, index) => {
+    const media = (
+      record as GalleryEntryRecord & {
+        media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
+      }
+    ).media_assets;
+
+    return {
+      title: record.title,
+      caption: record.caption || fallbackPublicGallery[index]?.caption || "",
+      imageSrc: resolveImage(
+        media,
+        fallbackPublicGallery[index]?.imageSrc || fallbackPublicGallery[0].imageSrc
+      ),
+    } satisfies GalleryPreview;
+  });
+});
+
+export const getPublishedDevelopers = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("developer_profiles")
+    .select("name, role, focus, bio, is_lead, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)")
+    .eq("status", "published")
+    .order("is_lead", { ascending: false })
+    .order("sort_order", { ascending: true })
+    .limit(24);
+
+  if (!data || data.length === 0) {
+    return [fallbackDeveloperCredits.lead, ...fallbackDeveloperCredits.team];
+  }
+
+  return data.map((record, index) => {
+    const media = (
+      record as DeveloperProfileRecord & {
+        media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
+      }
+    ).media_assets;
+
+    return {
+      name: record.name,
+      role: record.role,
+      focus: record.focus,
+      bio: record.bio,
+      imageSrc: resolveImage(
+        media,
+        index === 0
+          ? fallbackDeveloperCredits.lead.imageSrc || "/logo.svg"
+          : fallbackDeveloperCredits.team[index - 1]?.imageSrc || "/logo.svg"
+      ),
+      lead: record.is_lead,
+    } satisfies DeveloperPreview;
+  });
+});

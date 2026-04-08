@@ -3,17 +3,22 @@ import Image from "next/image";
 import {
   formatDisplayDate,
   formatDateRange,
-  publicBlogs,
-  publicEvents,
-  publicNotices,
+  getPublishedBlogs,
+  getPublishedEvents,
+  getPublishedNotices,
 } from "@/lib/content/public-content";
 import { implementationPhases } from "@/lib/site";
 
-const featuredEvent = publicEvents[0];
-const featuredBlog = publicBlogs[0];
-const featuredNotice = publicNotices[0];
+export default async function HomePage() {
+  const [publicBlogs, publicEvents, publicNotices] = await Promise.all([
+    getPublishedBlogs(),
+    getPublishedEvents(),
+    getPublishedNotices(),
+  ]);
+  const featuredEvent = publicEvents[0];
+  const featuredBlog = publicBlogs[0];
+  const featuredNotice = publicNotices[0];
 
-export default function HomePage() {
   return (
     <div className="pb-16">
       <section className="hero-plane">
