@@ -3,6 +3,8 @@ import {
   approveMembershipApplication,
   rejectMembershipApplication,
 } from "@/app/admin/actions";
+import { InvitationsPanel } from "@/components/admin/invitations-panel";
+import { WorkplaceRequestsPanel } from "@/components/admin/workplace-requests-panel";
 import {
   ADMIN_FLASH_COOKIE_NAME,
   parseAdminFlash,
@@ -29,6 +31,66 @@ type ApplicationRecord = {
   departments?: { name?: string | null } | { name?: string | null }[] | null;
 };
 
+type InvitationRecord = {
+  id: string;
+  member_id: string;
+  created_at: string;
+  expires_at: string;
+  is_active: boolean;
+  last_used_at: string | null;
+  max_uses: number;
+  notes: string | null;
+  revoked_at: string | null;
+  used_count: number;
+  members?:
+    | {
+        email?: string | null;
+        full_name?: string | null;
+        jnuits_id?: string | null;
+        member_type?: string | null;
+      }
+    | {
+        email?: string | null;
+        full_name?: string | null;
+        jnuits_id?: string | null;
+        member_type?: string | null;
+      }[]
+    | null;
+};
+
+type WorkplaceRequestRecord = {
+  id: string;
+  member_id: string;
+  payload: unknown;
+  request_type: string;
+  requested_at: string;
+  review_note: string | null;
+  reviewed_at: string | null;
+  status: string;
+  members?:
+    | {
+        current_organization?: string | null;
+        designation?: string | null;
+        email?: string | null;
+        full_name?: string | null;
+        jnuits_id?: string | null;
+        member_type?: string | null;
+        professional_visibility?: string | null;
+        work_location?: string | null;
+      }
+    | {
+        current_organization?: string | null;
+        designation?: string | null;
+        email?: string | null;
+        full_name?: string | null;
+        jnuits_id?: string | null;
+        member_type?: string | null;
+        professional_visibility?: string | null;
+        work_location?: string | null;
+      }[]
+    | null;
+};
+
 function resolveDepartmentName(
   departments: ApplicationRecord["departments"],
   fallbackCode: string | null
@@ -53,6 +115,10 @@ export default async function AdminPage() {
     pendingCountResult,
     activeInvitationsResult,
     membersCountResult,
+    activeInvitationRowsResult,
+    pendingWorkplaceRequestsResult,
+    pendingWorkplaceCountResult,
+    recentWorkplaceDecisionsResult,
   ] = await Promise.all([
     admin
       .from("membership_applications")
@@ -80,12 +146,50 @@ export default async function AdminPage() {
       .eq("is_active", true)
       .is("revoked_at", null),
     admin.from("members").select("*", { count: "exact", head: true }),
+    admin
+      .from("member_invitations")
+      .select(
+        "id, member_id, created_at, expires_at, is_active, last_used_at, max_uses, notes, revoked_at, used_count, members(full_name, jnuits_id, email, member_type)"
+      )
+      .eq("is_active", true)
+      .is("revoked_at", null)
+      .order("created_at", { ascending: false })
+      .limit(8),
+    admin
+      .from("profile_update_requests")
+      .select(
+        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, member_type, current_organization, designation, work_location, professional_visibility)"
+      )
+      .eq("request_type", "workplace_update")
+      .eq("status", "pending")
+      .order("requested_at", { ascending: true })
+      .limit(8),
+    admin
+      .from("profile_update_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("request_type", "workplace_update")
+      .eq("status", "pending"),
+    admin
+      .from("profile_update_requests")
+      .select(
+        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, member_type)"
+      )
+      .eq("request_type", "workplace_update")
+      .neq("status", "pending")
+      .order("reviewed_at", { ascending: false })
+      .limit(6),
   ]);
 
   const pendingApplications =
     (pendingApplicationsResult.data || []) as ApplicationRecord[];
   const recentDecisions =
     (recentDecisionsResult.data || []) as ApplicationRecord[];
+  const activeInvitationRows =
+    (activeInvitationRowsResult.data || []) as InvitationRecord[];
+  const pendingWorkplaceRequests =
+    (pendingWorkplaceRequestsResult.data || []) as WorkplaceRequestRecord[];
+  const recentWorkplaceDecisions =
+    (recentWorkplaceDecisionsResult.data || []) as WorkplaceRequestRecord[];
 
   const processedMemberIds = recentDecisions
     .map((decision) => decision.processed_member_id)
@@ -114,10 +218,10 @@ export default async function AdminPage() {
           Admin queues, invitation review, and protected operations.
         </h1>
         <p className="section-copy mt-3">
-          This area is for technical moderators and admins. The first real queue
-          is now live: pending membership applications can be reviewed,
-          approved into members, and turned into claim invitations without
-          leaving the new stack.
+          This area is for technical moderators and admins. Membership
+          application review, invitation lifecycle control, and workplace
+          moderation now live here instead of depending on the legacy operator
+          stack.
         </p>
       </div>
 
@@ -149,7 +253,7 @@ export default async function AdminPage() {
         </section>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="metric-card">
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
             Pending applications
@@ -170,6 +274,18 @@ export default async function AdminPage() {
           <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
             Invitation creation is now live; resend and lifecycle controls
             follow in the next operator pass.
+          </p>
+        </article>
+        <article className="metric-card" id="workplace">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+            Pending workplace requests
+          </p>
+          <p className="metric-card__value mt-3">
+            {pendingWorkplaceCountResult.count || 0}
+          </p>
+          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+            Alumni workplace changes are now queued for operator moderation
+            instead of being applied directly from the member portal.
           </p>
         </article>
         <article className="metric-card">
@@ -361,9 +477,13 @@ export default async function AdminPage() {
         )}
       </section>
 
+      <InvitationsPanel invitations={activeInvitationRows} />
+
+      <WorkplaceRequestsPanel requests={pendingWorkplaceRequests} />
+
       <section
         id="decisions"
-        className="grid gap-4 lg:grid-cols-[minmax(0,1.04fr)_minmax(0,0.96fr)]"
+        className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.92fr)]"
       >
         <article className="route-tile">
           <h3>Recent queue decisions</h3>
@@ -408,8 +528,52 @@ export default async function AdminPage() {
           </div>
         </article>
 
-        <div className="grid gap-4">
-          <article className="route-tile" id="certificates">
+        <article className="route-tile">
+          <h3>Recent workplace moderation</h3>
+          <div className="mt-4 grid gap-3">
+            {recentWorkplaceDecisions.length === 0 ? (
+              <p>No workplace approvals or rejections recorded yet.</p>
+            ) : (
+              recentWorkplaceDecisions.map((request) => {
+                const member = Array.isArray(request.members)
+                  ? request.members[0]
+                  : request.members;
+
+                return (
+                  <div
+                    key={request.id}
+                    className="rounded-[1.1rem] border border-[var(--line)] p-4"
+                    style={{
+                      background:
+                        "color-mix(in oklab, var(--panel) 92%, transparent)",
+                    }}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <strong className="font-[family-name:var(--font-heading)] text-lg">
+                        {member?.full_name || "Linked member"}
+                      </strong>
+                      <span className="status-pill">
+                        {request.status}
+                        {member?.jnuits_id ? ` • ${member.jnuits_id}` : ""}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-[var(--muted)]">
+                      {member?.email || request.request_type}
+                    </p>
+                    {request.review_note ? (
+                      <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                        {request.review_note}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </article>
+
+        <div className="grid gap-4" id="certificates">
+          <article className="route-tile">
             <h3>Certificates</h3>
             <p>
               The public verification path is live. The next operator pass still
