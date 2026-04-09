@@ -2,6 +2,7 @@ import {
   approveWorkplaceUpdateRequest,
   rejectWorkplaceUpdateRequest,
 } from "@/app/admin/actions";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getWorkplacePayloadEntries } from "@/lib/members/workplace-payload";
 
 type WorkplaceRequestRecord = {
@@ -60,20 +61,16 @@ export function WorkplaceRequestsPanel({
           </h2>
         </div>
         <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
-          Phase 06 now sends moderated workplace requests into a real queue.
-          Approving a request updates the member record, writes audit evidence,
-          and keeps the portal history in sync.
+          Review requested changes side-by-side with the current member state.
+          Approving updates the member record and writes audit evidence.
         </p>
       </div>
 
       {requests.length === 0 ? (
-        <article className="route-tile">
-          <h3>No workplace requests right now</h3>
-          <p>
-            When alumni submit moderated workplace updates from the portal, they
-            will show up here for approval or rejection.
-          </p>
-        </article>
+        <EmptyState
+          title="No workplace requests right now"
+          description="When alumni submit workplace updates from the portal, they will appear here for approval or rejection."
+        />
       ) : (
         requests.map((request) => {
           const member = resolveRequestMember(request);
@@ -145,9 +142,10 @@ export function WorkplaceRequestsPanel({
 
                 <form className="application-card__actions">
                   <input name="requestId" type="hidden" value={request.id} />
-                  <label className="input-label">
+                  <label className="input-label" htmlFor={`wp-review-note-${request.id}`}>
                     Review note
                     <textarea
+                      id={`wp-review-note-${request.id}`}
                       name="reviewNote"
                       placeholder="Explain the decision or any follow-up required"
                       rows={5}

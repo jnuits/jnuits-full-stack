@@ -24,31 +24,39 @@ export default async function LoginPage({
 
   return (
     <div>
-      <span className="eyebrow">Authentication</span>
-      <h1 className="section-title mt-4 text-[2.4rem]">Sign in with Supabase Auth.</h1>
+      <span className="eyebrow">Member sign in</span>
+      <h1 className="section-title mt-4 text-[2.4rem]">Sign in to your JnUITS account.</h1>
       <p className="section-copy mt-3">
-        This route now posts into a server action backed by Supabase SSR cookies,
-        so preview and production builds use the same session flow.
+        Access your member portal, profile, and activity history. Use the
+        email and password you registered with.
       </p>
       {message ? <p className="status-pill mt-6">{message}</p> : null}
       {error ? (
         <p className="mt-4 text-sm font-semibold text-[var(--brand-rust)]">{error}</p>
       ) : null}
       <form className="mt-8 grid gap-4">
-        <input
-          autoComplete="email"
-          name="email"
-          type="email"
-          placeholder="Email address"
-          required
-        />
-        <input
-          autoComplete="current-password"
-          name="password"
-          type="password"
-          placeholder="Password"
-          required
-        />
+        <label className="input-label" htmlFor="login-email">
+          Email address
+          <input
+            id="login-email"
+            autoComplete="email"
+            name="email"
+            type="email"
+            placeholder="you@example.com"
+            required
+          />
+        </label>
+        <label className="input-label" htmlFor="login-password">
+          Password
+          <input
+            id="login-password"
+            autoComplete="current-password"
+            name="password"
+            type="password"
+            placeholder="Your password"
+            required
+          />
+        </label>
         <input type="hidden" name="next" value={next} />
         <button className="primary-button" formAction={login}>
           Sign in
@@ -56,4 +64,5 @@ export default async function LoginPage({
       </form>
     </div>
   );
+
 }

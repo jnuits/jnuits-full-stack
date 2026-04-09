@@ -2,18 +2,19 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import {
   Cormorant_Garamond,
-  IBM_Plex_Mono,
-  Space_Grotesk,
+  DM_Mono,
+  Plus_Jakarta_Sans,
 } from "next/font/google";
 import { brandProfile } from "@/lib/branding";
 import "./globals.css";
 
-const headingFont = Space_Grotesk({
+const headingFont = Plus_Jakarta_Sans({
   variable: "--font-heading",
   subsets: ["latin"],
+  weight: ["600", "700", "800"],
 });
 
-const monoFont = IBM_Plex_Mono({
+const monoFont = DM_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
   weight: ["400", "500"],
@@ -25,9 +26,10 @@ const serifFont = Cormorant_Garamond({
   weight: ["500", "600"],
 });
 
-const bodyFont = Space_Grotesk({
+const bodyFont = Plus_Jakarta_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 const themeInitScript = `

@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Link from "next/link";
 import {
   approveMembershipApplication,
   rejectMembershipApplication,
@@ -6,11 +7,28 @@ import {
 import { InvitationsPanel } from "@/components/admin/invitations-panel";
 import { ProfileChangeRequestsPanel } from "@/components/admin/profile-change-requests-panel";
 import { WorkplaceRequestsPanel } from "@/components/admin/workplace-requests-panel";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  BarChart2,
+  BookOpen,
+  ClipboardList,
+  FileCode2,
+  FileText,
+  FolderOpen,
+  Mail,
+  RefreshCcw,
+  ScrollText,
+  ShieldCheck,
+  Users,
+  UserCheck,
+} from "lucide-react";
 import {
   ADMIN_FLASH_COOKIE_NAME,
   parseAdminFlash,
 } from "@/lib/admin/flash";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type ApplicationRecord = {
   id: string;
@@ -121,6 +139,8 @@ type ProfileChangeRequestRecord = {
     | null;
 };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function resolveDepartmentName(
   departments: ApplicationRecord["departments"],
   fallbackCode: string | null
@@ -128,9 +148,20 @@ function resolveDepartmentName(
   if (Array.isArray(departments)) {
     return departments[0]?.name || fallbackCode || "Department not set";
   }
-
   return departments?.name || fallbackCode || "Department not set";
 }
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function AdminPage() {
   const admin = createAdminClient();
@@ -151,6 +182,7 @@ export default async function AdminPage() {
     recentWorkplaceDecisionsResult,
     pendingProfileChangeRequestsResult,
     pendingProfileChangeCountResult,
+    auditLogsResult,
   ] = await Promise.all([
     admin
       .from("membership_applications")
@@ -224,6 +256,11 @@ export default async function AdminPage() {
       .select("*", { count: "exact", head: true })
       .eq("request_type", "profile_change")
       .eq("status", "pending"),
+    admin
+      .from("audit_events")
+      .select("id, action, entity_type, entity_id, metadata, created_at")
+      .order("created_at", { ascending: false })
+      .limit(12),
   ]);
 
   const pendingApplications =
@@ -238,10 +275,11 @@ export default async function AdminPage() {
     (recentWorkplaceDecisionsResult.data || []) as WorkplaceRequestRecord[];
   const pendingProfileChangeRequests =
     (pendingProfileChangeRequestsResult.data || []) as ProfileChangeRequestRecord[];
+  const auditLogs = auditLogsResult.data || [];
 
   const processedMemberIds = recentDecisions
-    .map((decision) => decision.processed_member_id)
-    .filter((value): value is string => Boolean(value));
+    .map((d) => d.processed_member_id)
+    .filter((v): v is string => Boolean(v));
 
   const relatedMembers =
     processedMemberIds.length > 0
@@ -252,27 +290,49 @@ export default async function AdminPage() {
       : { data: [] as { id: string; jnuits_id: string }[] };
 
   const memberMap = new Map(
-    (relatedMembers.data || []).map((member) => [member.id, member.jnuits_id])
+    (relatedMembers.data || []).map((m) => [m.id, m.jnuits_id])
   );
+
+  // Total pending count
+  const totalPending =
+    (pendingCountResult.count || 0) +
+    (pendingWorkplaceCountResult.count || 0) +
+    (pendingProfileChangeCountResult.count || 0);
 
   return (
     <div className="grid gap-8">
-      <div>
-        <div className="workspace-topbar">
-          <span className="eyebrow">Technical operator workspace</span>
-          <span className="status-pill">Operations live</span>
+
+      {/* ── Page header ─────────────────────────────────────────────────────── */}
+      <div className="admin-page-header">
+        <div>
+          <p className="admin-page-header__breadcrumb">Admin</p>
+          <h1 className="admin-page-header__title">Dashboard</h1>
+          <p className="admin-page-header__desc">
+            Pending queues, moderation actions, membership metrics, and platform activity at a glance.
+          </p>
         </div>
-        <h1 className="section-title text-[2.5rem]">
-          Admin queues, invitation review, and protected operations.
-        </h1>
-        <p className="section-copy mt-3">
-          This area is for technical moderators and admins. Membership
-          application review, invitation lifecycle control, and workplace
-          moderation now live here instead of depending on the legacy operator
-          stack.
-        </p>
+        {totalPending > 0 && (
+          <div
+            className="flex items-center gap-2 rounded-xl border px-4 py-2.5"
+            style={{
+              borderColor: "color-mix(in oklab, var(--brand-gold) 45%, transparent)",
+              background: "color-mix(in oklab, var(--brand-gold) 8%, transparent)",
+            }}
+          >
+            <span
+              className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black text-white"
+              style={{ background: "var(--brand-gold)" }}
+            >
+              {totalPending}
+            </span>
+            <span className="text-sm font-semibold" style={{ color: "var(--brand-gold)" }}>
+              items need your attention
+            </span>
+          </div>
+        )}
       </div>
 
+      {/* ── Flash ───────────────────────────────────────────────────────────── */}
       {flash ? (
         <section className="flash-panel" data-tone={flash.tone}>
           <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
@@ -301,64 +361,235 @@ export default async function AdminPage() {
         </section>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-            Pending applications
-          </p>
-          <p className="metric-card__value mt-3">{pendingCountResult.count || 0}</p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            These records still need an operator decision before the applicant
-            can enter the claim flow.
-          </p>
-        </article>
-        <article className="metric-card" id="invitations">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-            Active invitations
-          </p>
-          <p className="metric-card__value mt-3">
-            {activeInvitationsResult.count || 0}
-          </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            Invitation creation is now live; resend and lifecycle controls
-            now sit inside the same operator stack.
-          </p>
-        </article>
-        <article className="metric-card" id="workplace">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-            Pending workplace requests
-          </p>
-          <p className="metric-card__value mt-3">
-            {pendingWorkplaceCountResult.count || 0}
-          </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            Alumni workplace changes are now queued for operator moderation
-            instead of being applied directly from the member portal.
-          </p>
-        </article>
-        <article className="metric-card" id="profile-requests">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-            Pending profile changes
-          </p>
-          <p className="metric-card__value mt-3">
-            {pendingProfileChangeCountResult.count || 0}
-          </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            Core member profile edits now have their own moderated approval path.
-          </p>
-        </article>
-        <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-            Members in the new stack
-          </p>
-          <p className="metric-card__value mt-3">{membersCountResult.count || 0}</p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            Approved applications now create durable member records directly in
-            Supabase instead of the legacy admin.
-          </p>
-        </article>
+      {/* ── Metric cards ────────────────────────────────────────────────────── */}
+      <section className="admin-metric-grid">
+        <div
+          className="admin-metric-card"
+          data-tone={pendingCountResult.count ? "warning" : undefined}
+        >
+          <div className="admin-metric-card__icon">
+            <UserCheck size={16} />
+          </div>
+          <p className="admin-metric-card__label">Pending applications</p>
+          <p className="admin-metric-card__value">{pendingCountResult.count || 0}</p>
+          <p className="admin-metric-card__sub">Awaiting operator review</p>
+        </div>
+
+        <div className="admin-metric-card" data-tone="info">
+          <div className="admin-metric-card__icon">
+            <Mail size={16} />
+          </div>
+          <p className="admin-metric-card__label">Active invitations</p>
+          <p className="admin-metric-card__value">{activeInvitationsResult.count || 0}</p>
+          <p className="admin-metric-card__sub">Claim codes outstanding</p>
+        </div>
+
+        <div
+          className="admin-metric-card"
+          data-tone={pendingWorkplaceCountResult.count ? "warning" : undefined}
+        >
+          <div className="admin-metric-card__icon">
+            <ClipboardList size={16} />
+          </div>
+          <p className="admin-metric-card__label">Workplace requests</p>
+          <p className="admin-metric-card__value">{pendingWorkplaceCountResult.count || 0}</p>
+          <p className="admin-metric-card__sub">Pending workplace changes</p>
+        </div>
+
+        <div
+          className="admin-metric-card"
+          data-tone={pendingProfileChangeCountResult.count ? "warning" : undefined}
+        >
+          <div className="admin-metric-card__icon">
+            <Users size={16} />
+          </div>
+          <p className="admin-metric-card__label">Profile changes</p>
+          <p className="admin-metric-card__value">{pendingProfileChangeCountResult.count || 0}</p>
+          <p className="admin-metric-card__sub">Pending profile edits</p>
+        </div>
+
+        <div className="admin-metric-card" data-tone="success">
+          <div className="admin-metric-card__icon">
+            <ShieldCheck size={16} />
+          </div>
+          <p className="admin-metric-card__label">Total members</p>
+          <p className="admin-metric-card__value">{membersCountResult.count || 0}</p>
+          <p className="admin-metric-card__sub">Registered portal accounts</p>
+        </div>
       </section>
 
+      {/* ── Dashboard split: recent queue + audit log ────────────────────────── */}
+      <div className="admin-dashboard-split">
+
+        {/* Pending queue summary */}
+        <section
+          className="glass-card p-5"
+          style={{ borderRadius: "1.2rem" }}
+        >
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="font-[family-name:var(--font-heading)] text-lg font-bold tracking-[-0.02em]">
+              Pending queue
+            </h2>
+            <Link href="/admin#applications" className="queue-link text-xs">
+              View all →
+            </Link>
+          </div>
+          {pendingApplications.length === 0 ? (
+            <p className="text-sm text-[var(--muted-foreground)]">
+              No pending applications — queue is clear.
+            </p>
+          ) : (
+            <div className="admin-activity-feed">
+              {pendingApplications.slice(0, 6).map((app) => (
+                <div key={app.id} className="admin-activity-item">
+                  <span className="admin-activity-item__dot" />
+                  <div>
+                    <p className="admin-activity-item__action">{app.name}</p>
+                    <p className="admin-activity-item__meta">
+                      {app.email} ·{" "}
+                      {resolveDepartmentName(app.departments, app.department_code)}
+                    </p>
+                  </div>
+                  <span className="admin-activity-item__time">
+                    {relativeTime(app.created_at)}
+                  </span>
+                </div>
+              ))}
+              {pendingApplications.length > 6 && (
+                <p className="pt-3 text-xs text-[var(--muted-foreground)]">
+                  +{pendingApplications.length - 6} more in queue
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* Audit log */}
+        <section
+          className="glass-card p-5"
+          style={{ borderRadius: "1.2rem" }}
+        >
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="font-[family-name:var(--font-heading)] text-lg font-bold tracking-[-0.02em]">
+              Recent activity
+            </h2>
+          </div>
+          {auditLogs.length === 0 ? (
+            <p className="text-sm text-[var(--muted-foreground)]">
+              No audit events recorded yet.
+            </p>
+          ) : (
+            <div className="admin-activity-feed">
+              {auditLogs.map((log) => (
+                <div key={log.id as string} className="admin-activity-item">
+                  <span className="admin-activity-item__dot" />
+                  <div>
+                    <p className="admin-activity-item__action">
+                      {((log.action as string) || "system")
+                        .replace(/_/g, " ")
+                        .replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </p>
+                    <p className="admin-activity-item__meta">
+                      {(log.entity_type as string)
+                        ? `on ${log.entity_type}`
+                        : "platform event"}
+                    </p>
+                  </div>
+                  <span className="admin-activity-item__time">
+                    {relativeTime(log.created_at as string)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* ── Quick-action tiles ───────────────────────────────────────────────── */}
+      <section>
+        <h2
+          className="mb-3 text-xs font-bold uppercase tracking-[0.18em]"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          Quick navigation
+        </h2>
+        <div className="admin-quick-grid">
+          <Link href="/admin/membership" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <ShieldCheck size={16} />
+            </span>
+            Membership DB
+          </Link>
+          <Link href="/admin/committee" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <Users size={16} />
+            </span>
+            Committee
+          </Link>
+          <Link href="/admin/content" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <FolderOpen size={16} />
+            </span>
+            Content
+          </Link>
+          <Link href="/admin/reports" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <BarChart2 size={16} />
+            </span>
+            Reports
+          </Link>
+          <Link href="/admin#applications" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <UserCheck size={16} />
+            </span>
+            Applications
+          </Link>
+          <Link href="/admin#invitations" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <Mail size={16} />
+            </span>
+            Invitations
+          </Link>
+          <Link href="/admin#reconcile" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <RefreshCcw size={16} />
+            </span>
+            Reconcile
+          </Link>
+          <Link href="/admin#certificates" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <ScrollText size={16} />
+            </span>
+            Certificates
+          </Link>
+          <Link href="/admin/content#blogs" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <FileText size={16} />
+            </span>
+            Manage Blogs
+          </Link>
+          <Link href="/admin/content#projects" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <FileCode2 size={16} />
+            </span>
+            Projects
+          </Link>
+          <Link href="/admin/content#events" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <BookOpen size={16} />
+            </span>
+            Events
+          </Link>
+          <Link href="/admin#decisions" className="admin-quick-tile">
+            <span className="admin-quick-tile__icon">
+              <ClipboardList size={16} />
+            </span>
+            Decisions Log
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Applications queue ───────────────────────────────────────────────── */}
       <section id="applications" className="grid gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -368,20 +599,16 @@ export default async function AdminPage() {
             </h2>
           </div>
           <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
-            Approving an application creates or reuses the member record,
-            assigns a legacy-compatible JnUITS ID, generates a claim code, and
-            writes audit evidence.
+            Approving an application creates the member record, assigns a
+            JnUITS ID, generates a claim code, and writes an audit event.
           </p>
         </div>
 
         {pendingApplications.length === 0 ? (
-          <article className="route-tile">
-            <h3>No pending applications right now</h3>
-            <p>
-              The intake queue is empty. As new submissions arrive, they will
-              show up here for approval or rejection.
-            </p>
-          </article>
+          <EmptyState
+            title="No pending applications right now"
+            description="The intake queue is empty. As new applications arrive they will appear here for operator review."
+          />
         ) : (
           pendingApplications.map((application) => (
             <article key={application.id} className="application-card">
@@ -637,17 +864,16 @@ export default async function AdminPage() {
           <article className="route-tile">
             <h3>Certificates</h3>
             <p>
-              Public verification and the legacy QR-compatible route are live.
-              The remaining operator work is better import-run visibility and
-              recovery tooling inside the admin workspace.
+              Public certificate verification and QR-compatible lookup are live.
+              Use the import tools to upload new certificate batches and monitor
+              import run history.
             </p>
           </article>
           <article className="route-tile" id="reconcile">
-            <h3>Reconcile and CSV onboarding</h3>
+            <h3>Batch import and reconciliation</h3>
             <p>
-              Dry-run and apply scripts already live in the repo with archived
-              membership reports. What remains is operator rehearsal against
-              production-like source files and final walkthrough evidence.
+              Upload a CSV of certificates to stage and review them before
+              committing. Dry-run mode lets you validate data before applying.
             </p>
           </article>
         </div>

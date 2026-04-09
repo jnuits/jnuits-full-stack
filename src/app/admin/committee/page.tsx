@@ -129,19 +129,19 @@ export default async function AdminCommitteePage() {
 
   return (
     <div className="grid gap-8">
-      <div>
-        <div className="workspace-topbar">
-          <span className="eyebrow">Committee and tenure</span>
-          <span className="status-pill">Phase 07 roster tools live</span>
+      {/* ── Page header ───────────────────────────────────────────────────── */}
+      <div className="admin-page-header">
+        <div>
+          <p className="admin-page-header__breadcrumb">Admin / Committee</p>
+          <h1 className="admin-page-header__title">Committee</h1>
+          <p className="admin-page-header__desc">
+            Manage committee terms, role assignments, tenure rollover, and public visibility.
+          </p>
         </div>
-        <h1 className="section-title text-[2.5rem]">
-          Manage committee terms, role assignments, and tenure visibility
-        </h1>
-        <p className="section-copy mt-3">
-          Committee data is now modeled as terms plus role assignments instead
-          of route copy. This gives the public committee page a normalized
-          source and gives operators a real tenure tool instead of a placeholder.
-        </p>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <span className="status-pill">{terms.length} terms</span>
+          <span className="status-pill">{assignments.length} assignments</span>
+        </div>
       </div>
 
       {flash ? (

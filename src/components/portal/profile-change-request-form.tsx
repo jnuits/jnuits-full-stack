@@ -77,37 +77,43 @@ export function ProfileChangeRequestForm({
           </h2>
         </div>
         <p className="section-copy">
-          Direct edits to sensitive identity fields remain disabled until the
-          final step-up policy lands. This moderated path keeps profile changes
-          usable without weakening that boundary.
+          Changes to your name, phone, and social links are reviewed by a
+          moderator before they apply to the public directory.
         </p>
 
         <form
           action={(formData) => startTransition(() => void handleSubmit(formData))}
           className="portal-form-grid"
+          id="profile-change-form"
         >
-          <label className="input-label">
+          <label className="input-label" htmlFor="pcr-full-name">
             Full name
-            <input defaultValue={currentValues.fullName} name="fullName" />
+            <input id="pcr-full-name" defaultValue={currentValues.fullName} name="fullName" autoComplete="name" />
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="pcr-phone">
             Phone
-            <input defaultValue={currentValues.phone || ""} name="phone" />
+            <input id="pcr-phone" defaultValue={currentValues.phone || ""} name="phone" type="tel" autoComplete="tel" />
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="pcr-linkedin-url">
             LinkedIn URL
             <input
+              id="pcr-linkedin-url"
               defaultValue={currentValues.linkedinUrl || ""}
               name="linkedinUrl"
               type="url"
+              autoComplete="url"
+              placeholder="https://linkedin.com/in/..."
             />
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="pcr-website-url">
             Website URL
             <input
+              id="pcr-website-url"
               defaultValue={currentValues.websiteUrl || ""}
               name="websiteUrl"
               type="url"
+              autoComplete="url"
+              placeholder="https://your-site.example"
             />
           </label>
           <div className="flex flex-wrap gap-3 sm:col-span-2">

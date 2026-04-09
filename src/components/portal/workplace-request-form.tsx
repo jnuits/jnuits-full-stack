@@ -108,34 +108,41 @@ export function WorkplaceRequestForm({
         <form
           action={(formData) => startTransition(() => void handleSubmit(formData))}
           className="portal-form-grid"
+          id="workplace-request-form"
         >
-          <label className="input-label">
+          <label className="input-label" htmlFor="wp-organization">
             Current organization
             <input
+              id="wp-organization"
               defaultValue={currentValues.currentOrganization || ""}
               name="currentOrganization"
               placeholder="Organization or company"
+              autoComplete="organization"
             />
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="wp-designation">
             Designation
             <input
+              id="wp-designation"
               defaultValue={currentValues.designation || ""}
               name="designation"
               placeholder="Role or designation"
+              autoComplete="organization-title"
             />
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="wp-work-location">
             Work location
             <input
+              id="wp-work-location"
               defaultValue={currentValues.workLocation || ""}
               name="workLocation"
               placeholder="City, region, or country"
             />
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="wp-visibility">
             Visibility
             <select
+              id="wp-visibility"
               defaultValue={currentValues.professionalVisibility}
               name="professionalVisibility"
             >
@@ -144,22 +151,26 @@ export function WorkplaceRequestForm({
               <option value="private">Private</option>
             </select>
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="wp-linkedin-url">
             LinkedIn URL
             <input
+              id="wp-linkedin-url"
               defaultValue={currentValues.linkedinUrl || ""}
               name="linkedinUrl"
               placeholder="https://linkedin.com/in/..."
               type="url"
+              autoComplete="url"
             />
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="wp-website-url">
             Website URL
             <input
+              id="wp-website-url"
               defaultValue={currentValues.websiteUrl || ""}
               name="websiteUrl"
               placeholder="https://your-site.example"
               type="url"
+              autoComplete="url"
             />
           </label>
           <div className="flex flex-wrap gap-3 sm:col-span-2">

@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { getAuthContext } from "@/lib/auth/session";
 import { isStepUpActiveForUser } from "@/lib/auth/step-up";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
+import { withApiGuard } from "@/lib/security/with-api-guard";
 
 const directProfileSchema = z
   .object({
@@ -17,19 +18,16 @@ const directProfileSchema = z
     message: "Provide at least one profile field to update.",
   });
 
-export async function POST(request: NextRequest) {
-  const auth = await getAuthContext();
-
-  if (!auth.user) {
-    return NextResponse.json(
-      { message: "Sign in with your claimed member account first." },
-      { status: 401 }
-    );
-  }
+async function handleDirectEdit(
+  request: NextRequest,
+  context: { userId?: string }
+): Promise<NextResponse> {
+  // userId is guaranteed by requireAuth: true in withApiGuard
+  const userId = context.userId!;
 
   const cookieStore = await cookies();
 
-  if (!isStepUpActiveForUser(cookieStore, auth.user.id)) {
+  if (!isStepUpActiveForUser(cookieStore, userId)) {
     return NextResponse.json(
       {
         message:
@@ -57,7 +55,7 @@ export async function POST(request: NextRequest) {
   const { data: member, error: memberError } = await admin
     .from("members")
     .select("id, full_name, jnuits_id, linkedin_url, phone, website_url")
-    .eq("user_id", auth.user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (memberError || !member) {
@@ -120,7 +118,7 @@ export async function POST(request: NextRequest) {
     member_id: member.id,
     event_type: "profile_direct_edit",
     summary: "A step-up verified direct profile edit was completed.",
-    created_by_user_id: auth.user.id,
+    created_by_user_id: userId,
     metadata: {
       changedFields,
     },
@@ -128,7 +126,7 @@ export async function POST(request: NextRequest) {
 
   await admin.from("audit_events").insert({
     action: "member.profile_direct_edit",
-    actor_user_id: auth.user.id,
+    actor_user_id: userId,
     entity_id: member.id,
     entity_type: "member",
     metadata: {
@@ -151,3 +149,8 @@ export async function POST(request: NextRequest) {
     { status: 200 }
   );
 }
+
+export const POST = withApiGuard(handleDirectEdit, {
+  rateLimit: RATE_LIMITS.profileDirect,
+  requireAuth: true,
+});

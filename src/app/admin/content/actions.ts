@@ -702,3 +702,279 @@ export async function saveDeveloperProfile(formData: FormData) {
 
   redirect("/admin/content");
 }
+
+// ── Project Showcase Actions ────────────────────────────────────────────────
+
+function parseDate(value: string) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : value;
+}
+
+export async function createProject(formData: FormData) {
+  const auth = await requireAdminUser();
+  const actorUserId = auth.user?.id;
+  if (!actorUserId) redirect("/login");
+
+  const admin = createAdminClient();
+  const title = asString(formData.get("title"));
+  const tagline = asString(formData.get("tagline"));
+  const description = asString(formData.get("description"));
+  const category = asString(formData.get("category")) || "other";
+  const status = asString(formData.get("status")) || "active";
+  const techStackRaw = asString(formData.get("techStack"));
+  const techStack = techStackRaw
+    ? techStackRaw.split(",").map((t) => t.trim()).filter(Boolean)
+    : [];
+  const githubUrl = asString(formData.get("githubUrl"));
+  const demoUrl = asString(formData.get("demoUrl"));
+  const coverImageUrl = asString(formData.get("coverImageUrl"));
+  const startedAt = parseDate(asString(formData.get("startedAt")));
+  const completedAt = parseDate(asString(formData.get("completedAt")));
+  const isFeatured = asBoolean(formData.get("isFeatured"));
+  const inputSlug = asString(formData.get("slug"));
+  const slug = slugify(inputSlug || title);
+
+  if (!title || !slug) {
+    await setAdminFlash({ tone: "error", title: "Project not saved", message: "Title is required." });
+    redirect("/admin/content");
+  }
+
+  try {
+    const { data, error } = await admin
+      .from("projects")
+      .insert({
+        category,
+        completed_at: completedAt,
+        cover_image_url: coverImageUrl || null,
+        created_by_user_id: actorUserId,
+        demo_url: demoUrl || null,
+        description: description || "",
+        github_url: githubUrl || null,
+        is_featured: isFeatured,
+        slug,
+        started_at: startedAt,
+        status,
+        tagline: tagline || null,
+        tech_stack: techStack,
+        title,
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) throw new Error(error?.message || "Unable to create project.");
+
+    await insertAuditEvent({
+      action: "content.project_created",
+      actorUserId,
+      entityId: data.id,
+      entityType: "project",
+      metadata: { slug, status, category } as Json,
+    });
+
+    revalidatePath("/admin/content");
+    revalidatePath("/projects");
+    await setAdminFlash({ tone: "success", title: "Project created", message: `${title} is now in the project showcase.` });
+  } catch (err) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Project not saved",
+      message: err instanceof Error ? err.message : "The project could not be created.",
+    });
+  }
+
+  redirect("/admin/content");
+}
+
+export async function updateProject(formData: FormData) {
+  const auth = await requireAdminUser();
+  const actorUserId = auth.user?.id;
+  if (!actorUserId) redirect("/login");
+
+  const admin = createAdminClient();
+  const projectId = asString(formData.get("projectId"));
+  const title = asString(formData.get("title"));
+  const tagline = asString(formData.get("tagline"));
+  const description = asString(formData.get("description"));
+  const category = asString(formData.get("category")) || "other";
+  const status = asString(formData.get("status")) || "active";
+  const techStackRaw = asString(formData.get("techStack"));
+  const techStack = techStackRaw
+    ? techStackRaw.split(",").map((t) => t.trim()).filter(Boolean)
+    : [];
+  const githubUrl = asString(formData.get("githubUrl"));
+  const demoUrl = asString(formData.get("demoUrl"));
+  const coverImageUrl = asString(formData.get("coverImageUrl"));
+  const startedAt = parseDate(asString(formData.get("startedAt")));
+  const completedAt = parseDate(asString(formData.get("completedAt")));
+  const isFeatured = asBoolean(formData.get("isFeatured"));
+
+  if (!projectId || !title) {
+    await setAdminFlash({ tone: "error", title: "Project not updated", message: "Project ID and title are required." });
+    redirect("/admin/content");
+  }
+
+  try {
+    const { error } = await admin
+      .from("projects")
+      .update({
+        category,
+        completed_at: completedAt,
+        cover_image_url: coverImageUrl || null,
+        demo_url: demoUrl || null,
+        description: description || "",
+        github_url: githubUrl || null,
+        is_featured: isFeatured,
+        started_at: startedAt,
+        status,
+        tagline: tagline || null,
+        tech_stack: techStack,
+        title,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", projectId);
+
+    if (error) throw new Error(error.message);
+
+    await insertAuditEvent({
+      action: "content.project_updated",
+      actorUserId,
+      entityId: projectId,
+      entityType: "project",
+      metadata: { status, category } as Json,
+    });
+
+    revalidatePath("/admin/content");
+    revalidatePath("/projects");
+    await setAdminFlash({ tone: "success", title: "Project updated", message: `${title} has been updated.` });
+  } catch (err) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Project not updated",
+      message: err instanceof Error ? err.message : "The project could not be updated.",
+    });
+  }
+
+  redirect("/admin/content");
+}
+
+export async function deleteProject(formData: FormData) {
+  const auth = await requireAdminUser();
+  const actorUserId = auth.user?.id;
+  if (!actorUserId) redirect("/login");
+
+  const admin = createAdminClient();
+  const projectId = asString(formData.get("projectId"));
+
+  if (!projectId) {
+    await setAdminFlash({ tone: "error", title: "Delete failed", message: "Project ID is missing." });
+    redirect("/admin/content");
+  }
+
+  try {
+    const { error } = await admin.from("projects").delete().eq("id", projectId);
+    if (error) throw new Error(error.message);
+
+    await insertAuditEvent({
+      action: "content.project_deleted",
+      actorUserId,
+      entityId: projectId,
+      entityType: "project",
+      metadata: {} as Json,
+    });
+
+    revalidatePath("/admin/content");
+    revalidatePath("/projects");
+    await setAdminFlash({ tone: "success", title: "Project deleted", message: "The project has been removed from the showcase." });
+  } catch (err) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Delete failed",
+      message: err instanceof Error ? err.message : "The project could not be deleted.",
+    });
+  }
+
+  redirect("/admin/content");
+}
+
+export async function addProjectContributor(formData: FormData) {
+  const auth = await requireAdminUser();
+  const actorUserId = auth.user?.id;
+  if (!actorUserId) redirect("/login");
+
+  const admin = createAdminClient();
+  const projectId = asString(formData.get("projectId"));
+  const jnuitsId = asString(formData.get("jnuitsId")).toUpperCase();
+  const role = asString(formData.get("role")) || "contributor";
+  const joinedAt = parseDate(asString(formData.get("joinedAt")));
+
+  if (!projectId || !jnuitsId) {
+    await setAdminFlash({ tone: "error", title: "Contributor not added", message: "Project ID and JnUITS ID are required." });
+    redirect("/admin/content");
+  }
+
+  try {
+    const { data: member, error: memberError } = await admin
+      .from("members")
+      .select("id")
+      .eq("jnuits_id", jnuitsId)
+      .maybeSingle();
+
+    if (memberError || !member) {
+      await setAdminFlash({ tone: "error", title: "Contributor not added", message: `No member found with JnUITS ID: ${jnuitsId}.` });
+      redirect("/admin/content");
+    }
+
+    const { error } = await admin.from("project_contributors").insert({
+      joined_at: joinedAt,
+      member_id: member.id,
+      project_id: projectId,
+      role,
+    });
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/admin/content");
+    revalidatePath("/projects");
+    await setAdminFlash({ tone: "success", title: "Contributor added", message: `${jnuitsId} has been added as ${role}.` });
+  } catch (err) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Contributor not added",
+      message: err instanceof Error ? err.message : "The contributor could not be added.",
+    });
+  }
+
+  redirect("/admin/content");
+}
+
+export async function removeProjectContributor(formData: FormData) {
+  const auth = await requireAdminUser();
+  const actorUserId = auth.user?.id;
+  if (!actorUserId) redirect("/login");
+
+  const admin = createAdminClient();
+  const contributorId = asString(formData.get("contributorId"));
+
+  if (!contributorId) {
+    await setAdminFlash({ tone: "error", title: "Remove failed", message: "Contributor record ID is missing." });
+    redirect("/admin/content");
+  }
+
+  try {
+    const { error } = await admin.from("project_contributors").delete().eq("id", contributorId);
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/admin/content");
+    revalidatePath("/projects");
+    await setAdminFlash({ tone: "success", title: "Contributor removed", message: "The contributor has been removed from this project." });
+  } catch (err) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Remove failed",
+      message: err instanceof Error ? err.message : "The contributor could not be removed.",
+    });
+  }
+
+  redirect("/admin/content");
+}

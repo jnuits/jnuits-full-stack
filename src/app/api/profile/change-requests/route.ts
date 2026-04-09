@@ -29,6 +29,7 @@ async function requireLinkedMemberUser() {
         { status: 401 }
       ),
       member: null,
+      userId: null,
     };
   }
 
@@ -47,6 +48,7 @@ async function requireLinkedMemberUser() {
         { status: 404 }
       ),
       member: null,
+      userId: null,
     };
   }
 
@@ -54,6 +56,7 @@ async function requireLinkedMemberUser() {
     admin,
     error: null,
     member,
+    userId,
   };
 }
 
@@ -131,7 +134,7 @@ export async function POST(request: NextRequest) {
 
   await viewer.admin.from("audit_events").insert({
     action: "member.requested_profile_change",
-    actor_user_id: null,
+    actor_user_id: viewer.userId,
     entity_type: "profile_update_request",
     entity_id: data.id,
     metadata: {

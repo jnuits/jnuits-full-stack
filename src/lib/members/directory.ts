@@ -11,10 +11,14 @@ const DIRECTORY_OPERATOR_ROLES = new Set(["super_admin", "admin", "moderator"]);
 
 export type MemberDirectoryTypeFilter = "all" | "current" | "alumni";
 
+export type MemberDirectorySortKey = "name" | "batch" | "joined";
+
 export type MemberDirectoryQueryInput = {
   type?: string | string[] | undefined;
   search?: string | string[] | undefined;
   letter?: string | string[] | undefined;
+  department?: string | string[] | undefined;
+  sort?: string | string[] | undefined;
   page?: string | string[] | undefined;
   pageSize?: string | string[] | undefined;
 };
@@ -49,6 +53,8 @@ type NormalizedDirectoryQuery = {
   type: MemberDirectoryTypeFilter;
   search: string;
   letter: string;
+  department: string;
+  sort: MemberDirectorySortKey;
   page: number;
   pageSize: number;
 };
@@ -72,11 +78,15 @@ export type MemberDirectoryEntry = {
   };
 };
 
+export type DepartmentOption = { code: string; name: string };
+
 export type MemberDirectoryResult = {
   filters: {
     type: MemberDirectoryTypeFilter;
     search: string;
     letter: string;
+    department: string;
+    sort: MemberDirectorySortKey;
   };
   counters: {
     total: number;
@@ -97,6 +107,7 @@ export type MemberDirectoryResult = {
     canViewMembersOnly: boolean;
     isOperator: boolean;
   };
+  departments: DepartmentOption[];
   members: MemberDirectoryEntry[];
 };
 
@@ -122,12 +133,17 @@ function normalizePageValue(value: string, fallback: number, max: number) {
   return Math.min(max, Math.max(1, numeric));
 }
 
+const VALID_SORT_KEYS = new Set<MemberDirectorySortKey>(["name", "batch", "joined"]);
+const DEPT_CODE_PATTERN = /^[A-Z0-9_-]{1,20}$/;
+
 function normalizeDirectoryQuery(
   input: MemberDirectoryQueryInput
 ): NormalizedDirectoryQuery {
   const typeRaw = firstString(input.type).trim().toLowerCase();
   const searchRaw = firstString(input.search).trim();
   const letterRaw = firstString(input.letter).trim().toUpperCase();
+  const deptRaw = firstString(input.department).trim().toUpperCase();
+  const sortRaw = firstString(input.sort).trim().toLowerCase() as MemberDirectorySortKey;
   const type: MemberDirectoryTypeFilter =
     typeRaw === "current" || typeRaw === "alumni" ? typeRaw : "all";
 
@@ -143,6 +159,8 @@ function normalizeDirectoryQuery(
     type,
     search: sanitizedSearch,
     letter: LETTER_PATTERN.test(letterRaw) ? letterRaw : "",
+    department: DEPT_CODE_PATTERN.test(deptRaw) ? deptRaw : "",
+    sort: VALID_SORT_KEYS.has(sortRaw) ? sortRaw : "name",
     page: normalizePageValue(firstString(input.page), 1, 500),
     pageSize: normalizePageValue(
       firstString(input.pageSize),
@@ -314,6 +332,10 @@ export async function getPublicMemberDirectory(
       result = result.eq("member_type", query.type);
     }
 
+    if (query.department) {
+      result = result.eq("department_code", query.department);
+    }
+
     if (query.letter) {
       result = result.ilike("full_name", `${query.letter}%`);
     }
@@ -330,8 +352,15 @@ export async function getPublicMemberDirectory(
     const from = (page - 1) * query.pageSize;
     const to = from + query.pageSize - 1;
 
+    const orderCol =
+      query.sort === "batch" ? "batch_no"
+      : query.sort === "joined" ? "created_at"
+      : "full_name";
+    const ascending = query.sort !== "joined";
+
     return buildMembersQuery()
-      .order("full_name", { ascending: true })
+      .order(orderCol, { ascending })
+      .order("full_name", { ascending: true }) // secondary stable sort
       .range(from, to);
   };
 
@@ -354,8 +383,8 @@ export async function getPublicMemberDirectory(
     }
   }
 
-  const [totalMembersResult, currentMembersResult, alumniMembersResult] = await Promise.all(
-    [
+  const [totalMembersResult, currentMembersResult, alumniMembersResult, departmentsResult] =
+    await Promise.all([
       admin.from("members").select("id", { head: true, count: "exact" }),
       admin
         .from("members")
@@ -365,18 +394,28 @@ export async function getPublicMemberDirectory(
         .from("members")
         .select("id", { head: true, count: "exact" })
         .eq("member_type", "alumni"),
-    ]
-  );
+      admin
+        .from("departments")
+        .select("code, name")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+    ]);
 
   const members = ((membersResult.data || []) as MemberDirectoryRow[]).map((member) =>
     mapDirectoryMember(member, viewer)
   );
+
+  const departments: DepartmentOption[] = (
+    (departmentsResult.data || []) as { code: string; name: string }[]
+  ).map((d) => ({ code: d.code, name: d.name }));
 
   return {
     filters: {
       type: query.type,
       search: query.search,
       letter: query.letter,
+      department: query.department,
+      sort: query.sort,
     },
     counters: {
       total: totalMembersResult.count || 0,
@@ -397,6 +436,7 @@ export async function getPublicMemberDirectory(
       canViewMembersOnly: viewer.directoryVerified || viewer.isOperator,
       isOperator: viewer.isOperator,
     },
+    departments,
     members,
   };
 }

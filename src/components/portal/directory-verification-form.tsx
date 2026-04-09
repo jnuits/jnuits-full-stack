@@ -76,16 +76,18 @@ export function DirectoryVerificationForm({
       </p>
 
       <form
+        id="directory-verification-form"
         action={(formData) => startTransition(() => void handleSubmit(formData))}
         className="portal-form-grid"
       >
-        <label className="input-label sm:col-span-2">
+        <label className="input-label sm:col-span-2" htmlFor="dv-jnuits-id">
           JnUITS ID
-          <input value={jnuitsId} readOnly name="jnuitsId" />
+          <input id="dv-jnuits-id" value={jnuitsId} readOnly name="jnuitsId" />
         </label>
-        <label className="input-label sm:col-span-2">
+        <label className="input-label sm:col-span-2" htmlFor="dv-verification-code">
           Directory verification code
           <input
+            id="dv-verification-code"
             autoComplete="one-time-code"
             name="verificationCode"
             placeholder="Enter your verification code"

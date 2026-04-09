@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "migration:check": "node scripts/check-migration-parity.cjs",
     "certificates:import": "node scripts/import-certificates.mjs",
     "certificates:verify": "node scripts/verify-certificates.mjs",
     "content:import:legacy": "node scripts/import-legacy-public-content.mjs",
@@ -27,15 +28,18 @@
     "ops:verify-sentry": "node scripts/verify-sentry-ingest.mjs"
   },
   "dependencies": {
+    "@react-email/components": "1.0.12",
     "@sentry/nextjs": "^10.47.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.88.0",
     "csv-parse": "^5.6.0",
     "dotenv": "^17.2.3",
+    "lucide-react": "^1.8.0",
     "mysql2": "^3.20.0",
     "next": "16.2.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-email": "5.2.10",
     "server-only": "^0.0.1",
     "zod": "^4.2.1"
   },

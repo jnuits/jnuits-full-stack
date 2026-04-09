@@ -86,12 +86,14 @@ export function StepUpVerificationForm({
       </p>
 
       <form
+        id="step-up-verification-form"
         action={(formData) => startTransition(() => void handleSubmit(formData))}
         className="portal-form-grid"
       >
-        <label className="input-label sm:col-span-2">
+        <label className="input-label sm:col-span-2" htmlFor="su-current-password">
           Current password
           <input
+            id="su-current-password"
             autoComplete="current-password"
             name="currentPassword"
             placeholder="Enter your current password"

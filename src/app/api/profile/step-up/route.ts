@@ -7,6 +7,8 @@ import {
   getSupabasePublishableKey,
   getSupabaseUrl,
 } from "@/lib/supabase/config";
+import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { rateLimitError } from "@/lib/errors/api-error";
 
 const requestSchema = z.object({
   currentPassword: z.string().min(8),
@@ -21,6 +23,10 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  // Rate limit per user: 3 step-up attempts per 10 minutes
+  const rl = checkRateLimit(`step-up:${auth.user.id}`, RATE_LIMITS.profileStepUp);
+  if (!rl.success) return rateLimitError(rl.resetAt);
 
   const body = await request.json().catch(() => null);
   const parsed = requestSchema.safeParse(body);

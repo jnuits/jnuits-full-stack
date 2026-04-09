@@ -2,6 +2,7 @@ import {
   approveProfileChangeRequest,
   rejectProfileChangeRequest,
 } from "@/app/admin/actions";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type ProfileChangeRequestRecord = {
   id: string;
@@ -87,16 +88,16 @@ export function ProfileChangeRequestsPanel({
           </h2>
         </div>
         <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
-          Core profile mutations remain request-based until the final step-up
-          policy is shipped. Operators can approve or reject each request here.
+          Review each member-requested name, phone, and social link edit before
+          it is applied to the member record.
         </p>
       </div>
 
       {requests.length === 0 ? (
-        <article className="route-tile">
-          <h3>No pending profile change requests</h3>
-          <p>The moderated profile queue is empty right now.</p>
-        </article>
+        <EmptyState
+          title="No pending profile change requests"
+          description="The moderated profile queue is empty. When members request name, phone, or social link edits, they will appear here."
+        />
       ) : (
         requests.map((request) => {
           const member = resolveRelation(request.members);
@@ -143,9 +144,10 @@ export function ProfileChangeRequestsPanel({
 
                 <form className="application-card__actions">
                   <input type="hidden" name="requestId" value={request.id} />
-                  <label className="input-label">
+                  <label className="input-label" htmlFor={`pcr-review-note-${request.id}`}>
                     Review note
                     <textarea
+                      id={`pcr-review-note-${request.id}`}
                       name="reviewNote"
                       placeholder="Operator rationale or follow-up context"
                       rows={4}

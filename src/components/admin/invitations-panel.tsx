@@ -2,6 +2,7 @@ import {
   reissueMemberInvitation,
   revokeMemberInvitation,
 } from "@/app/admin/actions";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type InvitationRecord = {
   created_at: string;
@@ -51,19 +52,16 @@ export function InvitationsPanel({
           </h2>
         </div>
         <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
-          Operators can now invalidate claim codes or issue replacements from
-          the new stack instead of falling back to the legacy admin.
+          Manage active claim codes, issue replacements when a code is
+          lost, and revoke codes that are no longer valid.
         </p>
       </div>
 
       {invitations.length === 0 ? (
-        <article className="route-tile">
-          <h3>No active invitations right now</h3>
-          <p>
-            Replacement and revocation controls will show up here when active
-            invitations exist in the new stack.
-          </p>
-        </article>
+        <EmptyState
+          title="No active invitations right now"
+          description="When approved applicants are sent claim codes, the active ones will appear here for management or revocation."
+        />
       ) : (
         invitations.map((invitation) => {
           const member = resolveInvitationMember(invitation);

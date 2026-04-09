@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { MetricCard } from "@/components/ui/metric-card";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
+import { getMemberProjects } from "@/lib/content/projects";
 
 export default async function PortalOverviewPage() {
   const auth = await requireAuthenticatedUser({ fallbackPath: "/portal" });
@@ -11,49 +13,38 @@ export default async function PortalOverviewPage() {
     return null;
   }
 
-  const snapshot = await getPortalMemberSnapshot(user.id);
+  const [snapshot, memberProjects] = await Promise.all([
+    getPortalMemberSnapshot(user.id),
+    getMemberProjects(user.id).catch(() => []),
+  ]);
 
   return (
     <PortalShell
       title="Member portal overview"
-      summary="This is the safe surface for claimed members, executive/sub-executive users, and general members. It now starts exposing real member-linked context instead of placeholder tiles, while operator-grade tools remain inside the technical admin workspace."
+      summary="Your personal portal surface — view your linked profile, check your directory status, and access safe self-service tools for workplace and profile updates."
     >
       <section className="grid gap-4 md:grid-cols-3">
-        <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-            Linked profile
-          </p>
-          <p className="metric-card__value mt-3">
-            {snapshot.member ? "Ready" : "Missing"}
-          </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            {snapshot.member
+        <MetricCard
+          label="Linked profile"
+          value={snapshot.member ? "Ready" : "Missing"}
+          description={
+            snapshot.member
               ? `${snapshot.member.jnuits_id} is connected to this signed-in account.`
-              : "This account is signed in, but no member record is linked yet."}
-          </p>
-        </article>
-        <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-            Directory gate
-          </p>
-          <p className="metric-card__value mt-3">
-            {snapshot.directoryVerified ? "Open" : "Locked"}
-          </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            Sensitive workplace data remains hidden until directory verification
-            succeeds in this browser.
-          </p>
-        </article>
-        <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-            Timeline entries
-          </p>
-          <p className="metric-card__value mt-3">{snapshot.timeline.length}</p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            Lifecycle history is now connected to the claimed member account and
-            available from the portal surface.
-          </p>
-        </article>
+              : "This account is signed in, but no member record is linked yet."
+          }
+          tone={snapshot.member ? "success" : "danger"}
+        />
+        <MetricCard
+          label="Directory gate"
+          value={snapshot.directoryVerified ? "Open" : "Locked"}
+          description="Sensitive workplace data stays hidden until directory verification succeeds in this browser."
+          tone={snapshot.directoryVerified ? "success" : "default"}
+        />
+        <MetricCard
+          label="Timeline entries"
+          value={snapshot.timeline.length}
+          description="Lifecycle events linked to your claimed member account."
+        />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(18rem,0.95fr)]">
@@ -104,6 +95,55 @@ export default async function PortalOverviewPage() {
             </div>
           </div>
         </article>
+      </section>
+
+      {/* My Projects */}
+      <section className="section-band">
+        <span className="eyebrow">My project contributions</span>
+        <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(1.6rem,2.5vw,2.2rem)] leading-[1.02] tracking-[-0.04em]">
+          {memberProjects.length === 0
+            ? "No project contributions yet"
+            : `${memberProjects.length} project${memberProjects.length === 1 ? "" : "s"}`}
+        </h2>
+        {memberProjects.length === 0 ? (
+          <p className="mt-3 text-sm text-[var(--muted)]">
+            Contact an admin to be added to a JnUITS project. Your contributions will appear here.
+          </p>
+        ) : (
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {memberProjects.slice(0, 3).map((project) => (
+              <article key={project.id} className="application-card flex flex-col gap-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h3 className="font-[family-name:var(--font-heading)] text-xl leading-tight">
+                    {project.title}
+                  </h3>
+                  <span className="status-pill shrink-0">{project.category}</span>
+                </div>
+                {project.tagline ? (
+                  <p className="text-xs text-[var(--muted)]">{project.tagline}</p>
+                ) : null}
+                <div className="flex flex-wrap gap-1.5">
+                  {project.techStack.slice(0, 4).map((tech) => (
+                    <span key={tech} className="detail-chip text-xs">{tech}</span>
+                  ))}
+                </div>
+                <div className="mt-auto flex flex-wrap gap-2">
+                  <Link href={`/projects/${project.slug}`} className="queue-link">
+                    View project
+                  </Link>
+                  <span className="detail-chip" style={{ background: project.status === "active" ? "color-mix(in oklab,#22c55e 12%,transparent)" : undefined }}>
+                    {project.status}
+                  </span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+        {memberProjects.length > 3 ? (
+          <Link href="/projects" className="secondary-button mt-4 inline-block">
+            View all {memberProjects.length} projects →
+          </Link>
+        ) : null}
       </section>
     </PortalShell>
   );

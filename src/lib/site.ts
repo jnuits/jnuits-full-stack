@@ -15,11 +15,13 @@ export const publicNavigation: NavItem[] = [
   { href: "/events", label: "Events" },
   { href: "/blogs", label: "Blogs" },
   { href: "/gallery", label: "Gallery" },
+  { href: "/projects", label: "Projects" },
   { href: "/committee", label: "Committee" },
   { href: "/members", label: "Members" },
   { href: "/certificates", label: "Certificates" },
   { href: "/contact", label: "Contact" },
 ];
+
 
 export const implementationPhases: ImplementationPhase[] = [
   {

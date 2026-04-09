@@ -2,6 +2,7 @@ import {
   saveMemberBlogDraft,
   submitMemberBlogDraft,
 } from "@/app/(portal)/portal/blogs/actions";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPortalBlogAuthorSnapshot } from "@/lib/portal/blogs";
@@ -56,7 +57,7 @@ export default async function PortalBlogsPage({
   return (
     <PortalShell
       title="Draft blogs"
-      summary="Member blog authoring is now live inside the portal. Contributors can save drafts, submit them for review, and track editorial feedback without entering the admin workspace."
+      summary="Save and submit member blog drafts from the portal. Submitted posts go into the editorial review queue — publication remains admin-controlled."
     >
       {!snapshot.member ? (
         <section className="section-band grid gap-4">
@@ -111,34 +112,38 @@ export default async function PortalBlogsPage({
               <input name="postId" type="hidden" value={selectedDraft?.id || ""} />
 
               <div className="portal-form-grid">
-                <label className="input-label sm:col-span-2">
+                <label className="input-label sm:col-span-2" htmlFor="blog-title">
                   Title
                   <input
+                    id="blog-title"
                     defaultValue={selectedDraft?.title || ""}
                     name="title"
                     placeholder="Write a public-facing story title"
                     required
                   />
                 </label>
-                <label className="input-label">
+                <label className="input-label" htmlFor="blog-slug">
                   Slug
                   <input
+                    id="blog-slug"
                     defaultValue={selectedDraft?.slug || ""}
                     name="slug"
                     placeholder="generated-if-empty"
                   />
                 </label>
-                <label className="input-label">
+                <label className="input-label" htmlFor="blog-category">
                   Category
                   <input
+                    id="blog-category"
                     defaultValue={selectedDraft?.category || ""}
                     name="category"
                     placeholder="Workshop, Platform, Community"
                   />
                 </label>
-                <label className="input-label sm:col-span-2">
+                <label className="input-label sm:col-span-2" htmlFor="blog-summary">
                   Summary
                   <textarea
+                    id="blog-summary"
                     defaultValue={selectedDraft?.summary || ""}
                     name="summary"
                     placeholder="Short summary for cards and review queues"
@@ -146,18 +151,20 @@ export default async function PortalBlogsPage({
                     required
                   />
                 </label>
-                <label className="input-label sm:col-span-2">
+                <label className="input-label sm:col-span-2" htmlFor="blog-excerpt">
                   Excerpt
                   <textarea
+                    id="blog-excerpt"
                     defaultValue={selectedDraft?.excerpt || ""}
                     name="excerpt"
                     placeholder="Optional excerpt for featured cards"
                     rows={3}
                   />
                 </label>
-                <label className="input-label">
+                <label className="input-label" htmlFor="blog-read-time">
                   Read time
                   <input
+                    id="blog-read-time"
                     defaultValue={selectedDraft?.read_time || ""}
                     name="readTime"
                     placeholder="5 min read"
@@ -171,9 +178,10 @@ export default async function PortalBlogsPage({
                       : "New draft"}
                   </p>
                 </div>
-                <label className="input-label sm:col-span-2">
+                <label className="input-label sm:col-span-2" htmlFor="blog-body">
                   Body
                   <textarea
+                    id="blog-body"
                     defaultValue={selectedDraft?.body || ""}
                     name="body"
                     placeholder="Write the body of your member post"
@@ -199,8 +207,8 @@ export default async function PortalBlogsPage({
               </div>
               <p className="section-copy">
                 Publication remains admin-controlled. Submitted drafts move into
-                the `/admin/content` review queue, where operators can publish or
-                return them with a note.
+                the editorial review queue, where operators can publish or return
+                them with a note.
               </p>
               <form action={submitMemberBlogDraft} className="grid gap-3">
                 <input
@@ -248,9 +256,11 @@ export default async function PortalBlogsPage({
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {snapshot.drafts.length === 0 ? (
-                <div className="empty-state md:col-span-2 xl:col-span-3">
-                  No drafts yet. Your first saved member post will appear here.
-                </div>
+                <EmptyState
+                  title="No drafts yet"
+                  description="Write and save your first member post above. Each saved draft will appear here with its review status and editorial feedback."
+                  className="md:col-span-2 xl:col-span-3"
+                />
               ) : (
                 snapshot.drafts.map((draft) => (
                   <article key={draft.id} className="route-tile">

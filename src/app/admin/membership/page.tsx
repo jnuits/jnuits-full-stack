@@ -159,19 +159,18 @@ export default async function AdminMembershipPage() {
 
   return (
     <div className="grid gap-8">
-      <div>
-        <div className="workspace-topbar">
-          <span className="eyebrow">Membership operations</span>
-          <span className="status-pill">Phase D in progress</span>
+      {/* ── Page header ─────────────────────────────────────────────────────── */}
+      <div className="admin-page-header">
+        <div>
+          <p className="admin-page-header__breadcrumb">Admin / Membership</p>
+          <h1 className="admin-page-header__title">Membership DB</h1>
+          <p className="admin-page-header__desc">
+            Cycle lifecycle management, renewal queue, member-cycle state transitions, and invitation batch controls.
+          </p>
         </div>
-        <h1 className="section-title text-[2.5rem]">
-          Membership cycles, renewal queue, and invitation batches
-        </h1>
-        <p className="section-copy mt-3">
-          This workspace controls cycle lifecycle, member-cycle states, and
-          renewal invitation batches. All critical mutations are auditable and feed
-          reconciliation evidence.
-        </p>
+        {activeCycle && (
+          <span className="status-pill">{activeCycle.code} active</span>
+        )}
       </div>
 
       {flash ? (

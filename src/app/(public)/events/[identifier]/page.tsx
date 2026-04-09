@@ -5,6 +5,38 @@ import {
   formatDateRange,
   getPublishedEventByIdentifier,
 } from "@/lib/content/public-content";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { RegistrationForm } from "@/components/events/registration-form";
+
+async function getRegistrationContext(eventId: string) {
+  try {
+    const admin = createAdminClient();
+    const [postResult, countResult] = await Promise.all([
+      admin
+        .from("content_posts")
+        .select("registration_open, event_capacity, registration_closes_at")
+        .eq("id", eventId)
+        .maybeSingle(),
+      admin
+        .from("event_registrations")
+        .select("id", { count: "exact", head: true })
+        .eq("event_post_id", eventId)
+        .is("cancelled_at", null),
+    ]);
+
+    const post = postResult.data;
+    if (!post) return null;
+
+    const capacity = (post as { event_capacity?: number | null }).event_capacity ?? null;
+    const registered = countResult.count ?? 0;
+    const spotsRemaining = capacity !== null ? Math.max(0, capacity - registered) : null;
+    const open = (post as { registration_open?: boolean }).registration_open ?? false;
+
+    return { registrationOpen: open, spotsRemaining };
+  } catch {
+    return null;
+  }
+}
 
 export default async function EventDetailPage({
   params,
@@ -21,6 +53,8 @@ export default async function EventDetailPage({
   if (identifier !== event.slug) {
     redirect(`/events/${event.slug}`);
   }
+
+  const registrationCtx = await getRegistrationContext(event.id);
 
   return (
     <div className="shell py-12">
@@ -61,6 +95,20 @@ export default async function EventDetailPage({
           </div>
         </div>
       </article>
+
+      {registrationCtx ? (
+        <section className="mt-8 section-band">
+          <p className="section-divider">Event registration</p>
+          <div className="mt-6 max-w-lg">
+            <RegistrationForm
+              eventId={event.id}
+              eventTitle={event.title}
+              spotsRemaining={registrationCtx.spotsRemaining}
+              registrationOpen={registrationCtx.registrationOpen}
+            />
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-8 section-band">
         <p className="section-divider">Event details</p>

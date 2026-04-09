@@ -5,10 +5,16 @@ import Link from "next/link";
 
 type MembershipStatus = "pending" | "approved" | "rejected";
 
-const statusClassNames: Record<MembershipStatus, string> = {
+const statusColors: Record<MembershipStatus, string> = {
   pending: "text-[var(--brand-gold)]",
   approved: "text-[var(--brand-green)]",
   rejected: "text-[var(--brand-rust)]",
+};
+
+const statusLabels: Record<MembershipStatus, string> = {
+  pending: "Pending — your application is under review.",
+  approved: "Approved — check your invitation email or contact us.",
+  rejected: "Rejected — contact us if you believe this is an error.",
 };
 
 export default function MembershipFormPage() {
@@ -17,7 +23,8 @@ export default function MembershipFormPage() {
   const [statusValue, setStatusValue] = useState<MembershipStatus | null>(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
-  async function handleStatusCheck() {
+  async function handleStatusCheck(e: React.FormEvent) {
+    e.preventDefault();
     if (!statusEmail.trim()) {
       setStatusMessage("Enter the email used in your previous application.");
       setStatusValue(null);
@@ -33,20 +40,20 @@ export default function MembershipFormPage() {
         `/api/membership-form/status?email=${encodeURIComponent(statusEmail.trim())}`
       );
       const payload = (await response.json().catch(() => null)) as
-        | { found?: boolean; status?: MembershipStatus | null; message?: string }
+        | { status?: MembershipStatus | null; message?: string }
         | null;
 
       if (!response.ok) {
         throw new Error(payload?.message || "Unable to check application status.");
       }
 
-      if (!payload?.found || !payload.status) {
-        setStatusMessage("No legacy application was found for this email.");
+      if (!payload?.status) {
+        setStatusMessage("No application was found for this email address.");
         return;
       }
 
       setStatusValue(payload.status);
-      setStatusMessage(`Latest recorded status: ${payload.status}`);
+      setStatusMessage(statusLabels[payload.status]);
     } catch (error) {
       setStatusMessage(
         error instanceof Error ? error.message : "Unable to check application status."
@@ -65,15 +72,15 @@ export default function MembershipFormPage() {
             New public membership applications are currently closed
           </h1>
           <p className="section-copy mt-4">
-            The public intake form is now disabled while invitation-first onboarding
-            and claim-based membership flows run through the portal. Previous
-            applicants can still check status by email.
+            Membership is currently granted through an invitation-first onboarding
+            process. Previous applicants can check their status below and current
+            invited members can claim their profile from the registration page.
           </p>
 
           <div className="mt-8 route-grid">
             <article className="route-tile">
               <h3>Already invited?</h3>
-              <p>Use your invitation code to claim your profile and continue safely.</p>
+              <p>Use your invitation code to claim your member profile and access the portal.</p>
               <Link href="/register" className="secondary-button mt-4 inline-flex">
                 Claim profile
               </Link>
@@ -81,8 +88,8 @@ export default function MembershipFormPage() {
             <article className="route-tile">
               <h3>Need assistance?</h3>
               <p>
-                Contact the operators for onboarding support if you are unsure about
-                claim eligibility.
+                Contact the team for onboarding support or questions about your
+                membership status.
               </p>
               <Link href="/contact" className="secondary-button mt-4 inline-flex">
                 Contact JnUITS
@@ -93,30 +100,43 @@ export default function MembershipFormPage() {
 
         <div className="grid gap-6">
           <article className="route-tile">
-            <h3>Legacy application status</h3>
-            <p className="mb-4">
-              Check the latest review status for a previously submitted public
-              application.
+            <h3>Check application status</h3>
+            <p className="mb-4 text-sm leading-6 text-[var(--muted-foreground)]">
+              Enter the email address you used when you submitted your membership
+              application to see its current review status.
             </p>
-            <input
-              type="email"
-              placeholder="Application email"
-              value={statusEmail}
-              onChange={(event) => setStatusEmail(event.target.value)}
-            />
-            <button
-              className="secondary-button mt-3"
-              disabled={isCheckingStatus}
-              onClick={handleStatusCheck}
-              type="button"
+            <form
+              className="grid gap-3"
+              id="status-check-form"
+              onSubmit={handleStatusCheck}
             >
-              {isCheckingStatus ? "Checking..." : "Check status"}
-            </button>
+              <label className="input-label" htmlFor="status-email">
+                Application email address
+                <input
+                  id="status-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={statusEmail}
+                  onChange={(e) => setStatusEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                />
+              </label>
+              <button
+                className="secondary-button"
+                disabled={isCheckingStatus}
+                type="submit"
+              >
+                {isCheckingStatus ? "Checking…" : "Check status"}
+              </button>
+            </form>
             {statusMessage ? (
               <p
                 className={`mt-3 text-sm font-semibold ${
-                  statusValue ? statusClassNames[statusValue] : "text-[var(--muted)]"
+                  statusValue ? statusColors[statusValue] : "text-[var(--muted-foreground)]"
                 }`}
+                role="status"
+                aria-live="polite"
               >
                 {statusMessage}
               </p>
@@ -124,17 +144,17 @@ export default function MembershipFormPage() {
           </article>
 
           <article className="route-tile">
-            <h3>Next onboarding path</h3>
-            <p>
-              The active onboarding model now prioritizes secure invitation + claim
-              flows over open intake submission.
+            <h3>Sign in to your member portal</h3>
+            <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+              If you have already claimed your profile, sign in to access your portal
+              dashboard, update your details, and view your membership history.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link href="/login" className="secondary-button">
                 Sign in
               </Link>
               <Link href="/register" className="ghost-button">
-                Open claim page
+                Claim profile
               </Link>
             </div>
           </article>

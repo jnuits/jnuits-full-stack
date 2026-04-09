@@ -1,67 +1,88 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { SiteBrand } from "@/components/layout/site-brand";
+import { ExternalLink } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { adminNavigation } from "@/lib/site";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { AdminNavClient } from "./admin-nav-client";
 
-export function AdminShell({
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Only plain serializable data crosses the RSC→Client boundary.
+ * Icons are defined inside the client component.
+ */
+export type AdminBadgeCounts = {
+  pendingApps: number;
+  pendingWorkplace: number;
+  pendingProfile: number;
+};
+
+// ── Server component ──────────────────────────────────────────────────────────
+
+export async function AdminShell({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
+  // Fetch badge counts — only plain numbers cross the RSC boundary
+  const admin = createAdminClient();
+  const [
+    { count: pendingApps },
+    { count: pendingWorkplace },
+    { count: pendingProfile },
+  ] = await Promise.all([
+    admin
+      .from("membership_applications")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending"),
+    admin
+      .from("profile_update_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("request_type", "workplace_update")
+      .eq("status", "pending"),
+    admin
+      .from("profile_update_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("request_type", "profile_change")
+      .eq("status", "pending"),
+  ]);
+
+  const badgeCounts: AdminBadgeCounts = {
+    pendingApps: pendingApps ?? 0,
+    pendingWorkplace: pendingWorkplace ?? 0,
+    pendingProfile: pendingProfile ?? 0,
+  };
 
   return (
-    <div className="admin-shell flex-1">
-      <div className="shell py-8">
-        <div className="workspace-frame">
-          <aside className="workspace-sidebar h-fit p-5">
-            <div className="workspace-sidebar__utility">
-              <SiteBrand compact subtitle="Operator workspace" />
-              <ThemeToggle />
-            </div>
-            <div className="mt-6 mb-5">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-                Operator space
-              </p>
-              <p className="mt-2 font-[family-name:var(--font-heading)] text-[1.65rem] font-bold leading-tight">
-                Moderation, migration, and review queues
-              </p>
-            </div>
-            <nav className="workspace-nav-list">
-              {adminNavigation.map((item) => {
-                const [baseHref] = item.href.split("#");
-                const isOverviewAnchor = item.href.startsWith("/admin#");
-                const active = isOverviewAnchor
-                  ? pathname === "/admin"
-                  : pathname === baseHref;
+    <div className="admin-layout">
+      {/* Client component renders sidebar (with icons defined client-side) */}
+      <AdminNavClient badgeCounts={badgeCounts} />
 
-                return (
-                  <Link
-                    key={item.href}
-                    data-active={active ? "true" : "false"}
-                    href={item.href}
-                    className="workspace-nav-link"
-                  >
-                    <span>{item.label}</span>
-                    <span className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-                      {isOverviewAnchor ? "Queue" : "Workspace"}
-                    </span>
-                  </Link>
-                );
-              })}
-            </nav>
-            <div className="workspace-callout workspace-sidebar__callout mt-5">
-              This workspace is for moderators and operators handling approvals,
-              invitations, committees, reports, and public content changes.
-              Member-safe tasks stay in the portal instead of this wider control
-              surface.
-            </div>
-          </aside>
-          <main className="workspace-main p-6 sm:p-8">{children}</main>
-        </div>
+      {/* Right-side page wrapper */}
+      <div className="admin-page-wrap">
+        {/* Sticky topbar */}
+        <header className="admin-topbar">
+          <div className="admin-topbar__left">
+            {/* Mobile toggle is rendered by AdminNavClient and CSS-positioned here */}
+            <span className="admin-topbar__title">
+              JnUITS — Operator Workspace
+            </span>
+          </div>
+          <div className="admin-topbar__right">
+            <Link
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="admin-sidebar__view-site"
+              style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
+            >
+              View site <ExternalLink size={11} />
+            </Link>
+            <ThemeToggle />
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="admin-content">{children}</main>
       </div>
     </div>
   );

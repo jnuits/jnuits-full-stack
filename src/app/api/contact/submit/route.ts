@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { logServerError } from "@/lib/errors/api-error";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
+import { withApiGuard } from "@/lib/security/with-api-guard";
 
 const contactSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -49,7 +52,11 @@ async function parsePayload(request: NextRequest) {
   };
 }
 
-function buildContactRedirect(request: NextRequest, key: "message" | "error", value: string) {
+function buildContactRedirect(
+  request: NextRequest,
+  key: "message" | "error",
+  value: string
+) {
   const redirectUrl = request.nextUrl.clone();
   redirectUrl.pathname = "/contact";
   redirectUrl.search = "";
@@ -57,19 +64,21 @@ function buildContactRedirect(request: NextRequest, key: "message" | "error", va
   return NextResponse.redirect(redirectUrl);
 }
 
-export async function POST(request: NextRequest) {
+async function handleContactSubmit(request: NextRequest): Promise<NextResponse> {
   const parsedPayload = await parsePayload(request);
   const parsed = contactSchema.safeParse(parsedPayload.data);
 
   if (!parsed.success) {
     const message =
-      parsed.error.flatten().formErrors[0] || "Please review the submitted contact form.";
+      parsed.error.flatten().formErrors[0] ||
+      "Please review the submitted contact form.";
 
     return parsedPayload.isFormPost
       ? buildContactRedirect(request, "error", message)
       : NextResponse.json({ message }, { status: 400 });
   }
 
+  // Honeypot — silently treat filled website field as success to fool bots
   if (parsed.data.website && parsed.data.website.length > 0) {
     return parsedPayload.isFormPost
       ? buildContactRedirect(request, "message", "Thanks. Your message was received.")
@@ -115,11 +124,10 @@ export async function POST(request: NextRequest) {
   });
 
   if (!resendResponse.ok) {
-    const errorPayload = (await resendResponse.json().catch(() => null)) as
-      | { message?: string; error?: string }
-      | null;
+    const errorPayload = await resendResponse.json().catch(() => null);
+    logServerError("contact/submit Resend upstream", errorPayload);
     const message =
-      errorPayload?.message || errorPayload?.error || "Failed to send contact message.";
+      "Unable to send your message right now. Please try again or contact us directly.";
 
     return parsedPayload.isFormPost
       ? buildContactRedirect(request, "error", message)
@@ -130,3 +138,7 @@ export async function POST(request: NextRequest) {
     ? buildContactRedirect(request, "message", "Your message has been sent.")
     : NextResponse.json({ success: true }, { status: 200 });
 }
+
+export const POST = withApiGuard(handleContactSubmit, {
+  rateLimit: RATE_LIMITS.contactSubmit,
+});

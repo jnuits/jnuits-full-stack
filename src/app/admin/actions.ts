@@ -21,6 +21,13 @@ import {
   getWorkplacePayloadEntries,
   parseWorkplaceUpdatePayload,
 } from "@/lib/members/workplace-payload";
+import { sendEmail } from "@/lib/notifications/send-email";
+import {
+  buildMembershipApprovedEmail,
+  buildMembershipRejectedEmail,
+  buildProfileChangeApprovedEmail,
+  buildProfileChangeRejectedEmail,
+} from "@/lib/notifications/email-builders";
 
 type MembershipApplicationRow =
   Database["public"]["Tables"]["membership_applications"]["Row"];
@@ -330,6 +337,18 @@ export async function approveMembershipApplication(formData: FormData) {
       invitationCode: invitation.code,
       jnuitsId: member.jnuits_id,
     });
+
+    // Non-blocking notification — failure must never crash this action
+    void sendEmail({
+      to: application.email,
+      subject: "Your JnUITS membership application has been approved",
+      html: buildMembershipApprovedEmail({
+        applicantName: application.name,
+        jnuitsId: member.jnuits_id,
+        invitationCode: invitation.code,
+        invitationExpiresAt: invitation.expiresAt,
+      }),
+    });
   } catch (error) {
     await setAdminFlash({
       tone: "error",
@@ -423,6 +442,17 @@ export async function rejectMembershipApplication(formData: FormData) {
     title: "Application rejected",
     message: `${application.name}'s application has been marked as rejected.`,
   });
+
+  // Non-blocking notification
+  void sendEmail({
+    to: application.email,
+    subject: "An update on your JnUITS membership application",
+    html: buildMembershipRejectedEmail({
+      applicantName: application.name,
+      reviewNote: reviewNote || null,
+    }),
+  });
+
   redirect("/admin");
 }
 
@@ -1130,6 +1160,26 @@ export async function approveProfileChangeRequest(formData: FormData) {
     message: `${member.full_name}'s profile details have been updated.`,
     jnuitsId: member.jnuits_id,
   });
+
+  // Non-blocking notification — look up member email for delivery
+  const { data: memberWithEmail } = await admin
+    .from("members")
+    .select("email")
+    .eq("id", member.id)
+    .maybeSingle();
+
+  if (memberWithEmail?.email) {
+    void sendEmail({
+      to: memberWithEmail.email,
+      subject: "Your JnUITS profile update has been approved",
+      html: buildProfileChangeApprovedEmail({
+        memberName: member.full_name,
+        changedFields,
+        reviewNote: reviewNote || null,
+      }),
+    });
+  }
+
   redirect("/admin#profile-requests");
 }
 
@@ -1225,5 +1275,26 @@ export async function rejectProfileChangeRequest(formData: FormData) {
       : "The profile change request has been marked as rejected.",
     jnuitsId: member?.jnuits_id,
   });
+
+  // Non-blocking notification
+  if (member) {
+    const { data: memberWithEmail } = await admin
+      .from("members")
+      .select("email")
+      .eq("id", member.id)
+      .maybeSingle();
+
+    if (memberWithEmail?.email) {
+      void sendEmail({
+        to: memberWithEmail.email,
+        subject: "An update on your JnUITS profile change request",
+        html: buildProfileChangeRejectedEmail({
+          memberName: member.full_name,
+          reviewNote: reviewNote || null,
+        }),
+      });
+    }
+  }
+
   redirect("/admin#profile-requests");
 }

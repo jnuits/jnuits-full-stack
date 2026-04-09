@@ -33,6 +33,7 @@ async function requireLinkedAlumniUser() {
       ),
       member: null,
       admin: null,
+      userId: null,
     };
   }
 
@@ -51,6 +52,7 @@ async function requireLinkedAlumniUser() {
       ),
       member: null,
       admin: null,
+      userId: null,
     };
   }
 
@@ -64,6 +66,7 @@ async function requireLinkedAlumniUser() {
       ),
       member: null,
       admin: null,
+      userId: null,
     };
   }
 
@@ -71,6 +74,7 @@ async function requireLinkedAlumniUser() {
     error: null,
     member,
     admin,
+    userId,
   };
 }
 
@@ -148,7 +152,7 @@ export async function POST(request: NextRequest) {
 
   await viewer.admin.from("audit_events").insert({
     action: "member.requested_workplace_update",
-    actor_user_id: null,
+    actor_user_id: viewer.userId,
     entity_type: "profile_update_request",
     entity_id: data.id,
     metadata: {

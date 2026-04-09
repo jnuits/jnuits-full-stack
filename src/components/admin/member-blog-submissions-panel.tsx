@@ -2,6 +2,7 @@ import {
   publishMemberBlogSubmission,
   returnMemberBlogSubmission,
 } from "@/app/admin/content/actions";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type MemberBlogSubmission = {
   author_member_id: string | null;
@@ -57,10 +58,10 @@ export function MemberBlogSubmissionsPanel({
       </div>
 
       {submissions.length === 0 ? (
-        <article className="route-tile">
-          <h3>No submitted member drafts</h3>
-          <p>The review queue is empty right now.</p>
-        </article>
+        <EmptyState
+          title="No submitted member drafts"
+          description="When portal authors submit drafts for editorial review, they will appear here ready to publish or return."
+        />
       ) : (
         submissions.map((submission) => {
           const author = resolveRelation(submission.members);

@@ -73,29 +73,49 @@ export function DirectProfileEditForm({
         <form
           action={(formData) => startTransition(() => void handleSubmit(formData))}
           className="portal-form-grid"
+          id="direct-profile-edit-form"
         >
-          <label className="input-label">
+          <label className="input-label" htmlFor="dpe-full-name">
             Full name
-            <input defaultValue={currentValues.fullName} name="fullName" />
+            <input
+              id="dpe-full-name"
+              defaultValue={currentValues.fullName}
+              name="fullName"
+              autoComplete="name"
+              placeholder="Your full name"
+            />
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="dpe-phone">
             Phone
-            <input defaultValue={currentValues.phone || ""} name="phone" />
+            <input
+              id="dpe-phone"
+              defaultValue={currentValues.phone || ""}
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+              placeholder="+880 1xxx xxxxxx"
+            />
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="dpe-linkedin-url">
             LinkedIn URL
             <input
+              id="dpe-linkedin-url"
               defaultValue={currentValues.linkedinUrl || ""}
               name="linkedinUrl"
               type="url"
+              autoComplete="url"
+              placeholder="https://linkedin.com/in/..."
             />
           </label>
-          <label className="input-label">
+          <label className="input-label" htmlFor="dpe-website-url">
             Website URL
             <input
+              id="dpe-website-url"
               defaultValue={currentValues.websiteUrl || ""}
               name="websiteUrl"
               type="url"
+              autoComplete="url"
+              placeholder="https://your-site.example"
             />
           </label>
           <div className="flex flex-wrap gap-3 sm:col-span-2">
@@ -103,6 +123,7 @@ export function DirectProfileEditForm({
               className="primary-button"
               disabled={!stepUpActive || pending}
               type="submit"
+              aria-disabled={!stepUpActive || pending}
             >
               {pending ? "Saving..." : "Save direct changes"}
             </button>

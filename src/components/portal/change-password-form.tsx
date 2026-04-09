@@ -70,28 +70,32 @@ export function ChangePasswordForm() {
       <form
         action={(formData) => startTransition(() => void handleUpdate(formData))}
         className="portal-form-grid"
+        id="change-password-form"
       >
-        <label className="input-label sm:col-span-2">
+        <label className="input-label sm:col-span-2" htmlFor="cp-new-password">
           New password
           <input
+            id="cp-new-password"
             autoComplete="new-password"
             name="password"
-            placeholder="Enter a strong new password"
+            placeholder="Enter a strong new password (min. 8 characters)"
             type="password"
           />
         </label>
-        <label className="input-label sm:col-span-2">
+        <label className="input-label sm:col-span-2" htmlFor="cp-confirm-password">
           Confirm new password
           <input
+            id="cp-confirm-password"
             autoComplete="new-password"
             name="confirmPassword"
-            placeholder="Confirm the new password"
+            placeholder="Re-enter the new password"
             type="password"
           />
         </label>
-        <label className="input-label sm:col-span-2">
+        <label className="input-label sm:col-span-2" htmlFor="cp-nonce">
           Reauthentication code
           <input
+            id="cp-nonce"
             autoComplete="one-time-code"
             name="nonce"
             placeholder="Only required if Supabase asks for reauthentication"

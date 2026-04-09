@@ -21,6 +21,7 @@ export async function SiteFooter() {
           </p>
           <div className="mt-3 grid gap-2 text-sm text-white/80">
             <Link href="/certificates">Certificate verification</Link>
+            <Link href="/projects">Project showcase</Link>
             <Link href="/members">Members and alumni</Link>
             <Link href="/portal">Member portal</Link>
             <Link href="/admin">Admin workspace</Link>

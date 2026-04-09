@@ -28,11 +28,47 @@ export default async function ContactPage({
           {error ? (
             <p className="mt-4 text-sm font-semibold text-[var(--brand-rust)]">{error}</p>
           ) : null}
-          <form action="/api/contact/submit" method="post" className="mt-8 grid gap-4">
-            <input name="name" placeholder="Your name" required />
-            <input name="email" type="email" placeholder="Email address" required />
-            <input name="subject" placeholder="Subject" required />
-            <textarea name="message" rows={7} placeholder="How can we help?" required />
+          <form action="/api/contact/submit" method="post" className="mt-8 grid gap-4" id="contact-form">
+            <label className="input-label" htmlFor="contact-name">
+              Your name
+              <input
+                id="contact-name"
+                name="name"
+                placeholder="e.g. Jakiya Rahman"
+                autoComplete="name"
+                required
+              />
+            </label>
+            <label className="input-label" htmlFor="contact-email">
+              Email address
+              <input
+                id="contact-email"
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                autoComplete="email"
+                required
+              />
+            </label>
+            <label className="input-label" htmlFor="contact-subject">
+              Subject
+              <input
+                id="contact-subject"
+                name="subject"
+                placeholder="e.g. Membership enquiry"
+                required
+              />
+            </label>
+            <label className="input-label" htmlFor="contact-message">
+              Message
+              <textarea
+                id="contact-message"
+                name="message"
+                rows={7}
+                placeholder="How can we help?"
+                required
+              />
+            </label>
             <div style={{ display: "none" }}>
               <input name="website" tabIndex={-1} autoComplete="off" />
             </div>

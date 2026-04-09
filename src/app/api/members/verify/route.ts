@@ -7,13 +7,15 @@ import {
 } from "@/lib/auth/directory-verification";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
+import { withApiGuard } from "@/lib/security/with-api-guard";
 
 const verificationSchema = z.object({
   jnuitsId: z.string().trim().min(3),
   verificationCode: z.string().trim().min(4),
 });
 
-export async function POST(request: NextRequest) {
+async function handleVerify(request: NextRequest): Promise<NextResponse> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const claims = data?.claims as Record<string, unknown> | undefined;
@@ -111,3 +113,7 @@ export async function POST(request: NextRequest) {
   setDirectoryVerificationCookies(response.cookies, userId);
   return response;
 }
+
+export const POST = withApiGuard(handleVerify, {
+  rateLimit: RATE_LIMITS.memberVerify,
+});
