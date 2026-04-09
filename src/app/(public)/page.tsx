@@ -41,7 +41,7 @@ export default async function HomePage() {
                 Explore events
               </Link>
               <Link href="/membership-form" className="secondary-button">
-                Apply for membership
+                Membership status
               </Link>
               <Link href="/certificates" className="secondary-button">
                 Verify certificates
@@ -200,8 +200,8 @@ export default async function HomePage() {
                   <Link href="/events" className="secondary-button">
                     View all events
                   </Link>
-                  <Link href="/membership-form" className="ghost-button">
-                    Join the community
+                  <Link href="/register" className="ghost-button">
+                    Claim member profile
                   </Link>
                 </div>
               </>

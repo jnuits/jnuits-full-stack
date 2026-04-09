@@ -10,7 +10,7 @@ import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 
 export default async function EditProfilePage() {
-  const auth = await requireAuthenticatedUser();
+  const auth = await requireAuthenticatedUser({ fallbackPath: "/profile" });
   const user = auth.user;
 
   if (!user) {

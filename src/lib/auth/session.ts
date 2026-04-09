@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,14 +12,48 @@ export type AuthContext = {
   roles: string[];
 };
 
+const ADMIN_ROLES = new Set(["super_admin", "admin", "moderator"]);
+const OPERATOR_ROLES = new Set([
+  "super_admin",
+  "admin",
+  "moderator",
+  "content_editor",
+  "committee_author",
+]);
+
+export function resolveSafeNextPath(
+  nextPath: null | string | undefined,
+  fallbackPath = "/portal"
+) {
+  if (!nextPath) {
+    return fallbackPath;
+  }
+
+  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) {
+    return fallbackPath;
+  }
+
+  return nextPath;
+}
+
 export function hasOperatorRole(roles: string[]) {
-  return roles.some(
-    (role) =>
-      role === "admin" ||
-      role === "moderator" ||
-      role === "content_editor" ||
-      role === "committee_author"
-  );
+  return roles.some((role) => OPERATOR_ROLES.has(role));
+}
+
+async function resolveRequestNextPath(fallbackPath: string) {
+  const requestHeaders = await headers();
+  const requestedPath = requestHeaders.get("x-jnuits-return-to");
+  const safePath = resolveSafeNextPath(requestedPath, fallbackPath);
+
+  if (
+    fallbackPath !== "/" &&
+    !safePath.startsWith(fallbackPath) &&
+    safePath !== fallbackPath
+  ) {
+    return fallbackPath;
+  }
+
+  return safePath;
 }
 
 export async function getAuthContext(): Promise<AuthContext> {
@@ -86,20 +121,28 @@ export async function getAuthContext(): Promise<AuthContext> {
   };
 }
 
-export async function requireAuthenticatedUser() {
+export async function requireAuthenticatedUser(options?: {
+  fallbackPath?: string;
+}) {
+  const fallbackPath = options?.fallbackPath || "/portal";
   const auth = await getAuthContext();
 
   if (!auth.user) {
-    redirect("/login");
+    const nextPath = await resolveRequestNextPath(fallbackPath);
+    redirect(`/login?next=${encodeURIComponent(nextPath)}`);
   }
 
   return auth;
 }
 
-export async function requireAdminUser() {
-  const auth = await requireAuthenticatedUser();
+export async function requireAdminUser(options?: {
+  fallbackPath?: string;
+}) {
+  const auth = await requireAuthenticatedUser({
+    fallbackPath: options?.fallbackPath || "/admin",
+  });
 
-  if (!auth.roles.some((role) => role === "admin" || role === "moderator")) {
+  if (!auth.roles.some((role) => ADMIN_ROLES.has(role))) {
     redirect("/portal");
   }
 

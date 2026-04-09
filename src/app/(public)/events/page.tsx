@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import {
   formatDateRange,
   getPublishedEvents,
@@ -15,14 +16,11 @@ export default async function EventsPage() {
           <div>
             <span className="eyebrow">Programs and timelines</span>
             <h1 className="section-title mt-4">
-              Events are returning as a public program surface, not just a
-              migration placeholder.
+              Upcoming and recent JnUITS programs in one public event stream.
             </h1>
             <p className="section-copy mt-5">
-              The legacy event model carried schedules, descriptions, images, and
-              social links. This phase restores the route as a meaningful public
-              calendar while keeping the data contract simple enough to move into
-              Supabase next.
+              Browse workshops, sessions, and society activities with clear
+              schedule information and direct event detail pages.
             </p>
           </div>
 
@@ -53,6 +51,11 @@ export default async function EventsPage() {
               <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
                 {featuredEvent.summary}
               </p>
+              <div className="mt-6">
+                <Link className="secondary-button" href={`/events/${featuredEvent.slug}`}>
+                  Open event details
+                </Link>
+              </div>
             </div>
           </article>
         </div>
@@ -89,6 +92,11 @@ export default async function EventsPage() {
                 <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
                   {event.summary}
                 </p>
+                <div className="mt-4">
+                  <Link className="queue-link" href={`/events/${event.slug}`}>
+                    Open event details
+                  </Link>
+                </div>
               </div>
               <div className="grid content-start gap-2">
                 <span className="detail-chip">{event.location}</span>

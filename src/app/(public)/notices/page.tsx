@@ -14,22 +14,20 @@ export default async function NoticesPage() {
           <div>
             <span className="eyebrow">Notices and decisions</span>
             <h1 className="section-title mt-4">
-              Notices remain a public accountability surface, even before the full
-              publishing workflow lands.
+              Official notices and announcements from JnUITS.
             </h1>
             <p className="section-copy mt-5">
-              The legacy notice model carried titles, dates, categories, files, and
-              external links. This route now restores the public reading pattern
-              while attachment delivery waits for the Phase 04 media rules.
+              This notice stream covers program updates, important dates, and
+              society communications for members and the public.
             </p>
           </div>
 
           <article className="section-band">
-            <p className="section-divider">Current notice policy</p>
+            <p className="section-divider">Notice policy</p>
             <ul className="clean-list mt-6">
-              <li>Public readability comes first; attachment handling follows once media paths are normalized.</li>
-              <li>Publishing will later be tied to RBAC and audit events instead of broad CMS access.</li>
-              <li>Legacy file-backed notices are being mapped into safer delivery rules before import.</li>
+              <li>Notices are published with clear title, date, and category labels.</li>
+              <li>When an external document is available, the linked action opens it directly.</li>
+              <li>Each notice entry remains accessible through a stable public route.</li>
             </ul>
           </article>
         </div>
@@ -68,7 +66,7 @@ export default async function NoticesPage() {
                   </Link>
                 ) : (
                   <span className="text-sm leading-7 text-[var(--muted)]">
-                    Attachment and external-link import are still queued in this phase.
+                    Attachment or external link will be published when available.
                   </span>
                 )}
               </div>

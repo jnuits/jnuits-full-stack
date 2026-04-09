@@ -15,13 +15,11 @@ export default async function DevelopersPage() {
           <div>
             <span className="eyebrow">Credits and stewardship</span>
             <h1 className="section-title mt-4">
-              The developer route remains public, but separate from operator
-              identity and administrative privilege.
+              Public credits for the contributors behind the JnUITS platform.
             </h1>
             <p className="section-copy mt-5">
-              The old site exposed a dedicated credits page. That stays in the new
-              platform as a public-facing acknowledgement of the people carrying the
-              migration, interface work, and operational cleanup.
+              This page acknowledges the people supporting platform delivery,
+              content operations, and public digital experience.
             </p>
           </div>
 

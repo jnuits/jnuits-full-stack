@@ -172,6 +172,9 @@ export default async function AdminReportsPage() {
               <p>
                 `npm run members:reconcile -- --dry-run --persist-report`
               </p>
+              <p>
+                `npm run members:rollover-cycle -- --source-cycle-id &lt;uuid&gt; --title cycle-name --code cycle-code --starts-on 2026-01-01 --dry-run`
+              </p>
             </article>
           </div>
         </article>

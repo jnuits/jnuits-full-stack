@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { departments } from "@/lib/departments";
 
 type MembershipStatus = "pending" | "approved" | "rejected";
 
@@ -13,93 +12,14 @@ const statusClassNames: Record<MembershipStatus, string> = {
 };
 
 export default function MembershipFormPage() {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    departmentCode: "",
-    batchLabel: "",
-    studentId: "",
-    photoUrl: "",
-    facebookUrl: "",
-    phone: "",
-    linkedinUrl: "",
-    website: "",
-  });
-  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
   const [statusEmail, setStatusEmail] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusValue, setStatusValue] = useState<MembershipStatus | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
-
-  function updateField(
-    event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) {
-    const { name, value } = event.target;
-
-    setFormData((current) => ({
-      ...current,
-      [name]: value,
-    }));
-  }
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsSubmitting(true);
-    setSubmitMessage(null);
-    setSubmitError(null);
-
-    try {
-      const response = await fetch("/api/membership-form", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const payload = (await response.json().catch(() => null)) as
-        | { message?: string }
-        | null;
-
-      if (!response.ok) {
-        throw new Error(payload?.message || "Membership application submission failed.");
-      }
-
-      setSubmitMessage(
-        payload?.message ||
-          "Application submitted successfully. Current status: pending."
-      );
-      setStatusEmail(formData.email);
-      setStatusValue("pending");
-      setStatusMessage("Latest status: pending");
-      setFormData({
-        name: "",
-        email: "",
-        departmentCode: "",
-        batchLabel: "",
-        studentId: "",
-        photoUrl: "",
-        facebookUrl: "",
-        phone: "",
-        linkedinUrl: "",
-        website: "",
-      });
-    } catch (error) {
-      setSubmitError(
-        error instanceof Error
-          ? error.message
-          : "Membership application submission failed."
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
 
   async function handleStatusCheck() {
     if (!statusEmail.trim()) {
-      setStatusMessage("Enter the email used in your application.");
+      setStatusMessage("Enter the email used in your previous application.");
       setStatusValue(null);
       return;
     }
@@ -121,12 +41,12 @@ export default function MembershipFormPage() {
       }
 
       if (!payload?.found || !payload.status) {
-        setStatusMessage("No application found with this email.");
+        setStatusMessage("No legacy application was found for this email.");
         return;
       }
 
       setStatusValue(payload.status);
-      setStatusMessage(`Latest status: ${payload.status}`);
+      setStatusMessage(`Latest recorded status: ${payload.status}`);
     } catch (error) {
       setStatusMessage(
         error instanceof Error ? error.message : "Unable to check application status."
@@ -140,115 +60,43 @@ export default function MembershipFormPage() {
     <div className="shell py-12">
       <section className="glass-card grid gap-8 px-6 py-8 sm:px-8 lg:grid-cols-[1.1fr_0.9fr]">
         <div>
-          <span className="eyebrow">Membership transition</span>
+          <span className="eyebrow">Membership policy</span>
           <h1 className="section-title mt-4">
-            Apply for membership while the invitation-first model is phased in.
+            New public membership applications are currently closed
           </h1>
           <p className="section-copy mt-4">
-            This temporary flow preserves the old public application path without
-            routing users through the Strapi stack. Submissions land in Supabase
-            for operator review, and applicants can still check the latest status
-            by email.
+            The public intake form is now disabled while invitation-first onboarding
+            and claim-based membership flows run through the portal. Previous
+            applicants can still check status by email.
           </p>
 
-          <form className="mt-8 grid gap-4" onSubmit={handleSubmit}>
-            <input
-              name="name"
-              placeholder="Full name"
-              required
-              value={formData.name}
-              onChange={updateField}
-            />
-            <input
-              name="email"
-              type="email"
-              placeholder="Email address"
-              required
-              value={formData.email}
-              onChange={updateField}
-            />
-            <select
-              name="departmentCode"
-              required
-              value={formData.departmentCode}
-              onChange={updateField}
-            >
-              <option value="">Select your department</option>
-              {departments.map((department) => (
-                <option key={department.code} value={department.code}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <input
-                name="batchLabel"
-                placeholder="Batch"
-                required
-                value={formData.batchLabel}
-                onChange={updateField}
-              />
-              <input
-                name="studentId"
-                placeholder="Student ID"
-                required
-                value={formData.studentId}
-                onChange={updateField}
-              />
-            </div>
-            <input
-              name="phone"
-              placeholder="Phone number"
-              value={formData.phone}
-              onChange={updateField}
-            />
-            <input
-              name="facebookUrl"
-              placeholder="Facebook profile URL"
-              value={formData.facebookUrl}
-              onChange={updateField}
-            />
-            <input
-              name="linkedinUrl"
-              placeholder="LinkedIn profile URL"
-              value={formData.linkedinUrl}
-              onChange={updateField}
-            />
-            <input
-              name="photoUrl"
-              placeholder="Photo URL"
-              value={formData.photoUrl}
-              onChange={updateField}
-            />
-            <div style={{ display: "none" }}>
-              <input
-                name="website"
-                value={formData.website}
-                onChange={updateField}
-                tabIndex={-1}
-                autoComplete="off"
-              />
-            </div>
-
-            {submitMessage ? <p className="status-pill">{submitMessage}</p> : null}
-            {submitError ? (
-              <p className="text-sm font-semibold text-[var(--brand-rust)]">
-                {submitError}
+          <div className="mt-8 route-grid">
+            <article className="route-tile">
+              <h3>Already invited?</h3>
+              <p>Use your invitation code to claim your profile and continue safely.</p>
+              <Link href="/register" className="secondary-button mt-4 inline-flex">
+                Claim profile
+              </Link>
+            </article>
+            <article className="route-tile">
+              <h3>Need assistance?</h3>
+              <p>
+                Contact the operators for onboarding support if you are unsure about
+                claim eligibility.
               </p>
-            ) : null}
-
-            <button className="primary-button" disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Submitting..." : "Submit application"}
-            </button>
-          </form>
+              <Link href="/contact" className="secondary-button mt-4 inline-flex">
+                Contact JnUITS
+              </Link>
+            </article>
+          </div>
         </div>
 
         <div className="grid gap-6">
           <article className="route-tile">
-            <h3>Application status</h3>
+            <h3>Legacy application status</h3>
             <p className="mb-4">
-              Check the latest recorded review status using the email address you
-              submitted with the application.
+              Check the latest review status for a previously submitted public
+              application.
             </p>
             <input
               type="email"
@@ -276,14 +124,19 @@ export default function MembershipFormPage() {
           </article>
 
           <article className="route-tile">
-            <h3>Existing members</h3>
+            <h3>Next onboarding path</h3>
             <p>
-              If you already have an invitation code, use the claim flow instead of
-              submitting a new membership application.
+              The active onboarding model now prioritizes secure invitation + claim
+              flows over open intake submission.
             </p>
-            <Link href="/register" className="secondary-button mt-4 inline-flex">
-              Claim profile
-            </Link>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link href="/login" className="secondary-button">
+                Sign in
+              </Link>
+              <Link href="/register" className="ghost-button">
+                Open claim page
+              </Link>
+            </div>
           </article>
         </div>
       </section>

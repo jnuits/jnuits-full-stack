@@ -9,6 +9,12 @@ import {
   writeJsonReport,
 } from "./lib/members.mjs";
 
+function assertQuerySuccess(label, result) {
+  if (result.error) {
+    throw new Error(`${label}: ${result.error.message}`);
+  }
+}
+
 async function main() {
   const args = parseCliArgs(process.argv.slice(2));
   const admin = buildSupabaseAdminClient();
@@ -50,9 +56,25 @@ async function main() {
       .lt("ends_on", today),
   ]);
 
+  assertQuerySuccess("membership_applications query failed", approvedApplicationsResult);
+  assertQuerySuccess(
+    "active expired invitations query failed",
+    activeExpiredInvitationsResult
+  );
+  assertQuerySuccess(
+    "inactive invitations query failed",
+    inactiveInvitationsResult
+  );
+  assertQuerySuccess("active committee terms query failed", activeTermsResult);
+  assertQuerySuccess(
+    "active committee assignments query failed",
+    activeAssignmentsResult
+  );
+
   const fixes = {
     archivedTerms: 0,
     completedAssignments: 0,
+    failedWrites: 0,
     generatedInvitations: 0,
     markedExpiredInvitations: 0,
     repairedRevokedTimestamps: 0,
@@ -62,6 +84,7 @@ async function main() {
 
   for (const application of approvedApplicationsResult.data || []) {
     let invitationCode = null;
+    let failure = null;
 
     if (args.apply && application.processed_member_id) {
       const nextInvitation = await getNextInvitation(admin);
@@ -80,15 +103,23 @@ async function main() {
         .single();
 
       if (!invitationError && invitation) {
-        await admin
+        const { error: applicationUpdateError } = await admin
           .from("membership_applications")
           .update({
             invitation_id: invitation.id,
           })
           .eq("id", application.id);
 
-        invitationCode = nextInvitation.code;
-        fixes.generatedInvitations += 1;
+        if (!applicationUpdateError) {
+          invitationCode = nextInvitation.code;
+          fixes.generatedInvitations += 1;
+        } else {
+          failure = applicationUpdateError.message;
+          fixes.failedWrites += 1;
+        }
+      } else {
+        failure = invitationError?.message || "Invitation insert failed";
+        fixes.failedWrites += 1;
       }
     }
 
@@ -99,10 +130,13 @@ async function main() {
       memberId: application.processed_member_id,
       mode: args.apply ? "apply" : "dry-run",
       name: application.name,
+      writeFailure: failure,
     });
   }
 
   for (const invitation of activeExpiredInvitationsResult.data || []) {
+    let failure = null;
+
     if (args.apply) {
       const { error } = await admin
         .from("member_invitations")
@@ -114,6 +148,9 @@ async function main() {
 
       if (!error) {
         fixes.markedExpiredInvitations += 1;
+      } else {
+        failure = error.message;
+        fixes.failedWrites += 1;
       }
     }
 
@@ -122,10 +159,13 @@ async function main() {
       invitationId: invitation.id,
       memberId: invitation.member_id,
       mode: args.apply ? "apply" : "dry-run",
+      writeFailure: failure,
     });
   }
 
   for (const invitation of inactiveInvitationsResult.data || []) {
+    let failure = null;
+
     if (args.apply) {
       const { error } = await admin
         .from("member_invitations")
@@ -136,6 +176,9 @@ async function main() {
 
       if (!error) {
         fixes.repairedRevokedTimestamps += 1;
+      } else {
+        failure = error.message;
+        fixes.failedWrites += 1;
       }
     }
 
@@ -144,10 +187,13 @@ async function main() {
       invitationId: invitation.id,
       memberId: invitation.member_id,
       mode: args.apply ? "apply" : "dry-run",
+      writeFailure: failure,
     });
   }
 
   for (const term of activeTermsResult.data || []) {
+    let failure = null;
+
     if (args.apply) {
       const { error } = await admin
         .from("committee_terms")
@@ -158,6 +204,9 @@ async function main() {
 
       if (!error) {
         fixes.archivedTerms += 1;
+      } else {
+        failure = error.message;
+        fixes.failedWrites += 1;
       }
     }
 
@@ -167,10 +216,13 @@ async function main() {
       slug: term.slug,
       termId: term.id,
       title: term.title,
+      writeFailure: failure,
     });
   }
 
   for (const assignment of activeAssignmentsResult.data || []) {
+    let failure = null;
+
     if (args.apply) {
       const { error } = await admin
         .from("committee_assignments")
@@ -181,6 +233,9 @@ async function main() {
 
       if (!error) {
         fixes.completedAssignments += 1;
+      } else {
+        failure = error.message;
+        fixes.failedWrites += 1;
       }
     }
 
@@ -189,6 +244,7 @@ async function main() {
       assignmentId: assignment.id,
       mode: args.apply ? "apply" : "dry-run",
       termId: assignment.term_id,
+      writeFailure: failure,
     });
   }
 
@@ -202,6 +258,7 @@ async function main() {
         (inactiveInvitationsResult.data || []).length,
       staleActiveAssignments: (activeAssignmentsResult.data || []).length,
       staleActiveTerms: (activeTermsResult.data || []).length,
+      totalFindings: rows.length,
     },
     rows,
   };
@@ -216,7 +273,7 @@ async function main() {
     await persistOperatorReport(admin, {
       report,
       reportType: "membership_reconciliation",
-      summary: `Membership reconciliation ${args.apply ? "apply" : "dry-run"} with ${rows.length} findings.`,
+      summary: `Membership reconciliation ${args.apply ? "apply" : "dry-run"} with ${rows.length} findings and ${fixes.failedWrites} failed writes.`,
       title: `Membership reconciliation ${args.apply ? "apply" : "dry-run"}`,
     });
   }

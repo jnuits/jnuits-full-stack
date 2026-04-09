@@ -17,6 +17,7 @@
     "committee:import:legacy": "node scripts/import-legacy-committee.mjs",
     "members:onboard": "node scripts/onboard-members.mjs",
     "members:reconcile": "node scripts/reconcile-members.mjs",
+    "members:rollover-cycle": "node scripts/rollover-membership-cycle.mjs",
     "rehearse:cutover": "node scripts/rehearse-cutover.mjs"
   },
   "dependencies": {

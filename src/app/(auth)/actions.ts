@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { resolveSafeNextPath } from "@/lib/auth/session";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
 import { hashInvitationCode } from "@/lib/members/invitation-code";
@@ -30,7 +31,7 @@ type InvitationLookup = Database["public"]["Tables"]["member_invitations"]["Row"
 export async function login(formData: FormData) {
   const email = asString(formData.get("email")).toLowerCase();
   const password = asString(formData.get("password"));
-  const nextPath = asString(formData.get("next")) || "/portal";
+  const nextPath = resolveSafeNextPath(asString(formData.get("next")), "/portal");
 
   if (!email || !password) {
     redirect("/login?error=Email and password are required.");

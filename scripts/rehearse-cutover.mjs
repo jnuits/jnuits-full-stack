@@ -91,10 +91,10 @@ async function main() {
     countRows(supabase, "membership_applications", {
       equals: { status: "pending" },
     }),
-    countRows(supabase, "member_requests", {
+    countRows(supabase, "profile_update_requests", {
       equals: { request_type: "workplace_update", status: "pending" },
     }),
-    countRows(supabase, "member_requests", {
+    countRows(supabase, "profile_update_requests", {
       equals: { request_type: "profile_change", status: "pending" },
     }),
     supabase

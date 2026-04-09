@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import {
   formatDisplayDate,
   getPublishedBlogs,
@@ -16,14 +17,12 @@ export default async function BlogsPage() {
           <div>
             <span className="eyebrow">Public editorial lane</span>
             <h1 className="section-title mt-4">
-              Editorial surfaces are back in scope, but they are being rebuilt on
-              safer publishing boundaries.
+              Stories, announcements, and technology reflections from the JnUITS community.
             </h1>
             <p className="section-copy mt-5">
-              The old site treated blogs as public content with internal drafting.
-              That stays true here, except the authoring path is being separated
-              from the operator queue so contributors do not need risky admin
-              access just to prepare a story.
+              This section highlights program updates, student initiatives, and
+              society activities published for members, alumni, and the wider
+              public audience.
             </p>
           </div>
 
@@ -45,7 +44,7 @@ export default async function BlogsPage() {
             </div>
             <div className="p-6">
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--brand-blue)]">
-                Featured migration brief
+                Featured article
               </p>
               <h2 className="mt-3 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
                 {featuredBlog.title}
@@ -53,6 +52,11 @@ export default async function BlogsPage() {
               <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
                 {featuredBlog.excerpt}
               </p>
+              <div className="mt-6">
+                <Link className="secondary-button" href={`/blogs/${featuredBlog.slug}`}>
+                  Open article
+                </Link>
+              </div>
             </div>
           </article>
         </div>
@@ -82,6 +86,11 @@ export default async function BlogsPage() {
                   <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
                     {blog.summary}
                   </p>
+                  <div className="mt-4">
+                    <Link className="queue-link" href={`/blogs/${blog.slug}`}>
+                      Open article
+                    </Link>
+                  </div>
                 </div>
                 <div className="relative min-h-[180px] overflow-hidden rounded-[1.25rem] border border-[var(--line)]">
                   <Image
@@ -98,11 +107,11 @@ export default async function BlogsPage() {
         </article>
 
         <article className="section-band">
-          <p className="section-divider">Publishing model</p>
+          <p className="section-divider">Editorial notes</p>
           <ul className="clean-list mt-6">
-            <li>Public reading stays open, but drafting moves into the member portal.</li>
-            <li>Publishing and moderation stay in the operator workspace with audit evidence.</li>
-            <li>Legacy blog records map cleanly to the new `title`, `body`, and `media` shape.</li>
+            <li>Articles are published for public reading after editorial moderation.</li>
+            <li>Society updates include program reports, technical highlights, and community insights.</li>
+            <li>Each article keeps a stable direct link for sharing and long-term reference.</li>
           </ul>
           <div className="mt-8 grid gap-4">
             {remainingBlogs.map((blog) => (

@@ -1,28 +1,66 @@
-# Implementation Tracker
+# Implementation Tracker (Execution Plan v3)
 
 | Phase | Status | Blocker | Owner | Prerequisites | Evidence | Exit Gate |
 | --- | --- | --- | --- | --- | --- | --- |
-| Phase 00: Bootstrap | In progress | Local env vars still need to be populated | Codex + project owner | Vercel project linked, repo bootstrapped, Node 24 pinned | Next.js app scaffold, Supabase helpers, `proxy.ts`, README | `npm run build` passes locally and in Vercel preview |
-| Phase 01: Auth, RBAC, data core | In progress | Need generated DB types refresh after future schema changes | Codex | Supabase project available | Migrations applied, tables created, RLS enabled, roles seeded | Auth shell works, route protection works, RLS baseline verified |
-| Phase 02: Certificates | Completed | None | Codex + operator | Core schema applied, server secret available | Public routes, batch/view APIs, import/parity scripts, imported handover CSV, legacy `?q=` verification URL compatibility, parity report | Dry-run and apply import reports match source CSV counts |
-| Phase 03: Public site shell | In progress | Design polish and deeper parity review still pending | Codex + content owner | Bootstrap routes exist | Home/about/events/blogs/gallery/notices/developers/contact routes, refined brand theme, light/dark switch, official club branding saved to singleton content, homepage shifted toward institution-facing messaging instead of migration-only copy | Public shell reaches design/content parity for global sections |
-| Phase 04: Content + media | In progress | A few legacy source files are still missing from the old repo and need manual replacement if required | Codex + content owner | Phase 03 | `content_*`, `gallery_entries`, `developer_profiles`, and `media_assets` tables applied; `/admin/content` live; direct Cloudinary upload workflow built; edit-mode content workspace added with prefilled singleton and collection forms; public about/blogs/events/gallery/notices/developers/committee routes now read imported Supabase content and Cloudinary-backed media instead of fallback preview data | Public collections render from Supabase-backed models and content owners can manage publish state/media references without legacy admin |
-| Phase 05: Membership transition | In progress | Directory verification rehearsal and legacy membership parity checks still need evidence | Codex + membership operators | Phases 00-01 | Claim flow validation, public intake, admin review queue, invitation generation evidence, directory verification gate | Application intake and invitation claim are both operational |
-| Phase 06: Member portal | In progress | Richer author moderation polish and real media-backed member drafts still need follow-through | Codex | Member schema and auth flows live | Live portal profile view, directory verification form, workplace request flow, password change UX, timeline evidence, step-up protected direct edits, member blog authoring, profile change request submission and owner history | Claimed members can safely manage profile flows and submit moderated edits without touching `/admin` |
-| Phase 07: Admin ops | In progress | Live operator walkthrough for rollover, moderation, and CSV procedures still needs owner sign-off | Codex + technical operators | Earlier data phases complete | Membership review queue, invitation lifecycle controls, workplace moderation queue, profile change moderation queue, committee term/assignment workspace, committee rollover automation, imported legacy committee roster, operator snapshot reports, CSV onboarding/reconciliation scripts, audit trail, queue UX | Operators can complete sensitive workflows without legacy admin |
-| Phase 08: Rehearsal + cutover | In progress | Final owner approval, rollback drill, and production cutover timing are still pending | Codex + project owner | All earlier phases | Certificate import report, certificate parity report, legacy public content import report, legacy committee import report, cutover rehearsal snapshot, local screenshots, build/lint/typecheck evidence | Production cutover approved and rehearsed |
+| Phase A: Foundation corrections | Completed | None | Codex + project owner | `plan/New_Plan.md` approved | `supabase/migrations/20260409040000_super_admin_role_hierarchy.sql`, `src/lib/auth/session.ts`, `src/lib/supabase/proxy.ts`, `scripts/rehearse-cutover.mjs`, `.github/workflows/quality-gate.yml` | `npm run lint`, `npm run typecheck`, `npm run build` pass; protected redirect targets and role hierarchy fixes are applied |
+| Phase B: Public parity restoration | Completed | None | Codex + content owner | Phase A complete | `src/app/(public)/blogs/[identifier]/page.tsx`, `src/app/(public)/events/[identifier]/page.tsx`, `src/app/(public)/gallery/[identifier]/page.tsx`, `src/app/(public)/committee/[termSlug]/page.tsx`, `src/app/(public)/committee/5th/page.tsx`, `src/app/(public)/committee/advisory/page.tsx`, `src/lib/content/public-content.ts`, `src/lib/committee/public.ts` | Legacy-critical detail routes and committee aliases resolve without parity-breaking 404s |
+| Phase C: Members directory + intake policy | Completed | None | Codex + membership operators | Phase B complete | `src/lib/members/directory.ts`, `src/app/api/members/route.ts`, `src/app/(public)/members/page.tsx`, `src/app/api/membership-form/route.ts`, `src/app/(public)/membership-form/page.tsx`, `src/app/(public)/page.tsx`, `src/app/(public)/about/page.tsx` | `/members` supports tabs/search/alphabet/pagination with verification-aware workplace visibility; membership intake POST is disabled and status-check-only path remains |
+| Phase D: Membership and ops backend completion | In progress | Remaining: operator UI for renewal lifecycle tables and end-to-end real-data rehearsal | Codex + technical operators | Phase C complete | `supabase/migrations/20260409051000_membership_cycles_and_batches.sql`, `scripts/lib/members.mjs`, `scripts/onboard-members.mjs`, `scripts/reconcile-members.mjs`, `scripts/rollover-membership-cycle.mjs`, `artifacts/templates/member-onboarding-template.csv`, `package.json`, `src/app/admin/reports/page.tsx` | Renewal-ready schema and deterministic scripts exist; remaining work focuses on full operator UX and rehearsal evidence |
+| Phase E: Observability, rehearsal, cutover evidence | Pending | Awaiting implementation start | Codex + project owner | Phase D complete | Planned: production-safe Sentry verification, real-data rehearsal pack, rollback drill evidence | Cutover gate signed with reproducible reports and rollback proof |
 
-## Required evidence rules
+## Evidence Rules
 
-- Migration output: keep local SQL files in `supabase/migrations/` and confirm applied migration names.
-- Test results: capture `npm run lint`, `npm run typecheck`, and `npm run build` output before phase exit.
-- Parity reports: store certificate and later content/member parity reports under `artifacts/reports/`.
-- UI evidence: capture screenshots for critical public, portal, and admin flows before sign-off.
+- Keep migration SQL files in `supabase/migrations/` and reference file names per phase.
+- Keep report artifacts under `artifacts/reports/` with deterministic names.
+- Capture verification commands (`lint`, `typecheck`, `build`) at each phase exit.
+- Capture screenshots for critical public, portal, and admin flows before cutover.
 
-## Active concerns
+## Phase A Completion Notes (2026-04-09)
 
-- Vercel still needs its project-level Node version aligned to `24.x`.
-- The app will not run end-to-end until the required `.env.local` values are set locally and in Vercel, especially `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
-- The current `SENTRY_AUTH_TOKEN` can build with Sentry enabled, but it does not currently have enough read scope to verify event ingestion back through the Sentry API.
-- Large images and videos should live in Cloudinary; Supabase now stores media metadata and publishing state only.
-- One legacy notice PDF and a small set of older images referenced by the previous CMS are missing from the old repo, so those specific assets need manual replacement if they are still required.
+- Added `super_admin` seed + hierarchy-aware role resolution in Supabase via migration.
+- Added safe return-to behavior hardening:
+  - login redirects now sanitize `next` to block open redirects.
+  - auth guard now includes fallback-aware `next` handling.
+- Fixed rehearsal script schema drift from `member_requests` to `profile_update_requests`.
+- Added GitHub Actions quality gate (`lint`, `typecheck`, `build`) on `main` PRs and pushes.
+
+## Phase B Completion Notes (2026-04-09)
+
+- Added public detail routes for blogs, events, and gallery using canonical identifier redirect behavior.
+- Added public committee term detail route plus legacy compatibility aliases for `/committee/5th` and `/committee/advisory`.
+- Updated public content retrieval and fallback copy to remove migration-only narrative and improve production-facing parity.
+- Validation evidence:
+  - `npm run lint`
+  - `npm run typecheck`
+  - `npm run build`
+
+## Phase C Completion Notes (2026-04-09)
+
+- Implemented a production directory contract at `GET /api/members` with:
+  - members/current/alumni filtering
+  - search by member name or JnUITS ID
+  - A-Z initial filtering
+  - pagination metadata and counters
+  - verification-aware workplace field visibility rules
+- Replaced placeholder `/members` page with a parity-ready directory surface and verification guidance.
+- Disabled new public intake at `POST /api/membership-form` with explicit closed-policy response (`410`) while preserving `/api/membership-form/status`.
+- Updated public CTA copy to align with intake-closed policy (`/` and `/about`).
+- Validation evidence:
+  - `npm run lint`
+  - `npm run typecheck`
+  - `npm run build`
+
+## Phase D Progress Notes (2026-04-09)
+
+- Added renewal-ready membership lifecycle schema:
+  - `membership_cycles`
+  - `membership_cycle_memberships`
+  - `invitation_batches`
+  - RLS policies and operator write guards
+- Hardened onboarding/reconciliation scripts for real data:
+  - Removed invalid `departmentCode` length rule that blocked canonical slugs.
+  - Added seeded-department normalization and alias resolution.
+  - Added explicit write-failure counters and reporting rows in dry-run/apply outputs.
+- Added membership cycle rollover automation script:
+  - `npm run members:rollover-cycle -- ... --dry-run|--apply`
+- Updated operator command references and onboarding CSV template to canonical department format.

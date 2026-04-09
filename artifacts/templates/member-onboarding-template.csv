@@ -1,2 +1,2 @@
 jnuitsId,fullName,email,memberType,departmentCode,batchNo,phone,currentOrganization,designation,workLocation,linkedinUrl,websiteUrl,professionalVisibility,alumniSince,generateInvitation,maxUses,expiresAt
-,Example Member,member@example.com,current,CSE,58,+8801XXXXXXXXX,Example Org,Software Engineer,Dhaka,https://linkedin.com/in/example,https://example.com,members-only,,true,1,
+,Example Member,member@example.com,current,computer-science-engineering,58,+8801XXXXXXXXX,Example Org,Software Engineer,Dhaka,https://linkedin.com/in/example,https://example.com,members-only,,true,1,

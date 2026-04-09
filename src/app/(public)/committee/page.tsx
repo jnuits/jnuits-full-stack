@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getPublicCommitteeDirectory } from "@/lib/committee/public";
 
 export default async function CommitteePage() {
@@ -9,13 +10,11 @@ export default async function CommitteePage() {
         <div className="glass-card px-6 py-8 sm:px-8 sm:py-10">
           <span className="eyebrow">Committee history</span>
           <h1 className="section-title mt-4">
-            Committee terms now have a normalized data model, but no public term
-            has been published yet.
+            Committee terms are prepared, but no public roster is currently published.
           </h1>
           <p className="section-copy mt-4">
-            The public committee route now reads from real term and assignment
-            tables. Once an operator marks a term public, the roster will appear
-            here without depending on hardcoded route copy.
+            Once a term is marked public, committee roles and member assignments
+            will appear here with dedicated detail links.
           </p>
           <ul className="clean-list mt-8">
             <li>Terms and assignments are now tracked separately.</li>
@@ -34,12 +33,11 @@ export default async function CommitteePage() {
           <div>
             <span className="eyebrow">Committee directory</span>
             <h1 className="section-title mt-4">
-              Advisory and executive rosters now live on the new platform
+              Advisory and executive committee rosters
             </h1>
             <p className="section-copy mt-5">
-              This route now reads directly from normalized committee terms and
-              assignments imported from the previous site, so old committee data
-              can survive future redesigns and rollover operations.
+              Browse published committee terms with role assignments and direct
+              term pages for stable public access.
             </p>
           </div>
 
@@ -57,6 +55,11 @@ export default async function CommitteePage() {
                     {assignments.length} public assignment
                     {assignments.length === 1 ? "" : "s"}
                   </p>
+                  <div className="mt-3">
+                    <Link className="queue-link" href={`/committee/${term.slug}`}>
+                      Open term page
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>
@@ -73,8 +76,13 @@ export default async function CommitteePage() {
                 <h2 className="section-title mt-4">{term.title}</h2>
                 <p className="section-copy mt-4">
                   {term.summary ||
-                    "This roster is now served from the new committee model."}
+                    "Published committee roster for this term."}
                 </p>
+                <div className="mt-5">
+                  <Link className="secondary-button" href={`/committee/${term.slug}`}>
+                    Open term page
+                  </Link>
+                </div>
               </div>
               <div className="grid gap-2 text-sm text-[var(--muted)]">
                 <span className="detail-chip">Starts {term.starts_on}</span>

@@ -12,8 +12,16 @@ function isProtectedPath(pathname: string) {
 }
 
 export async function updateSession(request: NextRequest) {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(
+    "x-jnuits-return-to",
+    `${request.nextUrl.pathname}${request.nextUrl.search}`
+  );
+
   let supabaseResponse = NextResponse.next({
-    request,
+    request: {
+      headers: requestHeaders,
+    },
   });
 
   const supabase = createServerClient<Database>(
@@ -28,7 +36,9 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
 
           supabaseResponse = NextResponse.next({
-            request,
+            request: {
+              headers: requestHeaders,
+            },
           });
 
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -49,7 +59,10 @@ export async function updateSession(request: NextRequest) {
   ) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
-    loginUrl.searchParams.set("next", request.nextUrl.pathname);
+    loginUrl.searchParams.set(
+      "next",
+      `${request.nextUrl.pathname}${request.nextUrl.search}`
+    );
     return NextResponse.redirect(loginUrl);
   }
 

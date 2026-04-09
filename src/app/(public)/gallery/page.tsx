@@ -1,8 +1,12 @@
 import Image from "next/image";
+import Link from "next/link";
 import { getPublishedGallery } from "@/lib/content/public-content";
 
 export default async function GalleryPage() {
   const publicGallery = await getPublishedGallery();
+  const heroPrimary = publicGallery[0];
+  const heroSecondary = publicGallery[1] || heroPrimary;
+  const heroTertiary = publicGallery[2] || heroPrimary;
 
   return (
     <div className="shell py-12">
@@ -11,43 +15,41 @@ export default async function GalleryPage() {
           <div>
             <span className="eyebrow">Media and atmosphere</span>
             <h1 className="section-title mt-4">
-              The gallery route is shifting from a blank promise to a real visual
-              archive.
+              Visual highlights from JnUITS programs, events, and community activities.
             </h1>
             <p className="section-copy mt-5">
-              The old gallery was media-first. This first Phase 04 pass reuses real
-              legacy photography so the route feels alive now, while the underlying
-              media model and import tooling are still being normalized.
+              The gallery preserves society moments through photos and media
+              records that can be viewed and shared through stable public links.
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="relative min-h-[220px] overflow-hidden rounded-[1.5rem] border border-[var(--line)] sm:row-span-2">
               <Image
-                alt={publicGallery[0].title}
+                alt={heroPrimary.title}
                 className="object-cover"
                 fill
                 priority
                 sizes="(min-width: 640px) 32vw, 100vw"
-                src={publicGallery[0].imageSrc}
+                src={heroPrimary.imageSrc}
               />
             </div>
             <div className="relative min-h-[150px] overflow-hidden rounded-[1.5rem] border border-[var(--line)]">
               <Image
-                alt={publicGallery[1].title}
+                alt={heroSecondary.title}
                 className="object-cover"
                 fill
                 sizes="(min-width: 640px) 24vw, 100vw"
-                src={publicGallery[1].imageSrc}
+                src={heroSecondary.imageSrc}
               />
             </div>
             <div className="relative min-h-[150px] overflow-hidden rounded-[1.5rem] border border-[var(--line)]">
               <Image
-                alt={publicGallery[2].title}
+                alt={heroTertiary.title}
                 className="object-cover"
                 fill
                 sizes="(min-width: 640px) 24vw, 100vw"
-                src={publicGallery[2].imageSrc}
+                src={heroTertiary.imageSrc}
               />
             </div>
           </div>
@@ -75,6 +77,11 @@ export default async function GalleryPage() {
                 <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
                   {item.caption}
                 </p>
+                <div className="mt-4">
+                  <Link className="queue-link" href={`/gallery/${item.identifier}`}>
+                    Open media details
+                  </Link>
+                </div>
               </div>
             </article>
           ))}

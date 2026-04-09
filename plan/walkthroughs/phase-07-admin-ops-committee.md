@@ -12,6 +12,7 @@ Replace the old operator-only workflows with technical but task-first admin queu
 - Port committee, tenure, and role-assignment workflows.
 - Add operator reporting snapshots and reconciliation visibility inside `/admin/reports`.
 - Port CSV onboarding and reconciliation scripts with dry-run/apply reporting and archived JSON evidence.
+- Add membership-cycle rollover automation and renewal-ready schema support.
 - Add audit exploration for sensitive operations.
 
 ## Verification checklist
@@ -21,6 +22,7 @@ Replace the old operator-only workflows with technical but task-first admin queu
 - Confirm committee assignments and tenure records can be created, reviewed, and reconciled.
 - Confirm operator snapshot reports can be generated and stored.
 - Confirm CSV onboarding/reconcile scripts emit archived reports.
+- Confirm membership cycle rollover script supports dry-run/apply with archived report output.
 - Confirm the admin workspace remains usable on phone-sized screens for at least core queue review.
 
 ## Test data or fixture needs
@@ -28,6 +30,7 @@ Replace the old operator-only workflows with technical but task-first admin queu
 - Seeded admin and moderator accounts
 - Sample committee/tenure data
 - Legacy CSV datasets for onboarding and reconciliation
+- A source membership cycle with active members for rollover rehearsal
 
 ## Acceptance gate
 

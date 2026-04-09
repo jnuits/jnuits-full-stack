@@ -4,7 +4,7 @@ import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 
 export default async function PortalOverviewPage() {
-  const auth = await requireAuthenticatedUser();
+  const auth = await requireAuthenticatedUser({ fallbackPath: "/portal" });
   const user = auth.user;
 
   if (!user) {

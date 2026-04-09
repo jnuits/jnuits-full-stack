@@ -2,32 +2,34 @@
 
 ## Goal
 
-Run the old public membership intake and the new invitation/claim model side by side until operators are ready to retire the temporary intake path.
+Retire open public intake while preserving legacy application status checks and invitation-first onboarding.
 
 ## Implementation checklist
 
-- Build the public membership application form and status-check workflow.
+- Disable new public membership submissions (`POST /api/membership-form` returns closed policy).
+- Keep legacy status-check workflow live for previously submitted applications.
 - Build the admin review queue that converts pending applications into approved members plus invitations.
 - Keep invitation-based claim as the preferred member activation path.
 - Preserve the directory verification gate for sensitive workplace data.
-- Add member and alumni directory read paths based on safe projections.
+- Add member and alumni directory read paths based on safe projections with search/filter/pagination.
 
 ## Verification checklist
 
-- Confirm public application inserts succeed and can be reviewed, approved, or rejected by operators.
+- Confirm public intake POST is disabled with a controlled closed-policy response.
+- Confirm legacy status checks still return expected pending/approved/rejected values.
 - Confirm claim flow consumes a valid invitation and links the member.
 - Confirm directory verification cookies are scoped to the authenticated member.
 
 ## Test data or fixture needs
 
-- One pending membership application
+- One historical membership application row for status checking
 - One valid invitation row and one expired invitation row
 - One member with a verification code hash
 
 ## Acceptance gate
 
-Both onboarding paths are operational, documented, and auditable, with a clear retirement plan for public intake.
+Invitation/claim onboarding is the only active intake path, while legacy status checks remain available and auditable.
 
 ## Rollback or recovery notes
 
-If invitation logic misbehaves, pause new invitations and continue accepting public applications while the claim flow is corrected.
+If invitation logic misbehaves, pause invitation generation and keep claim/status support visible while operators repair onboarding.

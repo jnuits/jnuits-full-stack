@@ -15,7 +15,7 @@ export default async function AboutPage() {
             <p className="section-copy mt-5">{aboutContent.summary}</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/membership-form" className="primary-button">
-                Apply for membership
+                Membership status
               </Link>
               <Link href="/events" className="secondary-button">
                 Explore events
@@ -35,11 +35,11 @@ export default async function AboutPage() {
             <div className="absolute inset-0 bg-gradient-to-t from-[rgba(17,31,56,0.72)] via-[rgba(17,31,56,0.18)] to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-6 text-white">
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/70">
-                Why this route matters
+                Institutional identity
               </p>
               <p className="mt-3 max-w-xl text-base leading-7 text-white/90">
-                Public trust in the society depends on the site feeling like a real
-                institution, not a placeholder between migrations.
+                JnUITS presents its mission, values, and history with a clear
+                public profile for students, alumni, and partners.
               </p>
             </div>
           </div>

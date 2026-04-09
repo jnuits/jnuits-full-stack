@@ -36,14 +36,34 @@ export type NoticePreview = {
   category: string;
   publishedAt: string;
   summary: string;
-  delivery: "Attachment migration queued" | "Read route ready" | "External action";
+  delivery: "File link pending" | "Read route ready" | "External action";
   href?: string;
 };
 
 export type GalleryPreview = {
+  identifier: string;
   title: string;
   caption: string;
   imageSrc: string;
+};
+
+export type BlogDetail = BlogPreview & {
+  body: string;
+  ctaHref: null | string;
+  id: string;
+};
+
+export type EventDetail = EventPreview & {
+  body: null | string;
+  ctaHref: null | string;
+  id: string;
+};
+
+export type GalleryDetail = GalleryPreview & {
+  id: string;
+  mediaKind: "image" | "video";
+  secureUrl: string;
+  thumbnailUrl: null | string;
 };
 
 export type DeveloperPreview = {
@@ -57,11 +77,21 @@ export type DeveloperPreview = {
 
 type ContentPostRecord = Tables<"content_posts">;
 type DeveloperProfileRecord = Tables<"developer_profiles">;
-type GalleryEntryRecord = Tables<"gallery_entries">;
 type MediaAssetRecord = Pick<
   Tables<"media_assets">,
   "alt_text" | "media_kind" | "secure_url" | "thumbnail_url" | "title"
 >;
+type GalleryEntryPublicRecord = Pick<
+  Tables<"gallery_entries">,
+  "caption" | "id" | "sort_order" | "title"
+> & {
+  media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
+};
+
+const contentPostSelect =
+  "id, slug, title, category, summary, excerpt, body, published_at, read_time, location, starts_at, ends_at, cta_href, content_type, status, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)";
+const galleryEntrySelect =
+  "id, title, caption, sort_order, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)";
 
 const fallbackBlogImage = "/images/home-group.jpg";
 const fallbackEventImage = "/images/workshop.jpg";
@@ -104,37 +134,37 @@ export const fallbackAboutContent = {
 
 export const fallbackPublicBlogs: BlogPreview[] = [
   {
-    slug: "building-the-unified-stack",
-    title: "Building the unified stack without repeating the proxy-era mistakes",
-    category: "Platform",
+    slug: "society-program-highlights",
+    title: "Society program highlights for the current session",
+    category: "Programs",
     summary:
-      "The rebuild aligns public routes, member identity, and operator workflows around one audited app instead of a split CMS chain.",
+      "JnUITS continues to run practical learning activities for students through workshops, guided sessions, and public-facing events.",
     excerpt:
-      "This editorial preview captures the real migration goal: fewer moving pieces, stronger auth boundaries, and less hidden coupling between the website and internal operations.",
+      "The society prioritizes consistent program delivery, transparent communication, and student participation across each semester.",
     publishedAt: "2026-04-06",
     readTime: "6 min read",
     imageSrc: "/images/home-group.jpg",
   },
   {
-    slug: "certificate-verification-without-the-proxy",
-    title: "Certificate verification is now a first-class product surface",
+    slug: "certificate-verification-guidelines",
+    title: "Certificate verification guidelines for participants",
     category: "Certificates",
     summary:
-      "Certificates were prioritized early because public trust depends on them working reliably before richer content lands.",
+      "JnUITS certificates are issued for eligible programs and can be verified from the official public verification route.",
     excerpt:
-      "Import staging, parity checks, and public verification are already live. The content lane now has to match that level of clarity and confidence.",
+      "Participants and partner organizations can confirm certificate validity using the certificate ID from official documents.",
     publishedAt: "2026-03-28",
     readTime: "4 min read",
     imageSrc: "/images/achievement.jpg",
   },
   {
-    slug: "designing-a-safer-member-portal",
-    title: "Designing a safer member portal for a non-technical organization",
-    category: "Portal",
+    slug: "member-community-updates",
+    title: "Member community updates and participation pathways",
+    category: "Community",
     summary:
-      "Committee and member authors need focused tools, not a wide operator console that exposes risky controls by accident.",
+      "The society supports active student participation through committees, member-led activities, and constructive collaboration.",
     excerpt:
-      "The portal remains intentionally narrow while approvals, invitations, and reconciliation stay inside an auditable admin workspace.",
+      "Community updates cover membership activities, public initiatives, and opportunities for students to contribute.",
     publishedAt: "2026-03-17",
     readTime: "5 min read",
     imageSrc: "/images/workshop.jpg",
@@ -143,99 +173,101 @@ export const fallbackPublicBlogs: BlogPreview[] = [
 
 export const fallbackPublicEvents: EventPreview[] = [
   {
-    slug: "spring-builder-session",
-    title: "Spring Builder Session",
+    slug: "spring-it-workshop-series",
+    title: "Spring IT Workshop Series",
     status: "Upcoming",
     summary:
-      "A practical workshop cycle around software delivery, infrastructure thinking, and shipping safer campus-facing tools.",
+      "A student-focused workshop cycle covering practical digital skills, peer learning, and project collaboration.",
     location: "Jagannath University ICT Lab",
     start: "2026-05-12T10:00:00+06:00",
     end: "2026-05-12T16:00:00+06:00",
     imageSrc: "/images/workshop.jpg",
-    focus: "Hands-on delivery",
+    focus: "Hands-on learning",
   },
   {
-    slug: "certificate-validation-clinic",
-    title: "Certificate Validation Clinic",
+    slug: "certificate-verification-support-session",
+    title: "Certificate Verification Support Session",
     status: "Ongoing",
     summary:
-      "Operators walk through the new import and parity workflow so the certificate lane can be trusted before final data cutover.",
-    location: "JnUITS Working Session",
+      "An open support session for participants who need guidance on certificate verification and official confirmation.",
+    location: "JnUITS Help Desk Session",
     start: "2026-04-08T12:00:00+06:00",
     end: "2026-04-10T18:00:00+06:00",
     imageSrc: "/images/achievement.jpg",
-    focus: "Migration rehearsal",
+    focus: "Public support",
   },
   {
-    slug: "society-roadmap-townhall",
-    title: "Society Roadmap Townhall",
+    slug: "campus-tech-community-townhall",
+    title: "Campus Tech Community Townhall",
     status: "Archive",
     summary:
-      "A campus-facing review of what the new website, member portal, and operator stack are changing for the organization.",
+      "A public session where members reviewed society goals, event outcomes, and future technology initiatives.",
     location: "Central Auditorium",
     start: "2026-03-14T15:00:00+06:00",
     end: "2026-03-14T17:00:00+06:00",
     imageSrc: "/images/home-group.jpg",
-    focus: "Public accountability",
+    focus: "Community planning",
   },
 ];
 
 export const fallbackPublicNotices: NoticePreview[] = [
   {
-    title: "Membership review queue is now live in the unified admin workspace",
-    category: "Operations",
+    title: "Membership onboarding and status support",
+    category: "Membership",
     publishedAt: "2026-04-08",
     summary:
-      "New applications can now be reviewed, approved into member records, and turned into claim invitations without using the legacy admin.",
+      "New public intake is closed. Existing applicants can check status while invitation and claim support remains active.",
     delivery: "Read route ready",
-    href: "/admin",
+    href: "/membership-form",
   },
   {
-    title: "Certificate import parity rehearsal continues this week",
+    title: "Certificate verification support information",
     category: "Certificates",
     publishedAt: "2026-04-07",
     summary:
-      "The import lane is stable, but final source CSV delivery and report archiving are still required before production cutover.",
+      "Certificate holders should use the official verification route for status checks and follow-up support.",
     delivery: "Read route ready",
     href: "/certificates",
   },
   {
-    title: "Public content migration is entering structured preview mode",
+    title: "Upcoming programs and community activities",
     category: "Website",
     publishedAt: "2026-04-06",
     summary:
-      "About, blogs, events, gallery, and developer surfaces are being rebuilt around stable route-level data contracts before database-backed collections land.",
+      "Recent announcements and public updates are published through the notices and events sections.",
     delivery: "Read route ready",
-    href: "/about",
+    href: "/events",
   },
   {
-    title:
-      "Attachment handling remains phase-gated until media import rules are finalized",
+    title: "Document and attachment links",
     category: "Media",
     publishedAt: "2026-04-05",
     summary:
-      "Legacy files and images are being normalized so future public delivery can preserve links without leaking private storage paths.",
-    delivery: "Attachment migration queued",
+      "Some notices include external or downloadable resources and will open from the linked action.",
+    delivery: "File link pending",
   },
 ];
 
 export const fallbackPublicGallery: GalleryPreview[] = [
   {
+    identifier: "community-orientation-showcase",
     title: "Community orientation and project showcase",
     caption:
-      "Legacy photography is being reused as the first public media layer while the new gallery model is prepared.",
+      "A glimpse of society sessions where students collaborate through practical technology activities.",
     imageSrc: "/images/gallery-1.jpg",
   },
   {
+    identifier: "program-day-atmosphere",
     title: "Program day atmosphere",
     caption:
-      "Events and workshops remain central to the public identity of the society, so the new gallery must support both archive and atmosphere.",
+      "Workshops and community programs continue to shape the public identity of JnUITS.",
     imageSrc: "/images/gallery-2.jpg",
   },
   {
+    identifier: "annual-activity-moments",
     title: "Large-format public moments",
     caption:
-      "Phase 04 is as much about visual memory as it is about data modeling; the route should feel alive before import tooling is complete.",
+      "Selected activity moments from society programs, ceremonies, and student-focused events.",
     imageSrc: "/images/gallery-3.jpg",
   },
 ];
@@ -243,25 +275,25 @@ export const fallbackPublicGallery: GalleryPreview[] = [
 export const fallbackDeveloperCredits = {
   lead: {
     name: "Md. Redwan Ahmed",
-    role: "Platform architecture and migration lead",
-    focus: "Unified stack delivery, auth boundaries, and rollout planning.",
-    bio: "Leading the move from the split stack toward one operationally coherent application.",
+    role: "Platform and engineering lead",
+    focus: "Platform reliability, secure delivery, and operational continuity.",
+    bio: "Leads engineering execution for JnUITS public and member-facing systems.",
     imageSrc: "/images/developer-redwan.jpg",
     lead: true,
   } satisfies DeveloperPreview,
   team: [
     {
       name: "Sajeeb Saha",
-      role: "Frontend systems and experience delivery",
-      focus: "Public interface polish, content surfaces, and route experience.",
-      bio: "Carrying forward the visual identity and making the public routes feel intentional during migration.",
+      role: "Frontend and experience delivery",
+      focus: "Public interface quality, accessibility, and content presentation.",
+      bio: "Contributes to public experience quality and member-facing product polish.",
       imageSrc: "/images/developer-sajeeb.png",
     },
     {
-      name: "JnUITS migration track",
-      role: "Content and operations contributors",
-      focus: "Legacy review, data parity, and public-route stabilization.",
-      bio: "The broader migration effort combines technical implementation with operational cleanup and editorial parity work.",
+      name: "JnUITS technical contributors",
+      role: "Content and operations support",
+      focus: "Data quality, operational support, and service continuity.",
+      bio: "A broader contributor team supports product operations, content readiness, and delivery quality.",
     },
   ] satisfies DeveloperPreview[],
 };
@@ -354,6 +386,30 @@ function resolveImage(media: MediaAssetRecord | MediaAssetRecord[] | null | unde
   return resolved.secure_url || fallback;
 }
 
+function normalizeIdentifier(value: string) {
+  try {
+    return decodeURIComponent(String(value || "").trim()).toLowerCase();
+  } catch {
+    return String(value || "").trim().toLowerCase();
+  }
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
+
+function slugifyValue(value: string) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-")
+    .slice(0, 120);
+}
+
 export function formatDisplayDate(value: string) {
   return shortDate.format(new Date(value));
 }
@@ -409,9 +465,7 @@ export const getPublishedBlogs = cache(async () => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("content_posts")
-    .select(
-      "slug, title, category, summary, excerpt, published_at, read_time, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)"
-    )
+    .select(contentPostSelect)
     .eq("content_type", "blog")
     .eq("status", "published")
     .order("published_at", { ascending: false })
@@ -463,9 +517,7 @@ export const getPublishedEvents = cache(async () => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("content_posts")
-    .select(
-      "slug, title, category, summary, location, starts_at, ends_at, status, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)"
-    )
+    .select(contentPostSelect)
     .eq("content_type", "event")
     .eq("status", "published")
     .order("starts_at", { ascending: true })
@@ -534,7 +586,7 @@ export const getPublishedGallery = cache(async () => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("gallery_entries")
-    .select("title, caption, sort_order, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)")
+    .select(galleryEntrySelect)
     .eq("status", "published")
     .order("sort_order", { ascending: true })
     .limit(24);
@@ -543,14 +595,13 @@ export const getPublishedGallery = cache(async () => {
     return fallbackPublicGallery;
   }
 
-  return data.map((record, index) => {
-    const media = (
-      record as GalleryEntryRecord & {
-        media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
-      }
-    ).media_assets;
+  const galleryRows = (data || []) as GalleryEntryPublicRecord[];
+
+  return galleryRows.map((record, index) => {
+    const media = record.media_assets;
 
     return {
+      identifier: record.id,
       title: record.title,
       caption: record.caption || fallbackPublicGallery[index]?.caption || "",
       imageSrc: resolveImage(
@@ -596,4 +647,166 @@ export const getPublishedDevelopers = cache(async () => {
       lead: record.is_lead,
     } satisfies DeveloperPreview;
   });
+});
+
+function mapBlogDetail(
+  record: ContentPostRecord & {
+    media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
+  }
+): BlogDetail {
+  return {
+    body: record.body || "",
+    category: record.category || "Blog",
+    ctaHref: record.cta_href,
+    excerpt:
+      record.excerpt ||
+      record.summary ||
+      "Public editorial entry from Jagannath University IT Society.",
+    id: record.id,
+    imageSrc: resolveImage(record.media_assets, fallbackBlogImage),
+    publishedAt: record.published_at || new Date().toISOString(),
+    readTime: record.read_time || "5 min read",
+    slug: record.slug,
+    summary: record.summary || record.excerpt || "Public editorial entry.",
+    title: record.title,
+  };
+}
+
+function mapEventDetail(
+  record: ContentPostRecord & {
+    media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
+  }
+): EventDetail {
+  return {
+    body: record.body,
+    ctaHref: record.cta_href,
+    end: record.ends_at || record.starts_at || new Date().toISOString(),
+    focus: record.category || "Program stream",
+    id: record.id,
+    imageSrc: resolveImage(record.media_assets, fallbackEventImage),
+    location: record.location || "Location to be confirmed",
+    slug: record.slug,
+    start: record.starts_at || new Date().toISOString(),
+    status: mapEventStatus(record.status),
+    summary: record.summary || "Public event entry.",
+    title: record.title,
+  };
+}
+
+function mapGalleryDetail(
+  record: GalleryEntryPublicRecord
+): GalleryDetail {
+  const resolvedMedia = resolveRelation(record.media_assets);
+  const mediaKind = resolvedMedia?.media_kind === "video" ? "video" : "image";
+
+  return {
+    caption: record.caption || "",
+    id: record.id,
+    identifier: record.id,
+    imageSrc: resolveImage(record.media_assets, fallbackPublicGallery[0].imageSrc),
+    mediaKind,
+    secureUrl: resolvedMedia?.secure_url || fallbackPublicGallery[0].imageSrc,
+    thumbnailUrl: resolvedMedia?.thumbnail_url || null,
+    title: record.title,
+  };
+}
+
+async function getPublishedPostByIdentifier(
+  contentType: "blog" | "event",
+  identifier: string
+) {
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+
+  if (!normalizedIdentifier) {
+    return null;
+  }
+
+  const supabase = await createClient();
+
+  const { data: bySlug } = await supabase
+    .from("content_posts")
+    .select(contentPostSelect)
+    .eq("content_type", contentType)
+    .eq("status", "published")
+    .eq("slug", normalizedIdentifier)
+    .maybeSingle();
+
+  if (bySlug) {
+    return bySlug as ContentPostRecord & {
+      media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
+    };
+  }
+
+  if (!isUuid(normalizedIdentifier)) {
+    return null;
+  }
+
+  const { data: byId } = await supabase
+    .from("content_posts")
+    .select(contentPostSelect)
+    .eq("content_type", contentType)
+    .eq("status", "published")
+    .eq("id", normalizedIdentifier)
+    .maybeSingle();
+
+  return (byId as
+    | (ContentPostRecord & {
+        media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
+      })
+    | null);
+}
+
+export const getPublishedBlogByIdentifier = cache(async (identifier: string) => {
+  const record = await getPublishedPostByIdentifier("blog", identifier);
+  return record ? mapBlogDetail(record) : null;
+});
+
+export const getPublishedEventByIdentifier = cache(async (identifier: string) => {
+  const record = await getPublishedPostByIdentifier("event", identifier);
+  return record ? mapEventDetail(record) : null;
+});
+
+export const getPublishedGalleryByIdentifier = cache(async (identifier: string) => {
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+
+  if (!normalizedIdentifier) {
+    return null;
+  }
+
+  const supabase = await createClient();
+
+  if (isUuid(normalizedIdentifier)) {
+    const { data: byId } = await supabase
+      .from("gallery_entries")
+      .select(galleryEntrySelect)
+      .eq("status", "published")
+      .eq("id", normalizedIdentifier)
+      .maybeSingle();
+
+    if (byId) {
+      return mapGalleryDetail(byId as GalleryEntryPublicRecord);
+    }
+  }
+
+  const { data: publishedGallery } = await supabase
+    .from("gallery_entries")
+    .select(galleryEntrySelect)
+    .eq("status", "published")
+    .order("sort_order", { ascending: true })
+    .limit(200);
+
+  if (!publishedGallery?.length) {
+    return null;
+  }
+
+  const matched = (publishedGallery as GalleryEntryPublicRecord[]).find((record) => {
+    const titleSlug = slugifyValue(record.title);
+    return titleSlug === normalizedIdentifier;
+  });
+
+  if (!matched) {
+    return null;
+  }
+
+  return mapGalleryDetail(matched as GalleryEntryPublicRecord);
 });

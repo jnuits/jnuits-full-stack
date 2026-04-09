@@ -5,6 +5,7 @@ import {
   getInvitationExpiryIso,
   getNextInvitation,
   loadCsv,
+  normalizeDepartmentToken,
   normalizeMemberRow,
   parseCliArgs,
   persistOperatorReport,
@@ -12,11 +13,80 @@ import {
   writeJsonReport,
 } from "./lib/members.mjs";
 
+function buildDepartmentResolver(rows) {
+  const byCode = new Map();
+  const byNameToken = new Map();
+  const aliases = new Map([
+    ["cse", "computer-science-engineering"],
+    ["computer science engineering", "computer-science-engineering"],
+    ["computer science and engineering", "computer-science-engineering"],
+    ["mass communication and journalism", "mass-communication-journalism"],
+    ["ais", "accounting-information-system"],
+    ["geb", "genetic-engineering-biotechnology"],
+    ["ier", "institute-of-education-and-research"],
+    ["iml", "institute-of-modern-languages"],
+  ]);
+
+  for (const row of rows) {
+    if (!row.code) {
+      continue;
+    }
+
+    const canonicalCode = String(row.code).toLowerCase();
+    const codeToken = normalizeDepartmentToken(canonicalCode).replaceAll(" ", "-");
+    byCode.set(canonicalCode, canonicalCode);
+    byCode.set(codeToken, canonicalCode);
+
+    const nameToken = normalizeDepartmentToken(row.name || "");
+
+    if (nameToken) {
+      byNameToken.set(nameToken, canonicalCode);
+    }
+  }
+
+  return (rawValue) => {
+    if (!rawValue) {
+      return {
+        departmentCode: null,
+        error: null,
+      };
+    }
+
+    const token = normalizeDepartmentToken(rawValue);
+    const slugToken = token.replaceAll(" ", "-");
+
+    if (byCode.has(rawValue.toLowerCase())) {
+      return { departmentCode: byCode.get(rawValue.toLowerCase()), error: null };
+    }
+
+    if (byCode.has(slugToken)) {
+      return { departmentCode: byCode.get(slugToken), error: null };
+    }
+
+    if (byNameToken.has(token)) {
+      return { departmentCode: byNameToken.get(token), error: null };
+    }
+
+    const aliasTarget = aliases.get(token);
+
+    if (aliasTarget && byCode.has(aliasTarget)) {
+      return { departmentCode: aliasTarget, error: null };
+    }
+
+    return {
+      departmentCode: null,
+      error: `departmentCode '${rawValue}' did not match any seeded department`,
+    };
+  };
+}
+
 async function main() {
   const args = parseCliArgs(process.argv.slice(2));
 
   if (!args.file) {
-    throw new Error("Usage: npm run members:onboard -- --file path/to/onboarding.csv [--dry-run|--apply] [--generate-invitations] [--persist-report]");
+    throw new Error(
+      "Usage: npm run members:onboard -- --file path/to/onboarding.csv [--dry-run|--apply] [--generate-invitations] [--persist-report]"
+    );
   }
 
   const admin = buildSupabaseAdminClient();
@@ -24,19 +94,32 @@ async function main() {
   const reportRows = [];
   const counters = {
     created: 0,
+    invitationsFailed: 0,
     invitationsGenerated: 0,
     updated: 0,
     validationErrors: 0,
+    writeFailures: 0,
   };
 
-  const { data: existingMemberRows } = await admin
-    .from("members")
-    .select("id, jnuits_id, email, is_profile_claimed");
+  const [existingMemberRowsResult, departmentsResult] = await Promise.all([
+    admin.from("members").select("id, jnuits_id, email, is_profile_claimed"),
+    admin.from("departments").select("code, name").eq("is_active", true),
+  ]);
 
+  if (existingMemberRowsResult.error) {
+    throw new Error(existingMemberRowsResult.error.message);
+  }
+
+  if (departmentsResult.error) {
+    throw new Error(departmentsResult.error.message);
+  }
+
+  const existingMemberRows = existingMemberRowsResult.data || [];
+  const resolveDepartmentCode = buildDepartmentResolver(departmentsResult.data || []);
   const existingByJnuitsId = new Map();
   const existingByEmail = new Map();
 
-  for (const member of existingMemberRows || []) {
+  for (const member of existingMemberRows) {
     if (member.jnuits_id) {
       existingByJnuitsId.set(member.jnuits_id, member);
     }
@@ -46,20 +129,24 @@ async function main() {
     }
   }
 
-  const knownIds = (existingMemberRows || []).map((member) => member.jnuits_id);
+  const knownIds = existingMemberRows.map((member) => member.jnuits_id);
 
   for (let index = 0; index < csv.rows.length; index += 1) {
     const raw = csv.rows[index];
     const row = normalizeMemberRow(raw);
     const rowNumber = index + 2;
     const validationErrors = [];
+    const departmentResolution = resolveDepartmentCode(row.departmentCode);
 
     if (!row.fullName) {
       validationErrors.push("fullName is required");
     }
 
-    if (row.departmentCode && row.departmentCode.length > 12) {
-      validationErrors.push("departmentCode is too long");
+    if (row.departmentCode && !departmentResolution.departmentCode) {
+      validationErrors.push(
+        departmentResolution.error ||
+          "departmentCode could not be normalized against seeded departments"
+      );
     }
 
     if (row.email && !row.email.includes("@")) {
@@ -83,9 +170,7 @@ async function main() {
       null;
 
     const jnuitsId =
-      row.jnuitsId ||
-      existingMember?.jnuits_id ||
-      buildGeneratedJnuitsId(knownIds);
+      row.jnuitsId || existingMember?.jnuits_id || buildGeneratedJnuitsId(knownIds);
 
     if (!knownIds.includes(jnuitsId)) {
       knownIds.push(jnuitsId);
@@ -95,7 +180,7 @@ async function main() {
       alumni_since: row.alumniSince,
       batch_no: row.batchNo,
       current_organization: row.currentOrganization,
-      department_code: row.departmentCode,
+      department_code: departmentResolution.departmentCode,
       designation: row.designation,
       email: row.email,
       full_name: row.fullName,
@@ -110,6 +195,7 @@ async function main() {
 
     let memberId = existingMember?.id || null;
     let invitationCode = null;
+    let invitationFailed = false;
 
     if (args.apply) {
       if (existingMember) {
@@ -119,6 +205,7 @@ async function main() {
           .eq("id", existingMember.id);
 
         if (error) {
+          counters.writeFailures += 1;
           reportRows.push({
             action: "update_failed",
             message: error.message,
@@ -138,6 +225,7 @@ async function main() {
           .single();
 
         if (error || !createdMember) {
+          counters.writeFailures += 1;
           reportRows.push({
             action: "create_failed",
             message: error?.message || "Unable to create member.",
@@ -151,14 +239,25 @@ async function main() {
         memberId = createdMember.id;
       }
 
+      if (row.email && memberId) {
+        const memberSnapshot = {
+          id: memberId,
+          jnuits_id: jnuitsId,
+          email: row.email,
+          is_profile_claimed: existingMember?.is_profile_claimed || false,
+        };
+
+        existingByEmail.set(row.email, memberSnapshot);
+        existingByJnuitsId.set(jnuitsId, memberSnapshot);
+      }
+
       if (
         memberId &&
         (args.generateInvitations || row.generateInvitation) &&
         !(existingMember?.is_profile_claimed || false)
       ) {
         const nextInvitation = await getNextInvitation(admin);
-        const expiresAt =
-          row.expiresAt || getInvitationExpiryIso(args.expiryDays);
+        const expiresAt = row.expiresAt || getInvitationExpiryIso(args.expiryDays);
         const maxUses = row.maxUses || args.maxUses;
 
         const { error } = await admin.from("member_invitations").insert({
@@ -172,17 +271,22 @@ async function main() {
         if (!error) {
           invitationCode = nextInvitation.code;
           counters.invitationsGenerated += 1;
+        } else {
+          invitationFailed = true;
+          counters.invitationsFailed += 1;
         }
       }
     }
 
     reportRows.push({
       action: existingMember ? "update_member" : "create_member",
+      invitationFailed,
       invitationGenerated: Boolean(invitationCode),
       invitationCode,
       jnuitsId,
       memberId,
       mode: args.apply ? "apply" : "dry-run",
+      normalizedDepartmentCode: departmentResolution.departmentCode,
       rowNumber,
       row,
     });

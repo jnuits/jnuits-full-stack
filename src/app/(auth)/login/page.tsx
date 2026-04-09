@@ -1,4 +1,5 @@
 import { login } from "@/app/(auth)/actions";
+import { resolveSafeNextPath } from "@/lib/auth/session";
 
 export default async function LoginPage({
   searchParams,
@@ -14,10 +15,12 @@ export default async function LoginPage({
     typeof resolvedSearchParams.message === "string"
       ? resolvedSearchParams.message
       : null;
-  const next =
+  const next = resolveSafeNextPath(
     typeof resolvedSearchParams.next === "string"
       ? resolvedSearchParams.next
-      : "/portal";
+      : null,
+    "/portal"
+  );
 
   return (
     <div>

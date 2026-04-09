@@ -8,7 +8,7 @@ function formatTimelineLabel(value: string) {
 }
 
 export default async function ProfilePage() {
-  const auth = await requireAuthenticatedUser();
+  const auth = await requireAuthenticatedUser({ fallbackPath: "/profile" });
   const user = auth.user;
 
   if (!user) {

@@ -28,7 +28,7 @@ export default async function PortalBlogsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const auth = await requireAuthenticatedUser();
+  const auth = await requireAuthenticatedUser({ fallbackPath: "/portal" });
 
   if (!auth.user) {
     return null;

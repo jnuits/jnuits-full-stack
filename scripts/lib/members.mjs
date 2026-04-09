@@ -173,11 +173,19 @@ export function normalizeBoolean(value, fallback = false) {
 export function normalizeMemberType(value) {
   const normalized = clean(value).toLowerCase();
 
-  if (["current", "alumni", "committee"].includes(normalized)) {
+  if (["current", "alumni"].includes(normalized)) {
     return normalized;
   }
 
   return "current";
+}
+
+export function normalizeDepartmentToken(value) {
+  return clean(value)
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 export function normalizeProfessionalVisibility(value) {
@@ -310,7 +318,7 @@ export function normalizeMemberRow(record) {
     alumniSince: normalizeDate(record.alumniSince),
     batchNo: normalizePositiveInt(record.batchNo),
     currentOrganization: clean(record.currentOrganization) || null,
-    departmentCode: clean(record.departmentCode).toUpperCase() || null,
+    departmentCode: clean(record.departmentCode) || null,
     designation: clean(record.designation) || null,
     email: clean(record.email).toLowerCase() || null,
     expiresAt: clean(record.expiresAt) || null,
