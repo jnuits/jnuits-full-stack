@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-04-09T07:51:22.886Z",
+  "action": "cleanup_sample_onboarding_data",
+  "summary": {
+    "deletedInvitations": 1,
+    "deletedMembers": 1
+  },
+  "members": [
+    {
+      "id": "64e3e361-2b90-4c12-aabc-87badce7699a",
+      "email": "sample.current@example.com",
+      "jnuits_id": "JNUITS-2026001",
+      "full_name": "Sample Current Member"
+    }
+  ]
+}

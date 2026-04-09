@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-09T07:47:01.429Z",
+  "generatedAt": "2026-04-09T07:52:08.141Z",
   "sections": {
     "certificates": [
       {
@@ -49,24 +49,29 @@
     ],
     "membership": [
       {
-        "file": "artifacts/reports/membership/membership-cycles-migration-blocker-20260409T074210Z.json",
-        "modifiedAt": "2026-04-09T07:42:10.208Z",
-        "size": 725
-      },
-      {
-        "file": "artifacts/reports/membership/membership-reconciliation-20260409T073928Z.json",
-        "modifiedAt": "2026-04-09T07:39:28.993Z",
-        "size": 481
+        "file": "artifacts/reports/membership/csv-onboarding-cleanup-20260409T075122Z.json",
+        "modifiedAt": "2026-04-09T07:51:24.595Z",
+        "size": 376
       },
       {
         "file": "artifacts/reports/membership/csv-onboarding-20260409T073908Z.json",
-        "modifiedAt": "2026-04-09T07:39:08.371Z",
-        "size": 2272
+        "modifiedAt": "2026-04-09T07:49:41.990Z",
+        "size": 2343
+      },
+      {
+        "file": "artifacts/reports/membership/membership-cycles-migration-blocker-20260409T074210Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.990Z",
+        "size": 754
+      },
+      {
+        "file": "artifacts/reports/membership/membership-reconciliation-20260409T073928Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.990Z",
+        "size": 501
       },
       {
         "file": "artifacts/reports/membership/csv-onboarding-20260409T073907Z.json",
-        "modifiedAt": "2026-04-09T07:39:07.999Z",
-        "size": 2233
+        "modifiedAt": "2026-04-09T07:49:41.989Z",
+        "size": 2304
       },
       {
         "file": "artifacts/reports/membership/membership-reconciliation-20260408T164051Z.json",
@@ -81,29 +86,29 @@
     ],
     "rehearsal": [
       {
-        "file": "artifacts/reports/rehearsal/cutover-evidence-pack-20260409T074258Z.json",
-        "modifiedAt": "2026-04-09T07:42:58.514Z",
-        "size": 4892
-      },
-      {
-        "file": "artifacts/reports/rehearsal/sentry-verification-report-20260409T074241Z.json",
-        "modifiedAt": "2026-04-09T07:42:42.409Z",
-        "size": 363
+        "file": "artifacts/reports/rehearsal/cutover-rehearsal-report-20260409T073817Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.992Z",
+        "size": 1419
       },
       {
         "file": "artifacts/reports/rehearsal/rollback-drill-report-20260409T073836Z.json",
-        "modifiedAt": "2026-04-09T07:38:36.141Z",
-        "size": 988
+        "modifiedAt": "2026-04-09T07:49:41.992Z",
+        "size": 1019
+      },
+      {
+        "file": "artifacts/reports/rehearsal/sentry-verification-report-20260409T074241Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.992Z",
+        "size": 378
       },
       {
         "file": "artifacts/reports/rehearsal/cloudinary-validation-report-20260409T073817Z.json",
-        "modifiedAt": "2026-04-09T07:38:19.854Z",
-        "size": 2314
+        "modifiedAt": "2026-04-09T07:49:41.991Z",
+        "size": 2394
       },
       {
-        "file": "artifacts/reports/rehearsal/cutover-rehearsal-report-20260409T073817Z.json",
-        "modifiedAt": "2026-04-09T07:38:18.464Z",
-        "size": 1366
+        "file": "artifacts/reports/rehearsal/cutover-evidence-pack-20260409T074701Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.991Z",
+        "size": 5041
       },
       {
         "file": "artifacts/reports/rehearsal/cutover-rehearsal-report-20260408T183330Z.json",
