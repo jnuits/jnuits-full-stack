@@ -1,4 +1,4 @@
-# JnUITS Full Stack 10
+# JnUITS Full Stack 11
 
 Unified Next.js + Supabase application for the JnUITS public site, member portal, certificate verification, and technical admin workflows.
 
