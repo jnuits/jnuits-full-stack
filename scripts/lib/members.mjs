@@ -314,11 +314,14 @@ export function loadCsv(filePath) {
 }
 
 export function normalizeMemberRow(record) {
+  const departmentRaw = clean(record.departmentCode || record.department || "");
+  const batchRaw = clean(record.batchNo || record.batch || "");
+
   return {
     alumniSince: normalizeDate(record.alumniSince),
-    batchNo: normalizePositiveInt(record.batchNo),
+    batchNo: normalizePositiveInt(batchRaw),
     currentOrganization: clean(record.currentOrganization) || null,
-    departmentCode: clean(record.departmentCode) || null,
+    departmentCode: departmentRaw || null,
     designation: clean(record.designation) || null,
     email: clean(record.email).toLowerCase() || null,
     expiresAt: clean(record.expiresAt) || null,

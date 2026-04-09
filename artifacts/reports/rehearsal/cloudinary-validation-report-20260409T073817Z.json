@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-04-09T07:38:19.852Z",
+  "folder": "jnuits/jnuits-full-stack",
+  "summary": {
+    "cloudinaryResourceCount": 0,
+    "missingInCloudinaryCount": 13,
+    "supabaseAssetCount": 13,
+    "untrackedInSupabaseCount": 0,
+    "urlMismatchCount": 0
+  },
+  "missingInCloudinary": [
+    {
+      "assetId": "01739b29-01df-428f-b748-d4d34045df15",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/about/intro"
+    },
+    {
+      "assetId": "a377b440-ba02-4b90-9e3f-c452fbcb834a",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/home/achievements"
+    },
+    {
+      "assetId": "2ed6fbb5-6628-4a6b-805b-c40a62d47a0c",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/events/bcc-course"
+    },
+    {
+      "assetId": "41a3d24c-f77d-43f3-8797-c1677cacb6c7",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/gallery/group-pic-1"
+    },
+    {
+      "assetId": "278060e1-6d20-4df1-b1de-347a2c6284ae",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/gallery/group-pic-2"
+    },
+    {
+      "assetId": "d985156c-ef3f-44b9-83ef-1303eb4bacd3",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/gallery/group-pic-3"
+    },
+    {
+      "assetId": "7cbdac51-7426-4902-8f6c-579ce3753a65",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/gallery/group-pic-4"
+    },
+    {
+      "assetId": "086fd319-b2ce-4aac-af7d-b6337581ebee",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/home/hero-slide-1"
+    },
+    {
+      "assetId": "49d09924-42af-4d3e-ab07-9f46a3c54969",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/home/recent-activities"
+    },
+    {
+      "assetId": "f983429a-65ab-4494-b32c-412d3cbc21fe",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/gallery/archive-01"
+    },
+    {
+      "assetId": "dd039211-1497-4966-96a4-bf1144b881b9",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/gallery/archive-02"
+    },
+    {
+      "assetId": "5163034f-ed48-4c26-8d07-16a8809135ca",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/developers/mt-asfi"
+    },
+    {
+      "assetId": "97c7bc34-b388-46bc-acf0-6167bd9030b8",
+      "mediaKind": "image",
+      "publicId": "jnuits/legacy/developers/juwel-rana"
+    }
+  ],
+  "untrackedInSupabase": [],
+  "urlMismatch": []
+}

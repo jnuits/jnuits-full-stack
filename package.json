@@ -18,7 +18,10 @@
     "members:onboard": "node scripts/onboard-members.mjs",
     "members:reconcile": "node scripts/reconcile-members.mjs",
     "members:rollover-cycle": "node scripts/rollover-membership-cycle.mjs",
-    "rehearse:cutover": "node scripts/rehearse-cutover.mjs"
+    "rehearse:cutover": "node scripts/rehearse-cutover.mjs",
+    "rehearse:cloudinary": "node scripts/validate-cloudinary-assets.mjs",
+    "rehearse:rollback": "node scripts/rollback-drill.mjs",
+    "rehearse:evidence": "node scripts/build-cutover-evidence-pack.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.47.0",

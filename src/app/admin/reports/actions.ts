@@ -1,5 +1,6 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { redirect } from "next/navigation";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { buildOperationalSnapshot } from "@/lib/admin/reports";
@@ -98,4 +99,65 @@ export async function generateReconciliationSnapshot() {
     summary: "Cross-phase reconciliation snapshot for migration planning and operator review.",
     title: "Unified reconciliation snapshot",
   });
+}
+
+export async function triggerSentryVerificationReport() {
+  const auth = await requireAdminUser({ fallbackPath: "/admin/reports" });
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login?next=%2Fadmin%2Freports");
+  }
+
+  const admin = createAdminClient();
+  const triggeredAt = new Date().toISOString();
+  const eventId = Sentry.captureMessage(
+    `Operator verification event from /admin/reports at ${triggeredAt}`,
+    {
+      level: "info",
+      tags: {
+        environment: process.env.NODE_ENV || "unknown",
+        source: "admin_reports",
+        verification: "operator_manual",
+      },
+    }
+  );
+
+  await Sentry.flush(2_500);
+
+  await admin.from("operator_reports").insert({
+    created_by_user_id: actorUserId,
+    report: {
+      eventId,
+      runtime: process.env.NODE_ENV || "unknown",
+      triggeredAt,
+      triggerType: "operator_safe_manual_verification",
+    },
+    report_type: "reconciliation_snapshot",
+    status: "completed",
+    summary:
+      "Operator-triggered Sentry verification event emitted from protected admin workspace.",
+    title: "Sentry verification event",
+  });
+
+  await admin.from("audit_events").insert({
+    actor_user_id: actorUserId,
+    action: "observability.sentry_verification_triggered",
+    entity_type: "sentry_event",
+    entity_id: eventId || null,
+    metadata: {
+      runtime: process.env.NODE_ENV || "unknown",
+      triggeredAt,
+    },
+  });
+
+  await setAdminFlash({
+    tone: "success",
+    title: "Sentry verification event sent",
+    message: eventId
+      ? `Sentry event ${eventId} has been sent from the protected operator flow.`
+      : "Sentry event has been sent from the protected operator flow.",
+  });
+
+  redirect("/admin/reports");
 }

@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-04-09T07:38:18.325Z",
+  "readiness": {
+    "certificatesImported": true,
+    "committeeSeeded": true,
+    "memberAuthoringReviewed": true,
+    "publicContentImported": true,
+    "readyForCutover": true
+  },
+  "certificates": {
+    "count": 135,
+    "latestBatch": {
+      "id": "c95dde51-4a35-4ec2-b550-54363735eee9",
+      "source_name": "certificates-import-ready-20260407T161456Z",
+      "status": "completed",
+      "inserted_count": 135,
+      "updated_count": 0,
+      "rejected_count": 0,
+      "finished_at": "2026-04-08T17:55:45.522+00:00"
+    }
+  },
+  "publicContent": {
+    "developerProfilesPublished": 2,
+    "galleryPublished": 6,
+    "mediaAssetsPublic": 13,
+    "pagesPublished": 4,
+    "postsPublished": 4
+  },
+  "committee": {
+    "activeCommitteeTerm": {
+      "id": "443a0af8-2f8b-4d9a-945c-2e555f56e3ea",
+      "slug": "advisory-committee",
+      "title": "Advisory Committee",
+      "status": "active",
+      "starts_on": "2026-01-01",
+      "ends_on": null
+    },
+    "assignmentsCount": 36,
+    "totalTerms": 2,
+    "upcomingCommitteeTerm": null
+  },
+  "moderation": {
+    "membershipApplicationsPending": 0,
+    "profileChangePending": 0,
+    "workplaceUpdatePending": 0
+  },
+  "memberAuthoring": {
+    "draftBlogsCount": 0,
+    "publishedBlogsCount": 1,
+    "submittedBlogs": [],
+    "submittedQueueCount": 0
+  }
+}

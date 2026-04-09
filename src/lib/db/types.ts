@@ -628,6 +628,59 @@ export type Database = {
           },
         ];
       };
+      invitation_batches: {
+        Row: {
+          claimed_count: number;
+          created_at: string;
+          created_by_user_id: string | null;
+          cycle_id: string | null;
+          expires_at: string | null;
+          id: string;
+          issued_count: number;
+          label: string;
+          metadata: Json;
+          source: string;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          claimed_count?: number;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          cycle_id?: string | null;
+          expires_at?: string | null;
+          id?: string;
+          issued_count?: number;
+          label: string;
+          metadata?: Json;
+          source?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          claimed_count?: number;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          cycle_id?: string | null;
+          expires_at?: string | null;
+          id?: string;
+          issued_count?: number;
+          label?: string;
+          metadata?: Json;
+          source?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "invitation_batches_cycle_id_fkey";
+            columns: ["cycle_id"];
+            isOneToOne: false;
+            referencedRelation: "membership_cycles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       media_assets: {
         Row: {
           alt_text: string | null;
@@ -827,6 +880,105 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "departments";
             referencedColumns: ["code"];
+          },
+        ];
+      };
+      membership_cycles: {
+        Row: {
+          code: string;
+          created_at: string;
+          created_by_user_id: string | null;
+          ends_on: string | null;
+          id: string;
+          renewal_close_on: string | null;
+          renewal_open_on: string | null;
+          starts_on: string;
+          status: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          code: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          ends_on?: string | null;
+          id?: string;
+          renewal_close_on?: string | null;
+          renewal_open_on?: string | null;
+          starts_on: string;
+          status?: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          code?: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          ends_on?: string | null;
+          id?: string;
+          renewal_close_on?: string | null;
+          renewal_open_on?: string | null;
+          starts_on?: string;
+          status?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      membership_cycle_memberships: {
+        Row: {
+          created_at: string;
+          created_by_user_id: string | null;
+          cycle_id: string;
+          enrolled_at: string;
+          expires_on: string | null;
+          id: string;
+          member_id: string;
+          note: string | null;
+          renewed_at: string | null;
+          state: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_user_id?: string | null;
+          cycle_id: string;
+          enrolled_at?: string;
+          expires_on?: string | null;
+          id?: string;
+          member_id: string;
+          note?: string | null;
+          renewed_at?: string | null;
+          state?: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string | null;
+          cycle_id?: string;
+          enrolled_at?: string;
+          expires_on?: string | null;
+          id?: string;
+          member_id?: string;
+          note?: string | null;
+          renewed_at?: string | null;
+          state?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "membership_cycle_memberships_cycle_id_fkey";
+            columns: ["cycle_id"];
+            isOneToOne: false;
+            referencedRelation: "membership_cycles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "membership_cycle_memberships_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "members";
+            referencedColumns: ["id"];
           },
         ];
       };

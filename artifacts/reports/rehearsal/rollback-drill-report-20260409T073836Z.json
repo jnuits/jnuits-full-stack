@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-04-09T07:38:36.140Z",
+  "objective": "Confirm rollback readiness by validating recent evidence artifacts and restoring checkpoints before cutover.",
+  "checks": [
+    {
+      "name": "Latest membership report exists",
+      "passed": true,
+      "evidence": {
+        "file": "artifacts/reports/membership/membership-reconciliation-20260408T164051Z.json",
+        "modifiedAt": "2026-04-08T16:50:29.584Z"
+      }
+    },
+    {
+      "name": "Latest rehearsal report exists",
+      "passed": true,
+      "evidence": {
+        "file": "artifacts/reports/rehearsal/cloudinary-validation-report-20260409T073817Z.json",
+        "modifiedAt": "2026-04-09T07:38:19.854Z"
+      }
+    },
+    {
+      "name": "Latest certificate report exists",
+      "passed": true,
+      "evidence": {
+        "file": "artifacts/reports/certificates/certificate-import-report-20260408T175530Z.json",
+        "modifiedAt": "2026-04-08T18:45:15.478Z"
+      }
+    }
+  ],
+  "status": "pass"
+}

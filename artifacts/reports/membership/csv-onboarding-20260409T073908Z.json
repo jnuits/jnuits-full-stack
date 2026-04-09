@@ -1,0 +1,71 @@
+{
+  "generatedAt": "2026-04-09T07:39:08.370Z",
+  "mode": "apply",
+  "sourceFile": "M:\\jnuits\\admin.jnuits.org.bd\\database\\templates\\phase8-member-onboarding-template.csv",
+  "summary": {
+    "created": 1,
+    "invitationsFailed": 0,
+    "invitationsGenerated": 1,
+    "updated": 0,
+    "validationErrors": 1,
+    "writeFailures": 0
+  },
+  "rows": [
+    {
+      "action": "create_member",
+      "invitationFailed": false,
+      "invitationGenerated": true,
+      "invitationCode": "VRZLG5B4XU84",
+      "jnuitsId": "JNUITS-2026001",
+      "memberId": "64e3e361-2b90-4c12-aabc-87badce7699a",
+      "mode": "apply",
+      "normalizedDepartmentCode": "computer-science-engineering",
+      "rowNumber": 2,
+      "row": {
+        "alumniSince": null,
+        "batchNo": 2020,
+        "currentOrganization": "Sample Tech Ltd",
+        "departmentCode": "CSE",
+        "designation": "Software Engineer",
+        "email": "sample.current@example.com",
+        "expiresAt": null,
+        "fullName": "Sample Current Member",
+        "generateInvitation": true,
+        "jnuitsId": "",
+        "linkedinUrl": "https://www.linkedin.com/in/sample-current-member",
+        "maxUses": 1,
+        "memberType": "current",
+        "phone": "01710000000",
+        "professionalVisibility": "members-only",
+        "websiteUrl": "https://example.com/member-current",
+        "workLocation": "Dhaka"
+      }
+    },
+    {
+      "action": "validation_error",
+      "rowNumber": 3,
+      "row": {
+        "alumniSince": "2024-07-01",
+        "batchNo": 2018,
+        "currentOrganization": "Legacy Systems PLC",
+        "departmentCode": "ICE",
+        "designation": "Senior Analyst",
+        "email": "sample.alumni@example.com",
+        "expiresAt": null,
+        "fullName": "Sample Alumni Member",
+        "generateInvitation": false,
+        "jnuitsId": "",
+        "linkedinUrl": "https://www.linkedin.com/in/sample-alumni-member",
+        "maxUses": 1,
+        "memberType": "alumni",
+        "phone": "01710000001",
+        "professionalVisibility": "public",
+        "websiteUrl": "https://example.com/member-alumni",
+        "workLocation": "Chittagong"
+      },
+      "validationErrors": [
+        "departmentCode 'ICE' did not match any seeded department"
+      ]
+    }
+  ]
+}

@@ -79,6 +79,7 @@ export const portalNavigation: NavItem[] = [
 
 export const adminNavigation: NavItem[] = [
   { href: "/admin", label: "Overview" },
+  { href: "/admin/membership", label: "Membership" },
   { href: "/admin/committee", label: "Committee" },
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/content", label: "Content" },

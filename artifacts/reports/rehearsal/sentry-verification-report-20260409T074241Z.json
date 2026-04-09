@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-04-09T07:42:41.513Z",
+  "environment": "local-script",
+  "checks": {
+    "dsnConfigured": true,
+    "authTokenConfigured": true,
+    "orgConfigured": true,
+    "projectConfigured": true
+  },
+  "apiCheck": {
+    "ok": false,
+    "status": 403,
+    "bodySnippet": "{\"detail\":\"You do not have permission to perform this action.\"}"
+  }
+}

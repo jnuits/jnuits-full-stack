@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-04-09T07:42:10.203Z",
+  "migration": "20260409051000_membership_cycles_and_batches.sql",
+  "environment": "staging",
+  "summary": {
+    "blocker": "membership cycle tables are missing from Supabase schema cache",
+    "resolutionNeeded": "apply migration to staging project fsirdkjgrcocowxqjhjg from an account with project access"
+  },
+  "checks": [
+    {
+      "table": "membership_cycles",
+      "exists": true,
+      "error": null,
+      "code": null
+    },
+    {
+      "table": "membership_cycle_memberships",
+      "exists": true,
+      "error": null,
+      "code": null
+    },
+    {
+      "table": "invitation_batches",
+      "exists": true,
+      "error": null,
+      "code": null
+    }
+  ]
+}

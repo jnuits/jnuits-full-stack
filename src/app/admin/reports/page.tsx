@@ -4,6 +4,7 @@ import {
   generateContentInventoryReport,
   generateMembershipOverviewReport,
   generateReconciliationSnapshot,
+  triggerSentryVerificationReport,
 } from "@/app/admin/reports/actions";
 import {
   ADMIN_FLASH_COOKIE_NAME,
@@ -162,6 +163,16 @@ export default async function AdminReportsPage() {
               <p>Cross-phase overview for cutover planning and operator review.</p>
               <button className="ghost-button" type="submit">
                 Save full snapshot
+              </button>
+            </form>
+            <form action={triggerSentryVerificationReport} className="route-tile grid gap-3">
+              <h3>Sentry verification</h3>
+              <p>
+                Sends a controlled test event from this protected admin flow and
+                stores evidence in operator reports.
+              </p>
+              <button className="secondary-button" type="submit">
+                Send verification event
               </button>
             </form>
             <article className="route-tile grid gap-3">

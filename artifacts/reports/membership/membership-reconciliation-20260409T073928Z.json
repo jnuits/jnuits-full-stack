@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-04-09T07:39:28.992Z",
+  "mode": "dry-run",
+  "summary": {
+    "approvedWithoutInvitation": 0,
+    "fixes": {
+      "archivedTerms": 0,
+      "completedAssignments": 0,
+      "failedWrites": 0,
+      "generatedInvitations": 0,
+      "markedExpiredInvitations": 0,
+      "repairedRevokedTimestamps": 0
+    },
+    "inactiveInvitationsMissingRevokedAt": 0,
+    "staleActiveAssignments": 0,
+    "staleActiveTerms": 0,
+    "totalFindings": 0
+  },
+  "rows": []
+}
