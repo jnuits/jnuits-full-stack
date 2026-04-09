@@ -55,7 +55,9 @@ async function fetchCloudinaryFolderResources(folder) {
 
   while (true) {
     const body = {
-      expression: `folder="${folder}"`,
+      // In this account, `folder` search can miss renamed assets while
+      // `public_id` prefix search remains accurate for hierarchy validation.
+      expression: `public_id:${folder}/*`,
       max_results: 200,
       next_cursor: nextCursor || undefined,
       with_field: ["context", "metadata"],

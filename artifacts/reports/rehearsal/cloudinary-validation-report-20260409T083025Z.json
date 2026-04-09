@@ -1,0 +1,14 @@
+{
+  "generatedAt": "2026-04-09T08:30:27.845Z",
+  "folder": "jnuits/jnuits-full-stack",
+  "summary": {
+    "cloudinaryResourceCount": 13,
+    "missingInCloudinaryCount": 0,
+    "supabaseAssetCount": 13,
+    "untrackedInSupabaseCount": 0,
+    "urlMismatchCount": 0
+  },
+  "missingInCloudinary": [],
+  "untrackedInSupabase": [],
+  "urlMismatch": []
+}

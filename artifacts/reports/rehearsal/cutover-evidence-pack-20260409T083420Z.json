@@ -1,0 +1,174 @@
+{
+  "generatedAt": "2026-04-09T08:34:20.841Z",
+  "sections": {
+    "certificates": [
+      {
+        "file": "artifacts/reports/certificates/certificate-import-report-20260408T175530Z.json",
+        "modifiedAt": "2026-04-08T18:45:15.478Z",
+        "size": 631
+      },
+      {
+        "file": "artifacts/reports/certificates/certificate-import-report-20260408T175544Z.json",
+        "modifiedAt": "2026-04-08T18:45:15.478Z",
+        "size": 665
+      },
+      {
+        "file": "artifacts/reports/certificates/certificate-parity-report-20260408T175558Z.json",
+        "modifiedAt": "2026-04-08T18:45:15.478Z",
+        "size": 535
+      },
+      {
+        "file": "artifacts/reports/certificates/certificate-import-report-20260408T175351Z.json",
+        "modifiedAt": "2026-04-08T18:45:15.477Z",
+        "size": 1003
+      }
+    ],
+    "committee": [
+      {
+        "file": "artifacts/reports/committee/legacy-committee-import-report-20260408T183330Z.json",
+        "modifiedAt": "2026-04-08T18:45:15.480Z",
+        "size": 3226
+      },
+      {
+        "file": "artifacts/reports/committee/legacy-committee-import-report-20260408T183258Z.json",
+        "modifiedAt": "2026-04-08T18:45:15.479Z",
+        "size": 3202
+      }
+    ],
+    "content": [
+      {
+        "file": "artifacts/reports/content/legacy-public-content-import-report-20260408T182225Z.json",
+        "modifiedAt": "2026-04-08T18:45:15.481Z",
+        "size": 7994
+      },
+      {
+        "file": "artifacts/reports/content/legacy-public-content-import-report-20260408T181635Z.json",
+        "modifiedAt": "2026-04-08T18:45:15.480Z",
+        "size": 481
+      }
+    ],
+    "membership": [
+      {
+        "file": "artifacts/reports/membership/membership-cycles-migration-blocker-20260409T083342Z.json",
+        "modifiedAt": "2026-04-09T08:33:42.859Z",
+        "size": 942
+      },
+      {
+        "file": "artifacts/reports/membership/super-admin-ensure-20260409T082828Z.json",
+        "modifiedAt": "2026-04-09T08:28:28.257Z",
+        "size": 808
+      },
+      {
+        "file": "artifacts/reports/membership/csv-onboarding-cleanup-20260409T075122Z.json",
+        "modifiedAt": "2026-04-09T07:51:24.595Z",
+        "size": 376
+      },
+      {
+        "file": "artifacts/reports/membership/csv-onboarding-20260409T073908Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.990Z",
+        "size": 2343
+      },
+      {
+        "file": "artifacts/reports/membership/membership-cycles-migration-blocker-20260409T074210Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.990Z",
+        "size": 754
+      },
+      {
+        "file": "artifacts/reports/membership/membership-reconciliation-20260409T073928Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.990Z",
+        "size": 501
+      },
+      {
+        "file": "artifacts/reports/membership/csv-onboarding-20260409T073907Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.989Z",
+        "size": 2304
+      },
+      {
+        "file": "artifacts/reports/membership/membership-reconciliation-20260408T164051Z.json",
+        "modifiedAt": "2026-04-08T16:50:29.584Z",
+        "size": 450
+      },
+      {
+        "file": "artifacts/reports/membership/csv-onboarding-20260408T164051Z.json",
+        "modifiedAt": "2026-04-08T16:50:29.583Z",
+        "size": 1199
+      }
+    ],
+    "rehearsal": [
+      {
+        "file": "artifacts/reports/rehearsal/sentry-ingest-verification-report-20260409T083041Z.json",
+        "modifiedAt": "2026-04-09T08:30:41.907Z",
+        "size": 345
+      },
+      {
+        "file": "artifacts/reports/rehearsal/cloudinary-validation-report-20260409T083025Z.json",
+        "modifiedAt": "2026-04-09T08:30:27.845Z",
+        "size": 348
+      },
+      {
+        "file": "artifacts/reports/rehearsal/cloudinary-validation-report-20260409T082934Z.json",
+        "modifiedAt": "2026-04-09T08:29:36.333Z",
+        "size": 2359
+      },
+      {
+        "file": "artifacts/reports/rehearsal/cloudinary-relocation-report-20260409T082920Z.json",
+        "modifiedAt": "2026-04-09T08:29:20.724Z",
+        "size": 4400
+      },
+      {
+        "file": "artifacts/reports/rehearsal/cutover-evidence-pack-20260409T075208Z.json",
+        "modifiedAt": "2026-04-09T07:52:08.161Z",
+        "size": 5073
+      },
+      {
+        "file": "artifacts/reports/rehearsal/cutover-rehearsal-report-20260409T073817Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.992Z",
+        "size": 1419
+      },
+      {
+        "file": "artifacts/reports/rehearsal/rollback-drill-report-20260409T073836Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.992Z",
+        "size": 1019
+      },
+      {
+        "file": "artifacts/reports/rehearsal/sentry-verification-report-20260409T074241Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.992Z",
+        "size": 378
+      },
+      {
+        "file": "artifacts/reports/rehearsal/cloudinary-validation-report-20260409T073817Z.json",
+        "modifiedAt": "2026-04-09T07:49:41.991Z",
+        "size": 2394
+      },
+      {
+        "file": "artifacts/reports/rehearsal/cutover-rehearsal-report-20260408T183330Z.json",
+        "modifiedAt": "2026-04-08T18:45:15.482Z",
+        "size": 1204
+      }
+    ],
+    "screenshots": [
+      {
+        "file": "artifacts/ui-home-desktop.png",
+        "modifiedAt": "2026-04-08T18:45:15.488Z",
+        "size": 596912
+      },
+      {
+        "file": "artifacts/ui-committee-mobile.png",
+        "modifiedAt": "2026-04-08T18:45:15.484Z",
+        "size": 70223
+      },
+      {
+        "file": "artifacts/ui-certificate-mobile.png",
+        "modifiedAt": "2026-04-08T18:45:15.483Z",
+        "size": 87497
+      }
+    ]
+  },
+  "checklist": {
+    "certificatesEvidencePresent": true,
+    "membershipEvidencePresent": true,
+    "rehearsalEvidencePresent": true,
+    "rollbackDrillDocumented": true,
+    "screenshotEvidencePresent": true
+  }
+}

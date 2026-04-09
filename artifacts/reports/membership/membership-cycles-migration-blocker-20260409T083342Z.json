@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-04-09T08:33:42.856Z",
+  "migration": "20260409051000_membership_cycles_and_batches.sql",
+  "summary": {
+    "blocker": true,
+    "note": "Tables still not available through PostgREST schema cache on staging."
+  },
+  "checks": [
+    {
+      "table": "membership_cycles",
+      "status": 404,
+      "errorCode": "PGRST205",
+      "errorMessage": "Could not find the table 'public.membership_cycles' in the schema cache",
+      "exists": false
+    },
+    {
+      "table": "membership_cycle_memberships",
+      "status": 404,
+      "errorCode": "PGRST205",
+      "errorMessage": "Could not find the table 'public.membership_cycle_memberships' in the schema cache",
+      "exists": false
+    },
+    {
+      "table": "invitation_batches",
+      "status": 404,
+      "errorCode": "PGRST205",
+      "errorMessage": "Could not find the table 'public.invitation_batches' in the schema cache",
+      "exists": false
+    }
+  ]
+}

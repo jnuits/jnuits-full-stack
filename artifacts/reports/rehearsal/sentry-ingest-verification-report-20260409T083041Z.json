@@ -1,0 +1,11 @@
+{
+  "dsnProjectId": "4511182948401232",
+  "eventId": "9f2faffcb36b4527bf3348d16ed44f6d",
+  "generatedAt": "2026-04-09T08:30:41.906Z",
+  "message": "Operator verification event (2026-04-09T08:30:41.549Z)",
+  "status": {
+    "accepted": true,
+    "responseBodySnippet": "{\"id\":\"9f2faffcb36b4527bf3348d16ed44f6d\"}",
+    "statusCode": 200
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "apply": true,
+  "folder": "jnuits/jnuits-full-stack",
+  "generatedAt": "2026-04-09T08:29:20.720Z",
+  "summary": {
+    "alreadyInFolderCount": 0,
+    "failedCount": 0,
+    "movedCount": 13,
+    "totalAssets": 13
+  },
+  "rows": [
+    {
+      "action": "moved",
+      "assetId": "01739b29-01df-428f-b748-d4d34045df15",
+      "from": "jnuits/legacy/about/intro",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672220/jnuits/jnuits-full-stack/intro.jpg",
+      "to": "jnuits/jnuits-full-stack/intro"
+    },
+    {
+      "action": "moved",
+      "assetId": "a377b440-ba02-4b90-9e3f-c452fbcb834a",
+      "from": "jnuits/legacy/home/achievements",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672222/jnuits/jnuits-full-stack/achievements.jpg",
+      "to": "jnuits/jnuits-full-stack/achievements"
+    },
+    {
+      "action": "moved",
+      "assetId": "2ed6fbb5-6628-4a6b-805b-c40a62d47a0c",
+      "from": "jnuits/legacy/events/bcc-course",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672223/jnuits/jnuits-full-stack/bcc-course.jpg",
+      "to": "jnuits/jnuits-full-stack/bcc-course"
+    },
+    {
+      "action": "moved",
+      "assetId": "41a3d24c-f77d-43f3-8797-c1677cacb6c7",
+      "from": "jnuits/legacy/gallery/group-pic-1",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672225/jnuits/jnuits-full-stack/group-pic-1.jpg",
+      "to": "jnuits/jnuits-full-stack/group-pic-1"
+    },
+    {
+      "action": "moved",
+      "assetId": "278060e1-6d20-4df1-b1de-347a2c6284ae",
+      "from": "jnuits/legacy/gallery/group-pic-2",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672227/jnuits/jnuits-full-stack/group-pic-2.jpg",
+      "to": "jnuits/jnuits-full-stack/group-pic-2"
+    },
+    {
+      "action": "moved",
+      "assetId": "d985156c-ef3f-44b9-83ef-1303eb4bacd3",
+      "from": "jnuits/legacy/gallery/group-pic-3",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672231/jnuits/jnuits-full-stack/group-pic-3.jpg",
+      "to": "jnuits/jnuits-full-stack/group-pic-3"
+    },
+    {
+      "action": "moved",
+      "assetId": "7cbdac51-7426-4902-8f6c-579ce3753a65",
+      "from": "jnuits/legacy/gallery/group-pic-4",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672232/jnuits/jnuits-full-stack/group-pic-4.jpg",
+      "to": "jnuits/jnuits-full-stack/group-pic-4"
+    },
+    {
+      "action": "moved",
+      "assetId": "086fd319-b2ce-4aac-af7d-b6337581ebee",
+      "from": "jnuits/legacy/home/hero-slide-1",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672235/jnuits/jnuits-full-stack/hero-slide-1.jpg",
+      "to": "jnuits/jnuits-full-stack/hero-slide-1"
+    },
+    {
+      "action": "moved",
+      "assetId": "49d09924-42af-4d3e-ab07-9f46a3c54969",
+      "from": "jnuits/legacy/home/recent-activities",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672237/jnuits/jnuits-full-stack/recent-activities.jpg",
+      "to": "jnuits/jnuits-full-stack/recent-activities"
+    },
+    {
+      "action": "moved",
+      "assetId": "f983429a-65ab-4494-b32c-412d3cbc21fe",
+      "from": "jnuits/legacy/gallery/archive-01",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672238/jnuits/jnuits-full-stack/archive-01.jpg",
+      "to": "jnuits/jnuits-full-stack/archive-01"
+    },
+    {
+      "action": "moved",
+      "assetId": "dd039211-1497-4966-96a4-bf1144b881b9",
+      "from": "jnuits/legacy/gallery/archive-02",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672240/jnuits/jnuits-full-stack/archive-02.jpg",
+      "to": "jnuits/jnuits-full-stack/archive-02"
+    },
+    {
+      "action": "moved",
+      "assetId": "5163034f-ed48-4c26-8d07-16a8809135ca",
+      "from": "jnuits/legacy/developers/mt-asfi",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672243/jnuits/jnuits-full-stack/mt-asfi.png",
+      "to": "jnuits/jnuits-full-stack/mt-asfi"
+    },
+    {
+      "action": "moved",
+      "assetId": "97c7bc34-b388-46bc-acf0-6167bd9030b8",
+      "from": "jnuits/legacy/developers/juwel-rana",
+      "secureUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1775672245/jnuits/jnuits-full-stack/juwel-rana.jpg",
+      "to": "jnuits/jnuits-full-stack/juwel-rana"
+    }
+  ]
+}

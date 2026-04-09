@@ -1,0 +1,34 @@
+{
+  "apply": true,
+  "generatedAt": "2026-04-09T08:28:26.543Z",
+  "summary": {
+    "adminRolePresent": true,
+    "superAdminRoleCreated": true,
+    "superAdminRolePresent": true,
+    "userResolved": true
+  },
+  "targetEmail": "jnuitsbd@gmail.com",
+  "actions": [
+    {
+      "action": "resolve_user",
+      "email": "jnuitsbd@gmail.com",
+      "source": "profiles",
+      "state": "found",
+      "userId": "902d1877-052d-468b-87f1-d9cc13dde3cb"
+    },
+    {
+      "action": "ensure_grant",
+      "created": true,
+      "grantId": "b6937d0e-8d8e-4d4b-ae7d-c1465665c5c5",
+      "role": "super_admin",
+      "state": "active"
+    },
+    {
+      "action": "ensure_grant",
+      "created": false,
+      "grantId": "2ad1e8f5-6d69-4193-93c0-e4259ba84cd2",
+      "role": "admin",
+      "state": "active"
+    }
+  ]
+}

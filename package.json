@@ -21,7 +21,10 @@
     "rehearse:cutover": "node scripts/rehearse-cutover.mjs",
     "rehearse:cloudinary": "node scripts/validate-cloudinary-assets.mjs",
     "rehearse:rollback": "node scripts/rollback-drill.mjs",
-    "rehearse:evidence": "node scripts/build-cutover-evidence-pack.mjs"
+    "rehearse:evidence": "node scripts/build-cutover-evidence-pack.mjs",
+    "ops:ensure-super-admin": "node scripts/ensure-super-admin.mjs",
+    "ops:relocate-cloudinary": "node scripts/relocate-cloudinary-assets.mjs",
+    "ops:verify-sentry": "node scripts/verify-sentry-ingest.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.47.0",
