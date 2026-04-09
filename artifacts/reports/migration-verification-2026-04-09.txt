@@ -1,0 +1,42 @@
+**Supabase Report (`fsirdkjgrcocowxqjhjg`)**
+
+`apply_migration` and `execute_sql` calls are being auto-cancelled in this session (`user cancelled MCP tool call`), so direct SQL validation is partially blocked. I used `list_migrations`, `list_tables`, `generate_typescript_types`, and `get_logs` to verify what I could.
+
+1. **Apply Status Per Migration**
+| Migration | `apply_migration` this run | Found in `schema_migrations` |
+|---|---|---|
+| `20260408000000_extensions_and_helpers.sql` | Blocked (MCP-cancelled) | Yes (latest seen `20260409092607`) |
+| `20260408001000_identity_certificates_rls.sql` | Blocked | Yes (latest seen `20260409092935`) |
+| `20260408002000_fix_function_search_path.sql` | Blocked | Yes (latest seen `20260409093010`) |
+| `20260408003000_lock_membership_applications.sql` | Blocked | Yes (latest seen `20260409093041`) |
+| `20260408004000_seed_departments.sql` | Blocked | Yes (latest seen `20260409093125`) |
+| `20260408005000_membership_review_queue.sql` | Blocked | Yes (latest seen `20260409093159`) |
+| `20260408006000_committee_reports_content_media.sql` | Blocked | Yes (latest seen `20260409093405`) |
+| `20260408007000_cloudinary_stepup_blog_rollover.sql` | Blocked | Yes (latest seen `20260409093448`) |
+| `20260409040000_super_admin_role_hierarchy.sql` | Blocked | Yes (latest seen `20260409093533`) |
+| `20260409051000_membership_cycles_and_batches.sql` | Blocked | Yes (latest seen `20260409093639`) |
+
+2. **Core Table Existence Checks**
+All requested tables exist in `public`:
+`profiles`, `members`, `rbac_platform_roles`, `rbac_user_platform_roles`, `certificates`, `certificates_import_staging`, `content_pages`, `content_posts`, `gallery_entries`, `media_assets`, `membership_cycles`, `membership_cycle_memberships`, `invitation_batches`.
+
+3. **Function Checks**
+- `has_platform_role`: **Present** (seen in generated DB types under `public.Functions`).
+- `set_current_timestamp_updated_at`: **Inferred present** (migration history/logs show successful trigger creation using this function), but direct `execute_sql` check was blocked.
+
+4. **`super_admin` Role + Active Grant for `jnuitsbd@gmail.com`**
+- `super_admin` role: **Inferred present** (`rbac_platform_roles` has 5 rows; migration history/logs include super_admin upsert).
+- Active grant for `jnuitsbd@gmail.com`: **Not directly queryable in this session** (no `execute_sql`), but migration logs show committed grant-insert logic and `rbac_user_platform_roles` has 2 rows.
+
+5. **`anon`/`authenticated` Cannot Insert `membership_applications`**
+- **Inferred yes** from applied migration chain:
+  - `grant select, update on membership_applications to authenticated`
+  - `revoke insert on membership_applications from anon, authenticated`
+  - open insert policy dropped
+  - RLS enabled on `membership_applications`
+- Direct permission test via `execute_sql` was blocked.
+
+6. **Departments Row Count**
+- `public.departments`: **38** rows.
+
+If you want strict, direct SQL proofs for items 3-5, I can rerun the exact `execute_sql` checks once SQL execution is allowed in MCP for this session.

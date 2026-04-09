@@ -39,7 +39,7 @@ export function SiteHeader() {
           </div>
         </div>
 
-        <nav className="site-nav mt-4 overflow-x-auto pb-1 xl:hidden">
+        <nav className="site-nav mt-4 flex overflow-x-auto pb-1 xl:hidden">
           {publicNavigation.map((item) => {
             const active = pathname === item.href;
             return (
