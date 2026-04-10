@@ -1,150 +1,177 @@
 import Link from "next/link";
-import { MetricCard } from "@/components/ui/metric-card";
-import { PortalShell } from "@/components/portal/portal-shell";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 import { getMemberProjects } from "@/lib/content/projects";
+import { PortalShell } from "@/components/portal/portal-shell";
+import {
+  BookOpen,
+  FolderKanban,
+  KeyRound,
+  Link2,
+  ShieldCheck,
+  User,
+  UserPen,
+} from "lucide-react";
+
+export const metadata = { title: "Portal — Member Workspace | JnUITS" };
 
 export default async function PortalOverviewPage() {
   const auth = await requireAuthenticatedUser({ fallbackPath: "/portal" });
   const user = auth.user;
+  if (!user) return null;
 
-  if (!user) {
-    return null;
-  }
+  const snapshot = await getPortalMemberSnapshot(user.id);
+  const member = snapshot.member;
 
-  const [snapshot, memberProjects] = await Promise.all([
-    getPortalMemberSnapshot(user.id),
-    getMemberProjects(user.id).catch(() => []),
-  ]);
+  const memberProjects = member
+    ? await getMemberProjects(member.id).catch(() => [])
+    : [];
+
+  const pendingRequests = snapshot.workplaceRequests.filter((r) => r.status === "pending").length;
 
   return (
     <PortalShell
-      title="Member portal overview"
-      summary="Your personal portal surface — view your linked profile, check your directory status, and access safe self-service tools for workplace and profile updates."
+      memberName={member?.full_name ?? null}
+      jnuitsId={member?.jnuits_id ?? null}
     >
-      <section className="grid gap-4 md:grid-cols-3">
-        <MetricCard
-          label="Linked profile"
-          value={snapshot.member ? "Ready" : "Missing"}
-          description={
-            snapshot.member
-              ? `${snapshot.member.jnuits_id} is connected to this signed-in account.`
-              : "This account is signed in, but no member record is linked yet."
-          }
-          tone={snapshot.member ? "success" : "danger"}
-        />
-        <MetricCard
-          label="Directory gate"
-          value={snapshot.directoryVerified ? "Open" : "Locked"}
-          description="Sensitive workplace data stays hidden until directory verification succeeds in this browser."
-          tone={snapshot.directoryVerified ? "success" : "default"}
-        />
-        <MetricCard
-          label="Timeline entries"
-          value={snapshot.timeline.length}
-          description="Lifecycle events linked to your claimed member account."
-        />
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(18rem,0.95fr)]">
-        <article className="section-band">
-          <span className="eyebrow">Safe next actions</span>
-          <div className="mt-5 route-grid">
-            <Link className="route-tile" href="/profile">
-              <h3>Open profile</h3>
-              <p>Review linked member identity, visibility status, and recent timeline activity.</p>
-            </Link>
-            <Link className="route-tile" href="/profile/edit">
-              <h3>Request workplace changes</h3>
-              <p>Use the moderated self-service lane instead of touching raw records or admin tools.</p>
-            </Link>
-            <Link className="route-tile" href="/profile/change-password">
-              <h3>Change password</h3>
-              <p>Stay inside the portal for secure password updates and reauthentication if needed.</p>
-            </Link>
-            <Link className="route-tile" href="/portal/blogs">
-              <h3>Draft blogs</h3>
-              <p>Role-limited authoring remains separate from privileged publication and moderation controls.</p>
-            </Link>
-          </div>
-        </article>
-
-        <article className="section-band">
-          <span className="eyebrow">Portal state</span>
-          <div className="mt-5 grid gap-3">
-            <div className="timeline-item">
-              <strong className="font-[family-name:var(--font-heading)] text-lg">
-                Linked member type
-              </strong>
-              <p className="mt-2 text-sm text-[var(--muted)]">
-                {snapshot.member?.member_type || "No linked member"}
-              </p>
-            </div>
-            <div className="timeline-item">
-              <strong className="font-[family-name:var(--font-heading)] text-lg">
-                Pending workplace requests
-              </strong>
-              <p className="mt-2 text-sm text-[var(--muted)]">
-                {
-                  snapshot.workplaceRequests.filter((request) => request.status === "pending")
-                    .length
-                }{" "}
-                request(s) currently waiting for moderation.
-              </p>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      {/* My Projects */}
-      <section className="section-band">
-        <span className="eyebrow">My project contributions</span>
-        <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(1.6rem,2.5vw,2.2rem)] leading-[1.02] tracking-[-0.04em]">
-          {memberProjects.length === 0
-            ? "No project contributions yet"
-            : `${memberProjects.length} project${memberProjects.length === 1 ? "" : "s"}`}
-        </h2>
-        {memberProjects.length === 0 ? (
-          <p className="mt-3 text-sm text-[var(--muted)]">
-            Contact an admin to be added to a JnUITS project. Your contributions will appear here.
+      {/* Page header */}
+      <div className="portal-page-header">
+        <div>
+          <p className="portal-page-header__breadcrumb">Member Portal</p>
+          <h1 className="portal-page-header__title">Welcome back{member ? `, ${member.full_name.split(" ")[0]}` : ""}</h1>
+          <p className="portal-page-header__desc">
+            Your personal member workspace — profile, tools, and contributions at a glance.
           </p>
-        ) : (
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {memberProjects.slice(0, 3).map((project) => (
-              <article key={project.id} className="application-card flex flex-col gap-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <h3 className="font-[family-name:var(--font-heading)] text-xl leading-tight">
-                    {project.title}
-                  </h3>
-                  <span className="status-pill shrink-0">{project.category}</span>
-                </div>
-                {project.tagline ? (
-                  <p className="text-xs text-[var(--muted)]">{project.tagline}</p>
-                ) : null}
-                <div className="flex flex-wrap gap-1.5">
-                  {project.techStack.slice(0, 4).map((tech) => (
-                    <span key={tech} className="detail-chip text-xs">{tech}</span>
-                  ))}
-                </div>
-                <div className="mt-auto flex flex-wrap gap-2">
-                  <Link href={`/projects/${project.slug}`} className="queue-link">
-                    View project
-                  </Link>
-                  <span className="detail-chip" style={{ background: project.status === "active" ? "color-mix(in oklab,#22c55e 12%,transparent)" : undefined }}>
-                    {project.status}
-                  </span>
-                </div>
-              </article>
-            ))}
-          </div>
+        </div>
+        {member && (
+          <span className="portal-badge portal-badge--member">{member.member_type}</span>
         )}
-        {memberProjects.length > 3 ? (
-          <Link href="/projects" className="secondary-button mt-4 inline-block">
-            View all {memberProjects.length} projects →
+      </div>
+
+      {/* Stat cards */}
+      <div className="portal-stat-grid">
+        <div className="portal-stat-card" data-tone={member ? "success" : "danger"}>
+          <div className="portal-stat-card__icon"><Link2 size={15} /></div>
+          <p className="portal-stat-card__label">Linked profile</p>
+          <p className="portal-stat-card__value">{member ? "Active" : "Missing"}</p>
+          <p className="portal-stat-card__sub">
+            {member ? `${member.jnuits_id} connected` : "No member record linked yet"}
+          </p>
+        </div>
+
+        <div className="portal-stat-card" data-tone={snapshot.directoryVerified ? "success" : "warning"}>
+          <div className="portal-stat-card__icon"><ShieldCheck size={15} /></div>
+          <p className="portal-stat-card__label">Directory access</p>
+          <p className="portal-stat-card__value">{snapshot.directoryVerified ? "Open" : "Locked"}</p>
+          <p className="portal-stat-card__sub">Workplace data visibility</p>
+        </div>
+
+        <div className="portal-stat-card">
+          <div className="portal-stat-card__icon"><BookOpen size={15} /></div>
+          <p className="portal-stat-card__label">Timeline entries</p>
+          <p className="portal-stat-card__value">{snapshot.timeline.length}</p>
+          <p className="portal-stat-card__sub">Lifecycle events on this account</p>
+        </div>
+
+        <div
+          className="portal-stat-card"
+          data-tone={pendingRequests > 0 ? "warning" : undefined}
+        >
+          <div className="portal-stat-card__icon"><UserPen size={15} /></div>
+          <p className="portal-stat-card__label">Pending requests</p>
+          <p className="portal-stat-card__value">{pendingRequests}</p>
+          <p className="portal-stat-card__sub">Awaiting admin moderation</p>
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <div>
+        <p className="portal-page-header__breadcrumb" style={{ marginBottom: "0.75rem" }}>Quick actions</p>
+        <div className="portal-actions-grid">
+          <Link href="/profile" className="portal-quick-action">
+            <div className="portal-quick-action__icon"><User size={16} /></div>
+            <p className="portal-quick-action__title">My Profile</p>
+            <p className="portal-quick-action__desc">View your member identity, directory data, and recent request history.</p>
+            <span className="portal-quick-action__arrow">↗</span>
           </Link>
-        ) : null}
-      </section>
+
+          <Link href="/profile/edit" className="portal-quick-action">
+            <div className="portal-quick-action__icon"><UserPen size={16} /></div>
+            <p className="portal-quick-action__title">Edit Profile</p>
+            <p className="portal-quick-action__desc">Submit workplace updates and profile change requests for admin moderation.</p>
+            <span className="portal-quick-action__arrow">↗</span>
+          </Link>
+
+          <Link href="/portal/blogs" className="portal-quick-action">
+            <div className="portal-quick-action__icon"><BookOpen size={16} /></div>
+            <p className="portal-quick-action__title">Draft Blogs</p>
+            <p className="portal-quick-action__desc">Write and submit member blog posts for editorial review and publication.</p>
+            <span className="portal-quick-action__arrow">↗</span>
+          </Link>
+
+          <Link href="/portal/projects" className="portal-quick-action">
+            <div className="portal-quick-action__icon"><FolderKanban size={16} /></div>
+            <p className="portal-quick-action__title">My Projects</p>
+            <p className="portal-quick-action__desc">View all JnUITS projects you have contributed to as a member.</p>
+            <span className="portal-quick-action__arrow">↗</span>
+          </Link>
+
+          <Link href="/profile/change-password" className="portal-quick-action">
+            <div className="portal-quick-action__icon"><KeyRound size={16} /></div>
+            <p className="portal-quick-action__title">Change Password</p>
+            <p className="portal-quick-action__desc">Update your account password securely within the member portal.</p>
+            <span className="portal-quick-action__arrow">↗</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* My projects preview */}
+      <div className="portal-section">
+        <div className="portal-section__header">
+          <div className="portal-section__header-left">
+            <div className="portal-section__icon"><FolderKanban size={14} /></div>
+            <p className="portal-section__title">My project contributions</p>
+          </div>
+          {memberProjects.length > 0 && (
+            <Link href="/portal/projects" className="portal-badge portal-badge--claimed" style={{ cursor: "pointer" }}>
+              View all {memberProjects.length}
+            </Link>
+          )}
+        </div>
+        <div className="portal-section__body">
+          {memberProjects.length === 0 ? (
+            <p style={{ fontSize: "0.86rem", color: "var(--muted)", lineHeight: 1.6 }}>
+              You haven&apos;t been added to any JnUITS projects yet. Contact an admin to be assigned as a contributor.
+            </p>
+          ) : (
+            <div className="portal-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(18rem, 1fr))" }}>
+              {memberProjects.slice(0, 3).map((project) => (
+                <div key={project.id} className="portal-project-card">
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.6rem" }}>
+                    <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "0.96rem", letterSpacing: "-0.02em", lineHeight: 1.25 }}>
+                      {project.title}
+                    </p>
+                    <span className={`portal-badge portal-badge--${project.status === "active" ? "verified" : "draft"}`}>
+                      {project.status}
+                    </span>
+                  </div>
+                  {project.tagline && (
+                    <p style={{ fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.5 }}>{project.tagline}</p>
+                  )}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                    {project.techStack.slice(0, 4).map((tech) => (
+                      <span key={tech} className="detail-chip">{tech}</span>
+                    ))}
+                  </div>
+                  <Link href={`/projects/${project.slug}`} className="queue-link" style={{ marginTop: "auto" }}>
+                    View project →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </PortalShell>
   );
 }
