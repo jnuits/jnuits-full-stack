@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-export async function POST() {
+import { withApiGuard } from "@/lib/security/with-api-guard";
+
+async function handlePost() {
   return NextResponse.json(
     {
       intakeOpen: false,
@@ -11,3 +13,5 @@ export async function POST() {
     { status: 410 }
   );
 }
+
+export const POST = withApiGuard(handlePost);

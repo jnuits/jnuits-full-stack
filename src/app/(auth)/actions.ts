@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
+
 import { resolveSafeNextPath } from "@/lib/auth/session";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
@@ -11,6 +13,61 @@ import { createClient } from "@/lib/supabase/server";
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+const loginSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email address.")
+    .transform((value) => value.toLowerCase()),
+  next: z.string().trim().optional().default(""),
+  password: z.string().min(1, "Password is required."),
+});
+
+const passwordResetSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email address.")
+    .transform((value) => value.toLowerCase()),
+});
+
+const updatePasswordSchema = z
+  .object({
+    confirmPassword: z.string().min(1, "Confirm your new password."),
+    password: z.string().min(8, "Password must be at least 8 characters."),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
+const claimProfileSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email address.")
+    .transform((value) => value.toLowerCase()),
+  invitationCode: z
+    .string()
+    .trim()
+    .min(4, "Invitation code is required.")
+    .max(80)
+    .transform((value) => value.toUpperCase()),
+  jnuitsId: z
+    .string()
+    .trim()
+    .min(3, "JnUITS ID is required.")
+    .max(40)
+    .transform((value) => value.toUpperCase()),
+  password: z.string().min(8, "Password must be at least 8 characters."),
+});
+
+function pickFormFields(formData: FormData, fields: string[]) {
+  return Object.fromEntries(
+    fields.map((field) => [field, asString(formData.get(field))])
+  );
 }
 
 function encodeMessage(message: string) {
@@ -29,13 +86,18 @@ type InvitationLookup = Database["public"]["Tables"]["member_invitations"]["Row"
 };
 
 export async function login(formData: FormData) {
-  const email = asString(formData.get("email")).toLowerCase();
-  const password = asString(formData.get("password"));
-  const nextPath = resolveSafeNextPath(asString(formData.get("next")), "/portal");
+  const parsed = loginSchema.safeParse(
+    pickFormFields(formData, ["email", "password", "next"])
+  );
 
-  if (!email || !password) {
-    redirect("/login?error=Email and password are required.");
+  if (!parsed.success) {
+    redirect(
+      `/login?error=${encodeMessage(parsed.error.issues[0]?.message || "Email and password are required.")}`
+    );
   }
+
+  const { email, password } = parsed.data;
+  const nextPath = resolveSafeNextPath(parsed.data.next, "/portal");
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({
@@ -52,14 +114,16 @@ export async function login(formData: FormData) {
 }
 
 export async function requestPasswordReset(formData: FormData) {
-  const email = asString(formData.get("email")).toLowerCase();
+  const parsed = passwordResetSchema.safeParse(pickFormFields(formData, ["email"]));
 
-  if (!email) {
-    redirect("/forgot-password?error=Email is required.");
+  if (!parsed.success) {
+    redirect(
+      `/forgot-password?error=${encodeMessage(parsed.error.issues[0]?.message || "Email is required.")}`
+    );
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: getEmailRedirect("/reset-password"),
   });
 
@@ -71,19 +135,18 @@ export async function requestPasswordReset(formData: FormData) {
 }
 
 export async function updatePassword(formData: FormData) {
-  const password = asString(formData.get("password"));
-  const confirmPassword = asString(formData.get("confirmPassword"));
+  const parsed = updatePasswordSchema.safeParse(
+    pickFormFields(formData, ["password", "confirmPassword"])
+  );
 
-  if (!password) {
-    redirect("/reset-password?error=New password is required.");
-  }
-
-  if (password !== confirmPassword) {
-    redirect("/reset-password?error=Passwords do not match.");
+  if (!parsed.success) {
+    redirect(
+      `/reset-password?error=${encodeMessage(parsed.error.issues[0]?.message || "New password is required.")}`
+    );
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.updateUser({ password });
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
 
   if (error) {
     redirect(`/reset-password?error=${encodeMessage(error.message)}`);
@@ -93,15 +156,17 @@ export async function updatePassword(formData: FormData) {
 }
 
 export async function claimProfile(formData: FormData) {
-  const jnuitsId = asString(formData.get("jnuitsId")).toUpperCase();
-  const invitationCode = asString(formData.get("invitationCode")).toUpperCase();
-  const email = asString(formData.get("email")).toLowerCase();
-  const password = asString(formData.get("password"));
+  const parsed = claimProfileSchema.safeParse(
+    pickFormFields(formData, ["jnuitsId", "invitationCode", "email", "password"])
+  );
 
-  if (!jnuitsId || !invitationCode || !email || !password) {
-    redirect("/register?error=All claim fields are required.");
+  if (!parsed.success) {
+    redirect(
+      `/register?error=${encodeMessage(parsed.error.issues[0]?.message || "All claim fields are required.")}`
+    );
   }
 
+  const { email, invitationCode, jnuitsId, password } = parsed.data;
   const admin = createAdminClient();
 
   const invitationResult = await admin

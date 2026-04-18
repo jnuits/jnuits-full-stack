@@ -8,9 +8,10 @@ import { buildEventConfirmationEmail } from "@/lib/notifications/email-builders"
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 
 const RegisterSchema = z.object({
-  name: z.string().min(2).max(100),
-  email: z.string().email(),
-  phone: z.string().max(20).optional(),
+  name: z.string().trim().min(2).max(100),
+  email: z.string().trim().email(),
+  phone: z.string().trim().max(20).optional(),
+  website: z.string().trim().max(200).optional().or(z.literal("")),
 });
 
 export const POST = withApiGuard(
@@ -39,6 +40,14 @@ export const POST = withApiGuard(
         },
         { status: 422 }
       );
+    }
+
+    if (parsed.data.website && parsed.data.website.length > 0) {
+      return NextResponse.json({
+        success: true,
+        code: "RECEIVED",
+        eventTitle: "",
+      });
     }
 
     const { name, email, phone } = parsed.data;

@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
+
 import type { Database } from "@/lib/db/types";
 import { requireAdminUser } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
@@ -38,6 +40,48 @@ type ProfileUpdateRequestRow =
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+const optionalPositiveInt = (fallback: number, max: number) =>
+  z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().min(1).max(max).optional().default(fallback)
+  );
+
+const noteField = z.string().trim().max(1500).optional().default("");
+
+const approveApplicationSchema = z.object({
+  applicationId: z.string().trim().min(1, "The application identifier is missing.").max(80),
+  invitationExpiresInDays: optionalPositiveInt(DEFAULT_INVITATION_EXPIRY_DAYS, 365),
+  jnuitsIdOverride: z.string().trim().max(80).optional().default(""),
+  maxUses: optionalPositiveInt(1, 20),
+  reviewNote: noteField,
+});
+
+const applicationModerationSchema = z.object({
+  applicationId: z.string().trim().min(1, "The application identifier is missing.").max(80),
+  reviewNote: noteField,
+});
+
+const invitationModerationSchema = z.object({
+  invitationId: z.string().trim().min(1, "The invitation identifier is missing.").max(80),
+  reviewNote: noteField,
+});
+
+const invitationReissueSchema = invitationModerationSchema.extend({
+  invitationExpiresInDays: optionalPositiveInt(DEFAULT_INVITATION_EXPIRY_DAYS, 365),
+  maxUses: optionalPositiveInt(1, 20),
+});
+
+const updateRequestModerationSchema = z.object({
+  requestId: z.string().trim().min(1, "The request identifier is missing.").max(80),
+  reviewNote: noteField,
+});
+
+function pickFormFields(formData: FormData, fields: string[]) {
+  return Object.fromEntries(
+    fields.map((field) => [field, asString(formData.get(field))])
+  );
 }
 
 async function loadPendingApplication(applicationId: string) {
@@ -218,27 +262,34 @@ export async function approveMembershipApplication(formData: FormData) {
   if (!actorUserId) {
     redirect("/login");
   }
-  const applicationId = asString(formData.get("applicationId"));
-  const reviewNote = asString(formData.get("reviewNote"));
-  const jnuitsIdOverride = asString(formData.get("jnuitsIdOverride"));
-  const maxUses = Math.max(1, Number.parseInt(asString(formData.get("maxUses")) || "1", 10) || 1);
-  const expiryDays = Math.max(
-    1,
-    Number.parseInt(
-      asString(formData.get("invitationExpiresInDays")) ||
-        String(DEFAULT_INVITATION_EXPIRY_DAYS),
-      10
-    ) || DEFAULT_INVITATION_EXPIRY_DAYS
+  const parsed = approveApplicationSchema.safeParse(
+    pickFormFields(formData, [
+      "applicationId",
+      "reviewNote",
+      "jnuitsIdOverride",
+      "maxUses",
+      "invitationExpiresInDays",
+    ])
   );
 
-  if (!applicationId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Application approval failed",
-      message: "The application identifier is missing.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "The application identifier is missing.",
     });
     redirect("/admin");
   }
+
+  const {
+    applicationId,
+    invitationExpiresInDays: expiryDays,
+    jnuitsIdOverride,
+    maxUses,
+    reviewNote,
+  } = parsed.data;
 
   const admin = createAdminClient();
   const applicationResult = await loadPendingApplication(applicationId);
@@ -370,17 +421,22 @@ export async function rejectMembershipApplication(formData: FormData) {
   if (!actorUserId) {
     redirect("/login");
   }
-  const applicationId = asString(formData.get("applicationId"));
-  const reviewNote = asString(formData.get("reviewNote"));
+  const parsed = applicationModerationSchema.safeParse(
+    pickFormFields(formData, ["applicationId", "reviewNote"])
+  );
 
-  if (!applicationId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Application rejection failed",
-      message: "The application identifier is missing.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "The application identifier is missing.",
     });
     redirect("/admin");
   }
+
+  const { applicationId, reviewNote } = parsed.data;
 
   const admin = createAdminClient();
   const applicationResult = await loadPendingApplication(applicationId);
@@ -464,17 +520,22 @@ export async function revokeMemberInvitation(formData: FormData) {
     redirect("/login");
   }
 
-  const invitationId = asString(formData.get("invitationId"));
-  const reviewNote = asString(formData.get("reviewNote"));
+  const parsed = invitationModerationSchema.safeParse(
+    pickFormFields(formData, ["invitationId", "reviewNote"])
+  );
 
-  if (!invitationId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Invitation revocation failed",
-      message: "The invitation identifier is missing.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "The invitation identifier is missing.",
     });
     redirect("/admin#invitations");
   }
+
+  const { invitationId, reviewNote } = parsed.data;
 
   const admin = createAdminClient();
   const invitationResult = await loadInvitation(invitationId);
@@ -569,26 +630,32 @@ export async function reissueMemberInvitation(formData: FormData) {
     redirect("/login");
   }
 
-  const invitationId = asString(formData.get("invitationId"));
-  const reviewNote = asString(formData.get("reviewNote"));
-  const maxUses = Math.max(1, Number.parseInt(asString(formData.get("maxUses")) || "1", 10) || 1);
-  const expiryDays = Math.max(
-    1,
-    Number.parseInt(
-      asString(formData.get("invitationExpiresInDays")) ||
-        String(DEFAULT_INVITATION_EXPIRY_DAYS),
-      10
-    ) || DEFAULT_INVITATION_EXPIRY_DAYS
+  const parsed = invitationReissueSchema.safeParse(
+    pickFormFields(formData, [
+      "invitationId",
+      "reviewNote",
+      "maxUses",
+      "invitationExpiresInDays",
+    ])
   );
 
-  if (!invitationId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Invitation reissue failed",
-      message: "The invitation identifier is missing.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "The invitation identifier is missing.",
     });
     redirect("/admin#invitations");
   }
+
+  const {
+    invitationExpiresInDays: expiryDays,
+    invitationId,
+    maxUses,
+    reviewNote,
+  } = parsed.data;
 
   const admin = createAdminClient();
   const invitationResult = await loadInvitation(invitationId);
@@ -728,17 +795,22 @@ export async function approveWorkplaceUpdateRequest(formData: FormData) {
     redirect("/login");
   }
 
-  const requestId = asString(formData.get("requestId"));
-  const reviewNote = asString(formData.get("reviewNote"));
+  const parsed = updateRequestModerationSchema.safeParse(
+    pickFormFields(formData, ["requestId", "reviewNote"])
+  );
 
-  if (!requestId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Workplace approval failed",
-      message: "The workplace request identifier is missing.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "The workplace request identifier is missing.",
     });
     redirect("/admin#workplace");
   }
+
+  const { requestId, reviewNote } = parsed.data;
 
   const admin = createAdminClient();
   const requestResult = await loadPendingProfileUpdateRequest(requestId);
@@ -886,17 +958,22 @@ export async function rejectWorkplaceUpdateRequest(formData: FormData) {
     redirect("/login");
   }
 
-  const requestId = asString(formData.get("requestId"));
-  const reviewNote = asString(formData.get("reviewNote"));
+  const parsed = updateRequestModerationSchema.safeParse(
+    pickFormFields(formData, ["requestId", "reviewNote"])
+  );
 
-  if (!requestId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Workplace rejection failed",
-      message: "The workplace request identifier is missing.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "The workplace request identifier is missing.",
     });
     redirect("/admin#workplace");
   }
+
+  const { requestId, reviewNote } = parsed.data;
 
   const admin = createAdminClient();
   const requestResult = await loadPendingProfileUpdateRequest(requestId);
@@ -981,17 +1058,22 @@ export async function approveProfileChangeRequest(formData: FormData) {
     redirect("/login");
   }
 
-  const requestId = asString(formData.get("requestId"));
-  const reviewNote = asString(formData.get("reviewNote"));
+  const parsed = updateRequestModerationSchema.safeParse(
+    pickFormFields(formData, ["requestId", "reviewNote"])
+  );
 
-  if (!requestId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Profile approval failed",
-      message: "The profile change request identifier is missing.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "The profile change request identifier is missing.",
     });
     redirect("/admin#profile-requests");
   }
+
+  const { requestId, reviewNote } = parsed.data;
 
   const admin = createAdminClient();
   const requestResult = await loadPendingProfileUpdateRequest(requestId);
@@ -1191,17 +1273,22 @@ export async function rejectProfileChangeRequest(formData: FormData) {
     redirect("/login");
   }
 
-  const requestId = asString(formData.get("requestId"));
-  const reviewNote = asString(formData.get("reviewNote"));
+  const parsed = updateRequestModerationSchema.safeParse(
+    pickFormFields(formData, ["requestId", "reviewNote"])
+  );
 
-  if (!requestId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Profile rejection failed",
-      message: "The profile change request identifier is missing.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "The profile change request identifier is missing.",
     });
     redirect("/admin#profile-requests");
   }
+
+  const { requestId, reviewNote } = parsed.data;
 
   const admin = createAdminClient();
   const requestResult = await loadPendingProfileUpdateRequest(requestId);

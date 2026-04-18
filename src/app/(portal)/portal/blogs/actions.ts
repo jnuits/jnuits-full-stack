@@ -2,11 +2,34 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
+
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+const memberBlogDraftSchema = z.object({
+  body: z.string().trim().min(1, "Blog body is required.").max(50000),
+  category: z.string().trim().max(80).optional().default(""),
+  excerpt: z.string().trim().max(500).optional().default(""),
+  postId: z.string().trim().max(80).optional().default(""),
+  readTime: z.string().trim().max(40).optional().default(""),
+  slug: z.string().trim().max(160).optional().default(""),
+  summary: z.string().trim().min(1, "Summary is required.").max(500),
+  title: z.string().trim().min(3, "Title is required.").max(180),
+});
+
+const submitDraftSchema = z.object({
+  postId: z.string().trim().min(1, "Draft is required.").max(80),
+});
+
+function pickFormFields(formData: FormData, fields: string[]) {
+  return Object.fromEntries(
+    fields.map((field) => [field, asString(formData.get(field))])
+  );
 }
 
 function slugify(value: string) {
@@ -60,16 +83,27 @@ export async function saveMemberBlogDraft(formData: FormData) {
     redirect("/portal/blogs?error=member-required");
   }
 
-  const postId = asString(formData.get("postId"));
-  const title = asString(formData.get("title"));
-  const slug = slugify(asString(formData.get("slug")) || title);
-  const category = asString(formData.get("category"));
-  const summary = asString(formData.get("summary"));
-  const excerpt = asString(formData.get("excerpt"));
-  const body = asString(formData.get("body"));
-  const readTime = asString(formData.get("readTime"));
+  const parsed = memberBlogDraftSchema.safeParse(
+    pickFormFields(formData, [
+      "postId",
+      "title",
+      "slug",
+      "category",
+      "summary",
+      "excerpt",
+      "body",
+      "readTime",
+    ])
+  );
 
-  if (!title || !slug || !summary || !body) {
+  if (!parsed.success) {
+    redirect("/portal/blogs?error=draft-required");
+  }
+
+  const { body, category, excerpt, postId, readTime, summary, title } = parsed.data;
+  const slug = slugify(parsed.data.slug || title);
+
+  if (!slug) {
     redirect("/portal/blogs?error=draft-required");
   }
 
@@ -138,12 +172,13 @@ export async function submitMemberBlogDraft(formData: FormData) {
     redirect("/portal/blogs?error=member-required");
   }
 
-  const postId = asString(formData.get("postId"));
+  const parsed = submitDraftSchema.safeParse(pickFormFields(formData, ["postId"]));
 
-  if (!postId) {
+  if (!parsed.success) {
     redirect("/portal/blogs?error=draft-missing");
   }
 
+  const { postId } = parsed.data;
   const owned = await loadOwnedDraft(admin, member.id, postId);
 
   if (!owned) {

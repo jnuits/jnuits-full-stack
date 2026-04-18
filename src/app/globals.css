@@ -3082,6 +3082,237 @@ footer {
 .admin-btn--success  { background: var(--brand-green); color: #fff; }
 .admin-btn--danger   { background: var(--brand-rust); color: #fff; }
 .admin-btn--ghost    { background: var(--card); color: var(--foreground); border: 1px solid var(--line); }
+
+.contact-page {
+  position: relative;
+}
+
+.contact-page::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: -1;
+  height: 22rem;
+  background:
+    radial-gradient(circle at 12% 12%, color-mix(in oklab, var(--brand-blue) 20%, transparent), transparent 18rem),
+    radial-gradient(circle at 82% 4%, color-mix(in oklab, var(--brand-gold) 14%, transparent), transparent 16rem);
+  pointer-events: none;
+}
+
+.contact-hero {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.contact-hero__copy,
+.contact-hero__card,
+.contact-form-card,
+.contact-directory-card {
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--card) 90%, transparent);
+  box-shadow: var(--shadow-panel);
+}
+
+.contact-hero__copy {
+  border-radius: 2rem;
+  padding: clamp(1.35rem, 4vw, 3rem);
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--card) 94%, transparent), color-mix(in oklab, var(--secondary) 56%, transparent)),
+    radial-gradient(circle at 88% 16%, color-mix(in oklab, var(--brand-blue) 16%, transparent), transparent 17rem);
+}
+
+.contact-hero__card {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  border-radius: 2rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.contact-card-kicker {
+  color: var(--brand-blue);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.contact-hero__card h2,
+.contact-section-title,
+.contact-directory-card h3 {
+  font-family: var(--font-heading), sans-serif;
+  letter-spacing: -0.04em;
+}
+
+.contact-hero__card h2 {
+  font-size: clamp(1.55rem, 3vw, 2.35rem);
+  line-height: 1;
+}
+
+.contact-slogan {
+  margin-top: 1.15rem;
+  font-family: var(--font-serif), serif;
+  color: var(--brand-blue);
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  font-weight: 700;
+}
+
+.contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.contact-facts {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.contact-facts div {
+  border-top: 1px solid var(--line);
+  padding-top: 0.9rem;
+}
+
+.contact-facts dt,
+.contact-directory-card span {
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.contact-facts dd {
+  margin-top: 0.25rem;
+  color: var(--foreground);
+  line-height: 1.55;
+}
+
+.contact-layout {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.contact-form-card {
+  display: grid;
+  gap: 1.25rem;
+  border-radius: 2rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.contact-section-title {
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  line-height: 1.05;
+}
+
+.contact-status-region {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.contact-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.contact-form-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.contact-honeypot {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.contact-submit {
+  width: 100%;
+}
+
+.contact-directory {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.contact-directory-card {
+  display: grid;
+  gap: 0.65rem;
+  border-radius: 1.45rem;
+  padding: 1.15rem;
+}
+
+.contact-directory-card--highlight {
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--primary) 11%, var(--card)), color-mix(in oklab, var(--card) 92%, transparent)),
+    radial-gradient(circle at 90% 0%, color-mix(in oklab, var(--brand-gold) 18%, transparent), transparent 9rem);
+}
+
+.contact-directory-card h3 {
+  font-size: 1.14rem;
+  line-height: 1.12;
+}
+
+.contact-directory-card p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.contact-directory-card a {
+  color: var(--brand-blue);
+  font-weight: 800;
+}
+
+.contact-detail-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.contact-social-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.contact-social-list a {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--panel) 88%, transparent);
+  padding: 0.42rem 0.72rem;
+  font-size: 0.82rem;
+}
+
+@media (min-width: 720px) {
+  .contact-form-grid,
+  .contact-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contact-submit {
+    width: fit-content;
+  }
+}
+
+@media (min-width: 980px) {
+  .contact-hero {
+    grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 0.65fr);
+  }
+
+  .contact-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(19rem, 0.8fr);
+  }
+}
+
 /* ---------------------------------------------------------------------------
    PORTAL RESPONSIVE � Mobile sidebar behavior
    --------------------------------------------------------------------------- */

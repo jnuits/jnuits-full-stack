@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+
+import { withApiGuard } from "@/lib/security/with-api-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -93,7 +95,7 @@ export async function GET() {
   );
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const viewer = await requireLinkedMemberUser();
 
   if (viewer.error || !viewer.member || !viewer.admin) {
@@ -151,3 +153,5 @@ export async function POST(request: NextRequest) {
     { status: 201 }
   );
 }
+
+export const POST = withApiGuard(handlePost);

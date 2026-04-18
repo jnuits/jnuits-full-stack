@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
 import { findCertificatesByIds, normalizeCertificateId } from "@/lib/certificates/queries";
+import { withApiGuard } from "@/lib/security/with-api-guard";
+
+const batchLookupSchema = z.object({
+  ids: z.array(z.string().trim().min(1).max(80)).min(1).max(200),
+});
 
 function normalizeIds(input: unknown) {
   if (!Array.isArray(input)) {
@@ -16,9 +23,18 @@ function normalizeIds(input: unknown) {
   );
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const body = await request.json().catch(() => null);
-  const ids = normalizeIds(body?.ids);
+  const parsed = batchLookupSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { message: "Provide one or more certificate IDs to verify." },
+      { status: 400 }
+    );
+  }
+
+  const ids = normalizeIds(parsed.data.ids);
 
   if (!ids.length) {
     return NextResponse.json(
@@ -47,3 +63,5 @@ export async function POST(request: NextRequest) {
     },
   });
 }
+
+export const POST = withApiGuard(handlePost);

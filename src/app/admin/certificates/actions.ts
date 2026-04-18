@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
+
 import { requireAdminUser } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -10,6 +12,41 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 function asString(v: FormDataEntryValue | null): string {
   return typeof v === "string" ? v.trim() : "";
+}
+
+const certificateTypeSchema = z.enum(["Event", "Exam", "Course"]);
+
+const upsertCertificateSchema = z.object({
+  asset_url: z.string().trim().url().optional().or(z.literal("")),
+  certificate_id: z.string().trim().min(1).max(80),
+  details: z.string().trim().max(3000).optional().default(""),
+  exam_or_event: certificateTypeSchema,
+  exam_or_event_name: z.string().trim().min(1).max(180),
+  first_name: z.string().trim().min(1).max(120),
+  id: z.string().trim().max(80).optional().default(""),
+  issue_date: z.string().trim().min(1).max(40),
+  last_name: z.string().trim().min(1).max(120),
+});
+
+const deleteCertificateSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+});
+
+const fixCertTypeSchema = z.object({
+  exam_or_event: certificateTypeSchema,
+  id: z.string().trim().min(1).max(80),
+});
+
+const bulkImportSchema = z.object({
+  csv_data: z.string().trim().min(1, "No CSV data provided.").max(5_000_000),
+  on_conflict: z.enum(["skip", "update"]).optional().default("skip"),
+  source_name: z.string().trim().max(180).optional().default(""),
+});
+
+function pickFormFields(formData: FormData, fields: string[]) {
+  return Object.fromEntries(
+    fields.map((field) => [field, asString(formData.get(field))])
+  );
 }
 
 function normId(raw: string): string {
@@ -28,24 +65,42 @@ export async function upsertCertificateAction(formData: FormData) {
   const auth = await requireAdminUser();
   if (!auth.user) redirect("/admin");
 
-  const id = asString(formData.get("id")); // empty = create
-  const certificateId = normId(asString(formData.get("certificate_id")));
-  const firstName = asString(formData.get("first_name"));
-  const lastName = asString(formData.get("last_name"));
-  const details = asString(formData.get("details"));
-  const examOrEvent = asString(formData.get("exam_or_event"));
-  const examOrEventName = asString(formData.get("exam_or_event_name"));
-  const issueDateRaw = asString(formData.get("issue_date"));
-  const assetUrl = asString(formData.get("asset_url")) || null;
+  const parsed = upsertCertificateSchema.safeParse(
+    pickFormFields(formData, [
+      "id",
+      "certificate_id",
+      "first_name",
+      "last_name",
+      "details",
+      "exam_or_event",
+      "exam_or_event_name",
+      "issue_date",
+      "asset_url",
+    ])
+  );
 
-  if (!certificateId || !firstName || !lastName || !examOrEvent || !examOrEventName || !issueDateRaw) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Validation failed",
-      message: "Certificate ID, first name, last name, type, event name, and issue date are all required.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "Certificate ID, first name, last name, type, event name, and issue date are all required.",
     });
     redirect("/admin/certificates");
   }
+
+  const {
+    details,
+    exam_or_event: examOrEvent,
+    exam_or_event_name: examOrEventName,
+    first_name: firstName,
+    id,
+    issue_date: issueDateRaw,
+    last_name: lastName,
+  } = parsed.data;
+  const certificateId = normId(parsed.data.certificate_id);
+  const assetUrl = parsed.data.asset_url || null;
 
   const issueDate = isoDate(issueDateRaw);
   if (!issueDate) {
@@ -106,12 +161,13 @@ export async function deleteCertificateAction(formData: FormData) {
   const auth = await requireAdminUser();
   if (!auth.user) redirect("/admin");
 
-  const id = asString(formData.get("id"));
-  if (!id) {
+  const parsed = deleteCertificateSchema.safeParse(pickFormFields(formData, ["id"]));
+  if (!parsed.success) {
     await setAdminFlash({ tone: "error", title: "Delete failed", message: "No certificate ID provided." });
     redirect("/admin/certificates");
   }
 
+  const { id } = parsed.data;
   const admin = createAdminClient();
   const { data: cert } = await admin
     .from("certificates")
@@ -141,14 +197,16 @@ export async function fixCertTypeAction(formData: FormData) {
   const auth = await requireAdminUser();
   if (!auth.user) redirect("/admin");
 
-  const id = asString(formData.get("id"));
-  const examOrEvent = asString(formData.get("exam_or_event"));
+  const parsed = fixCertTypeSchema.safeParse(
+    pickFormFields(formData, ["id", "exam_or_event"])
+  );
 
-  if (!id || !examOrEvent) {
+  if (!parsed.success) {
     await setAdminFlash({ tone: "error", title: "Fix failed", message: "ID and type are required." });
     redirect("/admin/certificates");
   }
 
+  const { id, exam_or_event: examOrEvent } = parsed.data;
   const admin = createAdminClient();
   const { error } = await admin
     .from("certificates")
@@ -171,14 +229,22 @@ export async function bulkImportCertificatesAction(formData: FormData) {
   const auth = await requireAdminUser();
   if (!auth.user) redirect("/admin");
 
-  const csvText = asString(formData.get("csv_data"));
-  const sourceName = asString(formData.get("source_name")) || `manual-import-${Date.now()}`;
-  const onConflict = asString(formData.get("on_conflict")) || "skip"; // "skip" | "update"
+  const parsed = bulkImportSchema.safeParse(
+    pickFormFields(formData, ["csv_data", "source_name", "on_conflict"])
+  );
 
-  if (!csvText) {
-    await setAdminFlash({ tone: "error", title: "Import failed", message: "No CSV data provided." });
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Import failed",
+      message: parsed.error.issues[0]?.message || "No CSV data provided.",
+    });
     redirect("/admin/certificates");
   }
+
+  const csvText = parsed.data.csv_data;
+  const sourceName = parsed.data.source_name || `manual-import-${Date.now()}`;
+  const onConflict = parsed.data.on_conflict; // "skip" | "update"
 
   const lines = csvText.split("\n").map((l) => l.trim()).filter(Boolean);
   // Skip header row if it starts with non-numeric/cert characters

@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
+
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminUser } from "@/lib/auth/session";
 import type { TablesInsert } from "@/lib/db/types";
@@ -17,44 +19,98 @@ type AdminClient = ReturnType<typeof createAdminClient>;
 type AuditEventInsert = TablesInsert<"audit_events">;
 type OperatorReportInsert = TablesInsert<"operator_reports">;
 
-const CYCLE_STATUSES = new Set(["draft", "active", "closed", "archived"]);
-const CYCLE_MEMBER_STATES = new Set([
+const CYCLE_STATUSES = ["draft", "active", "closed", "archived"] as const;
+const CYCLE_MEMBER_STATES = [
   "active",
   "pending_renewal",
   "renewed",
   "expired",
   "lapsed",
-]);
-const BATCH_STATUSES = new Set(["draft", "active", "closed", "archived"]);
-const BATCH_SOURCES = new Set([
+] as const;
+const BATCH_STATUSES = ["draft", "active", "closed", "archived"] as const;
+const BATCH_SOURCES = [
   "manual",
   "csv_onboarding",
   "reconciliation",
   "renewal",
-]);
+] as const;
+
+const cycleStatusSchema = z.enum(CYCLE_STATUSES);
+const cycleMemberStateSchema = z.enum(CYCLE_MEMBER_STATES);
+const batchStatusSchema = z.enum(BATCH_STATUSES);
+const batchSourceSchema = z.enum(BATCH_SOURCES);
+const booleanStringSchema = z
+  .enum(["true", "false"])
+  .optional()
+  .default("false")
+  .transform((value) => value === "true");
+const optionalPositiveInt = (fallback: number, max: number) =>
+  z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().min(1).max(max).optional().default(fallback)
+  );
+
+const createCycleSchema = z.object({
+  code: z.string().trim().min(1, "Code is required.").max(80).transform((value) => value.toLowerCase()),
+  endsOn: z.string().trim().max(40).optional().default(""),
+  renewalCloseOn: z.string().trim().max(40).optional().default(""),
+  renewalOpenOn: z.string().trim().max(40).optional().default(""),
+  startsOn: z.string().trim().min(1, "Start date is required.").max(40),
+  status: cycleStatusSchema.optional().default("draft"),
+  title: z.string().trim().min(1, "Title is required.").max(180),
+});
+
+const cycleStatusUpdateSchema = z.object({
+  cycleId: z.string().trim().min(1, "Missing cycle identifier.").max(80),
+  nextStatus: cycleStatusSchema.optional().default("draft"),
+});
+
+const enrollMemberSchema = z.object({
+  cycleId: z.string().trim().min(1, "Cycle is required.").max(80),
+  expiresOn: z.string().trim().max(40).optional().default(""),
+  memberJnuitsId: z.string().trim().min(1, "Member JnUITS ID is required.").max(80).transform((value) => value.toUpperCase()),
+  memberState: cycleMemberStateSchema.optional().default("pending_renewal"),
+  note: z.string().trim().max(1000).optional().default(""),
+});
+
+const cycleMemberStateUpdateSchema = z.object({
+  nextState: cycleMemberStateSchema.optional().default("pending_renewal"),
+  note: z.string().trim().max(1000).optional().default(""),
+  rowId: z.string().trim().min(1, "Cycle membership row identifier is missing.").max(80),
+});
+
+const createInvitationBatchSchema = z.object({
+  cycleId: z.string().trim().max(80).optional().default(""),
+  expiresAt: z.string().trim().max(80).optional().default(""),
+  label: z.string().trim().min(1, "Batch label is required.").max(180),
+  source: batchSourceSchema.optional().default("manual"),
+  status: batchStatusSchema.optional().default("draft"),
+});
+
+const issueInvitationBatchSchema = z.object({
+  batchId: z.string().trim().min(1, "Missing invitation batch identifier.").max(80),
+  invitationExpiresInDays: optionalPositiveInt(DEFAULT_INVITATION_EXPIRY_DAYS, 365),
+  maxUses: optionalPositiveInt(1, 20),
+  onlyPendingRenewal: booleanStringSchema,
+});
+
+const batchIdSchema = z.object({
+  batchId: z.string().trim().min(1, "Missing invitation batch identifier.").max(80),
+});
+
+const batchStatusUpdateSchema = z.object({
+  batchId: z.string().trim().min(1, "Missing invitation batch identifier.").max(80),
+  nextStatus: batchStatusSchema.optional().default("draft"),
+});
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function asBoolean(value: FormDataEntryValue | null) {
-  return typeof value === "string" && value === "true";
-}
-
-function assertCycleStatus(value: string) {
-  return CYCLE_STATUSES.has(value) ? value : "draft";
-}
-
-function assertCycleMemberState(value: string) {
-  return CYCLE_MEMBER_STATES.has(value) ? value : "pending_renewal";
-}
-
-function assertBatchStatus(value: string) {
-  return BATCH_STATUSES.has(value) ? value : "draft";
-}
-
-function assertBatchSource(value: string) {
-  return BATCH_SOURCES.has(value) ? value : "manual";
+function pickFormFields(formData: FormData, fields: string[]) {
+  return Object.fromEntries(
+    fields.map((field) => [field, asString(formData.get(field))])
+  );
 }
 
 async function getNextInvitationCode(admin: AdminClient) {
@@ -102,25 +158,32 @@ export async function createMembershipCycleAction(formData: FormData) {
     redirect("/login?next=%2Fadmin%2Fmembership");
   }
 
-  const code = asString(formData.get("code")).toLowerCase();
-  const title = asString(formData.get("title"));
-  const startsOn = asString(formData.get("startsOn"));
-  const endsOn = asString(formData.get("endsOn"));
-  const renewalOpenOn = asString(formData.get("renewalOpenOn"));
-  const renewalCloseOn = asString(formData.get("renewalCloseOn"));
-  const status = assertCycleStatus(asString(formData.get("status")) || "draft");
+  const parsed = createCycleSchema.safeParse(
+    pickFormFields(formData, [
+      "code",
+      "title",
+      "startsOn",
+      "endsOn",
+      "renewalOpenOn",
+      "renewalCloseOn",
+      "status",
+    ])
+  );
 
-  if (!code || !title || !startsOn) {
+  if (!parsed.success) {
     await setAdminFlash(
       {
         tone: "error",
         title: "Cycle creation failed",
-        message: "Code, title, and start date are required.",
+        message: parsed.error.issues[0]?.message || "Code, title, and start date are required.",
       },
       "/admin"
     );
     redirectMembership();
   }
+
+  const { code, endsOn, renewalCloseOn, renewalOpenOn, startsOn, status, title } =
+    parsed.data;
 
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -182,20 +245,23 @@ export async function updateMembershipCycleStatusAction(formData: FormData) {
     redirect("/login?next=%2Fadmin%2Fmembership");
   }
 
-  const cycleId = asString(formData.get("cycleId"));
-  const nextStatus = assertCycleStatus(asString(formData.get("nextStatus")) || "draft");
+  const parsed = cycleStatusUpdateSchema.safeParse(
+    pickFormFields(formData, ["cycleId", "nextStatus"])
+  );
 
-  if (!cycleId) {
+  if (!parsed.success) {
     await setAdminFlash(
       {
         tone: "error",
         title: "Cycle status update failed",
-        message: "Missing cycle identifier.",
+        message: parsed.error.issues[0]?.message || "Missing cycle identifier.",
       },
       "/admin"
     );
     redirectMembership();
   }
+
+  const { cycleId, nextStatus } = parsed.data;
 
   const admin = createAdminClient();
   const { error } = await admin
@@ -247,25 +313,37 @@ export async function enrollMemberInCycleAction(formData: FormData) {
     redirect("/login?next=%2Fadmin%2Fmembership");
   }
 
-  const cycleId = asString(formData.get("cycleId"));
-  const memberJnuitsId = asString(formData.get("memberJnuitsId")).toUpperCase();
-  const state = assertCycleMemberState(
-    asString(formData.get("memberState")) || "pending_renewal"
+  const parsed = enrollMemberSchema.safeParse(
+    pickFormFields(formData, [
+      "cycleId",
+      "memberJnuitsId",
+      "memberState",
+      "expiresOn",
+      "note",
+    ])
   );
-  const expiresOn = asString(formData.get("expiresOn"));
-  const note = asString(formData.get("note"));
 
-  if (!cycleId || !memberJnuitsId) {
+  if (!parsed.success) {
     await setAdminFlash(
       {
         tone: "error",
         title: "Enrollment failed",
-        message: "Cycle and member JnUITS ID are required.",
+        message:
+          parsed.error.issues[0]?.message ||
+          "Cycle and member JnUITS ID are required.",
       },
       "/admin"
     );
     redirectMembership();
   }
+
+  const {
+    cycleId,
+    expiresOn,
+    memberJnuitsId,
+    memberState: state,
+    note,
+  } = parsed.data;
 
   const admin = createAdminClient();
   const { data: member, error: memberError } = await admin
@@ -361,23 +439,25 @@ export async function updateCycleMemberStateAction(formData: FormData) {
     redirect("/login?next=%2Fadmin%2Fmembership");
   }
 
-  const rowId = asString(formData.get("rowId"));
-  const nextState = assertCycleMemberState(
-    asString(formData.get("nextState")) || "pending_renewal"
+  const parsed = cycleMemberStateUpdateSchema.safeParse(
+    pickFormFields(formData, ["rowId", "nextState", "note"])
   );
-  const note = asString(formData.get("note"));
 
-  if (!rowId) {
+  if (!parsed.success) {
     await setAdminFlash(
       {
         tone: "error",
         title: "State update failed",
-        message: "Cycle membership row identifier is missing.",
+        message:
+          parsed.error.issues[0]?.message ||
+          "Cycle membership row identifier is missing.",
       },
       "/admin"
     );
     redirectMembership();
   }
+
+  const { nextState, note, rowId } = parsed.data;
 
   const admin = createAdminClient();
   const { data: row, error: rowError } = await admin
@@ -462,23 +542,23 @@ export async function createInvitationBatchAction(formData: FormData) {
     redirect("/login?next=%2Fadmin%2Fmembership");
   }
 
-  const label = asString(formData.get("label"));
-  const cycleId = asString(formData.get("cycleId"));
-  const source = assertBatchSource(asString(formData.get("source")) || "manual");
-  const status = assertBatchStatus(asString(formData.get("status")) || "draft");
-  const expiresAt = asString(formData.get("expiresAt"));
+  const parsed = createInvitationBatchSchema.safeParse(
+    pickFormFields(formData, ["label", "cycleId", "source", "status", "expiresAt"])
+  );
 
-  if (!label) {
+  if (!parsed.success) {
     await setAdminFlash(
       {
         tone: "error",
         title: "Batch creation failed",
-        message: "Batch label is required.",
+        message: parsed.error.issues[0]?.message || "Batch label is required.",
       },
       "/admin"
     );
     redirectMembership();
   }
+
+  const { cycleId, expiresAt, label, source, status } = parsed.data;
 
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -539,29 +619,35 @@ export async function issueInvitationsFromBatchAction(formData: FormData) {
     redirect("/login?next=%2Fadmin%2Fmembership");
   }
 
-  const batchId = asString(formData.get("batchId"));
-  const onlyPendingRenewal = asBoolean(formData.get("onlyPendingRenewal"));
-  const maxUses = Math.max(1, Number.parseInt(asString(formData.get("maxUses")) || "1", 10) || 1);
-  const expiryDays = Math.max(
-    1,
-    Number.parseInt(
-      asString(formData.get("invitationExpiresInDays")) ||
-        String(DEFAULT_INVITATION_EXPIRY_DAYS),
-      10
-    ) || DEFAULT_INVITATION_EXPIRY_DAYS
+  const parsed = issueInvitationBatchSchema.safeParse(
+    pickFormFields(formData, [
+      "batchId",
+      "onlyPendingRenewal",
+      "maxUses",
+      "invitationExpiresInDays",
+    ])
   );
 
-  if (!batchId) {
+  if (!parsed.success) {
     await setAdminFlash(
       {
         tone: "error",
         title: "Batch issuance failed",
-        message: "Missing invitation batch identifier.",
+        message:
+          parsed.error.issues[0]?.message ||
+          "Missing invitation batch identifier.",
       },
       "/admin"
     );
     redirectMembership();
   }
+
+  const {
+    batchId,
+    invitationExpiresInDays: expiryDays,
+    maxUses,
+    onlyPendingRenewal,
+  } = parsed.data;
 
   const admin = createAdminClient();
   const { data: batch, error: batchError } = await admin
@@ -720,19 +806,23 @@ export async function syncInvitationBatchMetricsAction(formData: FormData) {
     redirect("/login?next=%2Fadmin%2Fmembership");
   }
 
-  const batchId = asString(formData.get("batchId"));
+  const parsed = batchIdSchema.safeParse(pickFormFields(formData, ["batchId"]));
 
-  if (!batchId) {
+  if (!parsed.success) {
     await setAdminFlash(
       {
         tone: "error",
         title: "Batch sync failed",
-        message: "Missing invitation batch identifier.",
+        message:
+          parsed.error.issues[0]?.message ||
+          "Missing invitation batch identifier.",
       },
       "/admin"
     );
     redirectMembership();
   }
+
+  const { batchId } = parsed.data;
 
   const admin = createAdminClient();
   const { data: rows, error } = await admin
@@ -811,20 +901,25 @@ export async function updateInvitationBatchStatusAction(formData: FormData) {
     redirect("/login?next=%2Fadmin%2Fmembership");
   }
 
-  const batchId = asString(formData.get("batchId"));
-  const nextStatus = assertBatchStatus(asString(formData.get("nextStatus")) || "draft");
+  const parsed = batchStatusUpdateSchema.safeParse(
+    pickFormFields(formData, ["batchId", "nextStatus"])
+  );
 
-  if (!batchId) {
+  if (!parsed.success) {
     await setAdminFlash(
       {
         tone: "error",
         title: "Batch status update failed",
-        message: "Missing invitation batch identifier.",
+        message:
+          parsed.error.issues[0]?.message ||
+          "Missing invitation batch identifier.",
       },
       "/admin"
     );
     redirectMembership();
   }
+
+  const { batchId, nextStatus } = parsed.data;
 
   const admin = createAdminClient();
   const { error } = await admin

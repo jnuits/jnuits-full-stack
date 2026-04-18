@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getAuthContext, hasOperatorRole } from "@/lib/auth/session";
 import { upsertCloudinaryMediaAsset } from "@/lib/content/media-assets";
 import type { Json } from "@/lib/db/types";
+import { withApiGuard } from "@/lib/security/with-api-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const mediaAssetSchema = z.object({
@@ -23,7 +24,7 @@ const mediaAssetSchema = z.object({
   width: z.number().int().positive().nullable().optional(),
 });
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const auth = await getAuthContext();
 
   if (!auth.user) {
@@ -88,3 +89,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withApiGuard(handlePost);

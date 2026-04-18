@@ -1,15 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { logServerError } from "@/lib/errors/api-error";
+
+import { brandProfile } from "@/lib/branding";
+import { sendEmail } from "@/lib/notifications/send-email";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
+
+const contactCategories = [
+  "general",
+  "membership",
+  "certificate",
+  "events",
+  "media",
+  "partnership",
+] as const;
+
+type ContactCategory = (typeof contactCategories)[number];
+
+const categoryLabels: Record<ContactCategory, string> = {
+  certificate: "Certificate verification",
+  events: "Events and programs",
+  general: "General inquiry",
+  media: "Media and public relations",
+  membership: "Membership and alumni",
+  partnership: "Partnership and sponsorship",
+};
 
 const contactSchema = z.object({
   name: z.string().trim().min(2).max(80),
   email: z.string().trim().email(),
+  category: z.enum(contactCategories).default("general"),
   subject: z.string().trim().min(3).max(120),
   message: z.string().trim().min(10).max(3000),
-  website: z.string().trim().max(0).optional().or(z.literal("")),
+  website: z.string().trim().max(200).optional().or(z.literal("")),
 });
 
 function escapeHtml(value: string) {
@@ -45,6 +68,7 @@ async function parsePayload(request: NextRequest) {
     data: {
       name: formData.get("name"),
       email: formData.get("email"),
+      category: formData.get("category") || undefined,
       subject: formData.get("subject"),
       message: formData.get("message"),
       website: formData.get("website"),
@@ -85,53 +109,42 @@ async function handleContactSubmit(request: NextRequest): Promise<NextResponse> 
       : NextResponse.json({ success: true }, { status: 200 });
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL;
   const replyTo = process.env.RESEND_REPLY_TO || parsed.data.email;
-
-  if (!apiKey || !from) {
-    const message = "Contact delivery is not configured yet.";
-    return parsedPayload.isFormPost
-      ? buildContactRedirect(request, "error", message)
-      : NextResponse.json({ message }, { status: 503 });
-  }
 
   const safeMessage = escapeHtml(parsed.data.message).replace(/\n/g, "<br />");
   const safeName = escapeHtml(parsed.data.name);
   const safeEmail = escapeHtml(parsed.data.email);
+  const safeCategory = escapeHtml(categoryLabels[parsed.data.category]);
   const safeSubject = escapeHtml(parsed.data.subject);
+  const safeSource = escapeHtml(
+    request.headers.get("referer")?.slice(0, 240) || "Public contact page"
+  );
 
-  const resendResponse = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: ["info@jnuits.org.bd"],
-      reply_to: replyTo,
-      subject: `[JnUITS Contact] ${parsed.data.subject}`,
-      html: `
+  const delivery = await sendEmail({
+    to: brandProfile.email,
+    replyTo,
+    subject: `[JnUITS Contact] ${parsed.data.subject}`,
+    html: `
         <h2>New JnUITS contact message</h2>
         <p><strong>Name:</strong> ${safeName}</p>
         <p><strong>Email:</strong> ${safeEmail}</p>
+        <p><strong>Category:</strong> ${safeCategory}</p>
         <p><strong>Subject:</strong> ${safeSubject}</p>
+        <p><strong>Source:</strong> ${safeSource}</p>
         <p><strong>Message:</strong></p>
         <p>${safeMessage}</p>
       `,
-    }),
   });
 
-  if (!resendResponse.ok) {
-    const errorPayload = await resendResponse.json().catch(() => null);
-    logServerError("contact/submit Resend upstream", errorPayload);
-    const message =
-      "Unable to send your message right now. Please try again or contact us directly.";
+  if (!delivery.success) {
+    const isMissingConfig = delivery.error === "Email delivery not configured.";
+    const message = isMissingConfig
+      ? "Contact delivery is not configured yet."
+      : "Unable to send your message right now. Please try again or contact us directly.";
 
     return parsedPayload.isFormPost
       ? buildContactRedirect(request, "error", message)
-      : NextResponse.json({ message }, { status: 502 });
+      : NextResponse.json({ message }, { status: isMissingConfig ? 503 : 502 });
   }
 
   return parsedPayload.isFormPost

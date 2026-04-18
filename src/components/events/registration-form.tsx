@@ -35,6 +35,7 @@ export function RegistrationForm({
       name: formData.get("name") as string,
       email: formData.get("email") as string,
       phone: (formData.get("phone") as string) || undefined,
+      website: (formData.get("website") as string) || "",
     };
 
     try {
@@ -216,6 +217,17 @@ export function RegistrationForm({
             autoComplete="tel"
             placeholder="+880 1XXX XXXXXX"
             className="input-field mt-1 w-full"
+            disabled={state.status === "loading"}
+          />
+        </div>
+
+        <div className="contact-honeypot" aria-hidden="true">
+          <label htmlFor="reg-website">Website</label>
+          <input
+            id="reg-website"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
             disabled={state.status === "loading"}
           />
         </div>

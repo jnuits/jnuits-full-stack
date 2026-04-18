@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
+
 import { setAdminFlash } from "@/lib/admin/flash";
 import {
   insertAuditEvent as recordAuditEvent,
@@ -15,20 +17,133 @@ function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function asBoolean(value: FormDataEntryValue | null) {
-  return typeof value === "string" && value === "true";
-}
+const booleanStringSchema = z
+  .enum(["true", "false"])
+  .optional()
+  .default("false")
+  .transform((value) => value === "true");
+const optionalInteger = (fallback: number, max = 1000000000) =>
+  z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().min(0).max(max).optional().default(fallback)
+  );
+const optionalText = (max: number) => z.string().trim().max(max).optional().default("");
 
-function asInteger(value: string, fallback = 0) {
-  const parsed = Number.parseInt(value, 10);
+const mediaAssetFormSchema = z.object({
+  altText: optionalText(300),
+  assetId: optionalText(80),
+  bytes: optionalInteger(0).optional(),
+  durationSeconds: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().nonnegative().optional()
+  ),
+  format: optionalText(40),
+  height: optionalInteger(0, 100000),
+  isPublic: booleanStringSchema,
+  mediaKind: z.enum(["image", "video"]),
+  metadataJson: optionalText(50000),
+  publicId: z.string().trim().min(1, "Cloudinary public ID is required.").max(300),
+  resourceType: z.string().trim().min(1, "Resource type is required.").max(80),
+  secureUrl: z.string().trim().url("Secure URL must be valid.").max(1000),
+  thumbnailUrl: z.string().trim().url().optional().or(z.literal("")),
+  title: optionalText(180),
+  width: optionalInteger(0, 100000),
+});
 
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
+const contentPageFormSchema = z.object({
+  bodyJson: optionalText(500000),
+  eyebrow: optionalText(120),
+  slug: z.string().trim().min(1, "Choose a page slug.").max(120),
+  status: optionalText(40).default("draft"),
+  summary: optionalText(1000),
+  title: z.string().trim().min(1, "Provide a title.").max(180),
+});
 
-function asFloat(value: string) {
-  const parsed = Number.parseFloat(value);
+const contentPostFormSchema = z.object({
+  body: optionalText(100000),
+  category: optionalText(80),
+  contentType: z.string().trim().min(1, "Type is required.").max(40),
+  ctaHref: optionalText(1000),
+  endsAt: optionalText(80),
+  excerpt: optionalText(1000),
+  location: optionalText(180),
+  mediaAssetId: optionalText(80),
+  postId: optionalText(80),
+  publishedAt: optionalText(80),
+  readTime: optionalText(40),
+  slug: optionalText(180),
+  startsAt: optionalText(80),
+  status: optionalText(40).default("draft"),
+  summary: optionalText(1000),
+  title: z.string().trim().min(1, "Title is required.").max(220),
+});
 
-  return Number.isFinite(parsed) ? parsed : null;
+const blogReviewFormSchema = z.object({
+  postId: z.string().trim().min(1, "The member blog identifier is missing.").max(80),
+  publishedAt: optionalText(80),
+  reviewNote: optionalText(1500),
+});
+
+const galleryEntryFormSchema = z.object({
+  caption: optionalText(1000),
+  entryId: optionalText(80),
+  mediaAssetId: z.string().trim().min(1, "Media asset is required.").max(80),
+  sortOrder: optionalInteger(100, 9999),
+  status: optionalText(40).default("draft"),
+  title: z.string().trim().min(1, "Title is required.").max(180),
+});
+
+const developerProfileFormSchema = z.object({
+  bio: z.string().trim().min(1, "Bio is required.").max(3000),
+  focus: z.string().trim().min(1, "Focus is required.").max(180),
+  isLead: booleanStringSchema,
+  mediaAssetId: optionalText(80),
+  name: z.string().trim().min(1, "Name is required.").max(180),
+  profileId: optionalText(80),
+  role: z.string().trim().min(1, "Role is required.").max(180),
+  sortOrder: optionalInteger(100, 9999),
+  status: optionalText(40).default("draft"),
+});
+
+const projectFormSchema = z.object({
+  category: optionalText(80).default("other"),
+  completedAt: optionalText(80),
+  coverImageUrl: optionalText(1000),
+  demoUrl: optionalText(1000),
+  description: optionalText(10000),
+  githubUrl: optionalText(1000),
+  isFeatured: booleanStringSchema,
+  slug: optionalText(180),
+  startedAt: optionalText(80),
+  status: optionalText(40).default("active"),
+  tagline: optionalText(300),
+  techStack: optionalText(1000),
+  title: z.string().trim().min(1, "Title is required.").max(180),
+});
+
+const updateProjectFormSchema = projectFormSchema.extend({
+  projectId: z.string().trim().min(1, "Project ID is required.").max(80),
+});
+
+const deleteProjectFormSchema = z.object({
+  projectId: z.string().trim().min(1, "Project ID is missing.").max(80),
+});
+
+const projectContributorFormSchema = z.object({
+  joinedAt: optionalText(80),
+  jnuitsId: z.string().trim().min(1, "JnUITS ID is required.").max(80).transform((value) => value.toUpperCase()),
+  projectId: z.string().trim().min(1, "Project ID is required.").max(80),
+  role: optionalText(120).default("contributor"),
+});
+
+const removeContributorFormSchema = z.object({
+  contributorId: z.string().trim().min(1, "Contributor record ID is missing.").max(80),
+});
+
+function pickFormFields(formData: FormData, fields: string[]) {
+  return Object.fromEntries(
+    fields.map((field) => [field, asString(formData.get(field))])
+  );
 }
 
 function parseJsonField(value: string, fallback: Json) {
@@ -78,31 +193,54 @@ export async function saveMediaAsset(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const assetId = asString(formData.get("assetId"));
-  const altText = asString(formData.get("altText"));
-  const bytes = asString(formData.get("bytes"));
-  const durationSeconds = asString(formData.get("durationSeconds"));
-  const format = asString(formData.get("format"));
-  const height = asString(formData.get("height"));
-  const isPublic = asBoolean(formData.get("isPublic"));
-  const mediaKind = asString(formData.get("mediaKind"));
-  const metadataJson = asString(formData.get("metadataJson"));
-  const publicId = asString(formData.get("publicId"));
-  const resourceType = asString(formData.get("resourceType"));
-  const secureUrl = asString(formData.get("secureUrl"));
-  const thumbnailUrl = asString(formData.get("thumbnailUrl"));
-  const title = asString(formData.get("title"));
-  const width = asString(formData.get("width"));
+  const parsed = mediaAssetFormSchema.safeParse(
+    pickFormFields(formData, [
+      "assetId",
+      "altText",
+      "bytes",
+      "durationSeconds",
+      "format",
+      "height",
+      "isPublic",
+      "mediaKind",
+      "metadataJson",
+      "publicId",
+      "resourceType",
+      "secureUrl",
+      "thumbnailUrl",
+      "title",
+      "width",
+    ])
+  );
 
-  if (!publicId || !secureUrl || !resourceType || !mediaKind) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Media asset not saved",
       message:
+        parsed.error.issues[0]?.message ||
         "Cloudinary public ID, secure URL, resource type, and media kind are required.",
     });
     redirect("/admin/content");
   }
+
+  const {
+    altText,
+    assetId,
+    bytes,
+    durationSeconds,
+    format,
+    height,
+    isPublic,
+    mediaKind,
+    metadataJson,
+    publicId,
+    resourceType,
+    secureUrl,
+    thumbnailUrl,
+    title,
+    width,
+  } = parsed.data;
 
   try {
     await upsertCloudinaryMediaAsset(admin, {
@@ -110,19 +248,19 @@ export async function saveMediaAsset(formData: FormData) {
       assetId: assetId || null,
       input: {
         altText,
-        bytes: bytes ? asInteger(bytes) : null,
-        durationSeconds: durationSeconds ? asFloat(durationSeconds) : null,
+        bytes: bytes || null,
+        durationSeconds: durationSeconds ?? null,
         format,
-        height: height ? asInteger(height) : null,
+        height: height || null,
         isPublic,
-        mediaKind: mediaKind === "video" ? "video" : "image",
+        mediaKind,
         metadata: parseJsonField(metadataJson, {}),
         publicId,
         resourceType,
         secureUrl,
         thumbnailUrl,
         title,
-        width: width ? asInteger(width) : null,
+        width: width || null,
       },
     });
 
@@ -156,21 +294,20 @@ export async function saveContentPage(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const bodyJson = asString(formData.get("bodyJson"));
-  const eyebrow = asString(formData.get("eyebrow"));
-  const slug = asString(formData.get("slug"));
-  const status = asString(formData.get("status")) || "draft";
-  const summary = asString(formData.get("summary"));
-  const title = asString(formData.get("title"));
+  const parsed = contentPageFormSchema.safeParse(
+    pickFormFields(formData, ["bodyJson", "eyebrow", "slug", "status", "summary", "title"])
+  );
 
-  if (!slug || !title) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Content page not saved",
-      message: "Choose a page slug and provide a title.",
+      message: parsed.error.issues[0]?.message || "Choose a page slug and provide a title.",
     });
     redirect("/admin/content");
   }
+
+  const { bodyJson, eyebrow, slug, status, summary, title } = parsed.data;
 
   try {
     const { data, error } = await admin
@@ -237,28 +374,62 @@ export async function saveContentPost(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const category = asString(formData.get("category"));
-  const contentType = asString(formData.get("contentType"));
-  const body = asString(formData.get("body"));
-  const ctaHref = asString(formData.get("ctaHref"));
-  const endsAt = asString(formData.get("endsAt"));
-  const excerpt = asString(formData.get("excerpt"));
-  const location = asString(formData.get("location"));
-  const mediaAssetId = asString(formData.get("mediaAssetId"));
-  const postId = asString(formData.get("postId"));
-  const publishedAt = asString(formData.get("publishedAt"));
-  const readTime = asString(formData.get("readTime"));
-  const slug = slugify(asString(formData.get("slug")) || asString(formData.get("title")));
-  const startsAt = asString(formData.get("startsAt"));
-  const status = asString(formData.get("status")) || "draft";
-  const summary = asString(formData.get("summary"));
-  const title = asString(formData.get("title"));
+  const parsed = contentPostFormSchema.safeParse(
+    pickFormFields(formData, [
+      "category",
+      "contentType",
+      "body",
+      "ctaHref",
+      "endsAt",
+      "excerpt",
+      "location",
+      "mediaAssetId",
+      "postId",
+      "publishedAt",
+      "readTime",
+      "slug",
+      "startsAt",
+      "status",
+      "summary",
+      "title",
+    ])
+  );
 
-  if (!contentType || !slug || !title) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Content post not saved",
-      message: "Type, slug, and title are required for public content entries.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "Type, slug, and title are required for public content entries.",
+    });
+    redirect("/admin/content");
+  }
+
+  const {
+    body,
+    category,
+    contentType,
+    ctaHref,
+    endsAt,
+    excerpt,
+    location,
+    mediaAssetId,
+    postId,
+    publishedAt,
+    readTime,
+    startsAt,
+    status,
+    summary,
+    title,
+  } = parsed.data;
+  const slug = slugify(parsed.data.slug || title);
+
+  if (!slug) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Content post not saved",
+      message: "Title or slug must produce a valid public slug.",
     });
     redirect("/admin/content");
   }
@@ -357,18 +528,23 @@ export async function publishMemberBlogSubmission(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const postId = asString(formData.get("postId"));
-  const publishedAt = parseDateTime(asString(formData.get("publishedAt")));
-  const reviewNote = asString(formData.get("reviewNote"));
+  const parsed = blogReviewFormSchema.safeParse(
+    pickFormFields(formData, ["postId", "publishedAt", "reviewNote"])
+  );
 
-  if (!postId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Blog review failed",
-      message: "The member blog identifier is missing.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "The member blog identifier is missing.",
     });
     redirect("/admin/content");
   }
+
+  const { postId, reviewNote } = parsed.data;
+  const publishedAt = parseDateTime(parsed.data.publishedAt);
 
   const post = await loadSubmittedBlog(admin, postId);
 
@@ -456,17 +632,22 @@ export async function returnMemberBlogSubmission(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const postId = asString(formData.get("postId"));
-  const reviewNote = asString(formData.get("reviewNote"));
+  const parsed = blogReviewFormSchema.safeParse(
+    pickFormFields(formData, ["postId", "publishedAt", "reviewNote"])
+  );
 
-  if (!postId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Blog review failed",
-      message: "The member blog identifier is missing.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "The member blog identifier is missing.",
     });
     redirect("/admin/content");
   }
+
+  const { postId, reviewNote } = parsed.data;
 
   const post = await loadSubmittedBlog(admin, postId);
 
@@ -543,22 +724,29 @@ export async function saveGalleryEntry(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const caption = asString(formData.get("caption"));
-  const entryId = asString(formData.get("entryId"));
-  const mediaAssetId = asString(formData.get("mediaAssetId"));
-  const sortOrder =
-    Number.parseInt(asString(formData.get("sortOrder")) || "100", 10) || 100;
-  const status = asString(formData.get("status")) || "draft";
-  const title = asString(formData.get("title"));
+  const parsed = galleryEntryFormSchema.safeParse(
+    pickFormFields(formData, [
+      "caption",
+      "entryId",
+      "mediaAssetId",
+      "sortOrder",
+      "status",
+      "title",
+    ])
+  );
 
-  if (!title || !mediaAssetId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Gallery entry not saved",
-      message: "Title and media asset are required for the gallery.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "Title and media asset are required for the gallery.",
     });
     redirect("/admin/content");
   }
+
+  const { caption, entryId, mediaAssetId, sortOrder, status, title } = parsed.data;
 
   try {
     const payload = {
@@ -621,25 +809,42 @@ export async function saveDeveloperProfile(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const bio = asString(formData.get("bio"));
-  const focus = asString(formData.get("focus"));
-  const isLead = asBoolean(formData.get("isLead"));
-  const mediaAssetId = asString(formData.get("mediaAssetId"));
-  const name = asString(formData.get("name"));
-  const profileId = asString(formData.get("profileId"));
-  const role = asString(formData.get("role"));
-  const sortOrder =
-    Number.parseInt(asString(formData.get("sortOrder")) || "100", 10) || 100;
-  const status = asString(formData.get("status")) || "draft";
+  const parsed = developerProfileFormSchema.safeParse(
+    pickFormFields(formData, [
+      "bio",
+      "focus",
+      "isLead",
+      "mediaAssetId",
+      "name",
+      "profileId",
+      "role",
+      "sortOrder",
+      "status",
+    ])
+  );
 
-  if (!name || !role || !focus || !bio) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Developer profile not saved",
-      message: "Name, role, focus, and bio are required.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "Name, role, focus, and bio are required.",
     });
     redirect("/admin/content");
   }
+
+  const {
+    bio,
+    focus,
+    isLead,
+    mediaAssetId,
+    name,
+    profileId,
+    role,
+    sortOrder,
+    status,
+  } = parsed.data;
 
   try {
     const payload = {
@@ -717,26 +922,57 @@ export async function createProject(formData: FormData) {
   if (!actorUserId) redirect("/login");
 
   const admin = createAdminClient();
-  const title = asString(formData.get("title"));
-  const tagline = asString(formData.get("tagline"));
-  const description = asString(formData.get("description"));
-  const category = asString(formData.get("category")) || "other";
-  const status = asString(formData.get("status")) || "active";
-  const techStackRaw = asString(formData.get("techStack"));
+  const parsed = projectFormSchema.safeParse(
+    pickFormFields(formData, [
+      "title",
+      "tagline",
+      "description",
+      "category",
+      "status",
+      "techStack",
+      "githubUrl",
+      "demoUrl",
+      "coverImageUrl",
+      "startedAt",
+      "completedAt",
+      "isFeatured",
+      "slug",
+    ])
+  );
+
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Project not saved",
+      message: parsed.error.issues[0]?.message || "Title is required.",
+    });
+    redirect("/admin/content");
+  }
+
+  const {
+    category,
+    completedAt: completedAtRaw,
+    coverImageUrl,
+    demoUrl,
+    description,
+    githubUrl,
+    isFeatured,
+    startedAt: startedAtRaw,
+    status,
+    tagline,
+    title,
+  } = parsed.data;
+  const techStackRaw = parsed.data.techStack;
   const techStack = techStackRaw
     ? techStackRaw.split(",").map((t) => t.trim()).filter(Boolean)
     : [];
-  const githubUrl = asString(formData.get("githubUrl"));
-  const demoUrl = asString(formData.get("demoUrl"));
-  const coverImageUrl = asString(formData.get("coverImageUrl"));
-  const startedAt = parseDate(asString(formData.get("startedAt")));
-  const completedAt = parseDate(asString(formData.get("completedAt")));
-  const isFeatured = asBoolean(formData.get("isFeatured"));
-  const inputSlug = asString(formData.get("slug"));
+  const startedAt = parseDate(startedAtRaw);
+  const completedAt = parseDate(completedAtRaw);
+  const inputSlug = parsed.data.slug;
   const slug = slugify(inputSlug || title);
 
-  if (!title || !slug) {
-    await setAdminFlash({ tone: "error", title: "Project not saved", message: "Title is required." });
+  if (!slug) {
+    await setAdminFlash({ tone: "error", title: "Project not saved", message: "Title or slug must produce a valid public slug." });
     redirect("/admin/content");
   }
 
@@ -792,27 +1028,56 @@ export async function updateProject(formData: FormData) {
   if (!actorUserId) redirect("/login");
 
   const admin = createAdminClient();
-  const projectId = asString(formData.get("projectId"));
-  const title = asString(formData.get("title"));
-  const tagline = asString(formData.get("tagline"));
-  const description = asString(formData.get("description"));
-  const category = asString(formData.get("category")) || "other";
-  const status = asString(formData.get("status")) || "active";
-  const techStackRaw = asString(formData.get("techStack"));
+  const parsed = updateProjectFormSchema.safeParse(
+    pickFormFields(formData, [
+      "projectId",
+      "title",
+      "tagline",
+      "description",
+      "category",
+      "status",
+      "techStack",
+      "githubUrl",
+      "demoUrl",
+      "coverImageUrl",
+      "startedAt",
+      "completedAt",
+      "isFeatured",
+      "slug",
+    ])
+  );
+
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Project not updated",
+      message:
+        parsed.error.issues[0]?.message ||
+        "Project ID and title are required.",
+    });
+    redirect("/admin/content");
+  }
+
+  const {
+    category,
+    completedAt: completedAtRaw,
+    coverImageUrl,
+    demoUrl,
+    description,
+    githubUrl,
+    isFeatured,
+    projectId,
+    startedAt: startedAtRaw,
+    status,
+    tagline,
+    title,
+  } = parsed.data;
+  const techStackRaw = parsed.data.techStack;
   const techStack = techStackRaw
     ? techStackRaw.split(",").map((t) => t.trim()).filter(Boolean)
     : [];
-  const githubUrl = asString(formData.get("githubUrl"));
-  const demoUrl = asString(formData.get("demoUrl"));
-  const coverImageUrl = asString(formData.get("coverImageUrl"));
-  const startedAt = parseDate(asString(formData.get("startedAt")));
-  const completedAt = parseDate(asString(formData.get("completedAt")));
-  const isFeatured = asBoolean(formData.get("isFeatured"));
-
-  if (!projectId || !title) {
-    await setAdminFlash({ tone: "error", title: "Project not updated", message: "Project ID and title are required." });
-    redirect("/admin/content");
-  }
+  const startedAt = parseDate(startedAtRaw);
+  const completedAt = parseDate(completedAtRaw);
 
   try {
     const { error } = await admin
@@ -864,12 +1129,20 @@ export async function deleteProject(formData: FormData) {
   if (!actorUserId) redirect("/login");
 
   const admin = createAdminClient();
-  const projectId = asString(formData.get("projectId"));
+  const parsed = deleteProjectFormSchema.safeParse(
+    pickFormFields(formData, ["projectId"])
+  );
 
-  if (!projectId) {
-    await setAdminFlash({ tone: "error", title: "Delete failed", message: "Project ID is missing." });
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Delete failed",
+      message: parsed.error.issues[0]?.message || "Project ID is missing.",
+    });
     redirect("/admin/content");
   }
+
+  const { projectId } = parsed.data;
 
   try {
     const { error } = await admin.from("projects").delete().eq("id", projectId);
@@ -903,15 +1176,23 @@ export async function addProjectContributor(formData: FormData) {
   if (!actorUserId) redirect("/login");
 
   const admin = createAdminClient();
-  const projectId = asString(formData.get("projectId"));
-  const jnuitsId = asString(formData.get("jnuitsId")).toUpperCase();
-  const role = asString(formData.get("role")) || "contributor";
-  const joinedAt = parseDate(asString(formData.get("joinedAt")));
+  const parsed = projectContributorFormSchema.safeParse(
+    pickFormFields(formData, ["projectId", "jnuitsId", "role", "joinedAt"])
+  );
 
-  if (!projectId || !jnuitsId) {
-    await setAdminFlash({ tone: "error", title: "Contributor not added", message: "Project ID and JnUITS ID are required." });
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Contributor not added",
+      message:
+        parsed.error.issues[0]?.message ||
+        "Project ID and JnUITS ID are required.",
+    });
     redirect("/admin/content");
   }
+
+  const { jnuitsId, projectId, role } = parsed.data;
+  const joinedAt = parseDate(parsed.data.joinedAt);
 
   try {
     const { data: member, error: memberError } = await admin
@@ -954,12 +1235,22 @@ export async function removeProjectContributor(formData: FormData) {
   if (!actorUserId) redirect("/login");
 
   const admin = createAdminClient();
-  const contributorId = asString(formData.get("contributorId"));
+  const parsed = removeContributorFormSchema.safeParse(
+    pickFormFields(formData, ["contributorId"])
+  );
 
-  if (!contributorId) {
-    await setAdminFlash({ tone: "error", title: "Remove failed", message: "Contributor record ID is missing." });
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Remove failed",
+      message:
+        parsed.error.issues[0]?.message ||
+        "Contributor record ID is missing.",
+    });
     redirect("/admin/content");
   }
+
+  const { contributorId } = parsed.data;
 
   try {
     const { error } = await admin.from("project_contributors").delete().eq("id", contributorId);

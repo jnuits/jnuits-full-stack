@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
+
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -10,8 +12,56 @@ function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function asBoolean(value: FormDataEntryValue | null) {
-  return typeof value === "string" && value === "true";
+const booleanStringSchema = z
+  .enum(["true", "false"])
+  .optional()
+  .default("false")
+  .transform((value) => value === "true");
+
+const committeeTermStatusSchema = z.enum(["draft", "upcoming", "active", "archived"]);
+const committeeAssignmentStatusSchema = z.enum(["planned", "active", "completed"]);
+
+const committeeTermSchema = z.object({
+  endsOn: z.string().trim().max(40).optional().default(""),
+  isPublic: booleanStringSchema,
+  slug: z.string().trim().max(120).optional().default(""),
+  startsOn: z.string().trim().min(1, "Start date is required.").max(40),
+  status: committeeTermStatusSchema.optional().default("draft"),
+  summary: z.string().trim().max(1000).optional().default(""),
+  termId: z.string().trim().max(80).optional().default(""),
+  title: z.string().trim().min(1, "Title is required.").max(180),
+});
+
+const committeeAssignmentSchema = z
+  .object({
+    assignmentId: z.string().trim().max(80).optional().default(""),
+    bio: z.string().trim().max(2500).optional().default(""),
+    displayName: z.string().trim().max(180).optional().default(""),
+    endsOn: z.string().trim().max(40).optional().default(""),
+    memberId: z.string().trim().max(80).optional().default(""),
+    roleId: z.string().trim().min(1, "Role is required.").max(80),
+    sortOrder: z.coerce.number().int().min(0).max(9999).optional().default(100),
+    startsOn: z.string().trim().max(40).optional().default(""),
+    status: committeeAssignmentStatusSchema.optional().default("active"),
+    termId: z.string().trim().min(1, "Term is required.").max(80),
+  })
+  .refine((value) => Boolean(value.memberId || value.displayName), {
+    message: "Provide either a linked member or a display name.",
+    path: ["displayName"],
+  });
+
+const rolloverCommitteeTermSchema = committeeTermSchema.extend({
+  assignmentStatus: committeeAssignmentStatusSchema.optional().default("planned"),
+  carryAssignments: booleanStringSchema,
+  closeSourceTerm: booleanStringSchema,
+  sourceTermId: z.string().trim().min(1, "Source term is required.").max(80),
+  status: committeeTermStatusSchema.optional().default("upcoming"),
+});
+
+function pickFormFields(formData: FormData, fields: string[]) {
+  return Object.fromEntries(
+    fields.map((field) => [field, asString(formData.get(field))])
+  );
 }
 
 function slugify(value: string) {
@@ -42,20 +92,36 @@ export async function saveCommitteeTerm(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const termId = asString(formData.get("termId"));
-  const title = asString(formData.get("title"));
-  const slug = slugify(asString(formData.get("slug")) || title);
-  const summary = asString(formData.get("summary"));
-  const startsOn = asString(formData.get("startsOn"));
-  const endsOn = asString(formData.get("endsOn"));
-  const status = asString(formData.get("status")) || "draft";
-  const isPublic = asBoolean(formData.get("isPublic"));
+  const parsed = committeeTermSchema.safeParse(
+    pickFormFields(formData, [
+      "termId",
+      "title",
+      "slug",
+      "summary",
+      "startsOn",
+      "endsOn",
+      "status",
+      "isPublic",
+    ])
+  );
 
-  if (!title || !slug || !startsOn) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Committee term not saved",
-      message: "Title, slug, and start date are required.",
+      message: parsed.error.issues[0]?.message || "Title, slug, and start date are required.",
+    });
+    redirect("/admin/committee");
+  }
+
+  const { endsOn, isPublic, startsOn, status, summary, termId, title } = parsed.data;
+  const slug = slugify(parsed.data.slug || title);
+
+  if (!slug) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Committee term not saved",
+      message: "Title or slug must produce a valid public slug.",
     });
     redirect("/admin/committee");
   }
@@ -118,35 +184,44 @@ export async function saveCommitteeAssignment(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const assignmentId = asString(formData.get("assignmentId"));
-  const bio = asString(formData.get("bio"));
-  const displayName = asString(formData.get("displayName"));
-  const endsOn = asString(formData.get("endsOn"));
-  const memberId = asString(formData.get("memberId"));
-  const roleId = asString(formData.get("roleId"));
-  const sortOrder =
-    Number.parseInt(asString(formData.get("sortOrder")) || "100", 10) || 100;
-  const startsOn = asString(formData.get("startsOn"));
-  const status = asString(formData.get("status")) || "active";
-  const termId = asString(formData.get("termId"));
+  const parsed = committeeAssignmentSchema.safeParse(
+    pickFormFields(formData, [
+      "assignmentId",
+      "bio",
+      "displayName",
+      "endsOn",
+      "memberId",
+      "roleId",
+      "sortOrder",
+      "startsOn",
+      "status",
+      "termId",
+    ])
+  );
 
-  if (!termId || !roleId) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Committee assignment not saved",
-      message: "Select both a term and a role before saving an assignment.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "Select both a term and a role before saving an assignment.",
     });
     redirect("/admin/committee");
   }
 
-  if (!memberId && !displayName) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Committee assignment not saved",
-      message: "Provide either a linked member or a display name.",
-    });
-    redirect("/admin/committee");
-  }
+  const {
+    assignmentId,
+    bio,
+    displayName,
+    endsOn,
+    memberId,
+    roleId,
+    sortOrder,
+    startsOn,
+    status,
+    termId,
+  } = parsed.data;
 
   const payload = {
     bio: bio || null,
@@ -221,23 +296,52 @@ export async function rolloverCommitteeTerm(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const sourceTermId = asString(formData.get("sourceTermId"));
-  const title = asString(formData.get("title"));
-  const slug = slugify(asString(formData.get("slug")) || title);
-  const summary = asString(formData.get("summary"));
-  const startsOn = asString(formData.get("startsOn"));
-  const endsOn = asString(formData.get("endsOn"));
-  const status = asString(formData.get("status")) || "upcoming";
-  const isPublic = asBoolean(formData.get("isPublic"));
-  const carryAssignments = asBoolean(formData.get("carryAssignments"));
-  const closeSourceTerm = asBoolean(formData.get("closeSourceTerm"));
-  const assignmentStatus = asString(formData.get("assignmentStatus")) || "planned";
+  const parsed = rolloverCommitteeTermSchema.safeParse(
+    pickFormFields(formData, [
+      "sourceTermId",
+      "title",
+      "slug",
+      "summary",
+      "startsOn",
+      "endsOn",
+      "status",
+      "isPublic",
+      "carryAssignments",
+      "closeSourceTerm",
+      "assignmentStatus",
+    ])
+  );
 
-  if (!sourceTermId || !title || !slug || !startsOn) {
+  if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Committee rollover failed",
-      message: "Choose a source term, title, slug, and new start date.",
+      message:
+        parsed.error.issues[0]?.message ||
+        "Choose a source term, title, slug, and new start date.",
+    });
+    redirect("/admin/committee");
+  }
+
+  const {
+    assignmentStatus,
+    carryAssignments,
+    closeSourceTerm,
+    endsOn,
+    isPublic,
+    sourceTermId,
+    startsOn,
+    status,
+    summary,
+    title,
+  } = parsed.data;
+  const slug = slugify(parsed.data.slug || title);
+
+  if (!slug) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Committee rollover failed",
+      message: "Title or slug must produce a valid public slug.",
     });
     redirect("/admin/committee");
   }

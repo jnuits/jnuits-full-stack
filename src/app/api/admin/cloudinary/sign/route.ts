@@ -7,13 +7,14 @@ import {
   normalizeCloudinaryFolder,
 } from "@/lib/cloudinary/config";
 import { getAuthContext, hasOperatorRole } from "@/lib/auth/session";
+import { withApiGuard } from "@/lib/security/with-api-guard";
 
 const requestSchema = z.object({
   folder: z.string().trim().max(180).optional(),
   resourceType: z.enum(["auto", "image", "video"]).optional(),
 });
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const auth = await getAuthContext();
 
   if (!auth.user) {
@@ -83,3 +84,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withApiGuard(handlePost);

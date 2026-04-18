@@ -9,12 +9,13 @@ import {
 } from "@/lib/supabase/config";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { rateLimitError } from "@/lib/errors/api-error";
+import { withApiGuard } from "@/lib/security/with-api-guard";
 
 const requestSchema = z.object({
   currentPassword: z.string().min(8),
 });
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const auth = await getAuthContext();
 
   if (!auth.user?.email) {
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
   return response;
 }
 
-export async function DELETE() {
+async function handleDelete() {
   const response = NextResponse.json(
     { message: "Step-up verification cleared." },
     { status: 200 }
@@ -105,3 +106,6 @@ export async function DELETE() {
 
   return response;
 }
+
+export const POST = withApiGuard(handlePost);
+export const DELETE = withApiGuard(handleDelete);
