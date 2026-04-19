@@ -84,7 +84,7 @@ export default async function PortalBlogsPage({
             </div>
           </div>
           <div className="portal-section__body">
-            <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.7 }}>
+            <p style={{ fontSize: "0.88rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
               Blog authoring requires a connected member record. Claim your JNUITS ID or
               ask an admin to link this account to a member profile.
             </p>
@@ -95,20 +95,20 @@ export default async function PortalBlogsPage({
           {/* Flash messages */}
           {message && (
             <div className="flash-panel" data-tone="success">
-              <p style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted)", marginBottom: "0.4rem" }}>
+              <p style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)", marginBottom: "0.4rem" }}>
                 Portal feedback
               </p>
               <p style={{ fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.5 }}>Draft workflow updated</p>
-              <p style={{ fontSize: "0.84rem", color: "var(--muted)", marginTop: "0.3rem", lineHeight: 1.65 }}>{message}</p>
+              <p style={{ fontSize: "0.84rem", color: "var(--muted-foreground)", marginTop: "0.3rem", lineHeight: 1.65 }}>{message}</p>
             </div>
           )}
           {error && (
             <div className="flash-panel" data-tone="error">
-              <p style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted)", marginBottom: "0.4rem" }}>
+              <p style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)", marginBottom: "0.4rem" }}>
                 Portal feedback
               </p>
               <p style={{ fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.5 }}>Action failed</p>
-              <p style={{ fontSize: "0.84rem", color: "var(--muted)", marginTop: "0.3rem", lineHeight: 1.65 }}>{error}</p>
+              <p style={{ fontSize: "0.84rem", color: "var(--muted-foreground)", marginTop: "0.3rem", lineHeight: 1.65 }}>{error}</p>
             </div>
           )}
 
@@ -237,7 +237,7 @@ export default async function PortalBlogsPage({
                   </div>
                 </div>
                 <div className="portal-section__body" style={{ display: "grid", gap: "0.85rem" }}>
-                  <p style={{ fontSize: "0.83rem", color: "var(--muted)", lineHeight: 1.7 }}>
+                  <p style={{ fontSize: "0.83rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
                     Once the draft is ready, submit it for admin review. Publication
                     remains operator-controlled — editors may publish or return your post
                     with a review note.
@@ -295,7 +295,7 @@ export default async function PortalBlogsPage({
             </div>
             <div className="portal-section__body">
               {snapshot.drafts.length === 0 ? (
-                <p style={{ fontSize: "0.86rem", color: "var(--muted)", lineHeight: 1.7 }}>
+                <p style={{ fontSize: "0.86rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
                   No drafts yet. Use the editor above to write and save your first member post.
                 </p>
               ) : (

@@ -18,7 +18,7 @@ const CATEGORY_TEXT: Record<string, string> = {
   ai: "#f59e0b",
   systems: "#10b981",
   design: "#ec4899",
-  other: "var(--muted)",
+  other: "var(--muted-foreground)",
 };
 
 function CoverPlaceholder({ category }: { category: string }) {
@@ -92,7 +92,7 @@ export default async function ProjectDetailPage({
               <span className="eyebrow">Project detail</span>
               <h1 className="section-title mt-4">{project.title}</h1>
               {project.tagline ? (
-                <p className="mt-3 text-lg font-semibold text-[var(--muted)]">{project.tagline}</p>
+                <p className="mt-3 text-lg font-semibold text-[var(--muted-foreground)]">{project.tagline}</p>
               ) : null}
 
               {/* Description */}
@@ -103,12 +103,12 @@ export default async function ProjectDetailPage({
                       .map((para) => para.trim())
                       .filter(Boolean)
                       .map((para) => (
-                        <p key={para} className="text-base leading-8 text-[var(--muted)]">
+                        <p key={para} className="text-base leading-8 text-[var(--muted-foreground)]">
                           {para}
                         </p>
                       ))
                   : (
-                    <p className="text-base leading-8 text-[var(--muted)]">
+                    <p className="text-base leading-8 text-[var(--muted-foreground)]">
                       No project description has been added yet.
                     </p>
                   )}
@@ -117,7 +117,7 @@ export default async function ProjectDetailPage({
               {/* Tech stack */}
               {project.techStack.length > 0 ? (
                 <div className="mt-6">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                     Tech stack
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -149,7 +149,7 @@ export default async function ProjectDetailPage({
             {/* Meta sidebar */}
             <aside className="grid gap-3">
               <div className="route-tile">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">Timeline</p>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Timeline</p>
                 <p className="mt-2 text-sm text-[var(--fg)]">
                   {project.startedAt
                     ? new Date(project.startedAt).toLocaleDateString("en-BD", { year: "numeric", month: "short" })
@@ -160,7 +160,7 @@ export default async function ProjectDetailPage({
                 </p>
               </div>
               <div className="route-tile">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">Contributors</p>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Contributors</p>
                 <p className="mt-2 text-2xl font-bold">{project.contributorCount}</p>
               </div>
             </aside>
@@ -178,7 +178,7 @@ export default async function ProjectDetailPage({
         </h2>
 
         {project.contributors.length === 0 ? (
-          <p className="mt-4 text-sm text-[var(--muted)]">
+          <p className="mt-4 text-sm text-[var(--muted-foreground)]">
             Contributor records will appear here once an admin adds members to this project.
           </p>
         ) : (
@@ -194,7 +194,7 @@ export default async function ProjectDetailPage({
                       {contributor.fullName}
                     </h3>
                     {contributor.jnuitsId ? (
-                      <p className="mt-0.5 text-xs font-bold uppercase tracking-[0.16em] text-[var(--muted)]">
+                      <p className="mt-0.5 text-xs font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
                         {contributor.jnuitsId}
                       </p>
                     ) : null}
@@ -212,7 +212,7 @@ export default async function ProjectDetailPage({
                 </div>
 
                 {contributor.joinedAt ? (
-                  <p className="text-xs text-[var(--muted)]">
+                  <p className="text-xs text-[var(--muted-foreground)]">
                     Joined{" "}
                     {new Date(contributor.joinedAt).toLocaleDateString("en-BD", {
                       year: "numeric",

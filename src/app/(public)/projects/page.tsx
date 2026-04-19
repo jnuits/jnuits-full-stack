@@ -36,7 +36,7 @@ const CATEGORY_TEXT: Record<string, string> = {
   ai: "#f59e0b",
   systems: "#10b981",
   design: "#ec4899",
-  other: "var(--muted)",
+  other: "var(--muted-foreground)",
 };
 
 const STATUS_STYLE: Record<string, string> = {
@@ -195,7 +195,7 @@ export default async function ProjectsPage({
                     {project.title}
                   </h2>
                   {project.tagline ? (
-                    <p className="mt-2 text-sm font-semibold text-[var(--muted)]">
+                    <p className="mt-2 text-sm font-semibold text-[var(--muted-foreground)]">
                       {project.tagline}
                     </p>
                   ) : null}
@@ -223,7 +223,7 @@ export default async function ProjectsPage({
                         Live demo ↗
                       </Link>
                     ) : null}
-                    <span className="ml-auto text-xs text-[var(--muted)]">
+                    <span className="ml-auto text-xs text-[var(--muted-foreground)]">
                       {project.contributorCount} contributor{project.contributorCount === 1 ? "" : "s"}
                     </span>
                   </div>
@@ -238,7 +238,7 @@ export default async function ProjectsPage({
       <section className="mt-8 section-band">
         <div className="flex items-baseline justify-between gap-4">
           <p className="section-divider">All projects</p>
-          <span className="text-sm text-[var(--muted)]">
+          <span className="text-sm text-[var(--muted-foreground)]">
             {projects.length} project{projects.length === 1 ? "" : "s"}
           </span>
         </div>
@@ -287,7 +287,7 @@ export default async function ProjectsPage({
                       {project.title}
                     </h3>
                     {project.tagline ? (
-                      <p className="mt-0.5 text-xs text-[var(--muted)]">{project.tagline}</p>
+                      <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{project.tagline}</p>
                     ) : null}
                   </div>
                   <span
@@ -310,7 +310,7 @@ export default async function ProjectsPage({
                     </span>
                   ))}
                   {project.techStack.length > 5 ? (
-                    <span className="detail-chip text-xs text-[var(--muted)]">
+                    <span className="detail-chip text-xs text-[var(--muted-foreground)]">
                       +{project.techStack.length - 5} more
                     </span>
                   ) : null}
@@ -326,7 +326,7 @@ export default async function ProjectsPage({
                       GitHub ↗
                     </Link>
                   ) : null}
-                  <span className="ml-auto text-xs text-[var(--muted)]">
+                  <span className="ml-auto text-xs text-[var(--muted-foreground)]">
                     {project.contributorCount} contributor{project.contributorCount === 1 ? "" : "s"}
                   </span>
                 </div>

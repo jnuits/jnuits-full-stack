@@ -175,7 +175,7 @@ export default async function AdminMembershipPage() {
 
       {flash ? (
         <section className="flash-panel" data-tone={flash.tone}>
-          <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Operator feedback
           </p>
           <h2 className="mt-2 font-[family-name:var(--font-heading)] text-2xl font-semibold tracking-[-0.03em]">
@@ -187,51 +187,51 @@ export default async function AdminMembershipPage() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Cycles
           </p>
           <p className="metric-card__value mt-3">{cycles.length}</p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Draft, active, closed, and archived membership windows.
           </p>
         </article>
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Active cycle
           </p>
           <p className="mt-3 text-2xl font-semibold tracking-[-0.03em]">
             {activeCycle?.code || "None"}
           </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             {activeCycle?.title || "Set one cycle active for renewal processing."}
           </p>
         </article>
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Pending renewals
           </p>
           <p className="metric-card__value mt-3">{pendingRenewals}</p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Members waiting for renewal decision or invitation outreach.
           </p>
         </article>
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Active cycle members
           </p>
           <p className="metric-card__value mt-3">{activeMembersInCycles}</p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Members currently active across loaded cycle rows.
           </p>
         </article>
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Batch claims
           </p>
           <p className="mt-3 text-2xl font-semibold tracking-[-0.03em]">
             {totalClaimedInvitations}/{totalIssuedInvitations}
           </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Claimed versus issued invitations across active reconciliation batches.
           </p>
         </article>
@@ -446,7 +446,7 @@ export default async function AdminMembershipPage() {
                     <h3 className="font-[family-name:var(--font-heading)] text-[1.8rem] leading-[0.98] tracking-[-0.04em]">
                       {cycle.title}
                     </h3>
-                    <p className="mt-2 text-sm text-[var(--muted)]">
+                    <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                       {cycle.code} • {cycle.starts_on}
                       {cycle.ends_on ? ` → ${cycle.ends_on}` : ""}
                     </p>
@@ -507,7 +507,7 @@ export default async function AdminMembershipPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h3>{member?.full_name || "Member record"}</h3>
-                      <p className="mt-2 text-sm text-[var(--muted)]">
+                      <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                         {member?.jnuits_id || "Unknown ID"} • Cycle row {row.cycle_id}
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -572,7 +572,7 @@ export default async function AdminMembershipPage() {
                     <h3 className="font-[family-name:var(--font-heading)] text-[1.6rem] leading-[0.98] tracking-[-0.04em]">
                       {batch.label}
                     </h3>
-                    <p className="mt-2 text-sm text-[var(--muted)]">
+                    <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                       Source {batch.source} • status {batch.status}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">

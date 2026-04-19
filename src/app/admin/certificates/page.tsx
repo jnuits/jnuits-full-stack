@@ -175,13 +175,13 @@ export default async function AdminCertificatesPage({
       {/* ── Flash ───────────────────────────────────────────────────────────── */}
       {flash && (
         <section className="flash-panel" data-tone={flash.tone}>
-          <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.2em", color: "var(--muted)" }}>
+          <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.2em", color: "var(--muted-foreground)" }}>
             Operator feedback
           </p>
           <h2 style={{ marginTop: "0.35rem", fontFamily: "var(--font-heading)", fontSize: "1.35rem", fontWeight: 700, letterSpacing: "-0.03em" }}>
             {flash.title}
           </h2>
-          <p style={{ marginTop: "0.3rem", fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.7 }}>{flash.message}</p>
+          <p style={{ marginTop: "0.3rem", fontSize: "0.88rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>{flash.message}</p>
         </section>
       )}
 
@@ -190,46 +190,46 @@ export default async function AdminCertificatesPage({
         <article className="metric-card">
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.7rem" }}>
             <div className="portal-stat-card__icon" style={{ width: "1.75rem", height: "1.75rem" }}><Award size={13} /></div>
-            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted)" }}>Total</p>
+            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)" }}>Total</p>
           </div>
           <p className="metric-card__value">{totalCount}</p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted)" }}>All certificate records</p>
+          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted-foreground)" }}>All certificate records</p>
         </article>
 
         <article className="metric-card">
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.7rem" }}>
             <div className="portal-stat-card__icon" style={{ width: "1.75rem", height: "1.75rem" }}><BookOpen size={13} /></div>
-            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted)" }}>Events</p>
+            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)" }}>Events</p>
           </div>
           <p className="metric-card__value">{typeCounts["event"] ?? 0}</p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted)" }}>Event attendance certs</p>
+          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted-foreground)" }}>Event attendance certs</p>
         </article>
 
         <article className="metric-card">
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.7rem" }}>
             <div className="portal-stat-card__icon" style={{ width: "1.75rem", height: "1.75rem" }}><FileCheck2 size={13} /></div>
-            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted)" }}>Exams</p>
+            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)" }}>Exams</p>
           </div>
           <p className="metric-card__value">{typeCounts["exam"] ?? 0}</p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted)" }}>Exam completion certs</p>
+          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted-foreground)" }}>Exam completion certs</p>
         </article>
 
         <article className="metric-card">
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.7rem" }}>
             <div className="portal-stat-card__icon" style={{ width: "1.75rem", height: "1.75rem" }}><Layers size={13} /></div>
-            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted)" }}>Courses</p>
+            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)" }}>Courses</p>
           </div>
           <p className="metric-card__value">{typeCounts["course"] ?? 0}</p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted)" }}>Course completion certs</p>
+          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted-foreground)" }}>Course completion certs</p>
         </article>
 
         <article className="metric-card" data-tone={dirtyCount > 0 ? "warn" : undefined}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.7rem" }}>
             <div className="portal-stat-card__icon" style={{ width: "1.75rem", height: "1.75rem" }}><ShieldAlert size={13} /></div>
-            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted)" }}>Data issues</p>
+            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)" }}>Data issues</p>
           </div>
           <p className="metric-card__value">{dirtyCount}</p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted)" }}>Unrecognised type values</p>
+          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted-foreground)" }}>Unrecognised type values</p>
         </article>
       </section>
 
@@ -242,7 +242,7 @@ export default async function AdminCertificatesPage({
             <h2 style={{ marginTop: "0.75rem", fontFamily: "var(--font-heading)", fontSize: "clamp(1.6rem,3vw,2.1rem)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.05 }}>
               {editRecord ? `Editing ${editRecord.certificate_id}` : "Issue a new certificate"}
             </h2>
-            <p style={{ marginTop: "0.4rem", fontSize: "0.84rem", color: "var(--muted)", lineHeight: 1.65 }}>
+            <p style={{ marginTop: "0.4rem", fontSize: "0.84rem", color: "var(--muted-foreground)", lineHeight: 1.65 }}>
               {editRecord
                 ? "Modify any field below. The certificate ID cannot be changed — delete and re-add if needed."
                 : "Create a single certificate record manually. For bulk imports, use the CSV panel."}
@@ -335,7 +335,7 @@ export default async function AdminCertificatesPage({
               <h2 style={{ marginTop: "0.75rem", fontFamily: "var(--font-heading)", fontSize: "clamp(1.5rem,3vw,2rem)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.05 }}>
                 CSV certificate import
               </h2>
-              <p style={{ marginTop: "0.4rem", fontSize: "0.84rem", color: "var(--muted)", lineHeight: 1.65 }}>
+              <p style={{ marginTop: "0.4rem", fontSize: "0.84rem", color: "var(--muted-foreground)", lineHeight: 1.65 }}>
                 Paste CSV rows below. Each row must contain 6–7 columns in this order:
               </p>
               <div className="portal-info-row" style={{ marginTop: "0.65rem" }}>
@@ -430,7 +430,7 @@ export default async function AdminCertificatesPage({
               Browse &amp; manage certificates
             </h2>
             {(q || filterType) && (
-              <p style={{ marginTop: "0.4rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+              <p style={{ marginTop: "0.4rem", fontSize: "0.82rem", color: "var(--muted-foreground)" }}>
                 Showing {certs.length} of {totalCount} results
                 {q ? ` matching "${q}"` : ""}
                 {filterType ? ` — type: ${filterType}` : ""}
@@ -460,7 +460,7 @@ export default async function AdminCertificatesPage({
             />
             <Search
               size={13}
-              style={{ position: "absolute", left: "0.7rem", top: "50%", transform: "translateY(-50%)", color: "var(--muted)", pointerEvents: "none" }}
+              style={{ position: "absolute", left: "0.7rem", top: "50%", transform: "translateY(-50%)", color: "var(--muted-foreground)", pointerEvents: "none" }}
             />
           </label>
 
@@ -494,7 +494,7 @@ export default async function AdminCertificatesPage({
             <thead>
               <tr style={{ background: "color-mix(in oklab, var(--panel) 72%, transparent)", borderBottom: "1px solid var(--line)" }}>
                 {["Certificate ID", "Name", "Type", "Event / Exam", "Issue Date", "Asset", "Actions"].map((h) => (
-                  <th key={h} style={{ padding: "0.75rem 1rem", textAlign: "left", fontWeight: 700, fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                  <th key={h} style={{ padding: "0.75rem 1rem", textAlign: "left", fontWeight: 700, fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
                     {h}
                   </th>
                 ))}
@@ -503,7 +503,7 @@ export default async function AdminCertificatesPage({
             <tbody>
               {certs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: "3rem 1.5rem", textAlign: "center", color: "var(--muted)", fontSize: "0.88rem" }}>
+                  <td colSpan={7} style={{ padding: "3rem 1.5rem", textAlign: "center", color: "var(--muted-foreground)", fontSize: "0.88rem" }}>
                     {q || filterType ? "No certificates match your search criteria." : "No certificates found in the database."}
                   </td>
                 </tr>
@@ -580,13 +580,13 @@ export default async function AdminCertificatesPage({
 
                       {/* Event name */}
                       <td style={{ padding: "0.7rem 1rem", maxWidth: "18rem" }}>
-                        <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.5, color: "var(--muted)" }}>
+                        <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.5, color: "var(--muted-foreground)" }}>
                           {cert.exam_or_event_name}
                         </span>
                       </td>
 
                       {/* Issue date */}
-                      <td style={{ padding: "0.7rem 1rem", whiteSpace: "nowrap", color: "var(--muted)" }}>
+                      <td style={{ padding: "0.7rem 1rem", whiteSpace: "nowrap", color: "var(--muted-foreground)" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
                           <Calendar size={11} /> {fmtDate(cert.issue_date)}
                         </span>
@@ -606,7 +606,7 @@ export default async function AdminCertificatesPage({
                             <ExternalLink size={11} /> PDF
                           </a>
                         ) : (
-                          <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>—</span>
+                          <span style={{ color: "var(--muted-foreground)", fontSize: "0.75rem" }}>—</span>
                         )}
                       </td>
 
@@ -655,7 +655,7 @@ export default async function AdminCertificatesPage({
             borderTop: "1px solid var(--line)",
             background: "color-mix(in oklab, var(--panel) 55%, transparent)",
           }}>
-            <span style={{ fontSize: "0.78rem", color: "var(--muted)", fontWeight: 600 }}>
+            <span style={{ fontSize: "0.78rem", color: "var(--muted-foreground)", fontWeight: 600 }}>
               Page {page} of {totalPages} · {totalCount} total records
             </span>
             <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -690,7 +690,7 @@ export default async function AdminCertificatesPage({
             <h2 style={{ marginTop: "0.65rem", fontFamily: "var(--font-heading)", fontSize: "1.7rem", fontWeight: 800, letterSpacing: "-0.04em" }}>
               Unrecognised certificate types
             </h2>
-            <p style={{ marginTop: "0.4rem", fontSize: "0.84rem", color: "var(--muted)", lineHeight: 1.65 }}>
+            <p style={{ marginTop: "0.4rem", fontSize: "0.84rem", color: "var(--muted-foreground)", lineHeight: 1.65 }}>
               {dirtyCount} certificates have an <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>exam_or_event</code> value
               that is not <strong>Event</strong>, <strong>Exam</strong>, or <strong>Course</strong>. Use the inline fix controls in the table above, or filter by type to batch-review them.
             </p>
@@ -704,7 +704,7 @@ export default async function AdminCertificatesPage({
                   <span className="portal-info-row__label">type value</span>
                   <span className="portal-info-row__value">
                     <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>&quot;{k}&quot;</code>{" "}
-                    <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>({v} records)</span>
+                    <span style={{ color: "var(--muted-foreground)", fontSize: "0.78rem" }}>({v} records)</span>
                   </span>
                 </div>
               ))}
@@ -732,7 +732,7 @@ export default async function AdminCertificatesPage({
         <div className="route-tile">
           <h3 style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}><Database size={14} /> Import format reference</h3>
           <p>CSV column order: <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>certId, firstName, lastName, type, eventName, issueDate, assetUrl?</code></p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.82rem", color: "var(--muted)" }}>Types: Event · Exam · Course. Dates: YYYY-MM-DD.</p>
+          <p style={{ marginTop: "0.4rem", fontSize: "0.82rem", color: "var(--muted-foreground)" }}>Types: Event · Exam · Course. Dates: YYYY-MM-DD.</p>
         </div>
       </section>
     </div>

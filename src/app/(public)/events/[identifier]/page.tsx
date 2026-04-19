@@ -61,13 +61,13 @@ export default async function EventDetailPage({
       <article className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">
         <div className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start">
           <div>
-            <div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+            <div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
               <span>{event.status}</span>
               <span>{event.focus}</span>
             </div>
             <h1 className="section-title mt-4">{event.title}</h1>
             <p className="section-copy mt-5">{event.summary}</p>
-            <div className="mt-6 grid gap-2 text-sm text-[var(--muted)]">
+            <div className="mt-6 grid gap-2 text-sm text-[var(--muted-foreground)]">
               <span className="detail-chip">{event.location}</span>
               <span className="detail-chip">{formatDateRange(event.start, event.end)}</span>
             </div>
@@ -119,12 +119,12 @@ export default async function EventDetailPage({
               .map((paragraph) => paragraph.trim())
               .filter(Boolean)
               .map((paragraph) => (
-                <p key={paragraph} className="text-base leading-8 text-[var(--muted)]">
+                <p key={paragraph} className="text-base leading-8 text-[var(--muted-foreground)]">
                   {paragraph}
                 </p>
               ))
           ) : (
-            <p className="text-base leading-8 text-[var(--muted)]">
+            <p className="text-base leading-8 text-[var(--muted-foreground)]">
               Further event details will appear here when published by the society.
             </p>
           )}

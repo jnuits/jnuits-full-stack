@@ -49,7 +49,7 @@ export default async function BlogsPage() {
               <h2 className="mt-3 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
                 {featuredBlog.title}
               </h2>
-              <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+              <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
                 {featuredBlog.excerpt}
               </p>
               <div className="mt-6">
@@ -75,7 +75,7 @@ export default async function BlogsPage() {
                 }}
               >
                 <div>
-                  <div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+                  <div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                     <span>{blog.category}</span>
                     <span>{formatDisplayDate(blog.publishedAt)}</span>
                     <span>{blog.readTime}</span>
@@ -83,7 +83,7 @@ export default async function BlogsPage() {
                   <h3 className="mt-3 font-[family-name:var(--font-heading)] text-[1.75rem] leading-[1.02] tracking-[-0.04em]">
                     {blog.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                  <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                     {blog.summary}
                   </p>
                   <div className="mt-4">
@@ -125,7 +125,7 @@ export default async function BlogsPage() {
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--brand-blue)]">
                   {blog.category}
                 </p>
-                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
                   {blog.excerpt}
                 </p>
               </div>

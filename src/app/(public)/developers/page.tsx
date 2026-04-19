@@ -50,7 +50,7 @@ export default async function DevelopersPage() {
                 <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
                   {lead.role}
                 </p>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                   {lead.bio}
                 </p>
               </div>
@@ -96,12 +96,12 @@ export default async function DevelopersPage() {
                   <h3 className="font-[family-name:var(--font-heading)] text-[1.4rem] leading-tight">
                     {developer.name}
                   </h3>
-                  <p className="text-sm font-semibold text-[var(--muted)]">
+                  <p className="text-sm font-semibold text-[var(--muted-foreground)]">
                     {developer.role}
                   </p>
                 </div>
               </div>
-              <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+              <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
                 {developer.bio}
               </p>
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-[var(--brand-blue)]">

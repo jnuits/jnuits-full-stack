@@ -49,7 +49,7 @@ export default async function EditProfilePage() {
             </div>
           </div>
           <div className="portal-section__body">
-            <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.7 }}>
+            <p style={{ fontSize: "0.88rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
               Self-service edits require a linked member profile. Contact an admin to
               link this account, or use the claim flow if you have a JNUITS ID.
             </p>
@@ -65,7 +65,7 @@ export default async function EditProfilePage() {
           {/* Information strip */}
           <div className="flash-panel" style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem" }}>
             <Info size={14} style={{ color: "var(--brand-blue)", flexShrink: 0, marginTop: "0.15rem" }} />
-            <p style={{ fontSize: "0.83rem", color: "var(--muted)", lineHeight: 1.7 }}>
+            <p style={{ fontSize: "0.83rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
               Step-up verification unlocks direct edits (name, phone, links). Workplace and profile change
               requests go through admin moderation and may take 24–48 hours to reflect publicly.
             </p>

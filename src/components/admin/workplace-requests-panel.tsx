@@ -60,7 +60,7 @@ export function WorkplaceRequestsPanel({
             Pending alumni workplace changes waiting for operator review
           </h2>
         </div>
-        <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
+        <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
           Review requested changes side-by-side with the current member state.
           Approving updates the member record and writes audit evidence.
         </p>

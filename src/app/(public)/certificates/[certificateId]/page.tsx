@@ -58,7 +58,7 @@ export default async function CertificateDetailsPage({
 
           <div>
             <h1 className="section-title mt-4 uppercase">{certificateName}</h1>
-            <p className="mt-4 text-sm font-medium tracking-[0.01em] text-[var(--muted)]">
+            <p className="mt-4 text-sm font-medium tracking-[0.01em] text-[var(--muted-foreground)]">
               {certificate.certificate_id} · {certificate.exam_or_event_name}
             </p>
             <p className="certificate-summary mt-6">{certificateNarrative}</p>

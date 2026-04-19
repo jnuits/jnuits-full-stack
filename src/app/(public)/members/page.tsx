@@ -82,15 +82,15 @@ export default async function MembersPage({
         {/* Stats */}
         <div className="mt-6 info-grid">
           <article className="metric-card">
-            <p className="text-sm text-[var(--muted)]">Total listed</p>
+            <p className="text-sm text-[var(--muted-foreground)]">Total listed</p>
             <p className="metric-card__value mt-2">{counters.total}</p>
           </article>
           <article className="metric-card">
-            <p className="text-sm text-[var(--muted)]">Current members</p>
+            <p className="text-sm text-[var(--muted-foreground)]">Current members</p>
             <p className="metric-card__value mt-2">{counters.current}</p>
           </article>
           <article className="metric-card">
-            <p className="text-sm text-[var(--muted)]">Alumni</p>
+            <p className="text-sm text-[var(--muted-foreground)]">Alumni</p>
             <p className="metric-card__value mt-2">{counters.alumni}</p>
           </article>
         </div>
@@ -193,7 +193,7 @@ export default async function MembersPage({
           <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3vw,2.3rem)] leading-[0.98] tracking-[-0.04em]">
             Workplace details follow member privacy policy
           </h2>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
             Public workplace fields stay visible only when a member marks them public.
             Members-only workplace data appears after directory verification from the
             claimed account.
@@ -248,7 +248,7 @@ export default async function MembersPage({
               {pagination.totalItems} record{pagination.totalItems === 1 ? "" : "s"} found
             </h2>
           </div>
-          <p className="text-sm text-[var(--muted)]">
+          <p className="text-sm text-[var(--muted-foreground)]">
             Page {pagination.page} of {pagination.totalPages}
           </p>
         </div>
@@ -286,7 +286,7 @@ export default async function MembersPage({
                       <h3 className="font-[family-name:var(--font-heading)] text-xl leading-tight truncate">
                         {member.fullName}
                       </h3>
-                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                         {member.jnuitsId}
                       </p>
                     </div>
@@ -318,7 +318,7 @@ export default async function MembersPage({
                       {chip.label}
                     </h3>
                     {member.workplace.visible ? (
-                      <p className="mt-1.5 text-sm leading-6 text-[var(--muted)]">
+                      <p className="mt-1.5 text-sm leading-6 text-[var(--muted-foreground)]">
                         {[member.workplace.designation, member.workplace.currentOrganization]
                           .filter(Boolean)
                           .join(" · ") || "No workplace details published."}
@@ -327,7 +327,7 @@ export default async function MembersPage({
                           : ""}
                       </p>
                     ) : (
-                      <p className="mt-1.5 text-sm leading-6 text-[var(--muted)]">
+                      <p className="mt-1.5 text-sm leading-6 text-[var(--muted-foreground)]">
                         {member.workplace.visibility === "private"
                           ? "This member has kept workplace details private."
                           : "Visible after directory verification in the member portal."}
@@ -358,7 +358,7 @@ export default async function MembersPage({
 
         {/* Pagination */}
         <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-[var(--muted)]">
+          <p className="text-sm text-[var(--muted-foreground)]">
             Showing {Math.min(pagination.pageSize, members.length)} of {pagination.totalItems} records
           </p>
           <div className="flex gap-2">

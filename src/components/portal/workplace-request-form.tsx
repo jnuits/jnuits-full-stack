@@ -203,7 +203,7 @@ export function WorkplaceRequestForm({
                     {formatRequestStatus(request.status)}
                   </span>
                 </div>
-                <p className="mt-2 text-sm text-[var(--muted)]">
+                <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                   Requested{" "}
                   {new Date(request.requested_at).toLocaleDateString("en-BD", {
                     day: "2-digit",
@@ -212,7 +212,7 @@ export function WorkplaceRequestForm({
                   })}
                 </p>
                 {request.review_note ? (
-                  <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                  <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                     {request.review_note}
                   </p>
                 ) : null}

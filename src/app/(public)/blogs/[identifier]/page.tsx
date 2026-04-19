@@ -27,7 +27,7 @@ export default async function BlogDetailPage({
       <article className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">
         <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
           <div>
-            <div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+            <div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
               <span>{article.category}</span>
               <span>{formatDisplayDate(article.publishedAt)}</span>
               <span>{article.readTime}</span>
@@ -68,12 +68,12 @@ export default async function BlogDetailPage({
               .map((paragraph) => paragraph.trim())
               .filter(Boolean)
               .map((paragraph) => (
-                <p key={paragraph} className="text-base leading-8 text-[var(--muted)]">
+                <p key={paragraph} className="text-base leading-8 text-[var(--muted-foreground)]">
                   {paragraph}
                 </p>
               ))
           ) : (
-            <p className="text-base leading-8 text-[var(--muted)]">{article.excerpt}</p>
+            <p className="text-base leading-8 text-[var(--muted-foreground)]">{article.excerpt}</p>
           )}
         </div>
       </section>

@@ -47,11 +47,11 @@ export default async function CommitteePage() {
               {directory.map(({ assignments, term }) => (
                 <div key={term.id} className="route-tile">
                   <h2>{term.title}</h2>
-                  <p className="mt-2 text-sm text-[var(--muted)]">
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                     {term.starts_on}
                     {term.ends_on ? ` to ${term.ends_on}` : " onward"}
                   </p>
-                  <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                  <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                     {assignments.length} public assignment
                     {assignments.length === 1 ? "" : "s"}
                   </p>
@@ -84,7 +84,7 @@ export default async function CommitteePage() {
                   </Link>
                 </div>
               </div>
-              <div className="grid gap-2 text-sm text-[var(--muted)]">
+              <div className="grid gap-2 text-sm text-[var(--muted-foreground)]">
                 <span className="detail-chip">Starts {term.starts_on}</span>
                 <span className="detail-chip">
                   Ends {term.ends_on || "Open or not yet set"}
@@ -112,7 +112,7 @@ export default async function CommitteePage() {
                         "Committee member"}
                     </p>
                     {assignment.bio ? (
-                      <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                      <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                         {assignment.bio}
                       </p>
                     ) : null}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ComponentType } from "react";
 import { useState, useEffect } from "react";
 import {
   BarChart3,
@@ -16,13 +17,14 @@ import {
 } from "lucide-react";
 import { SiteBrand } from "@/components/layout/site-brand";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { portalNavigation } from "@/lib/site";
 
 // ── Nav structure ─────────────────────────────────────────────────────────────
 
 type NavItem = {
   href: string;
   label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: ComponentType<{ size?: number; className?: string }>;
 };
 
 type NavGroup = {
@@ -30,22 +32,39 @@ type NavGroup = {
   items: NavItem[];
 };
 
+const portalNavByHref = new Map(
+  portalNavigation.map((item) => [item.href, item])
+);
+
+function createNavItem(
+  href: string,
+  fallbackLabel: string,
+  icon: NavItem["icon"]
+): NavItem {
+  const item = portalNavByHref.get(href);
+  return {
+    href,
+    label: item?.label ?? fallbackLabel,
+    icon,
+  };
+}
+
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "My Workspace",
     items: [
-      { href: "/portal", label: "Overview", icon: LayoutDashboard },
-      { href: "/profile", label: "My Profile", icon: User },
-      { href: "/profile/edit", label: "Edit Profile", icon: UserPen },
+      createNavItem("/portal", "Overview", LayoutDashboard),
+      createNavItem("/profile", "My Profile", User),
+      createNavItem("/profile/edit", "Edit Profile", UserPen),
     ],
   },
   {
     label: "Member Services",
     items: [
-      { href: "/portal/blogs", label: "Draft Blogs", icon: BookOpen },
-      { href: "/portal/projects", label: "My Projects", icon: FolderKanban },
-      { href: "/portal/activity", label: "Activity", icon: BarChart3 },
-      { href: "/profile/change-password", label: "Password", icon: KeyRound },
+      createNavItem("/portal/blogs", "Draft Blogs", BookOpen),
+      createNavItem("/portal/projects", "My Projects", FolderKanban),
+      createNavItem("/portal/activity", "Activity", BarChart3),
+      createNavItem("/profile/change-password", "Password", KeyRound),
     ],
   },
 ];

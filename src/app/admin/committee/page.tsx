@@ -146,7 +146,7 @@ export default async function AdminCommitteePage() {
 
       {flash ? (
         <section className="flash-panel" data-tone={flash.tone}>
-          <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Operator feedback
           </p>
           <h2 className="mt-2 font-[family-name:var(--font-heading)] text-2xl font-semibold tracking-[-0.03em]">
@@ -158,29 +158,29 @@ export default async function AdminCommitteePage() {
 
       <section className="grid gap-4 md:grid-cols-3">
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Terms
           </p>
           <p className="metric-card__value mt-3">{terms.length}</p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Draft, upcoming, active, and archived terms now live in one table.
           </p>
         </article>
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Seeded roles
           </p>
           <p className="metric-card__value mt-3">{roles.length}</p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Committee positions are now normalized instead of embedded in page copy.
           </p>
         </article>
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Linked assignments
           </p>
           <p className="metric-card__value mt-3">{assignments.length}</p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Assignments can link to a real member or carry a display-only name.
           </p>
         </article>
@@ -455,7 +455,7 @@ export default async function AdminCommitteePage() {
               Stored terms and linked tenure assignments
             </h2>
           </div>
-          <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
+          <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
             Each term now owns its assignments. The public committee page will
             read from these rows when a term is marked public.
           </p>
@@ -484,11 +484,11 @@ export default async function AdminCommitteePage() {
                       <h3 className="mt-4 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
                         {term.title}
                       </h3>
-                      <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                      <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
                         {term.summary || "No summary saved yet."}
                       </p>
                     </div>
-                    <div className="grid gap-2 text-sm text-[var(--muted)]">
+                    <div className="grid gap-2 text-sm text-[var(--muted-foreground)]">
                       <span className="detail-chip">Slug {term.slug}</span>
                       <span className="detail-chip">
                         {term.starts_on}
@@ -521,14 +521,14 @@ export default async function AdminCommitteePage() {
                                 member?.full_name ||
                                 "Unlinked committee member"}
                             </p>
-                            <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                            <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
                               {member?.designation ||
                                 member?.current_organization ||
                                 assignment.bio ||
                                 "No member subtitle or note saved yet."}
                             </p>
                             {member?.jnuits_id ? (
-                              <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+                              <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                                 {member.jnuits_id}
                               </p>
                             ) : null}

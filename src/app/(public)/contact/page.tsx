@@ -175,13 +175,17 @@ export default async function ContactPage({
         <aside className="contact-info-panel" aria-labelledby="contact-info-title">
           <div className="contact-panel-heading contact-panel-heading--info">
             <span>Official contact</span>
-            <h2 id="contact-info-title">Contact JnUITS</h2>
+            <h2 id="contact-info-title">Jagannath University IT Society</h2>
+            <p className="contact-panel-summary">
+              The official institutional identity and contact details for
+              Jagannath University IT Society.
+            </p>
           </div>
 
           <div className="contact-org-card">
             <Building2 aria-hidden="true" size={21} strokeWidth={2.1} />
             <div>
-              <p>Jagannath University IT Society (JnUITS)</p>
+              <p>Jagannath University IT Society</p>
               <span>{contactContent.organizationType}</span>
             </div>
           </div>
@@ -223,7 +227,10 @@ export default async function ContactPage({
 
           <div className="contact-social-block">
             <h3>Social Media &amp; Links</h3>
-            <div className="contact-social-icons" aria-label="Official JnUITS social media">
+            <div
+              className="contact-social-icons"
+              aria-label="Official Jagannath University IT Society social media"
+            >
               {contactContent.socialLinks.map((item) => (
                 <Link
                   key={item.href}

@@ -57,7 +57,7 @@ export default async function AdminReportsPage() {
 
       {flash ? (
         <section className="flash-panel" data-tone={flash.tone}>
-          <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Operator feedback
           </p>
           <h2 className="mt-2 font-[family-name:var(--font-heading)] text-2xl font-semibold tracking-[-0.03em]">
@@ -69,30 +69,30 @@ export default async function AdminReportsPage() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Pending applications
           </p>
           <p className="metric-card__value mt-3">
             {snapshot.operations.pendingApplications}
           </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Membership queue pressure that still needs review capacity.
           </p>
         </article>
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Pending profile moderation
           </p>
           <p className="metric-card__value mt-3">
             {snapshot.operations.pendingWorkplaceRequests +
               snapshot.operations.pendingProfileChangeRequests}
           </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Combined workplace and profile-change requests waiting on operators.
           </p>
         </article>
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Published content entries
           </p>
           <p className="metric-card__value mt-3">
@@ -102,12 +102,12 @@ export default async function AdminReportsPage() {
               snapshot.content.publishedGalleryEntries +
               snapshot.content.publishedDevelopers}
           </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Public collections now tracked separately from shell-only fallbacks.
           </p>
         </article>
         <article className="metric-card">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Parity items remaining
           </p>
           <p className="metric-card__value mt-3">
@@ -117,7 +117,7 @@ export default async function AdminReportsPage() {
               snapshot.parity.galleryRemaining +
               snapshot.parity.developersRemaining}
           </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
             Preview content still not represented in the new database-backed model.
           </p>
         </article>
@@ -232,7 +232,7 @@ export default async function AdminReportsPage() {
               Stored operator reports
             </h2>
           </div>
-          <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
+          <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
             These rows are the beginning of the archived reporting path that will
             later include dry-run/apply CSV reconciliation.
           </p>
@@ -250,10 +250,10 @@ export default async function AdminReportsPage() {
                   <h3>{report.title}</h3>
                   <span className="status-pill">{report.report_type}</span>
                 </div>
-                <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
                   {report.summary || "Operator report"}
                 </p>
-                <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+                <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                   {new Date(report.created_at).toLocaleString("en-BD")}
                 </p>
               </article>

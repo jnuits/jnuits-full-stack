@@ -77,7 +77,7 @@ function RegistrationPill({
     return (
       <span
         className="detail-chip"
-        style={{ color: "var(--muted)", borderColor: "var(--line)" }}
+        style={{ color: "var(--muted-foreground)", borderColor: "var(--line)" }}
       >
         Registration full
       </span>
@@ -231,7 +231,7 @@ export default async function EventsPage({
                 <h2 className="mt-3 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
                   {featuredEvent.title}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{featuredEvent.summary}</p>
+                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">{featuredEvent.summary}</p>
                 <div className="mt-6">
                   <Link className="secondary-button" href={`/events/${featuredEvent.slug}`}>
                     Open event details
@@ -247,7 +247,7 @@ export default async function EventsPage({
       <section className="mt-8 section-band">
         <div className="flex items-baseline justify-between gap-4">
           <p className="section-divider">Program stream</p>
-          <span className="text-sm text-[var(--muted)]">
+          <span className="text-sm text-[var(--muted-foreground)]">
             {filteredEvents.length} event{filteredEvents.length === 1 ? "" : "s"}
           </span>
         </div>
@@ -294,14 +294,14 @@ export default async function EventsPage({
                   </div>
 
                   <div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                       <span>{event.status}</span>
                       <span>{event.focus}</span>
                     </div>
                     <h3 className="mt-3 font-[family-name:var(--font-heading)] text-[1.7rem] leading-[1.02] tracking-[-0.04em]">
                       {event.title}
                     </h3>
-                    <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{event.summary}</p>
+                    <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">{event.summary}</p>
                     <div className="mt-4 flex flex-wrap items-center gap-3">
                       <Link className="queue-link" href={`/events/${event.slug}`}>
                         Open event details

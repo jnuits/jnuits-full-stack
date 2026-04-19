@@ -69,7 +69,7 @@ export default async function ProfilePage() {
               </div>
             </div>
             <div className="portal-section__body">
-              <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.7 }}>
+              <p style={{ fontSize: "0.88rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
                 The portal is protected but a linked member record is required to
                 display directory, workplace, and timeline data. Contact an admin
                 to link your account, or use the claim flow if you have a JNUITS ID.
@@ -192,7 +192,7 @@ export default async function ProfilePage() {
                 )}
               </div>
               {!snapshot.directoryVerified && (
-                <p style={{ marginTop: "0.85rem", fontSize: "0.8rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <p style={{ marginTop: "0.85rem", fontSize: "0.8rem", color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
                   <Lock size={11} />
                   Workplace fields require directory verification.{" "}
                   <Link href="/profile/edit" className="queue-link">Verify on edit page →</Link>
@@ -212,7 +212,7 @@ export default async function ProfilePage() {
             </div>
             <div className="portal-section__body">
               {snapshot.workplaceRequests.length === 0 ? (
-                <p style={{ fontSize: "0.86rem", color: "var(--muted)", lineHeight: 1.6 }}>
+                <p style={{ fontSize: "0.86rem", color: "var(--muted-foreground)", lineHeight: 1.6 }}>
                   No moderation requests have been submitted from this account yet.
                 </p>
               ) : (
@@ -256,7 +256,7 @@ export default async function ProfilePage() {
             </div>
             <div className="portal-section__body">
               {snapshot.timeline.length === 0 ? (
-                <p style={{ fontSize: "0.86rem", color: "var(--muted)", lineHeight: 1.6 }}>
+                <p style={{ fontSize: "0.86rem", color: "var(--muted-foreground)", lineHeight: 1.6 }}>
                   Timeline events have not been recorded for this member yet.
                 </p>
               ) : (

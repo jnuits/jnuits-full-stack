@@ -51,7 +51,7 @@ export function InvitationsPanel({
             Active claim invitations with replacement and revocation controls
           </h2>
         </div>
-        <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
+        <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
           Manage active claim codes, issue replacements when a code is
           lost, and revoke codes that are no longer valid.
         </p>

@@ -98,7 +98,7 @@ export default async function CertificatesPage({
                 <h2 className="mt-5 font-[family-name:var(--font-heading)] text-[clamp(2.2rem,4vw,3.35rem)] font-semibold leading-[0.96] tracking-[-0.05em] uppercase">
                   {certificateName}
                 </h2>
-                <p className="mt-3 text-sm font-medium tracking-[0.01em] text-[var(--muted)]">
+                <p className="mt-3 text-sm font-medium tracking-[0.01em] text-[var(--muted-foreground)]">
                   {certificate.certificate_id} · {certificate.exam_or_event_name}
                 </p>
                 <p className="certificate-summary mt-6">{certificateNarrative}</p>

@@ -46,7 +46,7 @@ export default async function NoticesPage() {
             >
               <div className="grid content-start gap-2">
                 <span className="detail-chip">{notice.category}</span>
-                <span className="text-sm font-semibold text-[var(--muted)]">
+                <span className="text-sm font-semibold text-[var(--muted-foreground)]">
                   {formatDisplayDate(notice.publishedAt)}
                 </span>
               </div>
@@ -54,7 +54,7 @@ export default async function NoticesPage() {
                 <h2 className="font-[family-name:var(--font-heading)] text-[1.5rem] leading-[1.05] tracking-[-0.04em]">
                   {notice.title}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                   {notice.summary}
                 </p>
               </div>
@@ -65,7 +65,7 @@ export default async function NoticesPage() {
                     Open related route
                   </Link>
                 ) : (
-                  <span className="text-sm leading-7 text-[var(--muted)]">
+                  <span className="text-sm leading-7 text-[var(--muted-foreground)]">
                     Attachment or external link will be published when available.
                   </span>
                 )}

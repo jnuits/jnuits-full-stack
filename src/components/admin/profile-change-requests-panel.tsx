@@ -87,7 +87,7 @@ export function ProfileChangeRequestsPanel({
             Moderated profile changes now sit beside workplace reviews
           </h2>
         </div>
-        <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
+        <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
           Review each member-requested name, phone, and social link edit before
           it is applied to the member record.
         </p>

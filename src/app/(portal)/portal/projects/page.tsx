@@ -45,7 +45,7 @@ export default async function PortalProjectsPage() {
             </div>
           </div>
           <div className="portal-section__body">
-            <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.7 }}>
+            <p style={{ fontSize: "0.88rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
               A linked member record is required to view project contributions.
               Contact an admin to link your account.
             </p>
@@ -61,7 +61,7 @@ export default async function PortalProjectsPage() {
             </div>
           </div>
           <div className="portal-section__body">
-            <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.7 }}>
+            <p style={{ fontSize: "0.88rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
               You haven&apos;t been assigned to any JnUITS projects yet. Once an admin
               adds you as a contributor on a project, it will appear here with its full details.
             </p>
@@ -104,7 +104,7 @@ export default async function PortalProjectsPage() {
 
               {/* Tagline */}
               {project.tagline && (
-                <p style={{ fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.6 }}>
+                <p style={{ fontSize: "0.82rem", color: "var(--muted-foreground)", lineHeight: 1.6 }}>
                   {project.tagline}
                 </p>
               )}

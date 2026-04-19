@@ -117,21 +117,21 @@ export default async function HomePage() {
               <article className="route-tile">
                 <p className="section-divider">Slogan</p>
                 <h3 className="mt-4">{brandProfile.slogan}</h3>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                   The society centers practical learning and forward movement in IT.
                 </p>
               </article>
               <article className="route-tile">
                 <p className="section-divider">Located in</p>
                 <h3 className="mt-4">{contactContent.location}</h3>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                   {contactContent.address}
                 </p>
               </article>
               <article className="route-tile">
                 <p className="section-divider">Contact</p>
                 <h3 className="mt-4">{contactContent.phone}</h3>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                   {contactContent.email}
                 </p>
               </article>
@@ -169,7 +169,7 @@ export default async function HomePage() {
                       {homeContent.recentActivitiesTitle}
                     </p>
                     <h3 className="mt-3">{activity.title}</h3>
-                    <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                    <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
                       {activity.description}
                     </p>
                   </div>
@@ -185,7 +185,7 @@ export default async function HomePage() {
                 <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
                   {featuredEvent.title}
                 </h2>
-                <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
                   {featuredEvent.summary}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
@@ -193,7 +193,7 @@ export default async function HomePage() {
                   <span className="detail-chip">{featuredEvent.status}</span>
                   <span className="detail-chip">{featuredEvent.location}</span>
                 </div>
-                <p className="mt-5 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-5 text-sm leading-7 text-[var(--muted-foreground)]">
                   {formatDateRange(featuredEvent.start, featuredEvent.end)}
                 </p>
                 <div className="mt-8 flex flex-wrap gap-3">
@@ -210,7 +210,7 @@ export default async function HomePage() {
                 <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
                   Latest notice
                 </h2>
-                <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
                   {featuredNotice.summary}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
@@ -245,7 +245,7 @@ export default async function HomePage() {
                     {achievement.icon}
                   </p>
                   <h3 className="mt-3">{achievement.title}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                  <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
                     {achievement.description}
                   </p>
                 </article>
@@ -271,7 +271,7 @@ export default async function HomePage() {
             <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
               {featuredNotice.title}
             </h2>
-            <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+            <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
               {featuredNotice.summary}
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
@@ -297,7 +297,7 @@ export default async function HomePage() {
               {contactContent.socialLinks.map((item) => (
                 <article key={item.href} className="route-tile">
                   <h3>{item.label}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                  <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
                     Follow the society on {item.label} for public updates and announcements.
                   </p>
                   <div className="mt-4">

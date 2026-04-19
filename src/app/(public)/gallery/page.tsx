@@ -74,7 +74,7 @@ export default async function GalleryPage() {
                 <h2 className="font-[family-name:var(--font-heading)] text-[1.7rem] leading-[1.02] tracking-[-0.04em]">
                   {item.title}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                   {item.caption}
                 </p>
                 <div className="mt-4">

@@ -124,7 +124,7 @@ export function RegistrationForm({
   if (state.status === "full") {
     return (
       <div className="glass-card p-6" role="alert">
-        <span className="eyebrow text-[var(--muted)]">Registration closed</span>
+        <span className="eyebrow text-[var(--muted-foreground)]">Registration closed</span>
         <h3 className="section-title mt-3 text-2xl">Event is full</h3>
         <p className="section-copy mt-2 text-sm">
           This event has reached capacity. Please check back for future events
@@ -137,7 +137,7 @@ export function RegistrationForm({
   if (state.status === "closed" || !registrationOpen) {
     return (
       <div className="glass-card p-6" role="alert">
-        <span className="eyebrow text-[var(--muted)]">Registration closed</span>
+        <span className="eyebrow text-[var(--muted-foreground)]">Registration closed</span>
         <h3 className="section-title mt-3 text-2xl">Registration is not open</h3>
         <p className="section-copy mt-2 text-sm">
           Registration for this event is not currently open. Check back closer
@@ -161,7 +161,7 @@ export function RegistrationForm({
       <span className="eyebrow text-[var(--brand-blue)]">Register for this event</span>
       <h3 className="section-title mt-3 text-2xl">{eventTitle}</h3>
       {spotsLabel ? (
-        <p className="mt-1 text-xs font-semibold tracking-wide text-[var(--muted)] uppercase">
+        <p className="mt-1 text-xs font-semibold tracking-wide text-[var(--muted-foreground)] uppercase">
           {spotsLabel}
         </p>
       ) : null}
@@ -208,7 +208,7 @@ export function RegistrationForm({
 
         <div>
           <label htmlFor="reg-phone" className="input-label">
-            Phone number <span className="text-[var(--muted)]">(optional)</span>
+            Phone number <span className="text-[var(--muted-foreground)]">(optional)</span>
           </label>
           <input
             id="reg-phone"

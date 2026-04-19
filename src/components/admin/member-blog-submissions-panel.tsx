@@ -51,7 +51,7 @@ export function MemberBlogSubmissionsPanel({
             Submitted portal drafts waiting for editorial review
           </h2>
         </div>
-        <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
+        <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
           Members can now draft inside the portal. Publishing still stays in the
           admin workspace with review notes and audit evidence.
         </p>

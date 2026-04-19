@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ComponentType } from "react";
 import { useState, useEffect } from "react";
 import {
   BarChart2,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { SiteBrand } from "@/components/layout/site-brand";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { adminNavigation } from "@/lib/site";
 import type { AdminBadgeCounts } from "./admin-shell";
 
 // ── Nav structure (defined client-side to avoid RSC serialization issues) ─────
@@ -30,7 +32,7 @@ import type { AdminBadgeCounts } from "./admin-shell";
 type NavItem = {
   href: string;
   label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: ComponentType<{ size?: number; className?: string }>;
   badge?: number;
 };
 
@@ -39,67 +41,63 @@ type NavGroup = {
   items: NavItem[];
 };
 
+const adminNavByHref = new Map(
+  adminNavigation.map((item) => [item.href, item])
+);
+
+function createNavItem(
+  href: string,
+  fallbackLabel: string,
+  icon: NavItem["icon"],
+  badge?: number
+): NavItem {
+  const item = adminNavByHref.get(href);
+  return {
+    href,
+    label: item?.label ?? fallbackLabel,
+    icon,
+    badge,
+  };
+}
+
 function buildNavGroups(counts: AdminBadgeCounts): NavGroup[] {
   return [
     {
       label: "Overview",
       items: [
-        { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+        createNavItem("/admin", "Dashboard", LayoutDashboard),
       ],
     },
     {
       label: "Membership",
       items: [
-        {
-          href: "/admin/applications",
-          label: "Applications",
-          icon: UserCheck,
-          badge: counts.pendingApps,
-        },
-        {
-          href: "/admin/invitations",
-          label: "Invitations",
-          icon: Mail,
-        },
-        {
-          href: "/admin/workplace",
-          label: "Workplace",
-          icon: ClipboardList,
-          badge: counts.pendingWorkplace,
-        },
-        {
-          href: "/admin/profile-changes",
-          label: "Profile Changes",
-          icon: Users,
-          badge: counts.pendingProfile,
-        },
-        {
-          href: "/admin/membership",
-          label: "Membership DB",
-          icon: ShieldCheck,
-        },
+        createNavItem("/admin/applications", "Applications", UserCheck, counts.pendingApps),
+        createNavItem("/admin/invitations", "Invitations", Mail),
+        createNavItem("/admin/workplace", "Workplace", ClipboardList, counts.pendingWorkplace),
+        createNavItem("/admin/profile-changes", "Profile Changes", Users, counts.pendingProfile),
+        createNavItem("/admin/membership", "Membership DB", ShieldCheck),
       ],
     },
     {
       label: "Content",
       items: [
-        { href: "/admin/content", label: "Content Hub", icon: FolderOpen },
-        { href: "/admin/content/media", label: "Media", icon: ImageIcon },
-        { href: "/admin/content/blogs", label: "Blogs", icon: FileText },
-        { href: "/admin/content/events", label: "Events", icon: BookOpen },
-        { href: "/admin/content/gallery", label: "Gallery", icon: ImageIcon },
-        { href: "/admin/content/projects", label: "Projects", icon: FileCode2 },
-        { href: "/admin/content/pages", label: "Page Singletons", icon: ScrollText },
+        createNavItem("/admin/content", "Content Hub", FolderOpen),
+        createNavItem("/admin/content/media", "Media", ImageIcon),
+        createNavItem("/admin/content/blogs", "Blogs", FileText),
+        createNavItem("/admin/content/events", "Events", BookOpen),
+        createNavItem("/admin/content/gallery", "Gallery", ImageIcon),
+        createNavItem("/admin/content/projects", "Projects", FileCode2),
+        createNavItem("/admin/content/pages", "Page Singletons", ScrollText),
       ],
     },
     {
       label: "Organization",
       items: [
-        { href: "/admin/committee", label: "Committee", icon: ShieldCheck },
-        { href: "/admin/reports", label: "Reports", icon: BarChart2 },
-        { href: "/admin/reconcile", label: "Reconcile", icon: RefreshCcw },
-        { href: "/admin/certificates", label: "Certificates", icon: ScrollText },
-        { href: "/admin/decisions", label: "Decisions Log", icon: ClipboardList },
+        createNavItem("/admin/committee", "Committee", ShieldCheck),
+        createNavItem("/admin/reports", "Reports", BarChart2),
+        createNavItem("/admin/reconcile", "Reconcile", RefreshCcw),
+        createNavItem("/admin/certificates", "Certificates", ScrollText),
+        createNavItem("/admin/decisions", "Decisions Log", ClipboardList),
       ],
     },
   ];

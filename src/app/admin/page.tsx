@@ -335,7 +335,7 @@ export default async function AdminPage() {
       {/* ── Flash ───────────────────────────────────────────────────────────── */}
       {flash ? (
         <section className="flash-panel" data-tone={flash.tone}>
-          <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+          <p className="text-sm font-bold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
             Operator feedback
           </p>
           <h2 className="mt-2 font-[family-name:var(--font-heading)] text-2xl font-semibold tracking-[-0.03em]">
@@ -598,7 +598,7 @@ export default async function AdminPage() {
               Pending applications ready for operator review
             </h2>
           </div>
-          <p className="max-w-xl text-sm leading-7 text-[var(--muted)]">
+          <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
             Approving an application creates the member record, assigns a
             JnUITS ID, generates a claim code, and writes an audit event.
           </p>
@@ -802,11 +802,11 @@ export default async function AdminPage() {
                         : ""}
                     </span>
                   </div>
-                  <p className="mt-2 text-sm text-[var(--muted)]">
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                     {decision.email}
                   </p>
                   {decision.review_note ? (
-                    <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                    <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                       {decision.review_note}
                     </p>
                   ) : null}
@@ -845,11 +845,11 @@ export default async function AdminPage() {
                         {member?.jnuits_id ? ` • ${member.jnuits_id}` : ""}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-[var(--muted)]">
+                    <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                       {member?.email || request.request_type}
                     </p>
                     {request.review_note ? (
-                      <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                      <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                         {request.review_note}
                       </p>
                     ) : null}

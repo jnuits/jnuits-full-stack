@@ -140,7 +140,7 @@ export default async function PortalOverviewPage() {
         </div>
         <div className="portal-section__body">
           {memberProjects.length === 0 ? (
-            <p style={{ fontSize: "0.86rem", color: "var(--muted)", lineHeight: 1.6 }}>
+            <p style={{ fontSize: "0.86rem", color: "var(--muted-foreground)", lineHeight: 1.6 }}>
               You haven&apos;t been added to any JnUITS projects yet. Contact an admin to be assigned as a contributor.
             </p>
           ) : (
@@ -156,7 +156,7 @@ export default async function PortalOverviewPage() {
                     </span>
                   </div>
                   {project.tagline && (
-                    <p style={{ fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.5 }}>{project.tagline}</p>
+                    <p style={{ fontSize: "0.8rem", color: "var(--muted-foreground)", lineHeight: 1.5 }}>{project.tagline}</p>
                   )}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
                     {project.techStack.slice(0, 4).map((tech) => (

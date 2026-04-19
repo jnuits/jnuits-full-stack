@@ -35,7 +35,7 @@ export default async function ChangePasswordPage() {
           </div>
         </div>
         <div className="portal-section__body">
-          <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.75 }}>
+          <p style={{ fontSize: "0.88rem", color: "var(--muted-foreground)", lineHeight: 1.75 }}>
             If Supabase requires reauthentication, an OTP code will be sent to your registered
             email. Paste that code into the <strong>Reauthentication token</strong> field before
             confirming the new password. Your current session remains valid after a successful change.

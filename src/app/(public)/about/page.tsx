@@ -51,7 +51,7 @@ export default async function AboutPage() {
           <p className="section-divider">Narrative</p>
           <div className="mt-6 grid gap-4">
             {aboutContent.story.map((paragraph) => (
-              <p key={paragraph} className="text-base leading-8 text-[var(--muted)]">
+              <p key={paragraph} className="text-base leading-8 text-[var(--muted-foreground)]">
                 {paragraph}
               </p>
             ))}
@@ -85,7 +85,7 @@ export default async function AboutPage() {
               <h3 className="font-[family-name:var(--font-heading)] text-2xl leading-tight">
                 {value.title}
               </h3>
-              <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+              <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                 {value.description}
               </p>
             </div>

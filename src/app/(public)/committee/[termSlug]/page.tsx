@@ -25,7 +25,7 @@ export default async function CommitteeTermPage({
               {termData.term.summary ||
                 "Public roster for this committee term of Jagannath University IT Society."}
             </p>
-            <div className="mt-6 flex flex-wrap gap-2 text-sm text-[var(--muted)]">
+            <div className="mt-6 flex flex-wrap gap-2 text-sm text-[var(--muted-foreground)]">
               <span className="detail-chip">Starts {termData.term.starts_on}</span>
               <span className="detail-chip">
                 Ends {termData.term.ends_on || "Open or not yet set"}
@@ -41,7 +41,7 @@ export default async function CommitteeTermPage({
 
           <article className="section-band">
             <p className="section-divider">Roster summary</p>
-            <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
+            <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
               {termData.assignments.length} published assignment
               {termData.assignments.length === 1 ? "" : "s"} are listed for this
               term.
@@ -72,7 +72,7 @@ export default async function CommitteeTermPage({
                   </p>
                 ) : null}
                 {assignment.bio ? (
-                  <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                  <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                     {assignment.bio}
                   </p>
                 ) : null}

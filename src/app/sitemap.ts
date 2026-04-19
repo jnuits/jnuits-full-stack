@@ -3,9 +3,15 @@ import { publicNavigation } from "@/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = "https://jnuits.org.bd";
-  const extraRoutes = ["/membership-form"];
+  const extraRoutes = [
+    "/committee/advisory",
+    "/committee/5th",
+  ];
+  const routes = Array.from(
+    new Set([...publicNavigation.map((item) => item.href), ...extraRoutes])
+  );
 
-  return [...publicNavigation.map((item) => item.href), ...extraRoutes].map((href) => ({
+  return routes.map((href) => ({
     url: `${baseUrl}${href}`,
     lastModified: new Date(),
     changeFrequency: href === "/" ? "weekly" : "monthly",

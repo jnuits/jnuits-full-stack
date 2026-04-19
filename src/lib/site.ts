@@ -1,6 +1,7 @@
 export type NavItem = {
   href: string;
   label: string;
+  description?: string;
 };
 
 export type ImplementationPhase = {
@@ -9,17 +10,56 @@ export type ImplementationPhase = {
   status: "Foundation" | "In Progress" | "Queued";
 };
 
+export const publicPrimaryNavigation: NavItem[] = [
+  { href: "/about", label: "About" },
+  { href: "/committee", label: "Committee" },
+  { href: "/notices", label: "Notices" },
+  { href: "/events", label: "Events" },
+  { href: "/members", label: "Members" },
+  { href: "/contact", label: "Contact" },
+];
+
+export const publicResourceNavigation: NavItem[] = [
+  {
+    href: "/blogs",
+    label: "Blogs",
+    description: "Stories, recaps, and member-written updates.",
+  },
+  {
+    href: "/certificates",
+    label: "Certificates",
+    description: "Verify issued course and event certificates.",
+  },
+  {
+    href: "/gallery",
+    label: "Gallery",
+    description: "Photos and videos from society activities.",
+  },
+  {
+    href: "/projects",
+    label: "Projects",
+    description: "Technical portfolios and society-built initiatives.",
+  },
+];
+
+export const publicFooterNavigation: NavItem[] = [
+  { href: "/developers", label: "Developers" },
+  { href: "/membership-form", label: "Membership form" },
+];
+
+export const publicPolicyNavigation: NavItem[] = [
+  { href: "/privacy-policy", label: "Privacy Policy" },
+  { href: "/terms-of-service", label: "Terms of Service" },
+  { href: "/cookie-policy", label: "Cookie Policy" },
+];
+
+// Complete public route inventory used by sitemap.xml.
 export const publicNavigation: NavItem[] = [
   { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
-  { href: "/events", label: "Events" },
-  { href: "/blogs", label: "Blogs" },
-  { href: "/gallery", label: "Gallery" },
-  { href: "/projects", label: "Projects" },
-  { href: "/committee", label: "Committee" },
-  { href: "/members", label: "Members" },
-  { href: "/certificates", label: "Certificates" },
-  { href: "/contact", label: "Contact" },
+  ...publicFooterNavigation,
+  ...publicPrimaryNavigation,
+  ...publicResourceNavigation,
+  ...publicPolicyNavigation,
 ];
 
 
@@ -73,23 +113,31 @@ export const implementationPhases: ImplementationPhase[] = [
 
 export const portalNavigation: NavItem[] = [
   { href: "/portal", label: "Overview" },
-  { href: "/profile", label: "Profile" },
+  { href: "/profile", label: "My Profile" },
   { href: "/profile/edit", label: "Edit Profile" },
-  { href: "/profile/change-password", label: "Change Password" },
   { href: "/portal/blogs", label: "Draft Blogs" },
+  { href: "/portal/projects", label: "My Projects" },
+  { href: "/portal/activity", label: "Activity" },
+  { href: "/profile/change-password", label: "Password" },
 ];
 
 export const adminNavigation: NavItem[] = [
-  { href: "/admin", label: "Overview" },
-  { href: "/admin/membership", label: "Membership" },
+  { href: "/admin", label: "Dashboard" },
+  { href: "/admin/applications", label: "Applications" },
+  { href: "/admin/invitations", label: "Invitations" },
+  { href: "/admin/workplace", label: "Workplace" },
+  { href: "/admin/profile-changes", label: "Profile Changes" },
+  { href: "/admin/membership", label: "Membership DB" },
+  { href: "/admin/content", label: "Content Hub" },
+  { href: "/admin/content/media", label: "Media" },
+  { href: "/admin/content/blogs", label: "Blogs" },
+  { href: "/admin/content/events", label: "Events" },
+  { href: "/admin/content/gallery", label: "Gallery" },
+  { href: "/admin/content/projects", label: "Projects" },
+  { href: "/admin/content/pages", label: "Page Singletons" },
   { href: "/admin/committee", label: "Committee" },
   { href: "/admin/reports", label: "Reports" },
-  { href: "/admin/content", label: "Content" },
-  { href: "/admin#applications", label: "Applications" },
-  { href: "/admin#invitations", label: "Invitations" },
-  { href: "/admin#workplace", label: "Workplace" },
-  { href: "/admin#profile-requests", label: "Profile" },
-  { href: "/admin#decisions", label: "Decisions" },
-  { href: "/admin#certificates", label: "Certificates" },
-  { href: "/admin#reconcile", label: "Reconcile" },
+  { href: "/admin/reconcile", label: "Reconcile" },
+  { href: "/admin/certificates", label: "Certificates" },
+  { href: "/admin/decisions", label: "Decisions Log" },
 ];
