@@ -1,6 +1,15 @@
 import Link from "next/link";
+import {
+  Building2,
+  CalendarDays,
+  ExternalLink,
+  Globe2,
+  Mail,
+  MapPin,
+  Phone,
+  Send,
+} from "lucide-react";
 
-import { brandProfile } from "@/lib/branding";
 import { getContactContent } from "@/lib/content/site-singletons";
 
 const inquiryCategories = [
@@ -11,6 +20,52 @@ const inquiryCategories = [
   { label: "Media and public relations", value: "media" },
   { label: "Partnership and sponsorship", value: "partnership" },
 ];
+
+function SocialIcon({ label }: { label: string }) {
+  const normalized = label.toLowerCase();
+
+  if (normalized.includes("facebook")) {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+        <path
+          d="M14.2 8.2h2.2V4.6A25.4 25.4 0 0 0 13.2 4c-3.2 0-5.4 1.9-5.4 5.4v3H4.4v4h3.4V24h4.1v-7.6h3.2l.5-4h-3.7V9.8c0-1.1.3-1.6 2.3-1.6Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  if (normalized.includes("linkedin")) {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+        <path
+          d="M6.7 8.8H3.1V21h3.6V8.8ZM5 3a2.1 2.1 0 1 0 0 4.2A2.1 2.1 0 0 0 5 3Zm16 11c0-3.4-1.8-5.5-4.7-5.5a4 4 0 0 0-3.4 1.8V8.8H9.4V21H13v-6.5c0-1.7.8-2.7 2.2-2.7s2.2.9 2.2 2.7V21H21v-7Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  if (normalized.includes("youtube")) {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+        <path
+          d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.6 4.6 12 4.6 12 4.6s-5.6 0-7.5.5a3 3 0 0 0-2.1 2.1A31.6 31.6 0 0 0 2 12a31.6 31.6 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.9.5 7.5.5 7.5.5s5.6 0 7.5-.5a3 3 0 0 0 2.1-2.1A31.6 31.6 0 0 0 22 12a31.6 31.6 0 0 0-.4-4.8ZM10 15.5v-7l6 3.5-6 3.5Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+      <path
+        d="m4.8 4 5.7 7.7L4.4 20h2.7l4.7-6.3 4.6 6.3h3.2l-6.1-8.3L19.2 4h-2.7l-4.3 5.8L7.9 4H4.8Zm4 2 7.1 12h-1.4L7.4 6h1.4Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 export default async function ContactPage({
   searchParams,
@@ -27,63 +82,15 @@ export default async function ContactPage({
     typeof resolvedSearchParams.error === "string"
       ? resolvedSearchParams.error
       : null;
-  const facebookLink = contactContent.socialLinks.find(
-    (item) => item.label.toLowerCase() === "facebook"
-  );
   const phoneHref = `tel:${contactContent.phone.replace(/[^\d+]/g, "")}`;
 
   return (
-    <div className="contact-page shell py-10 sm:py-12 lg:py-16">
-      <section className="contact-hero">
-        <div className="contact-hero__copy">
-          <span className="eyebrow">Official contact hub</span>
-          <h1 className="section-title mt-4">{contactContent.title}</h1>
-          <p className="section-copy mt-4">{contactContent.summary}</p>
-          <p className="contact-slogan">{brandProfile.slogan}</p>
-          <div className="contact-actions" aria-label="Primary contact actions">
-            <Link className="primary-button" href={`mailto:${contactContent.email}`}>
-              Email JnUITS
-            </Link>
-            <Link className="secondary-button" href={phoneHref}>
-              Call {contactContent.phone}
-            </Link>
-            {facebookLink ? (
-              <Link className="ghost-button" href={facebookLink.href} target="_blank">
-                Latest updates on Facebook
-              </Link>
-            ) : null}
-          </div>
-        </div>
-
-        <aside className="contact-hero__card" aria-label="Organization details">
-          <p className="contact-card-kicker">{contactContent.organizationType}</p>
-          <h2>{brandProfile.fullName}</h2>
-          <dl className="contact-facts">
-            <div>
-              <dt>Located in</dt>
-              <dd>{contactContent.location}</dd>
-            </div>
-            <div>
-              <dt>Address</dt>
-              <dd>{contactContent.address}</dd>
-            </div>
-            <div>
-              <dt>Founded</dt>
-              <dd>{contactContent.foundedLabel}</dd>
-            </div>
-          </dl>
-        </aside>
-      </section>
-
-      <section className="contact-layout mt-8 lg:mt-10">
-        <div className="contact-form-card">
-          <div>
-            <span className="eyebrow">Send a message</span>
-            <h2 className="contact-section-title mt-4">Route your inquiry to the right team.</h2>
-            <p className="section-copy mt-3" id="contact-guidance">
-              Choose the closest category, include the useful context, and the JnUITS
-              team will respond through the email address you provide.
-            </p>
+    <main className="contact-page shell py-8 sm:py-10 lg:py-12">
+      <section className="contact-shell" aria-labelledby="contact-form-title">
+        <div className="contact-form-panel">
+          <div className="contact-panel-heading">
+            <span>Contact form</span>
+            <h1 id="contact-form-title">Route your inquiry to the right team.</h1>
           </div>
 
           <div className="contact-status-region" aria-live="polite" aria-atomic="true">
@@ -96,11 +103,10 @@ export default async function ContactPage({
             method="post"
             className="contact-form"
             id="contact-form"
-            aria-describedby="contact-guidance"
           >
             <div className="contact-form-grid">
               <label className="input-label" htmlFor="contact-name">
-                Your name
+                Name
                 <input
                   id="contact-name"
                   name="name"
@@ -148,8 +154,8 @@ export default async function ContactPage({
               <textarea
                 id="contact-message"
                 name="message"
-                rows={7}
-                placeholder="Share certificate IDs, event names, membership IDs, or dates when useful."
+                rows={6}
+                placeholder="Write your message here."
                 required
               />
             </label>
@@ -160,58 +166,89 @@ export default async function ContactPage({
             </div>
 
             <button className="primary-button contact-submit" type="submit">
+              <Send aria-hidden="true" size={18} strokeWidth={2.2} />
               Send message
             </button>
           </form>
         </div>
 
-        <aside className="contact-directory" aria-label="Contact directory">
-          <article className="contact-directory-card contact-directory-card--highlight">
-            <span>Most active channel</span>
-            <h3>Follow JnUITS on Facebook</h3>
-            <p>
-              Event announcements, club updates, and public notices are usually published
-              on Facebook first.
-            </p>
-            {facebookLink ? (
-              <Link href={facebookLink.href} target="_blank">
-                Open Facebook page
-              </Link>
-            ) : null}
-          </article>
+        <aside className="contact-info-panel" aria-labelledby="contact-info-title">
+          <div className="contact-panel-heading contact-panel-heading--info">
+            <span>Official contact</span>
+            <h2 id="contact-info-title">Contact JnUITS</h2>
+          </div>
 
-          <div className="contact-detail-grid">
-            <article className="contact-directory-card">
-              <span>Email</span>
-              <h3>{contactContent.email}</h3>
-              <Link href={`mailto:${contactContent.email}`}>Send email</Link>
-            </article>
-            <article className="contact-directory-card">
-              <span>Phone</span>
-              <h3>{contactContent.phone}</h3>
-              <Link href={phoneHref}>Call now</Link>
-            </article>
-            <article className="contact-directory-card">
-              <span>Google Business</span>
-              <h3>Public listing</h3>
-              <Link href={contactContent.googleBusinessHref} target="_blank">
-                View listing
-              </Link>
-            </article>
-            <article className="contact-directory-card">
-              <span>Social media</span>
-              <h3>Official accounts</h3>
-              <div className="contact-social-list">
-                {contactContent.socialLinks.map((item) => (
-                  <Link key={item.href} href={item.href} target="_blank">
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            </article>
+          <div className="contact-org-card">
+            <Building2 aria-hidden="true" size={21} strokeWidth={2.1} />
+            <div>
+              <p>Jagannath University IT Society (JnUITS)</p>
+              <span>{contactContent.organizationType}</span>
+            </div>
+          </div>
+
+          <div className="contact-info-list">
+            <Link
+              className="contact-info-row"
+              href={contactContent.googleBusinessHref}
+              target="_blank"
+            >
+              <MapPin aria-hidden="true" size={20} strokeWidth={2.1} />
+              <span>
+                <strong>Address</strong>
+                {contactContent.address}
+              </span>
+            </Link>
+            <Link className="contact-info-row" href={`mailto:${contactContent.email}`}>
+              <Mail aria-hidden="true" size={20} strokeWidth={2.1} />
+              <span>
+                <strong>Email</strong>
+                {contactContent.email}
+              </span>
+            </Link>
+            <Link className="contact-info-row" href={phoneHref}>
+              <Phone aria-hidden="true" size={20} strokeWidth={2.1} />
+              <span>
+                <strong>Phone</strong>
+                {contactContent.phone}
+              </span>
+            </Link>
+            <div className="contact-info-row">
+              <CalendarDays aria-hidden="true" size={20} strokeWidth={2.1} />
+              <span>
+                <strong>Founded</strong>
+                Nov 11, 2015
+              </span>
+            </div>
+          </div>
+
+          <div className="contact-social-block">
+            <h3>Social Media &amp; Links</h3>
+            <div className="contact-social-icons" aria-label="Official JnUITS social media">
+              {contactContent.socialLinks.map((item) => (
+                <Link
+                  key={item.href}
+                  className="contact-social-icon"
+                  href={item.href}
+                  target="_blank"
+                  aria-label={item.label}
+                  title={item.label}
+                >
+                  <SocialIcon label={item.label} />
+                </Link>
+              ))}
+            </div>
+            <Link
+              className="contact-business-link"
+              href={contactContent.googleBusinessHref}
+              target="_blank"
+            >
+              <Globe2 aria-hidden="true" size={18} strokeWidth={2.1} />
+              Google Business Public Listing
+              <ExternalLink aria-hidden="true" size={15} strokeWidth={2.1} />
+            </Link>
           </div>
         </aside>
       </section>
-    </div>
+    </main>
   );
 }

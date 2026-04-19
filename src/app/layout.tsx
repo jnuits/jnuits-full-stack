@@ -1,35 +1,29 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import {
-  Cormorant_Garamond,
-  DM_Mono,
-  Plus_Jakarta_Sans,
+  Inter,
+  JetBrains_Mono,
+  Lora,
 } from "next/font/google";
 import { brandProfile } from "@/lib/branding";
 import "./globals.css";
 
-const headingFont = Plus_Jakarta_Sans({
-  variable: "--font-heading",
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
-});
-
-const monoFont = DM_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-});
-
-const serifFont = Cormorant_Garamond({
-  variable: "--font-serif",
-  subsets: ["latin"],
-  weight: ["500", "600"],
-});
-
-const bodyFont = Plus_Jakarta_Sans({
+const bodyFont = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+});
+
+const monoFont = JetBrains_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
   weight: ["400", "500", "600"],
+});
+
+const serifFont = Lora({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const themeInitScript = `
@@ -69,7 +63,7 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       data-scroll-behavior="smooth"
-      className={`${headingFont.variable} ${bodyFont.variable} ${monoFont.variable} ${serifFont.variable} h-full antialiased`}
+      className={`${bodyFont.variable} ${monoFont.variable} ${serifFont.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground flex flex-col">
         <Script id="jnuits-theme-init" strategy="beforeInteractive">
