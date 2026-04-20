@@ -39,11 +39,12 @@
     "dotenv": "^17.2.3",
     "lucide-react": "^1.8.0",
     "mysql2": "^3.20.0",
-    "next": "16.2.2",
+    "next": "^16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-email": "5.2.10",
     "server-only": "^0.0.1",
+    "yet-another-react-lightbox": "^3.31.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {

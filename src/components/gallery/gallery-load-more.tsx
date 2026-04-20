@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import Lightbox, { type Slide } from "yet-another-react-lightbox";
+import Captions from "yet-another-react-lightbox/plugins/captions";
 import {
   startTransition,
   useCallback,
@@ -23,6 +24,8 @@ type GalleryPageResponse = {
   items: GalleryImage[];
   nextCursor: string | null;
 };
+
+const LIGHTBOX_PLUGINS = [Captions] as const;
 
 function cleanText(value: string | null | undefined) {
   const trimmed = value?.replace(/\s+/g, " ").trim();
@@ -108,8 +111,18 @@ export function GalleryLoadMore({
       ),
     }));
   }, [items]);
-  const activeItem =
-    activeIndex === null ? null : visibleItems[activeIndex] || null;
+  const lightboxSlides = useMemo<Slide[]>(
+    () =>
+      visibleItems.map((item, index) => ({
+        alt: item.altText,
+        description: item.displayCaption.description || undefined,
+        height: item.height,
+        src: item.fullUrl,
+        title: `${albumTitle} - Photo ${index + 1}`,
+        width: item.width,
+      })),
+    [albumTitle, visibleItems]
+  );
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || requestInFlight.current) {
@@ -160,26 +173,6 @@ export function GalleryLoadMore({
     }
   }, [albumSlug, nextCursor]);
 
-  const showPrevious = useCallback(() => {
-    setActiveIndex((current) => {
-      if (current === null || !visibleItems.length) {
-        return current;
-      }
-
-      return (current - 1 + visibleItems.length) % visibleItems.length;
-    });
-  }, [visibleItems.length]);
-
-  const showNext = useCallback(() => {
-    setActiveIndex((current) => {
-      if (current === null || !visibleItems.length) {
-        return current;
-      }
-
-      return (current + 1) % visibleItems.length;
-    });
-  }, [visibleItems.length]);
-
   useEffect(() => {
     const node = sentinelRef.current;
 
@@ -205,37 +198,6 @@ export function GalleryLoadMore({
     return () => observer.disconnect();
   }, [loadMore, nextCursor]);
 
-  useEffect(() => {
-    if (activeIndex === null) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-
-    document.body.style.overflow = "hidden";
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setActiveIndex(null);
-      }
-
-      if (event.key === "ArrowLeft") {
-        showPrevious();
-      }
-
-      if (event.key === "ArrowRight") {
-        showNext();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [activeIndex, showNext, showPrevious]);
-
   return (
     <div className="grid gap-8">
       <div className="gallery-masonry">
@@ -255,6 +217,7 @@ export function GalleryLoadMore({
                 blurDataURL={item.blurDataURL || undefined}
                 className="h-auto w-full object-cover transition duration-700 group-hover:scale-[1.025]"
                 height={item.height}
+                loading={index < 6 ? "eager" : "lazy"}
                 placeholder={item.blurDataURL ? "blur" : "empty"}
                 sizes="(min-width: 1024px) 31vw, (min-width: 640px) 47vw, 100vw"
                 src={item.thumbnailUrl}
@@ -278,77 +241,24 @@ export function GalleryLoadMore({
         ))}
       </div>
 
-      {activeItem ? (
-        <div
-          aria-label={`${activeItem.displayCaption.title} lightbox`}
-          aria-modal="true"
-          className="gallery-lightbox"
-          role="dialog"
-        >
-          <button
-            aria-label="Close photo viewer"
-            className="gallery-lightbox__backdrop"
-            onClick={() => setActiveIndex(null)}
-            type="button"
-          />
-          <div className="gallery-lightbox__stage">
-            <button
-              aria-label="Close photo viewer"
-              className="gallery-lightbox__close"
-              onClick={() => setActiveIndex(null)}
-              type="button"
-            >
-              <X size={20} />
-            </button>
-
-            {visibleItems.length > 1 ? (
-              <button
-                aria-label="Previous photo"
-                className="gallery-lightbox__nav gallery-lightbox__nav--previous"
-                onClick={showPrevious}
-                type="button"
-              >
-                <ChevronLeft size={28} />
-              </button>
-            ) : null}
-
-            <div className="gallery-lightbox__image-wrap">
-              <Image
-                alt={activeItem.altText}
-                blurDataURL={activeItem.blurDataURL || undefined}
-                className="gallery-lightbox__image"
-                height={activeItem.height}
-                placeholder={activeItem.blurDataURL ? "blur" : "empty"}
-                priority
-                sizes="100vw"
-                src={activeItem.fullUrl}
-                width={activeItem.width}
-              />
-            </div>
-
-            {visibleItems.length > 1 ? (
-              <button
-                aria-label="Next photo"
-                className="gallery-lightbox__nav gallery-lightbox__nav--next"
-                onClick={showNext}
-                type="button"
-              >
-                <ChevronRight size={28} />
-              </button>
-            ) : null}
-
-            <div className="gallery-lightbox__caption">
-              <p className="text-sm font-semibold text-white">
-                {activeItem.displayCaption.title}
-              </p>
-              <p className="mt-1 text-xs text-white/65">
-                {activeIndex === null ? 0 : activeIndex + 1} of{" "}
-                {visibleItems.length} · {albumTitle}
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Lightbox
+        captions={{
+          descriptionMaxLines: 2,
+          descriptionTextAlign: "center",
+        }}
+        carousel={{
+          imageFit: "contain",
+          padding: "16px",
+          preload: 2,
+        }}
+        className="jnuits-gallery-lightbox"
+        close={() => setActiveIndex(null)}
+        controller={{ closeOnBackdropClick: true }}
+        index={activeIndex ?? 0}
+        open={activeIndex !== null}
+        plugins={LIGHTBOX_PLUGINS}
+        slides={lightboxSlides}
+      />
 
       <div ref={sentinelRef} />
 

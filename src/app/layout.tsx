@@ -5,6 +5,8 @@ import {
   JetBrains_Mono,
   Lora,
 } from "next/font/google";
+import "yet-another-react-lightbox/styles.css";
+import "yet-another-react-lightbox/plugins/captions.css";
 import { brandProfile } from "@/lib/branding";
 import "./globals.css";
 

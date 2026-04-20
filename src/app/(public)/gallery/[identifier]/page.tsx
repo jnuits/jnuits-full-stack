@@ -137,11 +137,6 @@ export default async function GalleryDetailPage({
               Browse this album
             </h2>
           </div>
-          <p className="max-w-sm text-sm leading-7 text-[var(--muted-foreground)]">
-            Photos stay visual-first. Short unique titles or descriptions appear
-            only when they add context; repeated Facebook captions are replaced
-            with clean image titles.
-          </p>
         </div>
 
         <GalleryLoadMore
