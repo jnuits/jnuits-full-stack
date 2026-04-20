@@ -412,12 +412,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
 }
 
 .site-header-row > a {
-  flex: 1 1 16rem;
+  flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
 }
@@ -628,7 +628,7 @@
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  gap: 0.45rem;
+  gap: 0.5rem;
   margin-left: auto;
   max-width: 100%;
   border: 1px solid color-mix(in oklab, var(--line) 84%, transparent);
@@ -641,6 +641,12 @@
 .site-header-actions .primary-button {
   flex: 0 0 auto;
   min-height: 2.55rem;
+}
+
+.site-header-auth-button {
+  min-width: 4.65rem;
+  padding-inline: 0.95rem;
+  white-space: nowrap;
 }
 
 .site-header-actions .theme-toggle,
@@ -687,6 +693,17 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+}
+
+@media (min-width: 768px) {
+  .site-header-actions {
+    gap: 0.75rem;
+  }
+
+  .site-header-auth-button {
+    min-width: 5.1rem;
+    padding-inline: 1.1rem;
+  }
 }
 
 .site-mobile-nav .site-nav-link {
@@ -2500,23 +2517,46 @@ footer {
 
 @media (max-width: 520px) {
   .site-header-row {
-    align-items: flex-start;
+    align-items: center;
   }
 
   .site-header-row > a {
-    flex: 1 1 100%;
+    flex: 1 1 auto;
   }
 
   .site-header-actions {
-    width: 100%;
+    width: auto;
     justify-content: flex-end;
-    margin-left: 0;
+    margin-left: auto;
   }
 }
 
 @media (max-width: 420px) {
+  .site-header-row {
+    gap: 0.35rem;
+  }
+
   .brand-lockup {
-    gap: 0.65rem;
+    gap: 0.5rem;
+  }
+
+  .site-header .brand-mark {
+    width: 2.65rem;
+    height: 2.65rem;
+  }
+
+  .brand-lockup[data-custom-title="true"] .brand-title {
+    max-width: 6.9rem;
+    font-size: 1rem;
+  }
+
+  .brand-lockup[data-custom-title="true"] .brand-slogan {
+    font-size: 0.72rem;
+  }
+
+  .site-header-actions {
+    gap: 0.3rem;
+    padding: 0.2rem;
   }
 
   .site-header-actions .theme-toggle,
@@ -2528,7 +2568,11 @@ footer {
 
   .site-header-actions .primary-button {
     min-height: 2.45rem;
-    padding-inline: 0.8rem;
+    padding-inline: 0.75rem;
+  }
+
+  .site-header-auth-button {
+    min-width: 4.25rem;
   }
 }
 
