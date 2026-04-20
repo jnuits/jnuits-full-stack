@@ -1,0 +1,1212 @@
+{
+  "generatedAt": "2026-04-19T17:42:39.844Z",
+  "sourceExport": "facebook-jnuits-2026-04-19",
+  "sourceReport": "artifacts/facebook-jnuits/reports/facebook-gallery-upload-20260419T163722Z.json",
+  "summary": {
+    "byCategory": {
+      "ceremony-community": 8,
+      "community-social": 4,
+      "competition": 14,
+      "institutional": 3,
+      "member-outreach": 11,
+      "other-real-event": 1,
+      "tour": 2,
+      "workshop-training": 21
+    },
+    "byDeliveryMode": {
+      "offline": 45,
+      "online-or-hybrid": 4,
+      "unknown": 15
+    },
+    "byYear": {
+      "2016": 2,
+      "2017": 2,
+      "2018": 7,
+      "2019": 15,
+      "2020": 10,
+      "2022": 5,
+      "2023": 2,
+      "2024": 5,
+      "2025": 5,
+      "2026": 11
+    },
+    "eventCount": 64,
+    "rejectedCandidateCount": 18,
+    "totalMediaCount": 986
+  },
+  "events": [
+    {
+      "category": "ceremony-community",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2016/05/orientation-2016"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616341/jnuits/jnuits-full-stack/gallery/2016/05/orientation-2016/orientation-2016-273915176290027.jpg",
+      "deliveryMode": "offline",
+      "description": "Orientation - 2016",
+      "endDate": "2016-05-18",
+      "mediaCount": 48,
+      "slug": "orientation-2016",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2016-05-18",
+      "title": "Orientation - 2016",
+      "year": 2016
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2016/12/bcc-1st-batch"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620500/jnuits/jnuits-full-stack/gallery/2016/12/bcc-1st-batch/bcc-1st-batch-381646428850234.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 2 new photos. JNUITS BCC 1st Batch.",
+      "endDate": "2016-12-08",
+      "mediaCount": 2,
+      "slug": "bcc-1st-batch",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2016-12-08",
+      "title": "JNUITS BCC 1st Batch",
+      "year": 2016
+    },
+    {
+      "category": "ceremony-community",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2017/05/fresher-s-reception-2017"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616358/jnuits/jnuits-full-stack/gallery/2017/05/fresher-s-reception-2017/fresher-s-reception-2017-460819124266297.jpg",
+      "deliveryMode": "offline",
+      "description": "Fresher's Reception 2017",
+      "endDate": "2017-05-04",
+      "mediaCount": 8,
+      "slug": "fresher-s-reception-2017",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2017-05-04",
+      "title": "Fresher's Reception 2017",
+      "year": 2017
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2017/05/bcc-2nd-batch"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616360/jnuits/jnuits-full-stack/gallery/2017/05/bcc-2nd-batch/bcc-2nd-batch-472144939800382.jpg",
+      "deliveryMode": "unknown",
+      "description": "BCC 2nd Batch",
+      "endDate": "2017-05-28",
+      "mediaCount": 13,
+      "slug": "bcc-2nd-batch",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2017-05-28",
+      "title": "BCC 2nd Batch",
+      "year": 2017
+    },
+    {
+      "category": "community-social",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2018/05/executive-committee-iftar-2018"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620497/jnuits/jnuits-full-stack/gallery/2018/05/executive-committee-iftar-2018/executive-committee-iftar-2018-655287801486094.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 4 new photos. 'জগন্নাথ বিশ্ববিদ্যালয় আইটি সোসাইটি'র ' কার্যনির্বাহী পরিষদ' এর ইফতার আয়োজনের কিছু স্থিরচিত্র।",
+      "endDate": "2018-05-31",
+      "mediaCount": 4,
+      "slug": "executive-committee-iftar-2018",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2018-05-31",
+      "title": "Executive Committee Iftar 2018",
+      "year": 2018
+    },
+    {
+      "category": "institutional",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2018/09/executive-committee-planning-meeting-2018"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620493/jnuits/jnuits-full-stack/gallery/2018/09/executive-committee-planning-meeting-2018/executive-committee-planning-meeting-2018-745603452454528.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 3 new photos. জগন্নাথ বিশ্ববিদ্যালয় আইটি সোসাইটির আজকের কার্যনির্বাহী সভার সময়কার কিছু স্থিরচিত্র। আজকের সভায় সংগঠনের ভবিষ্যৎ কর্মপরিকল্পনা এবং বিশ্ববিদ্যালয় এর শিক্ষার্থীদের আইটি বিষয়ক জ্ঞান উন্নয়নকল্পে বেশ কিছু গুরুত্বপূর্ণ সিদ্ধান্ত গৃহীত হয়। আশা করছি খুব শীঘ্রই আইটি সোসাইটির পক্ষ থেকে বিশ্ববিদ্যালয়ের শিক্ষার্থীদের অনেক ভালো কিছু উপহার দিতে সক্ষম হবো আমরা। Jagannath University IT Society #Step_ahead_with_IT",
+      "endDate": "2018-09-05",
+      "mediaCount": 3,
+      "slug": "executive-committee-planning-meeting-2018",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2018-09-05",
+      "title": "Executive Committee Planning Meeting 2018",
+      "year": 2018
+    },
+    {
+      "category": "tour",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2018/09/aparahner-ariyal"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776619820/jnuits/jnuits-full-stack/gallery/2018/09/aparahner-ariyal/aparahner-ariyal-762207264127480.jpg",
+      "deliveryMode": "offline",
+      "description": "জগন্নাথ বিশ্ববিদ্যালয় আইটি সোসাইটির সাধারণ সদস্যদের জন্য বিক্রমপুরের আড়িয়াল বিলে আয়োজিত ছোট recreational tour. Facebook event metadata lists the venue as আড়িয়াল বিল, শ্রীনগর, বিক্রমপুর, and the photo post captures the tour moments and prize-giving.",
+      "endDate": "2018-09-28",
+      "mediaCount": 10,
+      "slug": "aparahner-ariyal",
+      "sourceTypes": [
+        "facebook_event",
+        "post"
+      ],
+      "startDate": "2018-09-28",
+      "title": "অপরাহ্নের আড়িয়াল",
+      "year": 2018
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2018/10/typing-master-2018-campaign-day-1"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620487/jnuits/jnuits-full-stack/gallery/2018/10/typing-master-2018-campaign-day-1/typing-master-2018-campaign-day-1-774540342894172.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 5 new photos. ক্যাম্পাস প্রায় বন্ধ অবস্থায়ও প্রথম দিন ক্যাম্পেইনে দাড়ুন অাগ্রহ দেখা গেছে 'টাইপিং মাস্টার কম্পিটিশন' নিয়ে। প্রচুর পরিমাণে ভলেন্টিয়ার লাগবে এত এত অংশগ্রহণকারীদের সামাল দিতে। দাড়ুন কিছু হবে বলে আশা করছি। যারা এখনও রেজিস্ট্রেশন করেননি তারা দ্রুত করে ফেলুন। নিজেকে প্রমান করার এখনই সুযোগ। আগামী রবিবার পর্যন্ত রেজিষ্টেশন চলবে শান্ত চত্তরে সকাল ১০ টা থকে ১ টা পর্যন্ত। শুধুমাত্র নবম থেকে তের তম আবর্তন পর্যন্ত। প্রথম পুরস্কার হিসেবে থাকছে একটি ল্যাপটপ।",
+      "endDate": "2018-10-23",
+      "mediaCount": 5,
+      "slug": "typing-master-2018-campaign-day-1",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2018-10-23",
+      "title": "Typing Master 2018 Campaign Day 1",
+      "year": 2018
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2018/10/typing-master-2018-campaign-day-2"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620484/jnuits/jnuits-full-stack/gallery/2018/10/typing-master-2018-campaign-day-2/typing-master-2018-campaign-day-2-775618082786398.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 2 new photos. It was second day of 'Typing Master 2018' campaign. It's really amazing to see the huge response for the competition. Thank you so much to the member of JNUITS for being so humble and hardworking. Challenge yourself to be a typing master and win a new #laptop",
+      "endDate": "2018-10-25",
+      "mediaCount": 2,
+      "slug": "typing-master-2018-campaign-day-2",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2018-10-25",
+      "title": "Typing Master 2018 Campaign Day 2",
+      "year": 2018
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2018/10/glimpse-of-campus-typing-master-2018",
+        "jnuits/jnuits-full-stack/gallery/2018/11/campus-typing-master-2018-prizing-giving-ceremony"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616365/jnuits/jnuits-full-stack/gallery/2018/10/glimpse-of-campus-typing-master-2018/glimpse-of-campus-typing-master-2018-779407599074113.jpg",
+      "deliveryMode": "offline",
+      "description": "Campus Typing Master 2018: Prizing Giving Ceremony",
+      "endDate": "2018-11-11",
+      "mediaCount": 68,
+      "slug": "campus-typing-master-2018",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2018-10-31",
+      "title": "Campus Typing Master 2018",
+      "year": 2018
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2018/12/a-seminar-on-freedom-responsibilities-in-the-age-of-digital-bangladesh"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616384/jnuits/jnuits-full-stack/gallery/2018/12/a-seminar-on-freedom-responsibilities-in-the-age-of-digital-bangladesh/a-seminar-on-freedom-responsibilities-in-the-age-of-digital-bangladesh-802344650113741.jpg",
+      "deliveryMode": "offline",
+      "description": "A seminar on ' Freedom & Responsibilities in the Age of Digital Bangladesh'. Arranged by JnUITS.",
+      "endDate": "2018-12-04",
+      "mediaCount": 14,
+      "slug": "freedom-and-responsibilities-in-the-age-of-digital-bangladesh",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2018-12-04",
+      "title": "Freedom & Responsibilities in the Age of Digital Bangladesh",
+      "year": 2018
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/01/member-collection-and-bcc-form-distribution-2019"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620476/jnuits/jnuits-full-stack/gallery/2019/01/member-collection-and-bcc-form-distribution-2019/member-collection-and-bcc-form-distribution-2019-841449556203250.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 6 new photos. ৩য় দিনের মত চলছে 'জগন্নাথ বিশ্ববিদ্যালয় আইটি সোসাইটি সদস্য সংগ্রহ ২০১৯' এবং বহুল প্রতিক্ষিত 'বেসিক কম্পিউটার কোর্স ২০১৯' এর ফর্ম বিতরন। বিশ্ববিদ্যালয়ের ১৩তম ও ১৪তম ব্যাচের যেকোন ছাত্রছাত্রী সদস্য ফর্ম সংগ্রহ করতে পারবেন শান্ত চত্বর থেকে। সদস্য সংগ্রহ ফর্ম বিতরন চলবে আগামী বৃহঃস্পতি বার পর্যন্ত। এছাড়াও ১১তম থেকে ১৪তম ব্যাচের যেকেউ বেসিক কম্পিউটার কোর্স এর ফর্ম সংগ্রহ করতে পারবেন।",
+      "endDate": "2019-01-29",
+      "mediaCount": 6,
+      "slug": "member-collection-and-bcc-form-distribution-2019",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2019-01-29",
+      "title": "Member Collection and BCC 2019 Form Distribution",
+      "year": 2019
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/03/36-team-round-one-campus-power-presenter-2019-jnuits-cpp2019",
+        "jnuits/jnuits-full-stack/gallery/2019/03/campus-power-presenter-19-round-one",
+        "jnuits/jnuits-full-stack/gallery/2019/03/campus-power-presenter-2019-panel-of-experts-for-round-one-cpp2019-jnuits"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616683/jnuits/jnuits-full-stack/gallery/2019/03/36-team-round-one-campus-power-presenter-2019-jnuits-cpp2019/36-team-round-one-campus-power-presenter-2019-jnuits-cpp2019-871627473185458.jpg",
+      "deliveryMode": "offline",
+      "description": "Campus Power Presenter 2019 Panel of Experts for Round one #CPP2019 #JnUITS",
+      "endDate": "2019-03-19",
+      "mediaCount": 42,
+      "slug": "campus-power-presenter-2019-round-one",
+      "sourceTypes": [
+        "album",
+        "post"
+      ],
+      "startDate": "2019-03-17",
+      "title": "Campus Power Presenter 2019 Round One",
+      "year": 2019
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/03/campus-power-presenter-2019-workshop-day"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616387/jnuits/jnuits-full-stack/gallery/2019/03/campus-power-presenter-2019-workshop-day/campus-power-presenter-2019-workshop-day-871660573182148.jpg",
+      "deliveryMode": "offline",
+      "description": "Campus Power Presenter 2019, Workshop Day",
+      "endDate": "2019-03-17",
+      "mediaCount": 14,
+      "slug": "campus-power-presenter-2019-workshop-day",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2019-03-17",
+      "title": "Campus Power Presenter 2019 Workshop Day",
+      "year": 2019
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/03/grand-finale-of-campus-power-presenter-2019",
+        "jnuits/jnuits-full-stack/gallery/2019/04/grand-finale-of-campus-power-presenter-2019"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616699/jnuits/jnuits-full-stack/gallery/2019/03/grand-finale-of-campus-power-presenter-2019/grand-finale-of-campus-power-presenter-2019-882314932116712.jpg",
+      "deliveryMode": "offline",
+      "description": "Grand Finale of \"Campus Power Presenter 2019\" season 1.... অনুষ্ঠানে প্রধান অতিথি হিসেবে উপস্থিত ছিলেন জগন্নাথ বিশ্ববিদ্যালয়ের উপাচার্য অধ্যাপক ড. মীজানুর রহমান। বিশেষ অতিথি হিসেবে উপস্থিত ছিলেন বিশ্ববিদ্যালয়ের কোষাধ্যক্ষ অধ্যাপক ড. সেলিম ভুইয়া। এছাড়াও অনুষ্ঠানে বিচারক এর দায়িত্ব পালন করেন সিএসই ডিপার্টমেন্টের সহযোগী অধ্যাপক জনাব মেসবাউল আলম পলাশ, আইন অনুষদের ডিন খ্রিস্টিন রিচার্ডসন এবং ইন্সটিটিউট অব মডার্ণ ল্যাংগুয়েজ এর ডিরেক্টর ড.প্রতিভা রানী কর্মকার। অনুষ্ঠানে সভাপতিত্ব করেন সংগঠন এর উপদেষ্টা ও সিএসই ডিপার্টমেন্টের চেয়ারম্যান অধ্যাপক ড.উজ্জ্বল কুমার আচার্য্য। #CPP2019 #JnUITS",
+      "endDate": "2019-04-03",
+      "mediaCount": 29,
+      "slug": "campus-power-presenter-2019-grand-finale",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2019-03-31",
+      "title": "Campus Power Presenter 2019 Grand Finale",
+      "year": 2019
+    },
+    {
+      "category": "ceremony-community",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/03/general-member-s-orientation-program-2019",
+        "jnuits/jnuits-full-stack/gallery/2019/04/general-member-s-orientation-program-2019"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616405/jnuits/jnuits-full-stack/gallery/2019/03/general-member-s-orientation-program-2019/general-member-s-orientation-program-2019-883408558674016.jpg",
+      "deliveryMode": "offline",
+      "description": "Orientation Program 2019 of Jagannath University IT Society's General Members.",
+      "endDate": "2019-04-05",
+      "mediaCount": 15,
+      "slug": "general-member-orientation-2019",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2019-03-31",
+      "title": "General Member Orientation 2019",
+      "year": 2019
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/04/orientation-class-of-bcc-4th-batch",
+        "jnuits/jnuits-full-stack/gallery/2019/11/bcc-4th-batch"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616410/jnuits/jnuits-full-stack/gallery/2019/04/orientation-class-of-bcc-4th-batch/orientation-class-of-bcc-4th-batch-881641778850694.jpg",
+      "deliveryMode": "offline",
+      "description": "BCC 4th Batch Final Test 2019 #JnUITS",
+      "endDate": "2019-11-06",
+      "mediaCount": 18,
+      "slug": "bcc-4th-batch",
+      "sourceTypes": [
+        "album",
+        "post"
+      ],
+      "startDate": "2019-04-02",
+      "title": "BCC 4th Batch",
+      "year": 2019
+    },
+    {
+      "category": "ceremony-community",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/04/general-meeting-2019-of-jagannath-university-it-society"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616413/jnuits/jnuits-full-stack/gallery/2019/04/general-meeting-2019-of-jagannath-university-it-society/general-meeting-2019-of-jagannath-university-it-society-899129207101951.jpg",
+      "deliveryMode": "offline",
+      "description": "\"General Meeting 2019\" of Jagannath University IT Society. Thanks to all of the members who joined in a short notice inspite of their exams and important works. JnUITS is going to do something very special which has never done before in old Dhaka and in any campus. Stay tune :) #JnUITS #General_meeting_April28 #General_members2019",
+      "endDate": "2019-04-28",
+      "mediaCount": 4,
+      "slug": "general-meeting-2019",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2019-04-28",
+      "title": "General Meeting 2019",
+      "year": 2019
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/05/sub-executive-recruitment-exam-2019"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620466/jnuits/jnuits-full-stack/gallery/2019/05/sub-executive-recruitment-exam-2019/sub-executive-recruitment-exam-2019-908152966199575.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 8 new photos. \"JnUITS Sub Executive Recruitment Exam 2019\". #JnuITS",
+      "endDate": "2019-05-11",
+      "mediaCount": 8,
+      "slug": "sub-executive-recruitment-exam-2019",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2019-05-11",
+      "title": "JnUITS Sub Executive Recruitment Exam 2019",
+      "year": 2019
+    },
+    {
+      "category": "community-social",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/05/jnuits-iftar-dua-mahfil-2019"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616415/jnuits/jnuits-full-stack/gallery/2019/05/jnuits-iftar-dua-mahfil-2019/jnuits-iftar-dua-mahfil-2019-910288769319328.jpg",
+      "deliveryMode": "offline",
+      "description": "JnUITS Iftar & Dua Mahfil 2019",
+      "endDate": "2019-05-14",
+      "mediaCount": 9,
+      "slug": "jnuits-iftar-and-dua-mahfil-2019",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2019-05-14",
+      "title": "JnUITS Iftar & Dua Mahfil 2019",
+      "year": 2019
+    },
+    {
+      "category": "institutional",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/09/courtesy-meeting-by-jnuits-ec-2019-20"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616420/jnuits/jnuits-full-stack/gallery/2019/09/courtesy-meeting-by-jnuits-ec-2019-20/courtesy-meeting-by-jnuits-ec-2019-20-1005345349813669.jpg",
+      "deliveryMode": "unknown",
+      "description": "Courtesy Meeting by JnUITS EC 2019-20",
+      "endDate": "2019-09-19",
+      "mediaCount": 23,
+      "slug": "courtesy-meeting-by-jnuits-ec-2019-20",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2019-09-16",
+      "title": "Courtesy Meeting by JnUITS EC 2019-20",
+      "year": 2019
+    },
+    {
+      "category": "ceremony-community",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/09/annual-general-meeting-2019"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616424/jnuits/jnuits-full-stack/gallery/2019/09/annual-general-meeting-2019/annual-general-meeting-2019-1006145349733669.jpg",
+      "deliveryMode": "unknown",
+      "description": "Annual General Meeting 2019",
+      "endDate": "2019-09-19",
+      "mediaCount": 28,
+      "slug": "annual-general-meeting-2019",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2019-09-17",
+      "title": "Annual General Meeting 2019",
+      "year": 2019
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/09/excel-for-excellence"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616435/jnuits/jnuits-full-stack/gallery/2019/09/excel-for-excellence/excel-for-excellence-1013621165652754.jpg",
+      "deliveryMode": "unknown",
+      "description": "\"Excel for Excellence\" is an workshop on basic Microsoft Excel organized by Jagannath University IT Society. This workshop's participants are getting practical guidelines of basic Excel functions and many significant tools of Excel that are required on a daily basis.",
+      "endDate": "2019-09-28",
+      "mediaCount": 11,
+      "slug": "excel-for-excellence",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2019-09-28",
+      "title": "Excel For Excellence",
+      "year": 2019
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/11/4th-year-anniversary-grand-final-of-campus-typing-master-2-o"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616442/jnuits/jnuits-full-stack/gallery/2019/11/4th-year-anniversary-grand-final-of-campus-typing-master-2-o/4th-year-anniversary-grand-final-of-campus-typing-master-2-o-1058325267849010.jpg",
+      "deliveryMode": "offline",
+      "description": "4th year founding anniversary celebration & Campus Typing Master 2.O prize giving ceremony 2019, organised by Jagannath University IT Society. #JnUITS #Step_ahead_with_IT #CTM2019",
+      "endDate": "2019-11-10",
+      "mediaCount": 54,
+      "slug": "4th-year-anniversary-and-campus-typing-master-2-0-grand-final",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2019-11-10",
+      "title": "4th Year Anniversary & Campus Typing Master 2.0 Grand Final",
+      "year": 2019
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/11/finalist-of-campus-typing-master-2-o"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616442/jnuits/jnuits-full-stack/gallery/2019/11/finalist-of-campus-typing-master-2-o/finalist-of-campus-typing-master-2-o-1057230654625138.jpg",
+      "deliveryMode": "offline",
+      "description": "Presenting the \"Top 20\" of Campus Typing Master 2.O #JnUITS #Step_ahead_with_IT #CTP2019",
+      "endDate": "2019-11-10",
+      "mediaCount": 18,
+      "slug": "finalist-of-campus-typing-master-2-o",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2019-11-10",
+      "title": "Finalist of Campus Typing Master 2.O",
+      "year": 2019
+    },
+    {
+      "category": "ceremony-community",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2019/11/former-leadership-honorary-crest-moment-2019"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620463/jnuits/jnuits-full-stack/gallery/2019/11/former-leadership-honorary-crest-moment-2019/former-leadership-honorary-crest-moment-2019-1060479037633633.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 2 new photos. জগন্নাথ বিশ্ববিদ্যালয় আইটি সোসাইটির পক্ষ হতে সংগঠন এর অগ্রজ, সদ্য সাবেক সভাপতি ও সাধারণ সম্পাদক কে সম্মাননা স্মারক প্রদানের বিশেষ মুহূর্ত। #JnUITS #Step_ahead_with_IT #CTM2019",
+      "endDate": "2019-11-16",
+      "mediaCount": 2,
+      "slug": "former-leadership-honorary-crest-moment-2019",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2019-11-16",
+      "title": "Former Leadership Honorary Crest Moment 2019",
+      "year": 2019
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2020/01/today-s-session-in-department-of-bangla"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616466/jnuits/jnuits-full-stack/gallery/2020/01/today-s-session-in-department-of-bangla/today-s-session-in-department-of-bangla-1128584247489778.jpg",
+      "deliveryMode": "offline",
+      "description": "Today's session in Department of Bangla... Thanks to all❤❤ Next we are coming to your Department..! See You Soon! Stay Tune!",
+      "endDate": "2020-01-22",
+      "mediaCount": 9,
+      "slug": "today-s-session-in-department-of-bangla",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2020-01-22",
+      "title": "Today's session in Department of Bangla..",
+      "year": 2020
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2020/01/today-s-session-at-department-of-finance"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616469/jnuits/jnuits-full-stack/gallery/2020/01/today-s-session-at-department-of-finance/today-s-session-at-department-of-finance-1132780713736798.jpg",
+      "deliveryMode": "offline",
+      "description": "Today’s session at department of Finance. Huge crowd and great response. Thanks to all❤❤ Next we are coming to your Department..! See You Soon! Stay Tune!",
+      "endDate": "2020-01-27",
+      "mediaCount": 12,
+      "slug": "today-s-session-at-department-of-finance",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2020-01-27",
+      "title": "Today’s session at department of Finance",
+      "year": 2020
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2020/01/today-s-my-first-cv-writing-with-jnuits-session-at-department-of-marketing"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616761/jnuits/jnuits-full-stack/gallery/2020/01/today-s-my-first-cv-writing-with-jnuits-session-at-department-of-marketing/today-s-my-first-cv-writing-with-jnuits-session-at-department-of-marketing-113433603024793.jpg",
+      "deliveryMode": "offline",
+      "description": "Today's My First CV Writing with JnUITS session at Department of Marketing..... Ended again with huge responses 😍😍 Which Department we can come next? Put your observations 👇👇",
+      "endDate": "2020-01-29",
+      "mediaCount": 10,
+      "slug": "my-first-cv-writing-with-jnuits",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2020-01-29",
+      "title": "My First CV Writing with JnUITS",
+      "year": 2020
+    },
+    {
+      "category": "other-real-event",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2020/02/post-1580729147"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616764/jnuits/jnuits-full-stack/gallery/2020/02/post-1580729147/post-1580729147-1138211309860405.jpg",
+      "deliveryMode": "unknown",
+      "description": "নির্বাচনী পোস্টার থেকে বানানো খাতা !! কয়েক হাজার এতিম শিশু লেখার খাতা পাবে এই কয়দিনের মাঝে। বিভিন্ন ওয়ার্ডের কমিশনারগণ কল দিয়ে যাচ্ছেন তাঁদের সংগৃহীত পোস্টার নিয়ে আসার জন্য। জঞ্জাল থেকে শিক্ষার আলো ফুটানোর এই মিশনে অংশ নিচ্ছেন সকল দলের নেতৃবৃন্দ। পোস্টার পুড়িয়ে পরিবেশ বিপর্যয় না করে অনুগ্রহ করে তাদের সাথে যোগাযোগ করুন, উনারা নিজ দায়িত্বে সংগ্রহ করে নিয়ে আসবে। এছাড়া বিভিন্ন বিশ্ববিদ্যালয়ে এসাইনমেন্ট পেপারে এক পৃষ্ঠা অব্যবহিত থাকে, যদি তাঁরা এসব উনাদের কাছে তুলে দিতে চায় তবে উনারা দরিদ্র শিক্ষার্থীদের মাঝে এগুলো পৌছে দিবে। Courtesy: বিদ্যানন্দ - Bidyanondo",
+      "endDate": "2020-02-03",
+      "mediaCount": 7,
+      "slug": "election-poster-reuse-community-initiative",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2020-02-03",
+      "title": "Election Poster Reuse Community Initiative",
+      "year": 2020
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2020/02/a-great-session-with-land-management-and-law"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616474/jnuits/jnuits-full-stack/gallery/2020/02/a-great-session-with-land-management-and-law/a-great-session-with-land-management-and-law-1144122125935990.jpg",
+      "deliveryMode": "unknown",
+      "description": "A great session with Land Management and Law. Huge crowd and great response. Thanks to all❤❤",
+      "endDate": "2020-02-10",
+      "mediaCount": 12,
+      "slug": "a-great-session-with-land-management-and-law",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2020-02-10",
+      "title": "A great session with Land Management and Law",
+      "year": 2020
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2020/03/excessive-amount-of-responses-at-the-last-day-of-the-campaign"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616769/jnuits/jnuits-full-stack/gallery/2020/03/excessive-amount-of-responses-at-the-last-day-of-the-campaign/excessive-amount-of-responses-at-the-last-day-of-the-campaign-1169993830015486.jpg",
+      "deliveryMode": "unknown",
+      "description": "Excessive amount of responses at the last day of the campaign.... Thanks to all of you for your enormous love and passion towards Jagannath University IT Society... 😍😍",
+      "endDate": "2020-03-11",
+      "mediaCount": 4,
+      "slug": "be-the-accelerator-2020-campaign",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2020-03-11",
+      "title": "Be the Accelerator 2020 Campaign",
+      "year": 2020
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2020/03/accelerator-2020-round-1-written-exam"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620451/jnuits/jnuits-full-stack/gallery/2020/03/accelerator-2020-round-1-written-exam/accelerator-2020-round-1-written-exam-1173379843010218.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 9 new photos. Accelerator Recruitment Exam Round - 01. Written and MCQ Test!! Massive crowd in an off day... 😍😍 Who is going to be the accelerator?? 🤔🤔 #Accelerator2020 #JnUITS #Leadership",
+      "endDate": "2020-03-15",
+      "mediaCount": 9,
+      "slug": "accelerator-2020-round-1-written-exam",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2020-03-15",
+      "title": "Accelerator 2020 Round 1 Written Exam",
+      "year": 2020
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2020/03/accelerator-2020-round-2-group-discussion-assessment"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620429/jnuits/jnuits-full-stack/gallery/2020/03/accelerator-2020-round-2-group-discussion-assessment/accelerator-2020-round-2-group-discussion-assessment-1174334612914741.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 21 new photos. Assessment exam of Accelerator 2020, Round - 02 Group Discussion (Task 02- Building your career with JnUITS). What a team effort showed by all of them....😍😍 Who was the champion, runner up and second runner up of this round? Stay tune to get answer! 😎😎 #JnUITS #Accelerator2020 #Team_work #Leadership",
+      "endDate": "2020-03-16",
+      "mediaCount": 21,
+      "slug": "accelerator-2020-round-2-group-discussion-assessment",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2020-03-16",
+      "title": "Accelerator 2020 Round 2 Group Discussion Assessment",
+      "year": 2020
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2020/03/3rd-and-final-assessment-round-for-be-the-accelerator-2020"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616477/jnuits/jnuits-full-stack/gallery/2020/03/3rd-and-final-assessment-round-for-be-the-accelerator-2020/3rd-and-final-assessment-round-for-be-the-accelerator-2020-1175926939422175.jpg",
+      "deliveryMode": "offline",
+      "description": "3rd and Final Assessment Round for \"Be the Accelerator 2020\". Two 0⃣2⃣ days long Viva Voice Session.... So who is going to be the accelerator? Are you ready to get the result?? Stay tune with us..... Result will be published soon! #JnUITS #Accelerator2020 #Leadership #Communication #Teamwork #Technology",
+      "endDate": "2020-03-18",
+      "mediaCount": 8,
+      "slug": "3rd-and-final-assessment-round-for-be-the-accelerator-2020",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2020-03-18",
+      "title": "3rd and Final Assessment Round for \"Be the Accelerator 2020\"",
+      "year": 2020
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2020/09/welcome-to-the-jagannath-university-it-society-family",
+        "jnuits/jnuits-full-stack/gallery/2020/10/the-journey-of-jnuits-presents-ideaquakes-2020-powered-by-lagvelki-was-full-of-impediments",
+        "jnuits/jnuits-full-stack/gallery/2020/11/prize-giving-ceremony-of-ideaquakes-2020-powered-by-lagvelki"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616483/jnuits/jnuits-full-stack/gallery/2020/09/welcome-to-the-jagannath-university-it-society-family/welcome-to-the-jagannath-university-it-society-family-1338871683127699.jpg",
+      "deliveryMode": "offline",
+      "description": "The journey of JnUITS Presents ''IdeaQuakes 2020'' Powered by Lagvelki was full of impediments. Every round challenged participants to wield their fullest potentials idea, critical analysis and creative abilities. With the Top 8 Teams reaching the final round, only the best ones survived the final battle. Ladies and Gentleman, we hereby present you The Winners of JnUITS Presents ''IdeaQuakes 2020'' Powered by Lagvelki . Champion : Code Red from Islamic University of Technology-IUT, OIC 1st Runner-up : Team Impact from East West University 2nd Runner-Up R Cube from Bangladesh University of Professionals - BUP We also congratulate all the teams who have participated and tried their best. Our g",
+      "endDate": "2020-11-11",
+      "mediaCount": 21,
+      "slug": "ideaquakes-2020",
+      "sourceTypes": [
+        "album",
+        "post"
+      ],
+      "startDate": "2020-09-19",
+      "title": "IdeaQuakes 2020",
+      "year": 2020
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2022/04/an-insightful-session-conducted-by-mr"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616493/jnuits/jnuits-full-stack/gallery/2022/04/an-insightful-session-conducted-by-mr/an-insightful-session-conducted-by-mr-1771488373199359.jpg",
+      "deliveryMode": "unknown",
+      "description": "An insightful session conducted by Mr. Md Shariful Islam Shaon, our honorable instructor of My First CV with JnUITS 2.0. Jagannath University IT Society is honored and grateful to you for shedding light on the effective CV writing skills for the students.",
+      "endDate": "2022-04-10",
+      "mediaCount": 3,
+      "slug": "my-first-cv-writing-with-jnuits",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2022-04-10",
+      "title": "My First CV Writing with JnUITS",
+      "year": 2022
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2022/07/jagannath-university-it-society-presents-seminar-on-seminar-of-brainchild-on-basic-apps-de",
+        "jnuits/jnuits-full-stack/gallery/2022/09/what-an-energetic-day-we-ve-had"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616493/jnuits/jnuits-full-stack/gallery/2022/07/jagannath-university-it-society-presents-seminar-on-seminar-of-brainchild-on-basic-apps-de/jagannath-university-it-society-presents-seminar-on-seminar-of-brainchild-on-basic-apps-de.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society Presents Seminar on \" Seminar of “BrainChild” on basic Apps Development\". The Seminar was introduced to ensure that all the participants get polished with basic app development and its current market demand worldwide. Over 100+ students from Jagannath University have participated in the seminar. The Seminar was conducted by Mr Sahadat Hossain, Software Engineer at LasTrust Inc. (Japan) and also a student of the CSE Department of Jagannath University. Jagannath University IT Society is honoured and grateful to our instructor for shedding light on the basic Apps Development and to the audience for their huge response. #BrainChild #StepAheadwithIT",
+      "endDate": "2022-09-07",
+      "mediaCount": 11,
+      "slug": "brainchild-basic-apps-development-seminar",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2022-07-24",
+      "title": "BrainChild Basic Apps Development Seminar",
+      "year": 2022
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2022/09/a-huge-response-in-the-first-day-of-offline-registration-for-the-seminar-on-blockchain",
+        "jnuits/jnuits-full-stack/gallery/2022/09/blockchain-program-day-2-workshop-day-that-was-a-great-session-conducted-by-our-instructor"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616496/jnuits/jnuits-full-stack/gallery/2022/09/a-huge-response-in-the-first-day-of-offline-registration-for-the-seminar-on-blockchain/a-huge-response-in-the-first-day-of-offline-registration-for-the-seminar-on-blockchain-189.jpg",
+      "deliveryMode": "offline",
+      "description": "A huge response in the first day of offline registration for the Seminar on Blockchain. Tomorrow will be the last day of offline registration. You can find our booth at Shanto Chattar all day. Limited Seat Left only. So don't miss the chance. #Blockchain #JnUITS",
+      "endDate": "2022-09-26",
+      "mediaCount": 6,
+      "slug": "blockchain-seminar-and-workshop",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2022-09-18",
+      "title": "Blockchain Seminar and Workshop",
+      "year": 2022
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2022/11/glorious-7th-foundation-day-of-jagannath-university-it-society-and-the-prize-giving-ceremo"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616498/jnuits/jnuits-full-stack/gallery/2022/11/glorious-7th-foundation-day-of-jagannath-university-it-society-and-the-prize-giving-ceremo/glorious-7th-foundation-day-of-jagannath-university-it-society-and-the-prize-giving-ceremo.jpg",
+      "deliveryMode": "unknown",
+      "description": "Glorious 7th Foundation Day of Jagannath University IT Society and the prize giving ceremony of BrainChild Season 1.0. We are thankful to all of our guests, participants and the members of JnUITS who have made the event glorious and successful. Congratulations to all the winners and best of luck to the other participants. #JnUITS #brainchild #7thFoundationDay",
+      "endDate": "2022-11-16",
+      "mediaCount": 10,
+      "slug": "7th-foundation-day-and-brainchild-season-1-0-prize-giving",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2022-11-16",
+      "title": "7th Foundation Day & BrainChild Season 1.0 Prize Giving",
+      "year": 2022
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2022/11/applink-telco-application-seminar"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620424/jnuits/jnuits-full-stack/gallery/2022/11/applink-telco-application-seminar/applink-telco-application-seminar-1956129638068564.jpg",
+      "deliveryMode": "unknown",
+      "description": "Jagannath University IT Society added 5 new photos. The Seminar on AppLink: Create Your Own Telco Application powered by Banglalink Digital Communications Ltd has successfully organised by Jagannath University IT Society at 28 November, 2022. In this seminar, information has been shared with the students of Jagannath University on onboarding and creating applications on AppLink. We will also cover the basic principles of API integration (Application Programming Interfaces) during this seminar. This was a great opportunity for the students to get an insight into their careers and industry and to get one step closer to achieving their dreams. Jagannath University IT Society is thanking the aud",
+      "endDate": "2022-11-29",
+      "mediaCount": 5,
+      "slug": "applink-telco-application-seminar",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2022-11-29",
+      "title": "AppLink Telco Application Seminar",
+      "year": 2022
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2023/02/a-glance-of-first-round-of-jagannath-university-it-society-presents-campus-power-presenter",
+        "jnuits/jnuits-full-stack/gallery/2023/03/finally-the-wait-is-over",
+        "jnuits/jnuits-full-stack/gallery/2023/05/big-day-for-jagannath-university-it-society-the-grand-finale-and-prize-giving-ceremony-of-"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616501/jnuits/jnuits-full-stack/gallery/2023/02/a-glance-of-first-round-of-jagannath-university-it-society-presents-campus-power-presenter/a-glance-of-first-round-of-jagannath-university-it-society-presents-campus-power-presenter-27e3bc01.jpg",
+      "deliveryMode": "offline",
+      "description": "Big day for Jagannath University IT Society The Grand Finale and Prize Giving Ceremony of Jagannath University IT Society presents Campus Power Presenter season 2.0 powered by BongoDev A huge congratulations to all the winners and all the finalist. All team did well and it was a close competition. We are greatful to our honorable Treasurer Sir for his valuable time. We are greatful to our honorable judges, club partners, sponsor and our members who worked very hard to make the program successful. The legacy of JnUITS will be continued... #JnUITS #bongodev #campuspowerpresenterseason2.0",
+      "endDate": "2023-05-09",
+      "mediaCount": 37,
+      "slug": "campus-power-presenter-season-2",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2023-02-25",
+      "title": "Campus Power Presenter Season 2",
+      "year": 2023
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2023/09/join-us-at-our-offline-registration-booth-at-shanto-chattor-jagannath-university-campus-to"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616814/jnuits/jnuits-full-stack/gallery/2023/09/join-us-at-our-offline-registration-booth-at-shanto-chattor-jagannath-university-campus-to/join-us-at-our-offline-registration-booth-at-shanto-chattor-jagannath-university-campus-to.jpg",
+      "deliveryMode": "online-or-hybrid",
+      "description": "Join us at our offline registration booth at Shanto Chattor, Jagannath University Campus, to register for our upcoming 5-day online workshop series on essential IT skills for students and professionals! The workshop will be held from September 7 to 11, 2023, from 8:00 PM to 10:00 PM (GMT+6). Registration is FREE and will close on September 7, 2023, at 4 PM. We are excited to announce that almost 300 members have already registered to our workshop series! This is a great opportunity to learn from our experienced instructors with other students and professionals. Don't miss out! Register now for FREE! Limited seats are available. Click here to register: https://forms.gle/hXvErd3tJMXskXLX7 Even",
+      "endDate": "2023-09-05",
+      "mediaCount": 4,
+      "slug": "join-us-at-our-offline-registration-booth-at-shanto-chattor-jagannath-university-campus-to-regis",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2023-09-05",
+      "title": "Join us at our offline registration booth at Shanto Chattor, Jagannath University Campus, to register for our upcoming 5",
+      "year": 2023
+    },
+    {
+      "category": "institutional",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2024/01/biin-jnuits-mou-signing-january-2024"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616516/jnuits/jnuits-full-stack/gallery/2024/01/biin-jnuits-mou-signing-january-2024/biin-jnuits-mou-signing-january-2024-683835827273743.jpg",
+      "deliveryMode": "unknown",
+      "description": "BIIN & JnUITS | MOU SIGNING - January 2024",
+      "endDate": "2024-01-24",
+      "mediaCount": 10,
+      "slug": "biin-and-jnuits-mou-signing",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2024-01-24",
+      "title": "BIIN and JnUITS MoU Signing",
+      "year": 2024
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2024/01/greetings-from-jagannath-university-it-society-jnuits"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616519/jnuits/jnuits-full-stack/gallery/2024/01/greetings-from-jagannath-university-it-society-jnuits/greetings-from-jagannath-university-it-society-jnuits-684984103825582.jpg",
+      "deliveryMode": "online-or-hybrid",
+      "description": "Greetings from Jagannath University IT Society (JnUITS)! We are delighted to share some photos from past events where we had the honour of presenting a crest and certificate to the keynote speakers of the online workshop 'Digital Empowerment: Unleashing Productivity, Security & Career'. This workshop was an initiative of the Jagannath University IT Society (JnUITS). The workshop aimed to equip the participants with the essential skills and knowledge to thrive in the digital era. The workshop covered MS Office Essentials, Information Security, CV Writing, Presentation Skills, and Professional Development. We had a different speaker who shared their expertise and experience daily. They were: -",
+      "endDate": "2024-01-26",
+      "mediaCount": 11,
+      "slug": "digital-empowerment-productivity-security-and-career-workshop",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2024-01-26",
+      "title": "Digital Empowerment: Productivity, Security & Career Workshop",
+      "year": 2024
+    },
+    {
+      "category": "ceremony-community",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2024/02/inauguration-fresher-s-reception-2023-2024"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616522/jnuits/jnuits-full-stack/gallery/2024/02/inauguration-fresher-s-reception-2023-2024/inauguration-fresher-s-reception-2023-2024-699406845716641.jpg",
+      "deliveryMode": "offline",
+      "description": "Inauguration & Fresher's Reception - 2023-2024",
+      "endDate": "2024-02-20",
+      "mediaCount": 31,
+      "slug": "inauguration-and-fresher-s-reception-2023-2024",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2024-02-19",
+      "title": "Inauguration & Fresher's Reception 2023-2024",
+      "year": 2024
+    },
+    {
+      "category": "community-social",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2024/03/iftar-dua-mahfil-2024"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616851/jnuits/jnuits-full-stack/gallery/2024/03/iftar-dua-mahfil-2024/iftar-dua-mahfil-2024-720191393638186.jpg",
+      "deliveryMode": "offline",
+      "description": "Alhamdulillah! 🌙🕌 Iftar & Dua Mahfil - 2024: A heartwarming gathering where the Jagannath University IT Society (JnUITS) family came together to break fast and seek blessings. Honorable mentors Dr. Uzzal Kumar Acharjee & Dr. Md. Abu Layek, alongside founding president Hasan Mahmud, former president Shamim Ahmed, president Md. Redwan Ahmed, General Secretary Rashed Hossain Rony, and our dedicated JnUITS members shared moments of joy and gratitude at the “Sultan’s Dine” restaurant. Our guests appreciated the thoughtful arrangements. Ramadan Mubarak! 🌟🤲🌟 #JnUITS #Iftar2024 #RamadanBlessings\"",
+      "endDate": "2024-03-29",
+      "mediaCount": 21,
+      "slug": "iftar-and-dua-mahfil-2024",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2024-03-28",
+      "title": "Iftar & Dua Mahfil 2024",
+      "year": 2024
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2024/10/thank-you-all-for-the-amazing-response-at-our-booth-today-for-the-freedom-remembrance-it-q"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616538/jnuits/jnuits-full-stack/gallery/2024/10/thank-you-all-for-the-amazing-response-at-our-booth-today-for-the-freedom-remembrance-it-q/thank-you-all-for-the-amazing-response-at-our-booth-today-for-the-freedom-remembrance-it-q-47b9dcf6.jpg",
+      "deliveryMode": "offline",
+      "description": "Thank you all for the amazing response at our booth today for the *Freedom Remembrance IT Quiz: Test Your Tech & Remember the July Revolution* If you haven't registered yet, don't worry—our booth will be open tomorrow as well! Make sure to drop by and secure your spot in this exciting quiz competition. Don't miss the chance to test your tech knowledge and honor the July Revolution! #FreedomRemembranceITQuiz #JnUITSociety #TechQuiz #JulyRevolution\"",
+      "endDate": "2024-10-06",
+      "mediaCount": 5,
+      "slug": "freedom-remembrance-it-quiz-registration-booth",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2024-10-06",
+      "title": "Freedom Remembrance IT Quiz Registration Booth",
+      "year": 2024
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2025/03/a-heartfelt-thank-you-to-our-speakers"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616862/jnuits/jnuits-full-stack/gallery/2025/03/a-heartfelt-thank-you-to-our-speakers/a-heartfelt-thank-you-to-our-speakers-945774154413241.jpg",
+      "deliveryMode": "unknown",
+      "description": "🌟 A Heartfelt Thank You to Our Speakers! 🌟 Jagannath University IT Society (JnUITS) successfully conducted a 3-day seminar from 25th to 28th February 2025 for our new members, focusing on essential professional skills. We extend our sincere gratitude to our distinguished speakers for their time, expertise, and valuable insights. 📅 Day 1: 25th February 2025 🎤 Session on Public Speaking in Presentation 👨‍🏫 Shahnaowaz Kabbir Arpon 📌 Assistant Manager- Marketing, Fair Food & Lifestyle Ltd. 📌 Founder: The DeshiCopter & AanaaRi Creations 📅 Day 2: 26th February 2025 📄 Session on CV/Resume Making (National & Global) 👨‍🏫 Md Shariful Islam 📌 Festival Programmer, Liberation Docfest Banglad",
+      "endDate": "2025-03-05",
+      "mediaCount": 3,
+      "slug": "three-day-professional-skills-seminar-2025",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2025-03-05",
+      "title": "Three-Day Professional Skills Seminar 2025",
+      "year": 2025
+    },
+    {
+      "category": "tour",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2025/05/jnuits-heritage-tour-2025"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616540/jnuits/jnuits-full-stack/gallery/2025/05/jnuits-heritage-tour-2025/jnuits-heritage-tour-2025-992882333035756.jpg",
+      "deliveryMode": "offline",
+      "description": "JnUITS Heritage Tour 2025",
+      "endDate": "2025-05-05",
+      "mediaCount": 17,
+      "slug": "jnuits-heritage-tour-2025",
+      "sourceTypes": [
+        "album"
+      ],
+      "startDate": "2025-05-02",
+      "title": "JnUITS Heritage Tour 2025",
+      "year": 2025
+    },
+    {
+      "category": "ceremony-community",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2025/07/inauguration-fresher-s-reception-2025-here-s-a-glimpse-of-the-celebration"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616546/jnuits/jnuits-full-stack/gallery/2025/07/inauguration-fresher-s-reception-2025-here-s-a-glimpse-of-the-celebration/inauguration-fresher-s-reception-2025-here-s-a-glimpse-of-the-celebration-1053103333680322.jpg",
+      "deliveryMode": "offline",
+      "description": "Inauguration & Fresher’s Reception 2025 - here’s a glimpse of the celebration",
+      "endDate": "2025-07-25",
+      "mediaCount": 109,
+      "slug": "inauguration-and-fresher-s-reception-2025",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2025-07-25",
+      "title": "Inauguration & Fresher's Reception 2025",
+      "year": 2025
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2025/09/jagannath-university-it-society-successfully-organized-speak-up-interactive-public-speakin"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616583/jnuits/jnuits-full-stack/gallery/2025/09/jagannath-university-it-society-successfully-organized-speak-up-interactive-public-speakin/jagannath-university-it-society-successfully-organized-speak-up-interactive-public-speakin.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society successfully organized “Speak Up: Interactive Public Speaking Workshop” at the Department of CSE, Level 5, Shaheed Sajid Academic Building on 23 September. The event was graced by Prof. Dr. Mohammed Nasir Uddin, Director of ICT Cell & Professor, Dept. of CSE, JnU, and Prof. Dr. Uzzal Kumar Acharjee, Mentor of Jagannath University IT Society. After their inspiring remarks, the keynote speaker Md. Solaiman Ahmed Zishan, Founder of Public Speaking Official and Public Speaking Olympiad, shared practical strategies for confident speaking. A fun Tongue Twister competition was held with 10 participants, where 2 winners received a special book authored by the speaker.",
+      "endDate": "2025-09-29",
+      "mediaCount": 17,
+      "slug": "speak-up-interactive-public-speaking-workshop",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2025-09-29",
+      "title": "Speak Up: Interactive Public Speaking Workshop",
+      "year": 2025
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2025/11/event-successfully-completed"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616906/jnuits/jnuits-full-stack/gallery/2025/11/event-successfully-completed/event-successfully-completed-1157468159910505.jpg",
+      "deliveryMode": "online-or-hybrid",
+      "description": "Event Successfully Completed! Jagannath University IT Society (JnUITS) has successfully organized the webinar “Beyond the Classroom: Cultivating Skills for Tomorrow”! The session was held on 25 November 2025, at 9:00 PM via Google Meet, featuring an insightful talk by Arnob Saha, Additional General Secretary, Bangladesh Agricultural University Career Club. Throughout the session, he shared valuable perspectives on: 🔹 The importance of Extra-Curricular Activities 🔹 How Volunteering shapes your career 🔹 The role of Competitions and Research during undergraduate studies 🔹 Practical ways to grow beyond classroom learning 🔹 Building essential skills for future opportunities Participants gain",
+      "endDate": "2025-11-30",
+      "mediaCount": 6,
+      "slug": "beyond-the-classroom-cultivating-skills-for-tomorrow",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2025-11-30",
+      "title": "Beyond the Classroom: Cultivating Skills for Tomorrow",
+      "year": 2025
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/01/roadshows-registrations-and-a-whole-lot-of-excitement"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616591/jnuits/jnuits-full-stack/gallery/2026/01/roadshows-registrations-and-a-whole-lot-of-excitement/roadshows-registrations-and-a-whole-lot-of-excitement-1194284692895518.jpg",
+      "deliveryMode": "offline",
+      "description": "Roadshows, registrations, and a whole lot of excitement! We have closed our offline booth, and there are only 2 days left to get connected with JnUITS. Join the Jagannath University IT Society today!",
+      "endDate": "2026-01-20",
+      "mediaCount": 6,
+      "slug": "jnuits-membership-roadshow-and-registration-campaign",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-01-20",
+      "title": "JnUITS Membership Roadshow and Registration Campaign",
+      "year": 2026
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/01/jagannath-university-it-society-successfully-organized-a-workshop-today-titled-odoo-erp-th"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616592/jnuits/jnuits-full-stack/gallery/2026/01/jagannath-university-it-society-successfully-organized-a-workshop-today-titled-odoo-erp-th/jagannath-university-it-society-successfully-organized-a-workshop-today-titled-odoo-erp-th.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society successfully organized a workshop today titled Odoo ERP : The Future of Business Automation. The session was honored by the presence of Professor Dr. Md. Abu Layek, Moderator of Jagannath University IT Society, who delivered a brief yet inspiring speech. The workshop featured Md. Rajibul Islam CEO of Dot BD Solutions Limited as a speaker, along with the company’s Chief Business Officer, who also shared valuable insights. Through active participant engagement, the speakers demonstrated key components of business operations in a hands-on manner and later explained how these processes can be efficiently managed using Odoo software. With enthusiastic and spontaneo",
+      "endDate": "2026-01-21",
+      "mediaCount": 10,
+      "slug": "odoo-erp-the-future-of-business-automation",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-01-21",
+      "title": "Odoo ERP: The Future of Business Automation",
+      "year": 2026
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/01/a-housefull-session-and-an-inspiring-learning-experience"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616912/jnuits/jnuits-full-stack/gallery/2026/01/a-housefull-session-and-an-inspiring-learning-experience/a-housefull-session-and-an-inspiring-learning-experience-1200073368983317.jpg",
+      "deliveryMode": "unknown",
+      "description": "A housefull session and an inspiring learning experience! Jagannath University IT Society successfully organized “The Art of Visual Communication : Getting Started with Hands-on Graphic Design” with our amazing speaker Fazle R. Sarkar Participants gained valuable insights and practical skills in graphic design. Want more workshops like this? And don’t forget to share your thoughts about today’s event in the comments! 👇 #StepAheadWithIT #JnUITS #GraphicDesignWorkshop",
+      "endDate": "2026-01-27",
+      "mediaCount": 8,
+      "slug": "the-art-of-visual-communication-hands-on-graphic-design",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-01-27",
+      "title": "The Art of Visual Communication: Hands-on Graphic Design",
+      "year": 2026
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/02/new-member-recruitment-2026-viva-completed-today-jagannath-university-it-society-jnuits-su"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616914/jnuits/jnuits-full-stack/gallery/2026/02/new-member-recruitment-2026-viva-completed-today-jagannath-university-it-society-jnuits-su/new-member-recruitment-2026-viva-completed-today-jagannath-university-it-society-jnuits-su.jpg",
+      "deliveryMode": "offline",
+      "description": "New Member Recruitment 2026 | Viva Completed Today, Jagannath University IT Society (JnUITS) successfully completed the final stage of its new member recruitment process—Viva Voce. The confidence, preparation, and enthusiasm shown by all participants were truly commendable. Your passion and dedication continue to inspire JnUITS to move forward. 📌 Important: Candidates who missed the MCQ or Viva session are requested to contact us via the official email by tonight. 📧 Email: itsociety@association.jnu.ac.bd 📢 Result Update: The recruitment results will be published very soon. Best wishes to everyone! 💙 Step Ahead With IT. #JnUITS #StepAheadWithIT #JagannathUniversity",
+      "endDate": "2026-02-02",
+      "mediaCount": 8,
+      "slug": "new-member-recruitment-2026-viva",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-02-02",
+      "title": "New Member Recruitment 2026 Viva",
+      "year": 2026
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/02/we-are-really-happy-to-share-that-our-session-aster-riting-and-inked-n-ptimiza"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616917/jnuits/jnuits-full-stack/gallery/2026/02/we-are-really-happy-to-share-that-our-session-aster-riting-and-inked-n-ptimiza/we-are-really-happy-to-share-that-our-session-aster-riting-and-inked-n-ptimiza-12107535279.jpg",
+      "deliveryMode": "unknown",
+      "description": "We are really happy to share that our session “Master CV Writing and LinkedIn Optimization to Land Your Dream Job” has been completed successfully with a great response from everyone. The energy, the questions, and the participation made the session truly special. It was great to see so many students eager to learn and grow. A big thank you to our speaker Most. Mahmuda Akter Senior Executive, HR and Job Placement, Interactive Cares Now we want to hear from you. What topic would you like us to cover next Please share your ideas in the comments. Stay connected with Jagannath University IT Society (JnUITS)",
+      "endDate": "2026-02-09",
+      "mediaCount": 8,
+      "slug": "master-cv-writing-and-linkedin-optimization",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-02-09",
+      "title": "Master CV Writing and LinkedIn Optimization",
+      "year": 2026
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/02/eason-8-0-egistration-ooth-pdate-the-first-day-at-our-bcc-season-8-0-registratio"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616918/jnuits/jnuits-full-stack/gallery/2026/02/eason-8-0-egistration-ooth-pdate-the-first-day-at-our-bcc-season-8-0-registratio/eason-8-0-egistration-ooth-pdate-the-first-day-at-our-bcc-season-8-0-registratio-122255635-b21a7304.jpg",
+      "deliveryMode": "offline",
+      "description": "BCC Season 8.0 Registration Booth Update The first day at our BCC Season 8.0 registration booth received an amazing response from students One question we heard the most “Is it really possible to learn all these modules in a single course at such a low course fee?” Yes, it is possible. Because Jagannath University IT Society (JnUITS) works with one mission to promote IT and internet literacy among all students of the university. Our goal is impact, accessibility, and practical skill development. We will continue the registration booth for two more days. Visit us, know the course details directly, and complete your registration on the spot. Registration will remain open until 8th March. For a",
+      "endDate": "2026-02-23",
+      "mediaCount": 5,
+      "slug": "bcc-season-8-0-registration-booth",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-02-23",
+      "title": "BCC Season 8.0 Registration Booth",
+      "year": 2026
+    },
+    {
+      "category": "community-social",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/02/n-ftar-ahfil-ward-ight-art-2-part-2-of-our-memorable-evening-was-dedicated-to",
+        "jnuits/jnuits-full-stack/gallery/2026/02/n-ftar-ahfil-ward-iving-ight-art-1-alhamdulillah-our-program-was-succ"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616920/jnuits/jnuits-full-stack/gallery/2026/02/n-ftar-ahfil-ward-iving-ight-art-1-alhamdulillah-our-program-was-succ/n-ftar-ahfil-ward-iving-ight-art-1-alhamdulillah-our-program-was-succ-1223401873317133.jpg",
+      "deliveryMode": "offline",
+      "description": "JnUITS Iftar Mahfil & Award Giving Night Part 1 Alhamdulillah, our program was successfully held at Unique Restaurant, Katherpul Moor. The evening became more special with the presence of our respected senior alumni of JnUITS including Emon bhai, Shamim bhai, Asif Ahmed Rojel bhai, Parvez Hossain bhai, and Sabid Ibn Rabbani bhai. From the industry, we were honored to have Rajib M. Moon from Bangladesh ICT & Innovation Network (BIIN) with us. We were privileged to have our immediate past moderator Prof. Dr. Uzzal Kumar Acharjee and our current moderator Prof. Dr. Md. Abu Layek sir present at the program. Around 60 Members, Junior Coordinators, and Executive Committee members joined the Iftar ",
+      "endDate": "2026-02-26",
+      "mediaCount": 31,
+      "slug": "jnuits-iftar-mahfil-and-award-night-2026",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-02-24",
+      "title": "JnUITS Iftar Mahfil & Award Night 2026",
+      "year": 2026
+    },
+    {
+      "category": "member-outreach",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/02/bcc-season-8-registration-booth-update"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776620414/jnuits/jnuits-full-stack/gallery/2026/02/bcc-season-8-registration-booth-update/bcc-season-8-registration-booth-update-1224303619893625.jpg",
+      "deliveryMode": "offline",
+      "description": "Jagannath University IT Society added 7 new photos. BCC Season 8.0 Information & Registration Booth Update রমজানের অনলাইন ক্লাসের আগে জগন্নাথ বিশ্ববিদ্যালয়ের শেষ অফলাইন ক্লাসের দিনে আমাদের BCC Season 8.0 এর ইনফরমেশন ও রেজিস্ট্রেশন বুথে ছিল উপচে পড়া ভিড়! ডিজিটাল যুগে আইটি এবং কম্পিউটার স্কিলের গুরুত্ব তুলে ধরতে আমরা পৌঁছে গিয়েছিলাম বিশ্ববিদ্যালয়ের বিভিন্ন গুরুত্বপূর্ণ সংগঠনের নেতৃবৃন্দের কাছে। আমাদের এই যাত্রায় সংহতি জানিয়েছে: Physically-challenged Development Foundation (PDF) Jagannath University Central Students' Union (JnUCSU) Jagannath University Human Rights Society (JnUHRS) Jagannath University Debating Society (JnUDS) Jagannath University Reporters Unity (JnURU) Jagannath Univer",
+      "endDate": "2026-02-25",
+      "mediaCount": 7,
+      "slug": "bcc-season-8-registration-booth-update",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-02-25",
+      "title": "BCC Season 8.0 Registration Booth Update",
+      "year": 2026
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/04/a-huge-thank-you-to-the-191-learners-who-joined-us-for-the-kick-off-of-our-basic-computer-"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616611/jnuits/jnuits-full-stack/gallery/2026/04/a-huge-thank-you-to-the-191-learners-who-joined-us-for-the-kick-off-of-our-basic-computer-/a-huge-thank-you-to-the-191-learners-who-joined-us-for-the-kick-off-of-our-basic-computer-.jpg",
+      "deliveryMode": "unknown",
+      "description": "A huge thank you to the 191 learners who joined us for the kick-off of our Basic Computer Course! Honestly, your enthusiasm was the best part of the day. We are so excited to have you all on this journey. Today, we laid the foundation with: Basic Computer Structural Knowledge & Introduction to IT A special thank you to Dr. Md. Abu Layek Sir (Moderator, JnUITS) for his inspiring words. We also appreciate the guidance of our leadership team: Redwan Ahmed (Instructor & Former President) Imam Hasan (President, JnUITS) Bayazid Sarker (General Secretary, JnUITS) Tauhid Hasan (VP & Course Director) Shoutout to our host Piyush Saha and our hardworking Support Team for making the session so seamless!",
+      "endDate": "2026-04-03",
+      "mediaCount": 4,
+      "slug": "bcc-season-8-0-first-class",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-04-03",
+      "title": "BCC Season 8.0 First Class",
+      "year": 2026
+    },
+    {
+      "category": "workshop-training",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/04/oom-ull-of-uriosity-today-s-special-seminar-on-astering-the-rt-of-igit"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616941/jnuits/jnuits-full-stack/gallery/2026/04/oom-ull-of-uriosity-today-s-special-seminar-on-astering-the-rt-of-igit/oom-ull-of-uriosity-today-s-special-seminar-on-astering-the-rt-of-igit-1256614943329159.jpg",
+      "deliveryMode": "offline",
+      "description": "A Room Full of Curiosity Today’s special seminar on Mastering the Art of Digital Communications brought more people than we had seats for and seeing our own organizers sit on the floor just to make space for everyone made it a moment we’ll remember for a long time. We were deeply honored to welcome Md. Abdul Quayyum Head of Communications, UNDP Bangladesh to Jagannath University. He did not just speak at us. He walked us through how digital communication actually works in the real world, shared practical tips that we could take home and use the very next day, and stayed present through every question the audience threw at him. The QnA session was one of the highlights of the day. The curiosi",
+      "endDate": "2026-04-07",
+      "mediaCount": 11,
+      "slug": "mastering-the-art-of-digital-communications",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-04-07",
+      "title": "Mastering the Art of Digital Communications",
+      "year": 2026
+    },
+    {
+      "category": "competition",
+      "cloudinaryFolders": [
+        "jnuits/jnuits-full-stack/gallery/2026/04/ongratulations-to-all-the-winners-participants-grand-finalists-of-sp"
+      ],
+      "coverImageUrl": "https://res.cloudinary.com/dp4fgwjik/image/upload/v1776616945/jnuits/jnuits-full-stack/gallery/2026/04/ongratulations-to-all-the-winners-participants-grand-finalists-of-sp/ongratulations-to-all-the-winners-participants-grand-finalists-of-sp-1257373783253275.jpg",
+      "deliveryMode": "online-or-hybrid",
+      "description": "Congratulations to all the winners, participants & grand finalists of Speakathon v1.0 by JnUITS! We are thrilled to announce that our event, Speakathon v1.0, has been successfully completed! Starting from 19 participants in the online round, we narrowed it down to 6 outstanding speakers who competed in the onsite round, held grandly at the CSE Department VC Room. After an incredible battle of words, confidence, and brilliance, here are our winners: 🥇 Champion - Emamul Hossain Yash 🥈 1st Runner Up - Sohanur Rahman Sohan 🥉 2nd Runner Up - Shuvajit Biswas Heartiest congratulations to all three of you, you truly deserve it! A huge and special thank you to Dr. Tabassum Zaman Ma'am & Masum Bill",
+      "endDate": "2026-04-08",
+      "mediaCount": 11,
+      "slug": "speakathon-v1-0",
+      "sourceTypes": [
+        "post"
+      ],
+      "startDate": "2026-04-08",
+      "title": "Speakathon v1.0",
+      "year": 2026
+    }
+  ],
+  "supplementalReports": [
+    "artifacts/facebook-jnuits/reports/aparahner-ariyal-tour-upload-20260419T173031Z.json",
+    "artifacts/facebook-jnuits/reports/missing-post-event-albums-upload-20260419T174142Z.json"
+  ]
+}

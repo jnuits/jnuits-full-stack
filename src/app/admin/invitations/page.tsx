@@ -6,7 +6,7 @@ import {
   revokeMemberInvitation,
 } from "@/app/admin/actions";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Mail, RefreshCcw, Clock, Hash } from "lucide-react";
+import { Hash, Mail, RefreshCcw } from "lucide-react";
 
 type InvitationRecord = {
   id: string;

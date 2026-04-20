@@ -1,0 +1,19 @@
+{
+  "mode": "dry-run",
+  "generatedAt": "2026-04-20T03:06:00.257Z",
+  "source": {
+    "filePath": "M:\\jnuits\\jnuits-full-stack\\plan\\data\\jnuits-gallery-seed.json",
+    "seedGeneratedAt": "2026-04-19T18:29:56.315Z"
+  },
+  "expected": {
+    "albums": 64,
+    "albumItems": 986,
+    "mediaAssets": 1112
+  },
+  "execution": {
+    "albumsUpserted": 0,
+    "albumItemsUpserted": 0,
+    "mediaAssetsUpserted": 0,
+    "coverPointersUpdated": 0
+  }
+}

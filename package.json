@@ -15,6 +15,8 @@
     "certificates:import": "node scripts/import-certificates.mjs",
     "certificates:verify": "node scripts/verify-certificates.mjs",
     "content:import:legacy": "node scripts/import-legacy-public-content.mjs",
+    "gallery:build-seed": "node scripts/build-gallery-seed.mjs",
+    "gallery:import": "node scripts/import-gallery-seed.mjs",
     "committee:import:legacy": "node scripts/import-legacy-committee.mjs",
     "members:onboard": "node scripts/onboard-members.mjs",
     "members:reconcile": "node scripts/reconcile-members.mjs",

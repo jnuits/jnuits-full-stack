@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   BookOpen,
   Calendar,
-  Image,
+  Image as ImageIcon,
   FolderOpen,
   FileText,
   Upload,
@@ -67,7 +67,7 @@ export default async function ContentHubPage() {
     },
     {
       href: "/admin/content/gallery",
-      icon: <Image size={20} />,
+      icon: <ImageIcon size={20} />,
       count: galleryResult.count || 0,
       label: "Gallery",
       desc: "Manage gallery entries linked to Cloudinary media",

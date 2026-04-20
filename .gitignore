@@ -30,6 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# local ingestion artifacts
+/artifacts/facebook-jnuits/
+/facebook-jnuits-2026-04-19/
+
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example

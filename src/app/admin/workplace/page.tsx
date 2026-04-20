@@ -7,7 +7,7 @@ import {
 } from "@/app/admin/actions";
 import { getWorkplacePayloadEntries } from "@/lib/members/workplace-payload";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Briefcase, CheckCircle, XCircle, Clock } from "lucide-react";
+import { CheckCircle, Clock, XCircle } from "lucide-react";
 
 type WorkplaceRequestRecord = {
   id: string;
