@@ -221,7 +221,7 @@ export async function saveMediaAsset(formData: FormData) {
         parsed.error.issues[0]?.message ||
         "Cloudinary public ID, secure URL, resource type, and media kind are required.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/media");
   }
 
   const {
@@ -265,6 +265,7 @@ export async function saveMediaAsset(formData: FormData) {
     });
 
     revalidatePath("/admin/content");
+    revalidatePath("/admin/content/media");
     await setAdminFlash({
       tone: "success",
       title: assetId ? "Media asset updated" : "Media asset registered",
@@ -282,7 +283,7 @@ export async function saveMediaAsset(formData: FormData) {
     });
   }
 
-  redirect("/admin/content");
+  redirect("/admin/content/media");
 }
 
 export async function saveContentPage(formData: FormData) {

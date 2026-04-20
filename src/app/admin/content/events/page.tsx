@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import { saveContentPost } from "@/app/admin/content/actions";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Calendar, MapPin } from "lucide-react";
+import { Calendar } from "lucide-react";
 
 type EventRecord = {
   id: string;

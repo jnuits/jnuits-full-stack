@@ -2,20 +2,27 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import { saveMediaAsset } from "@/app/admin/content/actions";
+import {
+  moveMediaAssetToTrashAction,
+  restoreMediaAssetFromTrashAction,
+} from "@/app/admin/content/media/actions";
 import { CloudinaryUploadPanel } from "@/components/admin/cloudinary-upload-panel";
 import {
   getCloudinaryPublicConfig,
   isCloudinaryConfigured,
 } from "@/lib/cloudinary/config";
 import { CLOUDINARY_PROJECT_ROOT_FOLDER } from "@/lib/branding";
-import { Image, Upload, AlertCircle } from "lucide-react";
+import { AlertCircle, Image as ImageIcon, RotateCcw, Trash2, Upload } from "lucide-react";
 
 type MediaAssetOption = {
+  deleted_at: string | null;
   id: string;
   media_kind: string;
   public_id: string;
+  resource_type: string;
   secure_url: string;
   title: string | null;
+  trash_restore_deadline: string | null;
 };
 
 export const metadata = { title: "Media & Assets — Admin | JnUITS" };
@@ -29,7 +36,9 @@ export default async function MediaPage() {
 
   const mediaResult = await admin
     .from("media_assets")
-    .select("id, title, public_id, media_kind, secure_url")
+    .select(
+      "id, title, public_id, media_kind, resource_type, secure_url, deleted_at, trash_restore_deadline"
+    )
     .order("created_at", { ascending: false })
     .limit(30);
 
@@ -146,7 +155,7 @@ export default async function MediaPage() {
         <p className="admin-section-label">Registered assets ({media.length})</p>
         {media.length === 0 ? (
           <div className="admin-review-card" style={{ textAlign: "center", padding: "2rem" }}>
-            <Image size={32} style={{ margin: "0 auto 0.75rem", opacity: 0.4 }} />
+            <ImageIcon size={32} style={{ margin: "0 auto 0.75rem", opacity: 0.4 }} />
             <p className="text-sm font-semibold">No media registered yet</p>
             <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
               Upload via the panel above or register an existing Cloudinary asset manually.
@@ -157,14 +166,39 @@ export default async function MediaPage() {
             {media.map((asset) => (
               <div key={asset.id} className="admin-card-row">
                 <div className="admin-hub-tile__icon" style={{ flexShrink: 0 }}>
-                  <Image size={16} />
+                  <ImageIcon size={16} />
                 </div>
                 <div className="admin-card-row__body">
                   <p className="admin-card-row__title">{asset.title || asset.public_id}</p>
                   <p className="admin-card-row__meta">{asset.public_id}</p>
+                  {asset.deleted_at ? (
+                    <p className="admin-card-row__meta">
+                      Restore window:{" "}
+                      {asset.trash_restore_deadline
+                        ? new Date(asset.trash_restore_deadline).toLocaleDateString("en-GB")
+                        : "manual review required"}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="admin-card-row__actions">
-                  <span className="abadge abadge--draft">{asset.media_kind}</span>
+                  <span className={`abadge ${asset.deleted_at ? "abadge--draft" : "abadge--active"}`}>
+                    {asset.deleted_at ? "In trash" : asset.media_kind}
+                  </span>
+                  {asset.deleted_at ? (
+                    <form action={restoreMediaAssetFromTrashAction}>
+                      <input name="assetId" type="hidden" value={asset.id} />
+                      <button className="admin-btn admin-btn--secondary" type="submit">
+                        <RotateCcw size={14} /> Restore
+                      </button>
+                    </form>
+                  ) : (
+                    <form action={moveMediaAssetToTrashAction}>
+                      <input name="assetId" type="hidden" value={asset.id} />
+                      <button className="admin-btn admin-btn--secondary" type="submit">
+                        <Trash2 size={14} /> Move to trash
+                      </button>
+                    </form>
+                  )}
                 </div>
               </div>
             ))}

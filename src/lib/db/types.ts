@@ -649,6 +649,185 @@ export type Database = {
           },
         ]
       }
+      gallery_album_items: {
+        Row: {
+          album_id: string
+          alt_text: string | null
+          blur_data_url: string | null
+          created_at: string
+          created_by_user_id: string | null
+          deleted_at: string | null
+          deleted_by_user_id: string | null
+          description: string | null
+          height: number | null
+          id: string
+          is_cover: boolean
+          media_asset_id: string
+          restorable_until: string | null
+          sort_order: number
+          source_caption: string | null
+          source_metadata: Json
+          status: string
+          title: string | null
+          trash_metadata: Json
+          trash_reason: string | null
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          album_id: string
+          alt_text?: string | null
+          blur_data_url?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          deleted_at?: string | null
+          deleted_by_user_id?: string | null
+          description?: string | null
+          height?: number | null
+          id?: string
+          is_cover?: boolean
+          media_asset_id: string
+          restorable_until?: string | null
+          sort_order?: number
+          source_caption?: string | null
+          source_metadata?: Json
+          status?: string
+          title?: string | null
+          trash_metadata?: Json
+          trash_reason?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          album_id?: string
+          alt_text?: string | null
+          blur_data_url?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          deleted_at?: string | null
+          deleted_by_user_id?: string | null
+          description?: string | null
+          height?: number | null
+          id?: string
+          is_cover?: boolean
+          media_asset_id?: string
+          restorable_until?: string | null
+          sort_order?: number
+          source_caption?: string | null
+          source_metadata?: Json
+          status?: string
+          title?: string | null
+          trash_metadata?: Json
+          trash_reason?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gallery_album_items_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "gallery_albums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gallery_album_items_media_asset_id_fkey"
+            columns: ["media_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gallery_albums: {
+        Row: {
+          category: string
+          cloudinary_folder: string | null
+          cover_item_id: string | null
+          created_at: string
+          created_by_user_id: string | null
+          deleted_at: string | null
+          deleted_by_user_id: string | null
+          description: string | null
+          ends_on: string | null
+          event_name: string | null
+          featured: boolean
+          id: string
+          month: number | null
+          restorable_until: string | null
+          slug: string
+          source: string
+          source_metadata: Json
+          starts_on: string | null
+          status: string
+          title: string
+          trash_metadata: Json
+          trash_reason: string | null
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          category?: string
+          cloudinary_folder?: string | null
+          cover_item_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          deleted_at?: string | null
+          deleted_by_user_id?: string | null
+          description?: string | null
+          ends_on?: string | null
+          event_name?: string | null
+          featured?: boolean
+          id?: string
+          month?: number | null
+          restorable_until?: string | null
+          slug: string
+          source?: string
+          source_metadata?: Json
+          starts_on?: string | null
+          status?: string
+          title: string
+          trash_metadata?: Json
+          trash_reason?: string | null
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          category?: string
+          cloudinary_folder?: string | null
+          cover_item_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          deleted_at?: string | null
+          deleted_by_user_id?: string | null
+          description?: string | null
+          ends_on?: string | null
+          event_name?: string | null
+          featured?: boolean
+          id?: string
+          month?: number | null
+          restorable_until?: string | null
+          slug?: string
+          source?: string
+          source_metadata?: Json
+          starts_on?: string | null
+          status?: string
+          title?: string
+          trash_metadata?: Json
+          trash_reason?: string | null
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gallery_albums_cover_item_id_fkey"
+            columns: ["cover_item_id"]
+            isOneToOne: false
+            referencedRelation: "gallery_album_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gallery_entries: {
         Row: {
           caption: string | null
@@ -752,6 +931,8 @@ export type Database = {
           bytes: number | null
           created_at: string
           created_by_user_id: string | null
+          deleted_at: string | null
+          deleted_by_user_id: string | null
           duration_seconds: number | null
           format: string | null
           height: number | null
@@ -765,6 +946,10 @@ export type Database = {
           secure_url: string
           thumbnail_url: string | null
           title: string | null
+          trash_moved_at: string | null
+          trash_original_public_id: string | null
+          trash_public_id: string | null
+          trash_restore_deadline: string | null
           updated_at: string
           width: number | null
         }
@@ -773,6 +958,8 @@ export type Database = {
           bytes?: number | null
           created_at?: string
           created_by_user_id?: string | null
+          deleted_at?: string | null
+          deleted_by_user_id?: string | null
           duration_seconds?: number | null
           format?: string | null
           height?: number | null
@@ -786,6 +973,10 @@ export type Database = {
           secure_url: string
           thumbnail_url?: string | null
           title?: string | null
+          trash_moved_at?: string | null
+          trash_original_public_id?: string | null
+          trash_public_id?: string | null
+          trash_restore_deadline?: string | null
           updated_at?: string
           width?: number | null
         }
@@ -794,6 +985,8 @@ export type Database = {
           bytes?: number | null
           created_at?: string
           created_by_user_id?: string | null
+          deleted_at?: string | null
+          deleted_by_user_id?: string | null
           duration_seconds?: number | null
           format?: string | null
           height?: number | null
@@ -807,6 +1000,10 @@ export type Database = {
           secure_url?: string
           thumbnail_url?: string | null
           title?: string | null
+          trash_moved_at?: string | null
+          trash_original_public_id?: string | null
+          trash_public_id?: string | null
+          trash_restore_deadline?: string | null
           updated_at?: string
           width?: number | null
         }
