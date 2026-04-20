@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Image as ImageIcon } from "lucide-react";
+import { GalleryDescriptionToggle } from "@/components/gallery/gallery-description-toggle";
 import { GalleryLoadMore } from "@/components/gallery/gallery-load-more";
 import { getGalleryAlbumBySlug } from "@/lib/content/gallery";
 
@@ -78,9 +80,9 @@ export default async function GalleryDetailPage({
                 {album.year} · {toLabel(album.category)}
               </span>
               <h1 className="section-title mt-4">{album.title}</h1>
-              <p className="section-copy mt-5">
-                {album.description || album.eventName}
-              </p>
+              <GalleryDescriptionToggle
+                text={album.description || album.eventName}
+              />
             </div>
             <dl className="grid gap-3 text-sm sm:grid-cols-3">
               <div className="rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4">
@@ -112,7 +114,16 @@ export default async function GalleryDetailPage({
                 sizes="(min-width: 1024px) 52vw, 100vw"
                 src={album.cover.fullUrl}
               />
-            ) : null}
+            ) : (
+              <div className="grid h-full place-items-center p-6 text-center text-[var(--muted-foreground)]">
+                <div className="grid justify-items-center gap-3">
+                  <ImageIcon size={36} />
+                  <span className="text-xs font-bold uppercase tracking-[0.2em]">
+                    Cover image pending
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
           </div>
         </div>

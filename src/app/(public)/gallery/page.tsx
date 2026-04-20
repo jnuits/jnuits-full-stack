@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Image as ImageIcon } from "lucide-react";
+import { GalleryArchiveFilters } from "@/components/gallery/gallery-archive-filters";
 import {
   getGalleryAlbums,
   getGalleryFilterOptions,
@@ -75,6 +77,19 @@ function buildPageNumbers(currentPage: number, totalPages: number) {
   )
     .filter((page) => page >= 1 && page <= totalPages)
     .sort((first, second) => first - second);
+}
+
+function AlbumCoverFallback({ title }: { title: string }) {
+  return (
+    <div className="grid h-full min-h-full place-items-center bg-[var(--muted)] p-5 text-center">
+      <div className="grid justify-items-center gap-2 text-[var(--muted-foreground)]">
+        <ImageIcon size={24} />
+        <span className="text-xs font-bold uppercase tracking-[0.18em]">
+          {title}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default async function GalleryPage({
@@ -166,7 +181,9 @@ export default async function GalleryPage({
                     sizes={index === 0 ? "(min-width: 1024px) 48vw, 100vw" : "(min-width: 1024px) 24vw, 100vw"}
                     src={album.cover.thumbnailUrl}
                   />
-                ) : null}
+                ) : (
+                  <AlbumCoverFallback title={album.title} />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-5 text-white">
                   <p className="text-xs uppercase tracking-[0.2em] text-white/70">
@@ -195,45 +212,14 @@ export default async function GalleryPage({
         )}
       </section>
 
-      <section className="mt-8 rounded-[1.5rem] border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm sm:p-5">
-        <form className="grid gap-3 md:grid-cols-[1fr_12rem_14rem_auto]" action="/gallery">
-          <label className="input-label">
-            Search albums
-            <input
-              defaultValue={query}
-              name="q"
-              placeholder="Search by event, caption, category, or year"
-            />
-          </label>
-          <label className="input-label">
-            Year
-            <select defaultValue={year} name="year">
-              <option value="">All years</option>
-              {filters.years.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="input-label">
-            Category
-            <select defaultValue={category} name="category">
-              <option value="">All categories</option>
-              {filters.categories.map((option) => (
-                <option key={option} value={option}>
-                  {toLabel(option)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="flex items-end gap-2">
-            <button className="primary-button w-full md:w-auto" type="submit">
-              Filter
-            </button>
-          </div>
-        </form>
-      </section>
+      <GalleryArchiveFilters
+        categories={filters.categories}
+        category={category}
+        key={`${query}:${year}:${category}`}
+        query={query}
+        year={year}
+        years={filters.years}
+      />
 
       <section className="mt-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -261,7 +247,7 @@ export default async function GalleryPage({
             <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {paginatedAlbums.map((album) => (
                 <Link
-                  className="group overflow-hidden rounded-[1.5rem] border border-[var(--line)] bg-[var(--card)] shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+                  className="gallery-album-card group overflow-hidden rounded-[1.5rem] border border-[var(--line)] bg-[var(--card)] shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl"
                   href={`/gallery/${album.slug}`}
                   key={album.id}
                 >
@@ -276,7 +262,9 @@ export default async function GalleryPage({
                         sizes="(min-width: 1280px) 30vw, (min-width: 640px) 45vw, 100vw"
                         src={album.cover.thumbnailUrl}
                       />
-                    ) : null}
+                    ) : (
+                      <AlbumCoverFallback title={album.title} />
+                    )}
                   </div>
                   <div className="grid gap-3 p-5">
                     <div className="flex flex-wrap gap-2">
@@ -292,7 +280,7 @@ export default async function GalleryPage({
                       <h3 className="text-xl font-semibold leading-tight text-[var(--foreground)]">
                         {album.title}
                       </h3>
-                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                      <p className="gallery-album-card__description mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                         {album.description || album.eventName}
                       </p>
                     </div>

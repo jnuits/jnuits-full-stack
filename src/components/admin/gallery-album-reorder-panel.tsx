@@ -57,7 +57,7 @@ export function GalleryAlbumReorderPanel({
           order only; media files are untouched.
         </p>
       </div>
-      <div className="grid gap-2">
+      <div className="grid max-h-96 gap-2 overflow-auto pr-1">
         {orderedItems.map((item, index) => (
           <label
             className="flex cursor-grab items-center justify-between rounded-2xl border border-[var(--line)] bg-[var(--background)] px-4 py-3 text-sm"
@@ -69,8 +69,12 @@ export function GalleryAlbumReorderPanel({
             onDrop={() => moveItem(item.id)}
           >
             <input name="itemIds" type="hidden" value={item.id} />
-            <span className="font-semibold">{item.title || `Image ${index + 1}`}</span>
-            <span className="text-[var(--muted-foreground)]">#{index + 1}</span>
+            <span className="min-w-0 truncate font-semibold">
+              {item.title || `Image ${index + 1}`}
+            </span>
+            <span className="ml-3 flex-none text-[var(--muted-foreground)]">
+              #{index + 1}
+            </span>
           </label>
         ))}
       </div>

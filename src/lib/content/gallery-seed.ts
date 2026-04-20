@@ -101,6 +101,27 @@ export type SeedAdminItemRow = {
   } | null;
 };
 
+export type SeedAdminEditorItemRow = SeedAdminItemRow & {
+  alt_text: string | null;
+  blur_data_url: string | null;
+  deleted_at: string | null;
+  description: string | null;
+  height: number | null;
+  media_assets?: {
+    alt_text: string | null;
+    height: number | null;
+    public_id: string;
+    secure_url: string;
+    title: string | null;
+    width: number | null;
+  } | null;
+  sort_order: number;
+  source_caption: string | null;
+  status: string;
+  title: string | null;
+  width: number | null;
+};
+
 function normalizeQuery(value: string | null | undefined) {
   return String(value || "").trim().toLowerCase();
 }
@@ -117,6 +138,16 @@ function itemId(albumSlug: string, item: SeedAlbumItem) {
   return `seed-${albumSlug}-${item.sortOrder || 0}-${item.mediaPublicId}`
     .replace(/[^a-zA-Z0-9_-]+/g, "-")
     .slice(0, 220);
+}
+
+function buildPhotoLabel(albumTitle: string, index: number) {
+  return `${albumTitle} - Photo ${index + 1}`;
+}
+
+function shortSeedText(value: string | null | undefined, maxLength: number) {
+  const text = String(value || "").trim();
+
+  return text && text.length <= maxLength ? text : "";
 }
 
 function encodeCursor(item: Pick<GalleryImage, "id" | "sortOrder">) {
@@ -165,9 +196,10 @@ function mediaMap(seed: GallerySeed) {
 }
 
 function mapSeedImage(
-  albumSlug: string,
+  album: Pick<SeedAlbum, "slug" | "title">,
   item: SeedAlbumItem,
-  media: SeedMediaAsset | undefined
+  media: SeedMediaAsset | undefined,
+  index = 0
 ): GalleryImage | null {
   if (!media?.secureUrl || media.mediaKind === "video") {
     return null;
@@ -175,16 +207,17 @@ function mapSeedImage(
 
   const width = item.width || media.width || 1200;
   const height = item.height || media.height || 800;
-  const title = item.title || media.title || "JnUITS gallery photo";
-  const description = item.description || item.sourceCaption || "";
+  const fallbackTitle = buildPhotoLabel(album.title, index);
+  const title = shortSeedText(item.title, 120) || fallbackTitle;
+  const description = shortSeedText(item.description, 160);
 
   return {
-    altText: item.altText || media.altText || title,
+    altText: shortSeedText(item.altText, 160) || title,
     blurDataURL: item.blurDataURL || null,
     description,
     fullUrl: transformCloudinaryUrl(media.secureUrl, "full"),
     height,
-    id: itemId(albumSlug, item),
+    id: itemId(album.slug, item),
     rawUrl: media.secureUrl,
     sortOrder: item.sortOrder || 0,
     sourceCaption: item.sourceCaption || "",
@@ -253,7 +286,9 @@ function seedItems(album: SeedAlbum, seed: GallerySeed) {
 
   return (album.items || [])
     .filter((item) => (item.status || "published") === "published")
-    .map((item) => mapSeedImage(album.slug, item, assets.get(item.mediaPublicId)))
+    .map((item, index) =>
+      mapSeedImage(album, item, assets.get(item.mediaPublicId), index)
+    )
     .filter(Boolean)
     .sort((left, right) => {
       if (left!.sortOrder !== right!.sortOrder) {
@@ -268,7 +303,7 @@ function mapSeedAlbum(album: SeedAlbum, seed: GallerySeed): GalleryAlbumSummary 
   const items = seedItems(album, seed);
   const coverItem = chooseSeedCoverItem(album, seed);
   const cover = coverItem
-    ? mapSeedImage(album.slug, coverItem, mediaMap(seed).get(coverItem.mediaPublicId))
+    ? mapSeedImage(album, coverItem, mediaMap(seed).get(coverItem.mediaPublicId))
     : items[0] || null;
 
   return {
@@ -472,5 +507,91 @@ export const getSeedGalleryAdminData = cache(async () => {
       albumItemCount: items.length,
       mediaAssetCount: seed.mediaAssets.length,
     },
+  };
+});
+
+export const getSeedGalleryAdminEditorData = cache(async (albumId: string) => {
+  const seed = await readGallerySeed();
+  const assets = mediaMap(seed);
+  const normalizedSlug = albumId.startsWith("seed-")
+    ? albumId.slice("seed-".length)
+    : albumId;
+  const album = sortedSeedAlbums(seed).find(
+    (item) => item.slug === normalizedSlug || `seed-${item.slug}` === albumId
+  );
+
+  if (!album) {
+    return null;
+  }
+
+  const coverItem = chooseSeedCoverItem(album, seed);
+  const albumRow: SeedAdminAlbumRow = {
+    category: album.category,
+    cloudinary_folder: album.cloudinaryFolder || null,
+    deleted_at: null,
+    description: album.description || null,
+    ends_on: album.endDate || null,
+    event_name: album.eventName || album.title,
+    featured: Boolean(album.featured),
+    id: `seed-${album.slug}`,
+    month: album.month || null,
+    slug: album.slug,
+    starts_on: album.startDate || null,
+    status: album.status || "published",
+    title: album.title,
+    updated_at: seed.generatedAt || album.startDate || `${album.year}-01-01`,
+    year: album.year,
+  };
+  const items: SeedAdminEditorItemRow[] = [];
+
+  for (const [index, item] of (album.items || []).entries()) {
+    const media = assets.get(item.mediaPublicId);
+
+    if (!media?.secureUrl || (item.status || "published") !== "published") {
+      continue;
+    }
+
+    const isCover =
+      Boolean(item.isCover) ||
+      (Boolean(coverItem) &&
+        coverItem?.mediaPublicId === item.mediaPublicId &&
+        (coverItem.sortOrder || 0) === (item.sortOrder || 0));
+
+    const photoLabel = buildPhotoLabel(album.title, index);
+
+    items.push({
+      album_id: `seed-${album.slug}`,
+      alt_text: photoLabel,
+      blur_data_url: item.blurDataURL || null,
+      deleted_at: null,
+      description: null,
+      height: item.height || media.height || null,
+      id: itemId(album.slug, item),
+      is_cover: isCover,
+      media_assets: {
+        alt_text: media.altText || null,
+        height: media.height || null,
+        public_id: media.publicId,
+        secure_url: media.secureUrl,
+        title: media.title || null,
+        width: media.width || null,
+      },
+      sort_order: item.sortOrder || 0,
+      source_caption: item.sourceCaption || null,
+      status: item.status || "published",
+      title: photoLabel,
+      width: item.width || media.width || null,
+    });
+  }
+
+  return {
+    album: albumRow,
+    items: items.sort((left, right) => {
+      if (left.sort_order !== right.sort_order) {
+        return left.sort_order - right.sort_order;
+      }
+
+      return left.id.localeCompare(right.id);
+    }),
   };
 });
