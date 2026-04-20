@@ -11,6 +11,7 @@ import {
   publicResourceNavigation,
   type NavItem,
 } from "@/lib/site";
+import { createClient } from "@/lib/supabase/client";
 
 function isActivePath(pathname: string, href: string) {
   if (href === "/") {
@@ -144,9 +145,40 @@ function PublicNav({
   );
 }
 
-export function SiteHeader() {
+export function SiteHeader({
+  authenticated: initialAuthenticated = false,
+}: {
+  authenticated?: boolean;
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [authenticated, setAuthenticated] = useState(initialAuthenticated);
+  const authHref = authenticated ? "/portal" : "/login";
+  const authLabel = authenticated ? "Portal" : "Sign In";
+
+  useEffect(() => {
+    let mounted = true;
+    const supabase = createClient();
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (mounted) {
+        setAuthenticated(Boolean(data.session));
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setAuthenticated(Boolean(session));
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   return (
     <header className="site-header">
@@ -161,9 +193,12 @@ export function SiteHeader() {
           </nav>
           <div className="site-header-actions">
             <ThemeToggle />
-            <Link href="/login" className="primary-button text-sm">
-              <span className="hidden sm:inline">Sign In</span>
-              <span className="sm:hidden">Portal</span>
+            <Link
+              className="primary-button site-header-auth-button text-sm"
+              href={authHref}
+              onClick={() => setMobileOpen(false)}
+            >
+              {authLabel}
             </Link>
             <button
               aria-controls="mobile-site-navigation"
