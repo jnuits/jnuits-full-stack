@@ -1,16 +1,28 @@
-import Image from "next/image";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { AlertTriangle, Image as ImageIcon, Plus } from "lucide-react";
-import { saveGalleryAlbum, updateGalleryAlbumLifecycle } from "@/app/admin/content/gallery/actions";
+import {
+  AlertTriangle,
+  Image as ImageIcon,
+  Plus,
+} from "lucide-react";
+import { GalleryAlbumCreateFlow } from "@/components/admin/gallery-album-create-flow";
+import { GalleryAlbumFilters } from "@/components/admin/gallery-album-filters";
+import {
+  AdminGalleryAlbumListItem,
+  type AdminGalleryAlbumListItemAlbum,
+} from "@/components/admin/gallery-album-list-item";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
-import { transformCloudinaryUrl } from "@/lib/cloudinary/urls";
+import {
+  getCloudinaryPublicConfig,
+  isCloudinaryConfigured,
+} from "@/lib/cloudinary/config";
 import { getSeedGalleryAdminData } from "@/lib/content/gallery-seed";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type AlbumRow = {
   category: string;
   cloudinary_folder: string | null;
+  cover_item_id: string | null;
   deleted_at: string | null;
   description: string | null;
   ends_on: string | null;
@@ -30,6 +42,8 @@ type ItemRow = {
   album_id: string;
   id: string;
   is_cover: boolean;
+  sort_order: number;
+  status: string;
   media_assets?: {
     secure_url: string;
   } | null;
@@ -37,15 +51,17 @@ type ItemRow = {
 
 export const metadata = { title: "Gallery Albums — Admin | JnUITS" };
 
-const ADMIN_ALBUMS_PER_PAGE = 20;
-
-function toLabel(value: string) {
-  return value
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
+const ADMIN_ALBUMS_PER_PAGE = 12;
+const GALLERY_CATEGORIES = [
+  { label: "Workshop / Training", value: "workshop-training" },
+  { label: "Competition", value: "competition" },
+  { label: "Ceremony / Community", value: "ceremony-community" },
+  { label: "Community / Social", value: "community-social" },
+  { label: "Tour", value: "tour" },
+  { label: "Institutional", value: "institutional" },
+  { label: "Member Outreach", value: "member-outreach" },
+  { label: "Other Real Event", value: "other-real-event" },
+];
 
 function parsePage(value: string | string[] | undefined) {
   if (typeof value !== "string") {
@@ -105,129 +121,14 @@ function buildPageNumbers(currentPage: number, totalPages: number) {
     .sort((first, second) => first - second);
 }
 
-function formatAlbumDate(album: Pick<AlbumRow, "ends_on" | "starts_on" | "year">) {
-  if (!album.starts_on) {
-    return String(album.year);
-  }
-
-  const formatter = new Intl.DateTimeFormat("en-BD", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  const start = formatter.format(new Date(album.starts_on));
-
-  if (!album.ends_on || album.ends_on === album.starts_on) {
-    return start;
-  }
-
-  return `${start} - ${formatter.format(new Date(album.ends_on))}`;
+function firstRecord<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value || null;
 }
 
-function AlbumCreateFields({ disabled = false }: { disabled?: boolean }) {
-  return (
-    <>
-      <div>
-        <p className="admin-section-label">Create album</p>
-        <h2 className="admin-card-row__title">Manual album metadata</h2>
-        <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-          Create late-uploaded event albums here. Images stay in Cloudinary;
-          Supabase stores the album and media metadata only.
-        </p>
-      </div>
-      <label className="input-label">
-        Title
-        <input
-          disabled={disabled}
-          name="title"
-          placeholder="Inauguration & Fresher's Reception 2025"
-          required
-        />
-      </label>
-      <label className="input-label">
-        Slug
-        <input
-          disabled={disabled}
-          name="slug"
-          placeholder="inauguration-fresher-reception-2025"
-        />
-      </label>
-      <label className="input-label">
-        Event name
-        <input
-          disabled={disabled}
-          name="eventName"
-          placeholder="Inauguration & Fresher's Reception 2025"
-        />
-      </label>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="input-label">
-          Year
-          <input disabled={disabled} min="2015" name="year" required type="number" />
-        </label>
-        <label className="input-label">
-          Month
-          <input disabled={disabled} max="12" min="1" name="month" type="number" />
-        </label>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="input-label">
-          Start date
-          <input disabled={disabled} name="startsOn" type="date" />
-        </label>
-        <label className="input-label">
-          End date
-          <input disabled={disabled} name="endsOn" type="date" />
-        </label>
-      </div>
-      <label className="input-label">
-        Category
-        <select defaultValue="other-real-event" disabled={disabled} name="category">
-          <option value="workshop-training">Workshop / Training</option>
-          <option value="competition">Competition</option>
-          <option value="ceremony-community">Ceremony / Community</option>
-          <option value="tour">Tour</option>
-          <option value="institutional">Institutional</option>
-          <option value="member-outreach">Member Outreach</option>
-          <option value="other-real-event">Other Real Event</option>
-        </select>
-      </label>
-      <label className="input-label">
-        Description
-        <textarea
-          disabled={disabled}
-          name="description"
-          placeholder="Short public album description"
-          rows={3}
-        />
-      </label>
-      <label className="input-label">
-        Cloudinary folder
-        <input
-          disabled={disabled}
-          name="cloudinaryFolder"
-          placeholder="jnuits/jnuits-full-stack/gallery/YYYY/MM/album-slug"
-        />
-      </label>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="input-label">
-          Status
-          <select defaultValue="published" disabled={disabled} name="status">
-            <option value="draft">Draft</option>
-            <option value="published">Published</option>
-            <option value="archived">Archived</option>
-          </select>
-        </label>
-        <label className="input-label">
-          Featured
-          <select defaultValue="false" disabled={disabled} name="featured">
-            <option value="false">No</option>
-            <option value="true">Yes</option>
-          </select>
-        </label>
-      </div>
-    </>
-  );
+function getMediaSecureUrl(item: ItemRow | undefined) {
+  const media = firstRecord(item?.media_assets);
+
+  return media?.secure_url || "";
 }
 
 export default async function GalleryAdminPage({
@@ -248,7 +149,7 @@ export default async function GalleryAdminPage({
     admin
       .from("gallery_albums")
       .select(
-        "id, slug, title, event_name, description, year, month, starts_on, ends_on, category, status, featured, cloudinary_folder, deleted_at, updated_at"
+        "id, slug, title, event_name, description, year, month, starts_on, ends_on, category, status, featured, cover_item_id, cloudinary_folder, deleted_at, updated_at"
       )
       .order("year", { ascending: false })
       .order("month", { ascending: false, nullsFirst: false })
@@ -267,24 +168,48 @@ export default async function GalleryAdminPage({
       ? { data: seedPreviewMode ? seedData.items : [] }
       : await admin
           .from("gallery_album_items")
-          .select("id, album_id, is_cover, media_assets(secure_url)")
+          .select("id, album_id, is_cover, sort_order, status, media_assets(secure_url)")
           .in("album_id", albumIds)
-          .is("deleted_at", null);
+          .is("deleted_at", null)
+          .order("sort_order", { ascending: true })
+          .order("id", { ascending: true });
   const items = (itemResult.data || []) as ItemRow[];
   const itemCountByAlbum = new Map<string, number>();
+  const itemsByAlbum = new Map<string, ItemRow[]>();
   const coverByAlbum = new Map<string, string>();
 
   for (const item of items) {
     itemCountByAlbum.set(item.album_id, (itemCountByAlbum.get(item.album_id) || 0) + 1);
 
-    if (item.is_cover && item.media_assets?.secure_url) {
-      coverByAlbum.set(item.album_id, item.media_assets.secure_url);
+    if (!itemsByAlbum.has(item.album_id)) {
+      itemsByAlbum.set(item.album_id, []);
+    }
+
+    itemsByAlbum.get(item.album_id)?.push(item);
+  }
+
+  for (const album of albums) {
+    const albumItems = itemsByAlbum.get(album.id) || [];
+    const coverItem =
+      albumItems.find((item) => item.id === album.cover_item_id) ||
+      albumItems.find((item) => item.is_cover) ||
+      albumItems.find((item) => item.status === "published") ||
+      albumItems[0];
+    const coverUrl = getMediaSecureUrl(coverItem);
+
+    if (coverUrl) {
+      coverByAlbum.set(album.id, coverUrl);
     }
   }
 
   const years = Array.from(new Set(albums.map((album) => album.year))).sort(
     (left, right) => right - left
   );
+  const cloudinaryConfigured = isCloudinaryConfigured();
+  const cloudinaryPublicConfig = cloudinaryConfigured
+    ? getCloudinaryPublicConfig()
+    : null;
+  const now = new Date();
   const filteredAlbums = albums.filter((album) => {
     if (status && album.status !== status) {
       return false;
@@ -320,9 +245,9 @@ export default async function GalleryAdminPage({
   const pageNumbers = buildPageNumbers(currentPage, totalPages);
 
   return (
-    <div className="grid gap-8">
-      <div className="admin-page-header">
-        <div>
+    <div className="admin-gallery-workspace grid gap-7">
+      <div className="admin-page-header admin-gallery-header">
+        <div className="admin-gallery-header__copy">
           <p className="admin-page-header__breadcrumb">Admin / Content</p>
           <h1 className="admin-page-header__title">Gallery albums</h1>
           <p className="admin-page-header__desc">
@@ -330,9 +255,33 @@ export default async function GalleryAdminPage({
             metadata, soft deletion, and Cloudinary-backed media operations.
           </p>
         </div>
-        <span className={`abadge ${seedPreviewMode ? "abadge--draft" : "abadge--info"}`}>
-          {seedPreviewMode ? "Seed preview" : `${albums.length} albums`}
-        </span>
+        <div className="admin-gallery-header__actions">
+          <span className={`abadge ${seedPreviewMode ? "abadge--draft" : "abadge--info"}`}>
+            {seedPreviewMode ? "Seed preview" : `${albums.length} albums`}
+          </span>
+          <details className="admin-gallery-create-menu">
+            <summary className="admin-btn admin-btn--primary">
+              <Plus aria-hidden="true" size={15} />
+              New album
+            </summary>
+            <div className="admin-gallery-create-menu__panel">
+              <GalleryAlbumCreateFlow
+                categories={GALLERY_CATEGORIES}
+                cloudName={cloudinaryPublicConfig?.cloudName || ""}
+                cloudinaryConfigured={cloudinaryConfigured}
+                defaultMonth={now.getMonth() + 1}
+                defaultYear={now.getFullYear()}
+                disabled={seedPreviewMode}
+              />
+              {seedPreviewMode ? (
+                <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+                  The workflow is ready, but saving is disabled because{" "}
+                  <code>gallery_albums</code> does not exist in Supabase yet.
+                </p>
+              ) : null}
+            </div>
+          </details>
+        </div>
       </div>
 
       {flash && (
@@ -421,72 +370,13 @@ export default async function GalleryAdminPage({
         </div>
       </div>
 
-      <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-        {seedPreviewMode ? (
-          <div className="admin-review-card grid gap-4">
-            <AlbumCreateFields />
-            <button
-              className="admin-btn admin-btn--primary opacity-60"
-              disabled
-              type="button"
-            >
-              <Plus size={15} />
-              Apply schema to enable create
-            </button>
-            <p className="text-sm leading-7 text-[var(--muted-foreground)]">
-              This is the exact create-album workflow for late-uploaded
-              content, including event month/year and description edits. The
-              fields are visible for operator review, but the save action is
-              disabled because <code>gallery_albums</code> does not exist in
-              Supabase yet.
-            </p>
-          </div>
-        ) : (
-          <div className="admin-review-card">
-            <form action={saveGalleryAlbum} className="grid gap-4">
-              <AlbumCreateFields />
-              <button className="admin-btn admin-btn--primary" type="submit">
-                <Plus size={15} />
-                Create album
-              </button>
-            </form>
-          </div>
-        )}
-
-        <div className="grid gap-5">
-          <section className="admin-review-card">
-            <form action="/admin/content/gallery" className="grid gap-3 md:grid-cols-[1fr_10rem_10rem_auto]">
-              <label className="input-label">
-                Search
-                <input defaultValue={typeof params.q === "string" ? params.q : ""} name="q" placeholder="Album title, category, or slug" />
-              </label>
-              <label className="input-label">
-                Status
-                <select defaultValue={status} name="status">
-                  <option value="">All</option>
-                  <option value="published">Published</option>
-                  <option value="draft">Draft</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </label>
-              <label className="input-label">
-                Year
-                <select defaultValue={year} name="year">
-                  <option value="">All</option>
-                  {years.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex items-end">
-                <button className="admin-btn admin-btn--primary w-full" type="submit">
-                  Filter
-                </button>
-              </div>
-            </form>
-          </section>
+      <section className="grid gap-5">
+        <GalleryAlbumFilters
+          query={query}
+          status={status}
+          year={year}
+          years={years}
+        />
 
           <section className="grid gap-3">
             <p className="admin-section-label">Album queue</p>
@@ -508,83 +398,13 @@ export default async function GalleryAdminPage({
               const coverUrl = coverByAlbum.get(album.id);
 
               return (
-                <article className="admin-card-row items-stretch" key={album.id}>
-                  <div className="relative min-h-28 w-32 overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--muted)]">
-                    {coverUrl ? (
-                      <Image
-                        alt=""
-                        className="object-cover"
-                        fill
-                        sizes="8rem"
-                        src={transformCloudinaryUrl(coverUrl, "albumCard")}
-                      />
-                    ) : null}
-                  </div>
-                  <div className="admin-card-row__body">
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`abadge abadge--${album.status === "published" ? "published" : "draft"}`}>
-                        {album.deleted_at ? "deleted" : album.status}
-                      </span>
-                      <span className="abadge abadge--info">{album.year}</span>
-                      <span className="abadge">{toLabel(album.category)}</span>
-                      <span className="abadge">{itemCountByAlbum.get(album.id) || 0} images</span>
-                      {album.featured ? <span className="abadge abadge--info">Featured</span> : null}
-                    </div>
-                    <h2 className="admin-card-row__title mt-3">{album.title}</h2>
-                    <p className="admin-card-row__meta">
-                      /gallery/{album.slug} · {formatAlbumDate(album)} · Updated {new Date(album.updated_at).toLocaleDateString("en-BD")}
-                    </p>
-                    <p className="admin-card-row__meta">
-                      Event: {album.event_name || album.title}
-                      {album.cloudinary_folder ? ` · Folder: ${album.cloudinary_folder}` : ""}
-                    </p>
-                    {album.description ? (
-                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                        {album.description}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="admin-card-row__actions">
-                    {seedPreviewMode ? (
-                      <>
-                        <span className="admin-btn admin-btn--ghost opacity-60" aria-disabled="true">
-                          Edit metadata
-                        </span>
-                        <span className="admin-btn admin-btn--ghost opacity-60" aria-disabled="true">
-                          Publish/archive
-                        </span>
-                        <span className="admin-btn admin-btn--ghost opacity-60" aria-disabled="true">
-                          Soft delete
-                        </span>
-                      </>
-                    ) : (
-                      <Link className="admin-btn admin-btn--ghost" href={`/admin/content/gallery/${album.id}`}>
-                        Open editor
-                      </Link>
-                    )}
-                    <Link className="admin-btn admin-btn--ghost" href={`/gallery/${album.slug}`} target="_blank">
-                      Public
-                    </Link>
-                    {seedPreviewMode ? null : (
-                      <>
-                        <form action={updateGalleryAlbumLifecycle}>
-                          <input name="albumId" type="hidden" value={album.id} />
-                          <input name="intent" type="hidden" value={album.status === "published" ? "archive" : "publish"} />
-                          <button className="admin-btn admin-btn--ghost" type="submit">
-                            {album.status === "published" ? "Archive" : "Publish"}
-                          </button>
-                        </form>
-                        <form action={updateGalleryAlbumLifecycle}>
-                          <input name="albumId" type="hidden" value={album.id} />
-                          <input name="intent" type="hidden" value={album.deleted_at ? "restore" : "delete"} />
-                          <button className="admin-btn admin-btn--ghost" type="submit">
-                            {album.deleted_at ? "Restore" : "Soft delete"}
-                          </button>
-                        </form>
-                      </>
-                    )}
-                  </div>
-                </article>
+                <AdminGalleryAlbumListItem
+                  album={album as AdminGalleryAlbumListItemAlbum}
+                  coverUrl={coverUrl}
+                  imageCount={itemCountByAlbum.get(album.id) || 0}
+                  key={album.id}
+                  seedPreviewMode={seedPreviewMode}
+                />
               );
             })}
             {totalPages > 1 ? (
@@ -652,7 +472,6 @@ export default async function GalleryAdminPage({
               </nav>
             ) : null}
           </section>
-        </div>
       </section>
     </div>
   );

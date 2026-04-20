@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import {
   startTransition,
   useCallback,
@@ -52,7 +53,6 @@ function countRepeatedText(items: GalleryImage[], selector: (item: GalleryImage)
 function getDisplayCaption(
   item: GalleryImage,
   index: number,
-  albumTitle: string,
   titleCounts: Map<string, number>,
   descriptionCounts: Map<string, number>
 ) {
@@ -66,10 +66,10 @@ function getDisplayCaption(
   const displayTitle =
     title && title.length <= 80 && !isRepeatedTitle
       ? title
-      : `${albumTitle} Photo ${String(index + 1).padStart(2, "0")}`;
+      : `Photo ${String(index + 1).padStart(2, "0")}`;
   const displayDescription =
     description &&
-    description.length <= 160 &&
+    description.length <= 140 &&
     normalizedDescription !== normalizedTitle &&
     !isRepeatedDescription
       ? description
@@ -91,6 +91,7 @@ export function GalleryLoadMore({
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const requestInFlight = useRef(false);
   const visibleItems = useMemo(() => {
@@ -102,12 +103,13 @@ export function GalleryLoadMore({
       displayCaption: getDisplayCaption(
         item,
         index,
-        albumTitle,
         titleCounts,
         descriptionCounts
       ),
     }));
-  }, [albumTitle, items]);
+  }, [items]);
+  const activeItem =
+    activeIndex === null ? null : visibleItems[activeIndex] || null;
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || requestInFlight.current) {
@@ -158,6 +160,26 @@ export function GalleryLoadMore({
     }
   }, [albumSlug, nextCursor]);
 
+  const showPrevious = useCallback(() => {
+    setActiveIndex((current) => {
+      if (current === null || !visibleItems.length) {
+        return current;
+      }
+
+      return (current - 1 + visibleItems.length) % visibleItems.length;
+    });
+  }, [visibleItems.length]);
+
+  const showNext = useCallback(() => {
+    setActiveIndex((current) => {
+      if (current === null || !visibleItems.length) {
+        return current;
+      }
+
+      return (current + 1) % visibleItems.length;
+    });
+  }, [visibleItems.length]);
+
   useEffect(() => {
     const node = sentinelRef.current;
 
@@ -183,19 +205,50 @@ export function GalleryLoadMore({
     return () => observer.disconnect();
   }, [loadMore, nextCursor]);
 
+  useEffect(() => {
+    if (activeIndex === null) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setActiveIndex(null);
+      }
+
+      if (event.key === "ArrowLeft") {
+        showPrevious();
+      }
+
+      if (event.key === "ArrowRight") {
+        showNext();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeIndex, showNext, showPrevious]);
+
   return (
     <div className="grid gap-8">
-      <div className="columns-1 gap-4 sm:columns-2 lg:columns-3">
-        {visibleItems.map((item) => (
+      <div className="gallery-masonry">
+        {visibleItems.map((item, index) => (
           <figure
-            className="group mb-4 break-inside-avoid overflow-hidden rounded-[1.45rem] border border-[var(--line)] bg-[var(--card)] shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+            className="gallery-masonry__item group overflow-hidden rounded-[1.45rem] border border-[var(--line)] bg-[var(--card)] shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl"
             key={item.id}
           >
-            <a
-              className="relative block overflow-hidden bg-[var(--muted)]"
-              href={item.fullUrl}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              aria-label={`Open ${item.displayCaption.title} from ${albumTitle}`}
+              className="gallery-masonry__trigger relative block w-full overflow-hidden bg-[var(--muted)] text-left"
+              onClick={() => setActiveIndex(index)}
+              type="button"
             >
               <Image
                 alt={item.altText}
@@ -210,7 +263,7 @@ export function GalleryLoadMore({
               <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/55 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white opacity-0 backdrop-blur transition duration-300 group-hover:opacity-100">
                 View photo
               </span>
-            </a>
+            </button>
             <figcaption className="grid gap-2 px-4 py-4">
               <p className="text-sm font-semibold text-[var(--foreground)]">
                 {item.displayCaption.title}
@@ -224,6 +277,78 @@ export function GalleryLoadMore({
           </figure>
         ))}
       </div>
+
+      {activeItem ? (
+        <div
+          aria-label={`${activeItem.displayCaption.title} lightbox`}
+          aria-modal="true"
+          className="gallery-lightbox"
+          role="dialog"
+        >
+          <button
+            aria-label="Close photo viewer"
+            className="gallery-lightbox__backdrop"
+            onClick={() => setActiveIndex(null)}
+            type="button"
+          />
+          <div className="gallery-lightbox__stage">
+            <button
+              aria-label="Close photo viewer"
+              className="gallery-lightbox__close"
+              onClick={() => setActiveIndex(null)}
+              type="button"
+            >
+              <X size={20} />
+            </button>
+
+            {visibleItems.length > 1 ? (
+              <button
+                aria-label="Previous photo"
+                className="gallery-lightbox__nav gallery-lightbox__nav--previous"
+                onClick={showPrevious}
+                type="button"
+              >
+                <ChevronLeft size={28} />
+              </button>
+            ) : null}
+
+            <div className="gallery-lightbox__image-wrap">
+              <Image
+                alt={activeItem.altText}
+                blurDataURL={activeItem.blurDataURL || undefined}
+                className="gallery-lightbox__image"
+                height={activeItem.height}
+                placeholder={activeItem.blurDataURL ? "blur" : "empty"}
+                priority
+                sizes="100vw"
+                src={activeItem.fullUrl}
+                width={activeItem.width}
+              />
+            </div>
+
+            {visibleItems.length > 1 ? (
+              <button
+                aria-label="Next photo"
+                className="gallery-lightbox__nav gallery-lightbox__nav--next"
+                onClick={showNext}
+                type="button"
+              >
+                <ChevronRight size={28} />
+              </button>
+            ) : null}
+
+            <div className="gallery-lightbox__caption">
+              <p className="text-sm font-semibold text-white">
+                {activeItem.displayCaption.title}
+              </p>
+              <p className="mt-1 text-xs text-white/65">
+                {activeIndex === null ? 0 : activeIndex + 1} of{" "}
+                {visibleItems.length} · {albumTitle}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div ref={sentinelRef} />
 

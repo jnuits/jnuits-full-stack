@@ -66,6 +66,58 @@ function chunk(items, size = 100) {
   return chunks;
 }
 
+function sanitizeStringForPostgres(value) {
+  const text = String(value);
+  let output = "";
+
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = text.charCodeAt(index + 1);
+
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        output += text[index] + text[index + 1];
+        index += 1;
+        continue;
+      }
+
+      output += "\uFFFD";
+      continue;
+    }
+
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      output += "\uFFFD";
+      continue;
+    }
+
+    output += text[index];
+  }
+
+  return output;
+}
+
+function sanitizeForPostgres(value) {
+  if (typeof value === "string") {
+    return sanitizeStringForPostgres(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(sanitizeForPostgres);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => [
+        sanitizeStringForPostgres(key),
+        sanitizeForPostgres(entryValue),
+      ])
+    );
+  }
+
+  return value;
+}
+
 function readSeed(filePath) {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Gallery seed file not found: ${filePath}`);
@@ -82,65 +134,83 @@ function readSeed(filePath) {
 
 function toMediaAssetRow(asset) {
   return {
-    alt_text: asset.altText || null,
+    alt_text: asset.altText ? sanitizeStringForPostgres(asset.altText) : null,
     bytes: asset.bytes ?? null,
     duration_seconds: null,
-    format: asset.format || null,
+    format: asset.format ? sanitizeStringForPostgres(asset.format) : null,
     height: asset.height ?? null,
     is_public: asset.isPublic !== false,
-    media_kind: asset.mediaKind || "image",
-    metadata: asset.metadata || {},
+    media_kind: sanitizeStringForPostgres(asset.mediaKind || "image"),
+    metadata: sanitizeForPostgres(asset.metadata || {}),
     provider: "cloudinary",
-    public_id: asset.publicId,
-    resource_type: asset.resourceType || "image",
-    secure_url: asset.secureUrl,
-    thumbnail_url: asset.thumbnailUrl || null,
-    title: asset.title || null,
+    public_id: sanitizeStringForPostgres(asset.publicId),
+    resource_type: sanitizeStringForPostgres(asset.resourceType || "image"),
+    secure_url: sanitizeStringForPostgres(asset.secureUrl),
+    thumbnail_url: asset.thumbnailUrl
+      ? sanitizeStringForPostgres(asset.thumbnailUrl)
+      : null,
+    title: asset.title ? sanitizeStringForPostgres(asset.title) : null,
     width: asset.width ?? null,
   };
 }
 
 function toAlbumRow(album) {
   return {
-    category: album.category || "other-real-event",
-    cloudinary_folder: album.cloudinaryFolder || null,
+    category: sanitizeStringForPostgres(album.category || "other-real-event"),
+    cloudinary_folder: album.cloudinaryFolder
+      ? sanitizeStringForPostgres(album.cloudinaryFolder)
+      : null,
     deleted_at: null,
     deleted_by_user_id: null,
-    description: album.description || null,
+    description: album.description
+      ? sanitizeStringForPostgres(album.description)
+      : null,
     ends_on: album.endDate || null,
-    event_name: album.eventName || album.title,
+    event_name: sanitizeStringForPostgres(album.eventName || album.title),
     featured: Boolean(album.featured),
     month: album.month || null,
     restorable_until: null,
-    slug: album.slug,
-    source: album.source || "facebook-export",
-    source_metadata: album.sourceMetadata || {},
+    slug: sanitizeStringForPostgres(album.slug),
+    source: sanitizeStringForPostgres(album.source || "facebook-export"),
+    source_metadata: sanitizeForPostgres(album.sourceMetadata || {}),
     starts_on: album.startDate || null,
-    status: album.status || "published",
-    title: album.title,
+    status: sanitizeStringForPostgres(album.status || "published"),
+    title: sanitizeStringForPostgres(album.title),
     trash_metadata: {},
     trash_reason: null,
     year: album.year,
   };
 }
 
-function toAlbumItemRow(item, albumId, mediaAssetId) {
+function buildPhotoLabel(albumTitle, index) {
+  return sanitizeStringForPostgres(
+    `${String(albumTitle || "Gallery album").trim() || "Gallery album"} - Photo ${index + 1}`
+  );
+}
+
+function toAlbumItemRow(item, albumId, mediaAssetId, albumTitle, itemIndex) {
+  const photoLabel = buildPhotoLabel(albumTitle, itemIndex);
+
   return {
     album_id: albumId,
-    alt_text: item.altText || null,
-    blur_data_url: item.blurDataURL || null,
+    alt_text: photoLabel,
+    blur_data_url: item.blurDataURL
+      ? sanitizeStringForPostgres(item.blurDataURL)
+      : null,
     deleted_at: null,
     deleted_by_user_id: null,
-    description: item.description || null,
+    description: null,
     height: item.height ?? null,
     is_cover: Boolean(item.isCover),
     media_asset_id: mediaAssetId,
     restorable_until: null,
     sort_order: item.sortOrder || 100,
-    source_caption: item.sourceCaption || null,
-    source_metadata: item.sourceMetadata || {},
-    status: item.status || "published",
-    title: item.title || null,
+    source_caption: item.sourceCaption
+      ? sanitizeStringForPostgres(item.sourceCaption)
+      : null,
+    source_metadata: sanitizeForPostgres(item.sourceMetadata || {}),
+    status: sanitizeStringForPostgres(item.status || "published"),
+    title: photoLabel,
     trash_metadata: {},
     trash_reason: null,
     width: item.width ?? null,
@@ -252,7 +322,9 @@ async function main() {
     }
   }
 
-  for (const publicIdBatch of chunk(publicIds, 200)) {
+  // Cloudinary public IDs include nested folder paths, so large `.in()` batches
+  // can exceed PostgREST URL limits and return a generic 400 Bad Request.
+  for (const publicIdBatch of chunk(publicIds, 25)) {
     const { data, error } = await supabase
       .from("media_assets")
       .select("id, public_id")
@@ -292,7 +364,7 @@ async function main() {
 
     const rows = [];
 
-    for (const item of album.items || []) {
+    for (const [itemIndex, item] of (album.items || []).entries()) {
       const mediaAssetId = mediaIdByPublicId.get(item.mediaPublicId);
 
       if (!mediaAssetId) {
@@ -305,7 +377,9 @@ async function main() {
           isCover: item.isCover && !coverAlbumIds.has(albumId),
         },
         albumId,
-        mediaAssetId
+        mediaAssetId,
+        album.title,
+        itemIndex
       );
 
       if (row.is_cover) {

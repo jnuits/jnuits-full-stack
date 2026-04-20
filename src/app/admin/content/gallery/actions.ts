@@ -112,13 +112,45 @@ async function audit(options: {
   await insertAuditEvent(createAdminClient(), options);
 }
 
-function revalidateGallery(albumSlug?: string) {
+function revalidateGallery(options: { albumId?: string; albumSlug?: string } = {}) {
   revalidatePath("/gallery");
   revalidatePath("/admin/content/gallery");
 
-  if (albumSlug) {
-    revalidatePath(`/gallery/${albumSlug}`);
+  if (options.albumId) {
+    revalidatePath(`/admin/content/gallery/${options.albumId}`);
   }
+
+  if (options.albumSlug) {
+    revalidatePath(`/gallery/${options.albumSlug}`);
+  }
+}
+
+async function getAlbumForAction(
+  admin: ReturnType<typeof createAdminClient>,
+  albumId: string
+) {
+  const { data } = await admin
+    .from("gallery_albums")
+    .select("id, slug, title, cover_item_id")
+    .eq("id", albumId)
+    .maybeSingle();
+
+  return data;
+}
+
+async function getAlbumItemForAction(
+  admin: ReturnType<typeof createAdminClient>,
+  albumId: string,
+  itemId: string
+) {
+  const { data, error } = await admin
+    .from("gallery_album_items")
+    .select("id, album_id, status")
+    .eq("id", itemId)
+    .eq("album_id", albumId)
+    .maybeSingle();
+
+  return { data, error };
 }
 
 export async function saveGalleryAlbum(formData: FormData) {
@@ -210,7 +242,7 @@ export async function saveGalleryAlbum(formData: FormData) {
     metadata: { slug, status: data.status },
   });
 
-  revalidateGallery(saved.slug);
+  revalidateGallery({ albumId: saved.id, albumSlug: saved.slug });
   await setAdminFlash({
     tone: "success",
     title: "Album saved",
@@ -275,7 +307,7 @@ export async function updateGalleryAlbumLifecycle(formData: FormData) {
     metadata: { slug: data.slug },
   });
 
-  revalidateGallery(data.slug);
+  revalidateGallery({ albumId, albumSlug: data.slug });
   await setAdminFlash({
     tone: "success",
     title: "Album updated",
@@ -310,37 +342,99 @@ export async function saveGalleryAlbumItem(formData: FormData) {
 
   const admin = createAdminClient();
   const { albumId, isCover, itemId, ...item } = parsed.data;
+  const album = await getAlbumForAction(admin, albumId);
+  const itemRecord = await getAlbumItemForAction(admin, albumId, itemId);
 
-  if (isCover) {
-    await admin
-      .from("gallery_album_items")
-      .update({ is_cover: false })
-      .eq("album_id", albumId);
-  }
-
-  const { error } = await admin
-    .from("gallery_album_items")
-    .update({
-      alt_text: item.altText || null,
-      description: item.description || null,
-      is_cover: isCover,
-      sort_order: item.sortOrder,
-      status: item.status,
-      title: item.title || null,
-    })
-    .eq("id", itemId);
-
-  if (error) {
+  if (!album) {
     await setAdminFlash({
       tone: "error",
       title: "Image not saved",
-      message: error.message,
+      message: "The parent gallery album no longer exists.",
+    });
+    redirect("/admin/content/gallery");
+  }
+
+  if (itemRecord.error || !itemRecord.data) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Image not saved",
+      message:
+        itemRecord.error?.message ||
+        "This image record was not found in the selected album.",
     });
     redirect(`/admin/content/gallery/${albumId}`);
   }
 
-  if (isCover) {
-    await admin.from("gallery_albums").update({ cover_item_id: itemId }).eq("id", albumId);
+  const nextIsCover = item.status === "published" ? isCover : false;
+
+  if (nextIsCover) {
+    const { error: resetCoverError } = await admin
+      .from("gallery_album_items")
+      .update({ is_cover: false })
+      .eq("album_id", albumId);
+
+    if (resetCoverError) {
+      await setAdminFlash({
+        tone: "error",
+        title: "Image not saved",
+        message: resetCoverError.message,
+      });
+      redirect(`/admin/content/gallery/${albumId}`);
+    }
+  }
+
+  const { data: savedItem, error } = await admin
+    .from("gallery_album_items")
+    .update({
+      alt_text: item.altText || null,
+      description: item.description || null,
+      is_cover: nextIsCover,
+      sort_order: item.sortOrder,
+      status: item.status,
+      title: item.title || null,
+    })
+    .eq("id", itemId)
+    .eq("album_id", albumId)
+    .select("id")
+    .single();
+
+  if (error || !savedItem) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Image not saved",
+      message: error?.message || "The image record could not be updated.",
+    });
+    redirect(`/admin/content/gallery/${albumId}`);
+  }
+
+  if (nextIsCover) {
+    const { error: coverError } = await admin
+      .from("gallery_albums")
+      .update({ cover_item_id: itemId })
+      .eq("id", albumId);
+
+    if (coverError) {
+      await setAdminFlash({
+        tone: "error",
+        title: "Image saved, cover not updated",
+        message: coverError.message,
+      });
+      redirect(`/admin/content/gallery/${albumId}`);
+    }
+  } else if (album?.cover_item_id === itemId) {
+    const { error: clearCoverError } = await admin
+      .from("gallery_albums")
+      .update({ cover_item_id: null })
+      .eq("id", albumId);
+
+    if (clearCoverError) {
+      await setAdminFlash({
+        tone: "error",
+        title: "Image saved, cover not updated",
+        message: clearCoverError.message,
+      });
+      redirect(`/admin/content/gallery/${albumId}`);
+    }
   }
 
   await audit({
@@ -348,10 +442,10 @@ export async function saveGalleryAlbumItem(formData: FormData) {
     actorUserId,
     entityId: itemId,
     entityType: "gallery_album_item",
-    metadata: { albumId, isCover, status: item.status },
+    metadata: { albumId, isCover: nextIsCover, status: item.status },
   });
 
-  revalidateGallery();
+  revalidateGallery({ albumId, albumSlug: album?.slug });
   await setAdminFlash({
     tone: "success",
     title: "Image saved",
@@ -379,11 +473,12 @@ export async function bulkUpdateGalleryAlbumItems(formData: FormData) {
 
   const admin = createAdminClient();
   const { albumId, intent, itemIds } = parsed.data;
+  const album = await getAlbumForAction(admin, albumId);
   const update =
     intent === "publish"
       ? { deleted_at: null, deleted_by_user_id: null, restorable_until: null, status: "published" }
       : intent === "archive"
-        ? { status: "archived" }
+        ? { is_cover: false, status: "archived" }
         : intent === "restore"
           ? { deleted_at: null, deleted_by_user_id: null, restorable_until: null, status: "draft" }
           : {
@@ -413,6 +508,14 @@ export async function bulkUpdateGalleryAlbumItems(formData: FormData) {
     redirect(`/admin/content/gallery/${albumId}`);
   }
 
+  if (
+    album?.cover_item_id &&
+    itemIds.includes(album.cover_item_id) &&
+    ["archive", "delete", "remove"].includes(intent)
+  ) {
+    await admin.from("gallery_albums").update({ cover_item_id: null }).eq("id", albumId);
+  }
+
   await audit({
     action: `gallery.album_items_${intent}`,
     actorUserId,
@@ -421,7 +524,7 @@ export async function bulkUpdateGalleryAlbumItems(formData: FormData) {
     metadata: { count: itemIds.length, itemIds },
   });
 
-  revalidateGallery();
+  revalidateGallery({ albumId, albumSlug: album?.slug });
   await setAdminFlash({
     tone: "success",
     title: "Bulk action complete",
@@ -474,7 +577,8 @@ export async function reorderGalleryAlbumItems(formData: FormData) {
     metadata: { count: itemIds.length },
   });
 
-  revalidateGallery();
+  const album = await getAlbumForAction(admin, albumId);
+  revalidateGallery({ albumId, albumSlug: album?.slug });
   await setAdminFlash({
     tone: "success",
     title: "Album order saved",

@@ -1,0 +1,94 @@
+{
+  "mode": "apply",
+  "generatedAt": "2026-04-20T17:17:26.762Z",
+  "albumsScanned": 64,
+  "itemsScanned": 986,
+  "itemsChanged": 986,
+  "errors": [],
+  "samples": [
+    {
+      "albumSlug": "bcc-season-8-0-first-class",
+      "itemId": "b3d0eebd-25d2-46bd-bdde-d4e56631b391",
+      "nextTitle": "BCC Season 8.0 First Class - Photo 1",
+      "previousDescriptionLength": 865,
+      "previousTitleLength": 865
+    },
+    {
+      "albumSlug": "bcc-season-8-0-first-class",
+      "itemId": "a45c5a92-a21e-413e-858b-27324b7d230a",
+      "nextTitle": "BCC Season 8.0 First Class - Photo 2",
+      "previousDescriptionLength": 865,
+      "previousTitleLength": 865
+    },
+    {
+      "albumSlug": "bcc-season-8-0-first-class",
+      "itemId": "c00a60ec-d8af-4365-814f-b7f5002b0149",
+      "nextTitle": "BCC Season 8.0 First Class - Photo 3",
+      "previousDescriptionLength": 865,
+      "previousTitleLength": 865
+    },
+    {
+      "albumSlug": "bcc-season-8-0-first-class",
+      "itemId": "2413ff7e-5a31-412b-813d-d5de0eac8693",
+      "nextTitle": "BCC Season 8.0 First Class - Photo 4",
+      "previousDescriptionLength": 865,
+      "previousTitleLength": 865
+    },
+    {
+      "albumSlug": "mastering-the-art-of-digital-communications",
+      "itemId": "f2e5653b-e1c8-4cd4-b845-eed9780e1519",
+      "nextTitle": "Mastering the Art of Digital Communications - Photo 1",
+      "previousDescriptionLength": 1413,
+      "previousTitleLength": 1413
+    },
+    {
+      "albumSlug": "mastering-the-art-of-digital-communications",
+      "itemId": "ab0ca87e-e84c-4db1-bbf6-716a7d386b56",
+      "nextTitle": "Mastering the Art of Digital Communications - Photo 2",
+      "previousDescriptionLength": 1413,
+      "previousTitleLength": 1413
+    },
+    {
+      "albumSlug": "mastering-the-art-of-digital-communications",
+      "itemId": "005b3f47-8f4d-4180-9ef1-8c41fec0a840",
+      "nextTitle": "Mastering the Art of Digital Communications - Photo 3",
+      "previousDescriptionLength": 1413,
+      "previousTitleLength": 1413
+    },
+    {
+      "albumSlug": "mastering-the-art-of-digital-communications",
+      "itemId": "00910101-187b-4947-822f-902b1e1367a2",
+      "nextTitle": "Mastering the Art of Digital Communications - Photo 4",
+      "previousDescriptionLength": 1413,
+      "previousTitleLength": 1413
+    },
+    {
+      "albumSlug": "mastering-the-art-of-digital-communications",
+      "itemId": "457f80a4-7f08-40fe-a552-eed9fd5c8df7",
+      "nextTitle": "Mastering the Art of Digital Communications - Photo 5",
+      "previousDescriptionLength": 1413,
+      "previousTitleLength": 1413
+    },
+    {
+      "albumSlug": "mastering-the-art-of-digital-communications",
+      "itemId": "bf0501ca-7d06-41c9-b499-7814f3b6bfa3",
+      "nextTitle": "Mastering the Art of Digital Communications - Photo 6",
+      "previousDescriptionLength": 1413,
+      "previousTitleLength": 1413
+    },
+    {
+      "albumSlug": "mastering-the-art-of-digital-communications",
+      "itemId": "b329a52e-e046-44d5-8bd2-e183919784d8",
+      "nextTitle": "Mastering the Art of Digital Communications - Photo 7",
+      "previousDescriptionLength": 1413,
+      "previousTitleLength": 1413
+    },
+    {
+      "albumSlug": "mastering-the-art-of-digital-communications",
+      "itemId": "66914c96-b2d4-49f7-8ce5-b013fe44b27b",
+      "nextTitle": "Mastering the Art of Digital Communications - Photo 8",
+      "previousDescriptionLength": 1413,
+      "previousTitleLength": 1413
+    }
+  ]
+}

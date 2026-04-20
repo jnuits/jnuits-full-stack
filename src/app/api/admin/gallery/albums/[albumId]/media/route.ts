@@ -82,7 +82,7 @@ async function handlePost(
   const admin = createAdminClient();
   const { data: album, error: albumError } = await admin
     .from("gallery_albums")
-    .select("id, slug")
+    .select("id, slug, title, cover_item_id")
     .eq("id", albumId)
     .maybeSingle();
 
@@ -101,9 +101,12 @@ async function handlePost(
     .limit(1)
     .maybeSingle();
   let nextSortOrder = (lastItem?.sort_order || 0) + 10;
+  let nextPhotoIndex = Math.floor((lastItem?.sort_order || 0) / 10) + 1;
   const attachedIds: string[] = [];
+  let firstAttachedId: string | null = null;
 
   for (const asset of parsed.data.assets) {
+    const itemTitle = `${album.title} - Photo ${nextPhotoIndex}`;
     const media = await upsertCloudinaryMediaAsset(admin, {
       actorUserId: auth.user.id,
       input: {
@@ -123,7 +126,7 @@ async function handlePost(
       .upsert(
         {
           album_id: albumId,
-          alt_text: asset.altText || asset.title || null,
+          alt_text: itemTitle,
           blur_data_url: blurDataURL,
           deleted_at: null,
           deleted_by_user_id: null,
@@ -137,7 +140,7 @@ async function handlePost(
             source: "direct-cloudinary-upload",
           },
           status: "published",
-          title: asset.title || null,
+          title: itemTitle,
           trash_metadata: {},
           trash_reason: null,
           width: asset.width ?? null,
@@ -155,7 +158,21 @@ async function handlePost(
     }
 
     attachedIds.push(item.id);
+    firstAttachedId ||= item.id;
     nextSortOrder += 10;
+    nextPhotoIndex += 1;
+  }
+
+  if (!album.cover_item_id && firstAttachedId) {
+    await admin
+      .from("gallery_album_items")
+      .update({ is_cover: true })
+      .eq("id", firstAttachedId)
+      .eq("album_id", albumId);
+    await admin
+      .from("gallery_albums")
+      .update({ cover_item_id: firstAttachedId })
+      .eq("id", albumId);
   }
 
   await insertAuditEvent(admin, {
@@ -171,6 +188,7 @@ async function handlePost(
 
   revalidatePath("/gallery");
   revalidatePath(`/gallery/${album.slug}`);
+  revalidatePath("/admin/content/gallery");
   revalidatePath(`/admin/content/gallery/${albumId}`);
 
   return NextResponse.json(

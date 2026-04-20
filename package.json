@@ -17,6 +17,7 @@
     "content:import:legacy": "node scripts/import-legacy-public-content.mjs",
     "gallery:build-seed": "node scripts/build-gallery-seed.mjs",
     "gallery:import": "node scripts/import-gallery-seed.mjs",
+    "gallery:normalize-items": "node scripts/normalize-gallery-items.mjs",
     "committee:import:legacy": "node scripts/import-legacy-committee.mjs",
     "members:onboard": "node scripts/onboard-members.mjs",
     "members:reconcile": "node scripts/reconcile-members.mjs",

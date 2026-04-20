@@ -266,7 +266,7 @@ async function main() {
     resourceType: item.resourceType,
     secureUrl: item.secureUrl,
     thumbnailUrl: transformCloudinaryUrl(item.secureUrl, "f_auto,q_auto,c_fill,w_700,h_500,g_auto"),
-    title: item.caption || item.eventTitle || path.basename(item.publicId),
+    title: item.eventTitle || path.basename(item.publicId),
     width: item.width,
   }));
 
@@ -291,12 +291,15 @@ async function main() {
       endDate: event.endDate || event.startDate || null,
       eventName: event.title,
       featured: Boolean(event.featured),
-      items: eventMedia.map((item, index) => ({
-        altText: item.altText,
+      items: eventMedia.map((item, index) => {
+        const photoTitle = `${event.title} - Photo ${index + 1}`;
+
+        return {
+        altText: photoTitle,
         blurDataURL:
           blurByPublicId.get(item.publicId) ||
           "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
-        description: item.caption || event.description || "",
+        description: "",
         height: item.height,
         isCover: item.publicId === coverPublicId || (!coverPublicId && index === 0),
         mediaPublicId: item.publicId,
@@ -309,9 +312,10 @@ async function main() {
           sourceType: item.sourceType,
         },
         status: "published",
-        title: item.caption || event.title,
+        title: photoTitle,
         width: item.width,
-      })),
+      };
+      }),
       month: monthFromDate(event.startDate),
       slug: event.albumSlug,
       source: "facebook-export",
