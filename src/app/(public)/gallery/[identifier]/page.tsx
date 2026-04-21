@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon } from "lucide-react";
 import { GalleryDescriptionToggle } from "@/components/gallery/gallery-description-toggle";
 import { GalleryLoadMore } from "@/components/gallery/gallery-load-more";
 import { getGalleryAlbumBySlug } from "@/lib/content/gallery";
@@ -73,12 +73,18 @@ export default async function GalleryDetailPage({
         <div className="grid gap-0 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="grid content-between gap-8 p-6 sm:p-8">
             <div>
-              <Link className="queue-link" href="/gallery">
-                Back to gallery
-              </Link>
-              <span className="eyebrow mt-8 inline-flex">
-                {album.year} · {toLabel(album.category)}
-              </span>
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                <Link
+                  className="inline-flex items-center gap-2 rounded-full py-1 text-sm font-semibold text-[var(--muted-foreground)] transition hover:-translate-x-0.5 hover:text-[var(--primary)]"
+                  href="/gallery"
+                >
+                  <ArrowLeft aria-hidden="true" size={16} strokeWidth={2.25} />
+                  Back to gallery
+                </Link>
+                <span className="eyebrow inline-flex">
+                  {album.year} · {toLabel(album.category)}
+                </span>
+              </div>
               <h1 className="section-title mt-4">{album.title}</h1>
               <GalleryDescriptionToggle
                 text={album.description || album.eventName}

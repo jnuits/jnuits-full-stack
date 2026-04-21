@@ -1,0 +1,63 @@
+{
+  "mode": "dry-run",
+  "generatedAt": "2026-04-21T04:10:03.526Z",
+  "source": {
+    "catalogPath": "M:\\jnuits\\jnuits-full-stack\\plan\\data\\jnuits-event-catalog.json",
+    "catalogGeneratedAt": "2026-04-19T17:42:39.844Z",
+    "insightsPath": "M:\\jnuits\\jnuits-full-stack\\plan\\JNUITS_EVENT_HISTORY_INSIGHTS.md"
+  },
+  "validation": {
+    "errors": [],
+    "insightsSummary": {
+      "eventCount": 64,
+      "byYear": {
+        "2016": 2,
+        "2017": 2,
+        "2018": 7,
+        "2019": 15,
+        "2020": 10,
+        "2022": 5,
+        "2023": 2,
+        "2024": 5,
+        "2025": 5,
+        "2026": 11
+      },
+      "byCategory": {
+        "ceremony-community": 8,
+        "community-social": 4,
+        "competition": 14,
+        "institutional": 3,
+        "member-outreach": 11,
+        "other-real-event": 1,
+        "tour": 2,
+        "workshop-training": 21
+      },
+      "byDeliveryMode": {
+        "offline": 45,
+        "online-or-hybrid": 4,
+        "unknown": 15
+      }
+    }
+  },
+  "expected": {
+    "eventCount": 64
+  },
+  "execution": {
+    "eventsInserted": 64,
+    "eventsUpdated": 0,
+    "registrationsBackfilled": 0
+  },
+  "coverage": {
+    "exactCoverMatches": 46,
+    "folderFallbackCoverMatches": 18,
+    "legacyMediaFallbackMatches": 0,
+    "unresolvedCovers": [],
+    "legacyMatches": {
+      "none": 63,
+      "slug": 1,
+      "title-date": 0
+    },
+    "ambiguousLegacyMatches": [],
+    "duplicateRegistrationConflicts": []
+  }
+}

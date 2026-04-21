@@ -66,9 +66,8 @@ export async function buildOperationalSnapshot(admin: AdminClient) {
       .eq("content_type", "blog")
       .eq("status", "published"),
     admin
-      .from("content_posts")
+      .from("events")
       .select("*", { count: "exact", head: true })
-      .eq("content_type", "event")
       .eq("status", "published"),
     admin
       .from("content_posts")

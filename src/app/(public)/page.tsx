@@ -3,21 +3,19 @@ import Image from "next/image";
 import { brandProfile } from "@/lib/branding";
 import {
   formatDisplayDate,
-  formatDateRange,
-  getPublishedEvents,
   getPublishedNotices,
 } from "@/lib/content/public-content";
+import { formatEventDateRange, getFeaturedPublicEvent } from "@/lib/content/events";
 import { getContactContent, getHomePageContent } from "@/lib/content/site-singletons";
 
 export default async function HomePage() {
-  const [homeContent, publicNotices, publicEvents, contactContent] = await Promise.all([
+  const [homeContent, publicNotices, featuredEvent, contactContent] = await Promise.all([
     getHomePageContent(),
     getPublishedNotices(),
-    getPublishedEvents(),
+    getFeaturedPublicEvent(),
     getContactContent(),
   ]);
   const featuredNotice = publicNotices[0];
-  const featuredEvent = publicEvents[0];
   const heroSlide = homeContent.heroSlides[0];
   const highlightedActivities = homeContent.recentActivities.slice(0, 3);
   const highlightedAchievements = homeContent.achievements.slice(0, 3);
@@ -189,16 +187,22 @@ export default async function HomePage() {
                   {featuredEvent.summary}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
-                  <span className="detail-chip">{featuredEvent.focus}</span>
-                  <span className="detail-chip">{featuredEvent.status}</span>
-                  <span className="detail-chip">{featuredEvent.location}</span>
+                  <span className="detail-chip">{featuredEvent.lifecycleLabel}</span>
+                  <span className="detail-chip">{featuredEvent.locationLabel}</span>
+                  {featuredEvent.registrationBadgeLabel ? (
+                    <span className="detail-chip">{featuredEvent.registrationBadgeLabel}</span>
+                  ) : null}
                 </div>
                 <p className="mt-5 text-sm leading-7 text-[var(--muted-foreground)]">
-                  {formatDateRange(featuredEvent.start, featuredEvent.end)}
+                  {formatEventDateRange(
+                    featuredEvent.startsAt,
+                    featuredEvent.endsAt,
+                    featuredEvent.timezone
+                  )}
                 </p>
                 <div className="mt-8 flex flex-wrap gap-3">
-                  <Link href="/events" className="secondary-button">
-                    View all events
+                  <Link href={`/events/${featuredEvent.slug}`} className="secondary-button">
+                    Open event
                   </Link>
                   <Link href="/register" className="ghost-button">
                     Claim member profile

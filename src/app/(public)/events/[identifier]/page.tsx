@@ -1,50 +1,79 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
 import {
-  formatDateRange,
-  getPublishedEventByIdentifier,
-} from "@/lib/content/public-content";
-import { createAdminClient } from "@/lib/supabase/admin";
+  ArrowLeft,
+  CalendarClock,
+  ExternalLink,
+  Image as ImageIcon,
+  MapPin,
+} from "lucide-react";
+import { notFound, redirect } from "next/navigation";
+import { EventMarkdown } from "@/components/events/event-markdown";
 import { RegistrationForm } from "@/components/events/registration-form";
+import {
+  formatEventDateRange,
+  getPublishedEventBySlug,
+  toEventCategoryLabel,
+} from "@/lib/content/events";
+import { getAppBaseUrl } from "@/lib/env";
 
-async function getRegistrationContext(eventId: string) {
-  try {
-    const admin = createAdminClient();
-    const [postResult, countResult] = await Promise.all([
-      admin
-        .from("content_posts")
-        .select("registration_open, event_capacity, registration_closes_at")
-        .eq("id", eventId)
-        .maybeSingle(),
-      admin
-        .from("event_registrations")
-        .select("id", { count: "exact", head: true })
-        .eq("event_post_id", eventId)
-        .is("cancelled_at", null),
-    ]);
+type PageParams = {
+  identifier: string;
+};
 
-    const post = postResult.data;
-    if (!post) return null;
+async function getEventOrNull(identifier: string) {
+  return getPublishedEventBySlug(identifier);
+}
 
-    const capacity = (post as { event_capacity?: number | null }).event_capacity ?? null;
-    const registered = countResult.count ?? 0;
-    const spotsRemaining = capacity !== null ? Math.max(0, capacity - registered) : null;
-    const open = (post as { registration_open?: boolean }).registration_open ?? false;
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<PageParams>;
+}): Promise<Metadata> {
+  const { identifier } = await params;
+  const event = await getEventOrNull(identifier);
 
-    return { registrationOpen: open, spotsRemaining };
-  } catch {
-    return null;
+  if (!event) {
+    return {
+      title: "Event not found | JnUITS",
+    };
   }
+
+  const url = `${getAppBaseUrl()}/events/${event.slug}`;
+
+  return {
+    title: `${event.title} | JnUITS Events`,
+    description: event.summary,
+    alternates: {
+      canonical: url,
+    },
+    openGraph: {
+      description: event.summary,
+      images: event.cover
+        ? [
+            {
+              alt: event.cover.alt,
+              height: event.cover.height,
+              url: event.cover.fullUrl,
+              width: event.cover.width,
+            },
+          ]
+        : undefined,
+      title: event.title,
+      type: "article",
+      url,
+    },
+  };
 }
 
 export default async function EventDetailPage({
   params,
 }: {
-  params: Promise<{ identifier: string }>;
+  params: Promise<PageParams>;
 }) {
   const { identifier } = await params;
-  const event = await getPublishedEventByIdentifier(identifier);
+  const event = await getEventOrNull(identifier);
 
   if (!event) {
     notFound();
@@ -54,81 +83,146 @@ export default async function EventDetailPage({
     redirect(`/events/${event.slug}`);
   }
 
-  const registrationCtx = await getRegistrationContext(event.id);
-
   return (
     <div className="shell py-12">
-      <article className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">
-        <div className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start">
+      <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">
+        <div className="event-detail-hero">
           <div>
-            <div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-              <span>{event.status}</span>
-              <span>{event.focus}</span>
-            </div>
-            <h1 className="section-title mt-4">{event.title}</h1>
-            <p className="section-copy mt-5">{event.summary}</p>
-            <div className="mt-6 grid gap-2 text-sm text-[var(--muted-foreground)]">
-              <span className="detail-chip">{event.location}</span>
-              <span className="detail-chip">{formatDateRange(event.start, event.end)}</span>
-            </div>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link className="secondary-button" href="/events">
+            <div className="flex flex-wrap items-center gap-4">
+              <Link
+                className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--muted-foreground)] transition hover:-translate-x-0.5 hover:text-[var(--primary)]"
+                href="/events"
+              >
+                <ArrowLeft aria-hidden="true" size={16} strokeWidth={2.25} />
                 Back to events
               </Link>
-              {event.ctaHref ? (
-                <Link className="ghost-button" href={event.ctaHref} target="_blank">
-                  Related link
+              <span className="eyebrow inline-flex">
+                {event.lifecycleLabel} · {toEventCategoryLabel(event.category)}
+              </span>
+            </div>
+
+            <h1 className="section-title mt-6">{event.title}</h1>
+            <p className="section-copy mt-5">{event.summary}</p>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              <span className="detail-chip">{event.registrationBadgeLabel || "Event details"}</span>
+              <span className="detail-chip">{event.locationLabel}</span>
+            </div>
+
+            <div className="mt-6 grid gap-3 text-sm text-[var(--muted-foreground)]">
+              <span className="inline-flex items-center gap-2">
+                <CalendarClock aria-hidden="true" size={15} />
+                {formatEventDateRange(event.startsAt, event.endsAt, event.timezone)}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <MapPin aria-hidden="true" size={15} />
+                {event.locationLabel}
+              </span>
+            </div>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              {event.registrationMode === "external" && event.registrationUrl ? (
+                <Link
+                  className="primary-button"
+                  href={event.registrationUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Register externally
+                </Link>
+              ) : null}
+              {event.ctaUrl ? (
+                <Link
+                  className="secondary-button"
+                  href={event.ctaUrl}
+                  rel={event.ctaUrl.startsWith("/") ? undefined : "noreferrer"}
+                  target={event.ctaUrl.startsWith("/") ? undefined : "_blank"}
+                >
+                  {event.ctaLabel || "Open related link"}
+                  {!event.ctaUrl.startsWith("/") ? (
+                    <ExternalLink aria-hidden="true" className="ml-1" size={15} />
+                  ) : null}
                 </Link>
               ) : null}
             </div>
           </div>
 
-          <div className="relative min-h-[300px] overflow-hidden rounded-[1.6rem] border border-[var(--line)]">
-            <Image
-              alt={event.title}
-              className="object-cover"
-              fill
-              priority
-              sizes="(min-width: 1024px) 40vw, 100vw"
-              src={event.imageSrc}
-            />
+          <div className="event-detail-hero__media">
+            {event.cover ? (
+              <Image
+                alt={event.cover.alt}
+                className="object-cover"
+                fill
+                priority
+                sizes="(min-width: 1024px) 40vw, 100vw"
+                src={event.cover.fullUrl}
+              />
+            ) : (
+              <div className="event-card__placeholder h-full">
+                <ImageIcon aria-hidden="true" size={20} />
+                <span>No event cover available</span>
+              </div>
+            )}
           </div>
         </div>
-      </article>
+      </section>
 
-      {registrationCtx ? (
-        <section className="mt-8 section-band">
-          <p className="section-divider">Event registration</p>
-          <div className="mt-6 max-w-lg">
+      <section className="mt-8 event-detail-grid">
+        <article className="section-band">
+          <p className="section-divider">Event details</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <span className="detail-chip">{toEventCategoryLabel(event.category)}</span>
+            <span className="detail-chip">{event.deliveryMode}</span>
+            {typeof event.capacity === "number" ? (
+              <span className="detail-chip">
+                {event.registeredCount}/{event.capacity} registered
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-6 event-markdown-shell">
+            <EventMarkdown
+              source={
+                event.bodyMarkdown?.trim() ||
+                "Full event details will appear here once published by the society."
+              }
+            />
+          </div>
+        </article>
+
+        <aside className="grid gap-6">
+          <section className="section-band">
+            <p className="section-divider">Quick facts</p>
+            <dl className="event-facts-list">
+              <div>
+                <dt>Date</dt>
+                <dd>{formatEventDateRange(event.startsAt, event.endsAt, event.timezone)}</dd>
+              </div>
+              <div>
+                <dt>Location</dt>
+                <dd>{event.locationLabel}</dd>
+              </div>
+              <div>
+                <dt>Registration</dt>
+                <dd>{event.registrationBadgeLabel || "Not required"}</dd>
+              </div>
+              {event.venueAddress ? (
+                <div>
+                  <dt>Address</dt>
+                  <dd>{event.venueAddress}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </section>
+
+          {event.registrationMode === "internal" ? (
             <RegistrationForm
               eventId={event.id}
               eventTitle={event.title}
-              spotsRemaining={registrationCtx.spotsRemaining}
-              registrationOpen={registrationCtx.registrationOpen}
+              registrationOpen={event.registrationOpen}
+              spotsRemaining={event.spotsRemaining}
             />
-          </div>
-        </section>
-      ) : null}
-
-      <section className="mt-8 section-band">
-        <p className="section-divider">Event details</p>
-        <div className="mt-6 grid gap-4">
-          {event.body ? (
-            event.body
-              .split(/\n{2,}/)
-              .map((paragraph) => paragraph.trim())
-              .filter(Boolean)
-              .map((paragraph) => (
-                <p key={paragraph} className="text-base leading-8 text-[var(--muted-foreground)]">
-                  {paragraph}
-                </p>
-              ))
-          ) : (
-            <p className="text-base leading-8 text-[var(--muted-foreground)]">
-              Further event details will appear here when published by the society.
-            </p>
-          )}
-        </div>
+          ) : null}
+        </aside>
       </section>
     </div>
   );

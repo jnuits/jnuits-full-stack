@@ -1,31 +1,41 @@
-import { withApiGuard } from "@/lib/security/with-api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveEventForAdminMutation } from "@/lib/content/events";
+import { withApiGuard } from "@/lib/security/with-api-guard";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-const CheckInSchema = z.object({
-  code: z.string().min(4).max(20).transform((v) => v.toUpperCase().trim()),
+const checkInSchema = z.object({
+  code: z.string().min(4).max(20).transform((value) => value.toUpperCase().trim()),
 });
 
-export const POST = withApiGuard(
-  async (req) => {
-    const url = new URL(req.url);
-    const segments = url.pathname.split("/");
-    const eventId = segments[segments.indexOf("events") + 1];
+function getEventIdentifier(request: Request) {
+  const segments = new URL(request.url).pathname.split("/");
 
-    if (!eventId || eventId.length < 10) {
-      return NextResponse.json({ error: "Invalid event identifier." }, { status: 400 });
+  return segments[segments.indexOf("events") + 1] || "";
+}
+
+export const POST = withApiGuard(
+  async (request) => {
+    const eventIdentifier = getEventIdentifier(request);
+
+    if (!eventIdentifier) {
+      return NextResponse.json(
+        { error: "Invalid event identifier." },
+        { status: 400 }
+      );
     }
 
     let body: unknown;
+
     try {
-      body = await req.json();
+      body = await request.json();
     } catch {
       return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
     }
 
-    const parsed = CheckInSchema.safeParse(body);
+    const parsed = checkInSchema.safeParse(body);
+
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Please provide a valid registration code." },
@@ -33,19 +43,33 @@ export const POST = withApiGuard(
       );
     }
 
-    const { code } = parsed.data;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const admin = createAdminClient() as any;
+    const event = await resolveEventForAdminMutation(eventIdentifier);
 
-    // Find registration by code, scoped to event
-    const { data: registration, error: regError } = await admin
+    if (!event) {
+      return NextResponse.json({ error: "Event not found." }, { status: 404 });
+    }
+
+    const admin = createAdminClient();
+    let registrationQuery = admin
       .from("event_registrations")
-      .select("id, registrant_name, registrant_email, member_id, checked_in_at, cancelled_at, members(jnuits_id, member_type)")
-      .eq("event_post_id", eventId)
-      .eq("registration_code", code)
-      .maybeSingle();
+      .select(
+        "id, registrant_name, registrant_email, member_id, checked_in_at, cancelled_at, members(jnuits_id, member_type)"
+      )
+      .eq("registration_code", parsed.data.code)
+      .limit(1);
 
-    if (regError || !registration) {
+    if (event.legacyContentPostId) {
+      registrationQuery = registrationQuery.or(
+        `event_id.eq.${event.id},event_post_id.eq.${event.legacyContentPostId}`
+      );
+    } else {
+      registrationQuery = registrationQuery.eq("event_id", event.id);
+    }
+
+    const { data: registration, error: registrationError } =
+      await registrationQuery.maybeSingle();
+
+    if (registrationError || !registration) {
       return NextResponse.json(
         { error: "No registration found for that code at this event." },
         { status: 404 }
@@ -54,7 +78,7 @@ export const POST = withApiGuard(
 
     if (registration.cancelled_at) {
       return NextResponse.json(
-        { error: "This registration has been cancelled.", cancelled: true },
+        { cancelled: true, error: "This registration has been cancelled." },
         { status: 409 }
       );
     }
@@ -63,15 +87,15 @@ export const POST = withApiGuard(
       return NextResponse.json({
         alreadyCheckedIn: true,
         checkedInAt: registration.checked_in_at,
-        name: registration.registrant_name,
         email: registration.registrant_email,
+        name: registration.registrant_name,
       });
     }
 
-    // Stamp check-in
+    const checkedInAt = new Date().toISOString();
     const { error: updateError } = await admin
       .from("event_registrations")
-      .update({ checked_in_at: new Date().toISOString() })
+      .update({ checked_in_at: checkedInAt })
       .eq("id", registration.id);
 
     if (updateError) {
@@ -86,12 +110,12 @@ export const POST = withApiGuard(
       : registration.members;
 
     return NextResponse.json({
-      success: true,
-      name: registration.registrant_name,
+      checkedInAt,
       email: registration.registrant_email,
       jnuitsId: member?.jnuits_id ?? null,
       memberType: member?.member_type ?? null,
-      checkedInAt: new Date().toISOString(),
+      name: registration.registrant_name,
+      success: true,
     });
   },
   {

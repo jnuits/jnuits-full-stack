@@ -1,0 +1,61 @@
+{
+  "mode": "dry-run",
+  "generatedAt": "2026-04-21T04:09:32.898Z",
+  "source": {
+    "catalogPath": "M:\\jnuits\\jnuits-full-stack\\plan\\data\\jnuits-event-catalog.json",
+    "catalogGeneratedAt": "2026-04-19T17:42:39.844Z",
+    "insightsPath": "M:\\jnuits\\jnuits-full-stack\\plan\\JNUITS_EVENT_HISTORY_INSIGHTS.md"
+  },
+  "validation": {
+    "errors": [
+      "Insights byYear mismatch for \"2016\": catalog=2, insights=0.",
+      "Insights byYear mismatch for \"2017\": catalog=2, insights=0.",
+      "Insights byYear mismatch for \"2018\": catalog=7, insights=0.",
+      "Insights byYear mismatch for \"2019\": catalog=15, insights=0.",
+      "Insights byYear mismatch for \"2020\": catalog=10, insights=0.",
+      "Insights byYear mismatch for \"2022\": catalog=5, insights=0.",
+      "Insights byYear mismatch for \"2023\": catalog=2, insights=0.",
+      "Insights byYear mismatch for \"2024\": catalog=5, insights=0.",
+      "Insights byYear mismatch for \"2025\": catalog=5, insights=0.",
+      "Insights byYear mismatch for \"2026\": catalog=11, insights=0.",
+      "Insights byCategory mismatch for \"ceremony-community\": catalog=8, insights=0.",
+      "Insights byCategory mismatch for \"community-social\": catalog=4, insights=0.",
+      "Insights byCategory mismatch for \"competition\": catalog=14, insights=0.",
+      "Insights byCategory mismatch for \"institutional\": catalog=3, insights=0.",
+      "Insights byCategory mismatch for \"member-outreach\": catalog=11, insights=0.",
+      "Insights byCategory mismatch for \"other-real-event\": catalog=1, insights=0.",
+      "Insights byCategory mismatch for \"tour\": catalog=2, insights=0.",
+      "Insights byCategory mismatch for \"workshop-training\": catalog=21, insights=0.",
+      "Insights byDeliveryMode mismatch for \"offline\": catalog=45, insights=0.",
+      "Insights byDeliveryMode mismatch for \"online-or-hybrid\": catalog=4, insights=0.",
+      "Insights byDeliveryMode mismatch for \"unknown\": catalog=15, insights=0."
+    ],
+    "insightsSummary": {
+      "eventCount": 64,
+      "byYear": {},
+      "byCategory": {},
+      "byDeliveryMode": {}
+    }
+  },
+  "expected": {
+    "eventCount": 64
+  },
+  "execution": {
+    "eventsInserted": 64,
+    "eventsUpdated": 0,
+    "registrationsBackfilled": 0
+  },
+  "coverage": {
+    "exactCoverMatches": 46,
+    "folderFallbackCoverMatches": 18,
+    "legacyMediaFallbackMatches": 0,
+    "unresolvedCovers": [],
+    "legacyMatches": {
+      "none": 63,
+      "slug": 1,
+      "title-date": 0
+    },
+    "ambiguousLegacyMatches": [],
+    "duplicateRegistrationConflicts": []
+  }
+}

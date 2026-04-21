@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getPublishedGallerySitemapEntries } from "@/lib/content/gallery";
+import { getPublishedEventSitemapEntries } from "@/lib/content/events";
 import { publicNavigation } from "@/lib/site";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -18,12 +19,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: href === "/" ? "weekly" as const : "monthly" as const,
     priority: href === "/" ? 1 : 0.7,
   }));
-  const galleryRoutes = (await getPublishedGallerySitemapEntries()).map((album) => ({
-    url: `${baseUrl}/gallery/${album.slug}`,
-    lastModified: new Date(album.updatedAt),
-    changeFrequency: "monthly" as const,
-    priority: 0.65,
-  }));
+  const [galleryRoutes, eventRoutes] = await Promise.all([
+    getPublishedGallerySitemapEntries(),
+    getPublishedEventSitemapEntries(),
+  ]);
 
-  return [...staticRoutes, ...galleryRoutes];
+  return [
+    ...staticRoutes,
+    ...galleryRoutes.map((album) => ({
+      url: `${baseUrl}/gallery/${album.slug}`,
+      lastModified: new Date(album.updatedAt),
+      changeFrequency: "monthly" as const,
+      priority: 0.65,
+    })),
+    ...eventRoutes.map((event) => ({
+      url: `${baseUrl}/events/${event.slug}`,
+      lastModified: new Date(event.updatedAt),
+      changeFrequency: "weekly" as const,
+      priority: 0.72,
+    })),
+  ];
 }

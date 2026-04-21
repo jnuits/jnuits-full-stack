@@ -15,6 +15,7 @@
     "certificates:import": "node scripts/import-certificates.mjs",
     "certificates:verify": "node scripts/verify-certificates.mjs",
     "content:import:legacy": "node scripts/import-legacy-public-content.mjs",
+    "events:import": "node scripts/import-events-seed.mjs",
     "gallery:build-seed": "node scripts/build-gallery-seed.mjs",
     "gallery:import": "node scripts/import-gallery-seed.mjs",
     "gallery:normalize-items": "node scripts/normalize-gallery-items.mjs",
@@ -43,6 +44,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-email": "5.2.10",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "server-only": "^0.0.1",
     "yet-another-react-lightbox": "^3.31.0",
     "zod": "^4.2.1"

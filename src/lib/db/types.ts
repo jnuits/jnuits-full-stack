@@ -600,7 +600,8 @@ export type Database = {
           cancelled_at: string | null
           checked_in_at: string | null
           created_at: string
-          event_post_id: string
+          event_id: string | null
+          event_post_id: string | null
           id: string
           member_id: string | null
           registrant_email: string
@@ -612,7 +613,8 @@ export type Database = {
           cancelled_at?: string | null
           checked_in_at?: string | null
           created_at?: string
-          event_post_id: string
+          event_id?: string | null
+          event_post_id?: string | null
           id?: string
           member_id?: string | null
           registrant_email: string
@@ -624,7 +626,8 @@ export type Database = {
           cancelled_at?: string | null
           checked_in_at?: string | null
           created_at?: string
-          event_post_id?: string
+          event_id?: string | null
+          event_post_id?: string | null
           id?: string
           member_id?: string | null
           registrant_email?: string
@@ -633,6 +636,13 @@ export type Database = {
           registration_code?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "event_registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "event_registrations_event_post_id_fkey"
             columns: ["event_post_id"]
@@ -645,6 +655,133 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          body_markdown: string | null
+          capacity: number | null
+          category: string
+          cover_alt_text_override: string | null
+          cover_media_asset_id: string | null
+          created_at: string
+          created_by_user_id: string | null
+          cta_label: string | null
+          cta_url: string | null
+          delivery_mode: string
+          ends_at: string | null
+          id: string
+          legacy_content_post_id: string | null
+          location_label: string | null
+          location_mode: string
+          online_url: string | null
+          published_at: string | null
+          registration_closes_at: string | null
+          registration_mode: string
+          registration_open: boolean
+          registration_url: string | null
+          slug: string
+          source: string
+          source_metadata: Json
+          starts_at: string
+          status: string
+          summary: string
+          timezone: string
+          title: string
+          updated_at: string
+          venue_address: string | null
+          venue_name: string | null
+        }
+        Insert: {
+          body_markdown?: string | null
+          capacity?: number | null
+          category: string
+          cover_alt_text_override?: string | null
+          cover_media_asset_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          cta_label?: string | null
+          cta_url?: string | null
+          delivery_mode: string
+          ends_at?: string | null
+          id?: string
+          legacy_content_post_id?: string | null
+          location_label?: string | null
+          location_mode?: string
+          online_url?: string | null
+          published_at?: string | null
+          registration_closes_at?: string | null
+          registration_mode?: string
+          registration_open?: boolean
+          registration_url?: string | null
+          slug: string
+          source?: string
+          source_metadata?: Json
+          starts_at: string
+          status?: string
+          summary: string
+          timezone?: string
+          title: string
+          updated_at?: string
+          venue_address?: string | null
+          venue_name?: string | null
+        }
+        Update: {
+          body_markdown?: string | null
+          capacity?: number | null
+          category?: string
+          cover_alt_text_override?: string | null
+          cover_media_asset_id?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          cta_label?: string | null
+          cta_url?: string | null
+          delivery_mode?: string
+          ends_at?: string | null
+          id?: string
+          legacy_content_post_id?: string | null
+          location_label?: string | null
+          location_mode?: string
+          online_url?: string | null
+          published_at?: string | null
+          registration_closes_at?: string | null
+          registration_mode?: string
+          registration_open?: boolean
+          registration_url?: string | null
+          slug?: string
+          source?: string
+          source_metadata?: Json
+          starts_at?: string
+          status?: string
+          summary?: string
+          timezone?: string
+          title?: string
+          updated_at?: string
+          venue_address?: string | null
+          venue_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_cover_media_asset_id_fkey"
+            columns: ["cover_media_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_legacy_content_post_id_fkey"
+            columns: ["legacy_content_post_id"]
+            isOneToOne: false
+            referencedRelation: "content_posts"
             referencedColumns: ["id"]
           },
         ]
