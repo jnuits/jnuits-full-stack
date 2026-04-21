@@ -5,23 +5,23 @@ import path from "node:path";
 import process from "node:process";
 import {
   buildSupabaseAdminClient,
-  deriveSummary,
+  ensureDirectory,
   normalizeCloudinaryPublicId,
-  resolveReportPath,
-  slugify,
+  toStamp,
   writeJsonReport,
 } from "./lib/legacy-content.mjs";
 
-const DEFAULT_CATALOG_PATH = path.join(
+const DEFAULT_SEED_PATH = path.join(
   process.cwd(),
   "plan",
   "data",
-  "jnuits-event-catalog.json"
+  "jnuits-events-seed.json"
 );
-const DEFAULT_INSIGHTS_PATH = path.join(
+const DEFAULT_REPORT_ROOT = path.join(
   process.cwd(),
-  "plan",
-  "JNUITS_EVENT_HISTORY_INSIGHTS.md"
+  "artifacts",
+  "events",
+  "reports"
 );
 
 const CATEGORY_SET = new Set([
@@ -36,14 +36,11 @@ const CATEGORY_SET = new Set([
 ]);
 
 const DELIVERY_MODE_SET = new Set(["offline", "online-or-hybrid", "unknown"]);
-const EARLIEST_EVENT_YEAR = 2015;
-const LATEST_EVENT_YEAR = 2100;
 
 function parseArgs(argv) {
   const options = {
     apply: false,
-    catalog: DEFAULT_CATALOG_PATH,
-    insights: DEFAULT_INSIGHTS_PATH,
+    file: DEFAULT_SEED_PATH,
     report: "",
   };
 
@@ -60,36 +57,25 @@ function parseArgs(argv) {
       continue;
     }
 
-    if (token === "--catalog" && argv[index + 1]) {
-      options.catalog = path.resolve(process.cwd(), argv[index + 1]);
+    if (token === "--file" && argv[index + 1]) {
+      options.file = path.resolve(process.cwd(), argv[index + 1]);
       index += 1;
       continue;
     }
 
-    if (token.startsWith("--catalog=")) {
-      options.catalog = path.resolve(process.cwd(), token.split("=")[1] || "");
-      continue;
-    }
-
-    if (token === "--insights" && argv[index + 1]) {
-      options.insights = path.resolve(process.cwd(), argv[index + 1]);
-      index += 1;
-      continue;
-    }
-
-    if (token.startsWith("--insights=")) {
-      options.insights = path.resolve(process.cwd(), token.split("=")[1] || "");
+    if (token.startsWith("--file=")) {
+      options.file = path.resolve(process.cwd(), token.split("=")[1] || "");
       continue;
     }
 
     if (token === "--report" && argv[index + 1]) {
-      options.report = argv[index + 1];
+      options.report = path.resolve(process.cwd(), argv[index + 1]);
       index += 1;
       continue;
     }
 
     if (token.startsWith("--report=")) {
-      options.report = token.split("=")[1] || "";
+      options.report = path.resolve(process.cwd(), token.split("=")[1] || "");
     }
   }
 
@@ -104,6 +90,18 @@ function chunk(items, size = 100) {
   }
 
   return output;
+}
+
+function resolveEventsReportPath(explicitPath = "") {
+  if (explicitPath) {
+    return explicitPath;
+  }
+
+  ensureDirectory(DEFAULT_REPORT_ROOT);
+  return path.join(
+    DEFAULT_REPORT_ROOT,
+    `events-seed-import-report-${toStamp()}.json`
+  );
 }
 
 function sanitizeStringForPostgres(value) {
@@ -158,20 +156,20 @@ function sanitizeForPostgres(value) {
   return value;
 }
 
-function readJson(filePath, label) {
+function readSeed(filePath) {
   if (!fs.existsSync(filePath)) {
-    throw new Error(`${label} file not found: ${filePath}`);
+    throw new Error(
+      `Events seed file not found: ${filePath}. Run node scripts/build-events-seed.mjs first.`
+    );
   }
 
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
+  const seed = JSON.parse(fs.readFileSync(filePath, "utf8"));
 
-function readText(filePath, label) {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`${label} file not found: ${filePath}`);
+  if (!Array.isArray(seed.events)) {
+    throw new Error("Events seed must include an events array.");
   }
 
-  return fs.readFileSync(filePath, "utf8");
+  return seed;
 }
 
 function normalizeDate(value) {
@@ -179,146 +177,32 @@ function normalizeDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
 }
 
-function parseInsightsSummary(markdown) {
-  const lines = markdown.split(/\r?\n/);
-  const summary = {
-    eventCount: null,
-    byYear: {},
-    byCategory: {},
-    byDeliveryMode: {},
-  };
-
-  let currentSection = "";
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-
-    if (!line) {
-      continue;
-    }
-
-    const eventCountMatch = line.match(/^- Event records prepared:\s*(\d+)/i);
-    if (eventCountMatch) {
-      summary.eventCount = Number(eventCountMatch[1]);
-      continue;
-    }
-
-    if (/^By year:/i.test(line)) {
-      currentSection = "byYear";
-      continue;
-    }
-
-    if (/^By category:/i.test(line)) {
-      currentSection = "byCategory";
-      continue;
-    }
-
-    if (/^By delivery mode:/i.test(line)) {
-      currentSection = "byDeliveryMode";
-      continue;
-    }
-
-    if (currentSection && line.startsWith("- ")) {
-      const pair = line.slice(2).split(":");
-      if (pair.length >= 2) {
-        const key = pair.shift().trim();
-        const value = Number(pair.join(":").trim());
-        if (Number.isFinite(value)) {
-          summary[currentSection][key] = value;
-        }
-      }
-      continue;
-    }
-
-    currentSection = "";
-  }
-
-  return summary;
-}
-
-function compareMaps(left, right) {
-  const keys = Array.from(new Set([...Object.keys(left || {}), ...Object.keys(right || {})])).sort();
-  const mismatches = [];
-
-  for (const key of keys) {
-    if (Number(left?.[key] ?? 0) !== Number(right?.[key] ?? 0)) {
-      mismatches.push({
-        key,
-        expected: Number(left?.[key] ?? 0),
-        actual: Number(right?.[key] ?? 0),
-      });
-    }
-  }
-
-  return mismatches;
-}
-
-function validateCatalogAndInsights(catalog, insightsMarkdown) {
-  if (!Array.isArray(catalog.events)) {
-    throw new Error("Event catalog must include an events array.");
-  }
-
-  const insights = parseInsightsSummary(insightsMarkdown);
-  const catalogSummary = catalog.summary || {};
-  const errors = [];
-
-  if (Number(catalogSummary.eventCount ?? catalog.events.length) !== catalog.events.length) {
-    errors.push(
-      `Catalog summary eventCount (${catalogSummary.eventCount}) does not match events length (${catalog.events.length}).`
-    );
-  }
-
-  if (insights.eventCount !== null && insights.eventCount !== catalog.events.length) {
-    errors.push(
-      `Insights summary event count (${insights.eventCount}) does not match catalog events length (${catalog.events.length}).`
-    );
-  }
-
-  for (const [label, left, right] of [
-    ["byYear", catalogSummary.byYear || {}, insights.byYear || {}],
-    ["byCategory", catalogSummary.byCategory || {}, insights.byCategory || {}],
-    ["byDeliveryMode", catalogSummary.byDeliveryMode || {}, insights.byDeliveryMode || {}],
-  ]) {
-    const mismatches = compareMaps(left, right);
-    for (const mismatch of mismatches) {
-      errors.push(
-        `Insights ${label} mismatch for "${mismatch.key}": catalog=${mismatch.expected}, insights=${mismatch.actual}.`
-      );
-    }
-  }
-
-  return {
-    errors,
-    insightsSummary: insights,
-  };
-}
-
-function validateEventCatalog(events) {
+function validateSeedEvents(events) {
   const errors = [];
   const slugCounts = new Map();
 
   for (const event of events) {
+    const identifier = event.slug || event.title || "unknown";
+
     if (event.slug?.trim()) {
       slugCounts.set(event.slug, (slugCounts.get(event.slug) || 0) + 1);
+    } else {
+      errors.push(`Seed event "${identifier}" is missing slug.`);
     }
 
     if (!event.title?.trim()) {
-      errors.push("Catalog event is missing title.");
-    }
-
-    if (!event.slug?.trim()) {
-      errors.push(`Catalog event "${event.title || "untitled"}" is missing slug.`);
+      errors.push(`Seed event "${identifier}" is missing title.`);
     }
 
     if (!CATEGORY_SET.has(event.category)) {
       errors.push(
-        `Catalog event "${event.slug || event.title || "unknown"}" has unsupported category "${event.category}".`
+        `Seed event "${identifier}" has unsupported category "${event.category}".`
       );
     }
 
     if (!DELIVERY_MODE_SET.has(event.deliveryMode)) {
       errors.push(
-        `Catalog event "${event.slug || event.title || "unknown"}" has unsupported delivery mode "${event.deliveryMode}".`
+        `Seed event "${identifier}" has unsupported delivery mode "${event.deliveryMode}".`
       );
     }
 
@@ -326,25 +210,21 @@ function validateEventCatalog(events) {
     const endDate = normalizeDate(event.endDate || event.startDate);
 
     if (!startDate) {
-      errors.push(`Catalog event "${event.slug || event.title || "unknown"}" has an invalid startDate.`);
+      errors.push(`Seed event "${identifier}" has an invalid startDate.`);
     }
 
     if (event.endDate && !endDate) {
-      errors.push(`Catalog event "${event.slug || event.title || "unknown"}" has an invalid endDate.`);
+      errors.push(`Seed event "${identifier}" has an invalid endDate.`);
     }
 
     if (startDate && endDate && endDate < startDate) {
-      errors.push(`Catalog event "${event.slug || event.title || "unknown"}" ends before it starts.`);
-    }
-
-    if (!Number.isInteger(event.year) || event.year < EARLIEST_EVENT_YEAR || event.year > LATEST_EVENT_YEAR) {
-      errors.push(`Catalog event "${event.slug || event.title || "unknown"}" has an invalid year.`);
+      errors.push(`Seed event "${identifier}" ends before it starts.`);
     }
   }
 
   for (const [slug, count] of slugCounts) {
     if (count > 1) {
-      errors.push(`Catalog contains duplicate slug "${slug}" (${count} records).`);
+      errors.push(`Seed contains duplicate slug "${slug}" (${count} records).`);
     }
   }
 
@@ -385,7 +265,10 @@ function extractCloudinaryPublicId(input) {
 
     let assetSegments = pathSegments.slice(uploadIndex + 1);
 
-    while (assetSegments.length > 1 && isCloudinaryTransformationSegment(assetSegments[0])) {
+    while (
+      assetSegments.length > 1 &&
+      isCloudinaryTransformationSegment(assetSegments[0])
+    ) {
       assetSegments = assetSegments.slice(1);
     }
 
@@ -423,52 +306,7 @@ function toDhakaEndTimestamp(date) {
   return `${date}T23:59:59+06:00`;
 }
 
-function titleCaseLabel(value) {
-  return String(value || "")
-    .split("-")
-    .filter(Boolean)
-    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
-    .join(" ");
-}
-
-function buildBodyMarkdown(event, derived) {
-  const sections = [];
-  const description = String(event.description || "").trim();
-
-  if (description) {
-    sections.push(sanitizeStringForPostgres(description));
-  }
-
-  const metadataLines = [];
-  metadataLines.push(`- Event type: ${titleCaseLabel(event.category)}`);
-  metadataLines.push(`- Delivery mode: ${titleCaseLabel(event.deliveryMode)}`);
-
-  if (derived.startDate && derived.endDate && derived.startDate !== derived.endDate) {
-    metadataLines.push(`- Date: ${derived.startDate} to ${derived.endDate}`);
-  } else if (derived.startDate) {
-    metadataLines.push(`- Date: ${derived.startDate}`);
-  }
-
-  if (derived.locationLabel) {
-    metadataLines.push(`- Location: ${derived.locationLabel}`);
-  } else if (derived.locationMode === "online") {
-    metadataLines.push("- Location: Online");
-  } else if (derived.locationMode === "hybrid") {
-    metadataLines.push("- Location: Hybrid");
-  }
-
-  if (metadataLines.length) {
-    sections.push(metadataLines.join("\n"));
-  }
-
-  return sections.join("\n\n");
-}
-
-function buildSummary(event) {
-  return sanitizeStringForPostgres(deriveSummary(event.description || event.title || "", 220));
-}
-
-function inferLocationFields(event, legacyEvent) {
+function deriveLocationFields(seedEvent, legacyEvent) {
   const rawLocation = String(legacyEvent?.location || "").trim();
   const normalizedLocation = rawLocation ? sanitizeStringForPostgres(rawLocation) : null;
   const onlineUrl = extractUrl(rawLocation);
@@ -482,9 +320,9 @@ function inferLocationFields(event, legacyEvent) {
 
   let locationMode = "tba";
 
-  if (event.deliveryMode === "offline") {
+  if (seedEvent.deliveryMode === "offline") {
     locationMode = normalizedLocation ? "venue" : "tba";
-  } else if (event.deliveryMode === "online-or-hybrid") {
+  } else if (seedEvent.deliveryMode === "online-or-hybrid") {
     if (hasVenueText && hasOnlineText) {
       locationMode = "hybrid";
     } else if (hasOnlineText) {
@@ -492,7 +330,7 @@ function inferLocationFields(event, legacyEvent) {
     } else if (normalizedLocation) {
       locationMode = "hybrid";
     }
-  } else if (event.deliveryMode === "unknown" && normalizedLocation) {
+  } else if (seedEvent.deliveryMode === "unknown" && normalizedLocation) {
     locationMode = onlineUrl ? "online" : "venue";
   }
 
@@ -505,9 +343,9 @@ function inferLocationFields(event, legacyEvent) {
   };
 }
 
-function deriveEventOperationalFields(event, legacyEvent, legacyRegistrationCount) {
-  const startDate = normalizeDate(event.startDate);
-  const endDate = normalizeDate(event.endDate || event.startDate);
+function deriveEventOperationalFields(seedEvent, legacyEvent, legacyRegistrationCount) {
+  const startDate = normalizeDate(seedEvent.startDate);
+  const endDate = normalizeDate(seedEvent.endDate || seedEvent.startDate);
   const startsAt =
     legacyEvent?.starts_at && String(legacyEvent.starts_at).trim()
       ? String(legacyEvent.starts_at)
@@ -516,8 +354,7 @@ function deriveEventOperationalFields(event, legacyEvent, legacyRegistrationCoun
     legacyEvent?.ends_at && String(legacyEvent.ends_at).trim()
       ? String(legacyEvent.ends_at)
       : toDhakaEndTimestamp(endDate || startDate);
-
-  const location = inferLocationFields(event, legacyEvent);
+  const location = deriveLocationFields(seedEvent, legacyEvent);
   const hasLegacyRegistration =
     Boolean(legacyEvent?.registration_open) ||
     Boolean(legacyEvent?.registration_closes_at) ||
@@ -525,18 +362,11 @@ function deriveEventOperationalFields(event, legacyEvent, legacyRegistrationCoun
     legacyRegistrationCount > 0;
 
   return {
-    bodyMarkdown: buildBodyMarkdown(event, {
-      endDate,
-      locationLabel: location.locationLabel,
-      locationMode: location.locationMode,
-      startDate,
-    }),
     capacity: Number.isInteger(legacyEvent?.event_capacity)
       ? legacyEvent.event_capacity
       : null,
     ctaLabel: legacyEvent?.cta_href ? "Learn more" : null,
     ctaUrl: trimNullable(legacyEvent?.cta_href),
-    endDate,
     endsAt,
     locationLabel: location.locationLabel,
     locationMode: location.locationMode,
@@ -546,44 +376,53 @@ function deriveEventOperationalFields(event, legacyEvent, legacyRegistrationCoun
         ? String(legacyEvent.published_at)
         : startsAt,
     registrationClosesAt:
-      legacyEvent?.registration_closes_at && String(legacyEvent.registration_closes_at).trim()
+      legacyEvent?.registration_closes_at &&
+      String(legacyEvent.registration_closes_at).trim()
         ? String(legacyEvent.registration_closes_at)
         : null,
     registrationMode: hasLegacyRegistration ? "internal" : "none",
-    registrationOpen: hasLegacyRegistration ? Boolean(legacyEvent?.registration_open) : false,
+    registrationOpen: hasLegacyRegistration
+      ? Boolean(legacyEvent?.registration_open)
+      : false,
     registrationUrl: null,
-    startDate,
     startsAt,
     status:
-      legacyEvent?.status && ["draft", "published", "archived"].includes(legacyEvent.status)
+      seedEvent.status ||
+      (legacyEvent?.status &&
+      ["draft", "published", "archived"].includes(legacyEvent.status)
         ? legacyEvent.status
-        : "published",
-    timezone: "Asia/Dhaka",
+        : "published"),
+    timezone: seedEvent.timezone || "Asia/Dhaka",
     venueAddress: location.venueAddress,
     venueName: location.venueName,
   };
 }
 
 function normalizeLegacyTitle(value) {
-  return slugify(value || "");
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
 }
 
 function dateFromTimestamp(value) {
   return String(value || "").slice(0, 10);
 }
 
-function matchLegacyEvent(event, legacyEventsBySlug, legacyEvents) {
-  const slugMatch = legacyEventsBySlug.get(event.slug);
+function matchLegacyEvent(seedEvent, legacyEventsBySlug, legacyEvents) {
+  const slugMatch = legacyEventsBySlug.get(seedEvent.slug);
 
   if (slugMatch) {
     return {
+      ambiguous: false,
       matchMethod: "slug",
       row: slugMatch,
     };
   }
 
-  const normalizedTitle = normalizeLegacyTitle(event.title);
-  const startDate = normalizeDate(event.startDate);
+  const normalizedTitle = normalizeLegacyTitle(seedEvent.title);
+  const startDate = normalizeDate(seedEvent.startDate);
   const fallbackMatches = legacyEvents.filter((row) => {
     const rowDate = dateFromTimestamp(row.starts_at || row.published_at || "");
     return normalizeLegacyTitle(row.title) === normalizedTitle && rowDate === startDate;
@@ -591,6 +430,7 @@ function matchLegacyEvent(event, legacyEventsBySlug, legacyEvents) {
 
   if (!fallbackMatches.length) {
     return {
+      ambiguous: false,
       matchMethod: "none",
       row: null,
     };
@@ -603,20 +443,24 @@ function matchLegacyEvent(event, legacyEventsBySlug, legacyEvents) {
   };
 }
 
-function buildEventRow(event, legacyEvent, legacyRegistrationCount, coverLookup) {
-  const derived = deriveEventOperationalFields(event, legacyEvent, legacyRegistrationCount);
+function buildEventRow(seedEvent, legacyEvent, legacyRegistrationCount, coverLookup) {
+  const derived = deriveEventOperationalFields(
+    seedEvent,
+    legacyEvent,
+    legacyRegistrationCount
+  );
 
   return sanitizeForPostgres({
-    body_markdown: derived.bodyMarkdown || null,
+    body_markdown: seedEvent.bodyMarkdown || null,
     capacity: derived.capacity,
-    category: event.category,
+    category: seedEvent.category,
     cover_alt_text_override: coverLookup.coverAssetId
-      ? `${event.title} cover image`
+      ? `${seedEvent.title} cover image`
       : null,
     cover_media_asset_id: coverLookup.coverAssetId,
     cta_label: derived.ctaLabel,
     cta_url: derived.ctaUrl,
-    delivery_mode: event.deliveryMode,
+    delivery_mode: seedEvent.deliveryMode,
     ends_at: derived.endsAt,
     legacy_content_post_id: legacyEvent?.id || null,
     location_label: derived.locationLabel,
@@ -627,24 +471,24 @@ function buildEventRow(event, legacyEvent, legacyRegistrationCount, coverLookup)
     registration_mode: derived.registrationMode,
     registration_open: derived.registrationOpen,
     registration_url: derived.registrationUrl,
-    slug: event.slug,
+    slug: seedEvent.slug,
     source: "event-catalog-seed",
     source_metadata: {
-      catalogEvent: event,
       coverResolution: coverLookup,
-      insightsValidated: true,
       legacy: legacyEvent
         ? {
             eventPostId: legacyEvent.id,
             matchedBy: legacyEvent._matchMethod || "unknown",
           }
         : null,
+      seedEvent: seedEvent.sourceMetadata || null,
+      seedGeneratedAt: seedEvent.seedGeneratedAt || null,
     },
     starts_at: derived.startsAt,
     status: derived.status,
-    summary: buildSummary(event),
+    summary: seedEvent.summary,
     timezone: derived.timezone,
-    title: sanitizeStringForPostgres(event.title),
+    title: sanitizeStringForPostgres(seedEvent.title),
     venue_address: derived.venueAddress,
     venue_name: derived.venueName,
   });
@@ -652,15 +496,17 @@ function buildEventRow(event, legacyEvent, legacyRegistrationCount, coverLookup)
 
 async function assertEventsSchemaReady(supabase) {
   const requiredQueries = [
-    { table: "events", select: "id" },
-    { table: "event_registrations", select: "id, event_id" },
-    { table: "media_assets", select: "id, public_id" },
+    { select: "id", table: "events" },
+    { select: "id, event_id", table: "event_registrations" },
+    { select: "id, public_id", table: "media_assets" },
   ];
-
   const failures = [];
 
   for (const query of requiredQueries) {
-    const { error } = await supabase.from(query.table).select(query.select).limit(1);
+    const { error } = await supabase
+      .from(query.table)
+      .select(query.select)
+      .limit(1);
 
     if (error) {
       failures.push(`${query.table}: ${error.message}`);
@@ -670,7 +516,7 @@ async function assertEventsSchemaReady(supabase) {
   if (failures.length) {
     throw new Error(
       [
-        "Events schema is not ready. Apply supabase/migrations/20260421000000_events_module_rebuild.sql before importing.",
+        "Events schema is not ready. Apply the required Supabase migrations before importing.",
         ...failures,
       ].join("\n")
     );
@@ -813,7 +659,8 @@ function buildCoverLookupMaps(events) {
   const folderPrefixes = new Set();
 
   for (const event of events) {
-    const extracted = extractCloudinaryPublicId(event.coverImageUrl);
+    const extracted = event.coverPublicId || extractCloudinaryPublicId(event.coverImageUrl);
+
     if (extracted) {
       directPublicIds.add(extracted);
     }
@@ -821,12 +668,14 @@ function buildCoverLookupMaps(events) {
     const normalizedRaw = /^https?:\/\//i.test(String(event.coverImageUrl || "").trim())
       ? null
       : normalizeCloudinaryPublicId(event.coverImageUrl || "");
+
     if (normalizedRaw) {
       directPublicIds.add(normalizedRaw);
     }
 
     for (const folder of event.cloudinaryFolders || []) {
       const normalizedFolder = normalizeCloudinaryFolder(folder);
+
       if (normalizedFolder) {
         folderPrefixes.add(normalizedFolder);
       }
@@ -839,12 +688,14 @@ function buildCoverLookupMaps(events) {
   };
 }
 
-function resolveCoverAsset(event, legacyEvent, mediaByPublicId, mediaByFolderPrefix) {
-  const extractedPublicId = extractCloudinaryPublicId(event.coverImageUrl);
+function resolveCoverAsset(seedEvent, legacyEvent, mediaByPublicId, mediaByFolderPrefix) {
+  const extractedPublicId =
+    seedEvent.coverPublicId || extractCloudinaryPublicId(seedEvent.coverImageUrl);
   const normalizedRawInput =
-    extractedPublicId || (/^https?:\/\//i.test(String(event.coverImageUrl || "").trim())
+    extractedPublicId ||
+    (/^https?:\/\//i.test(String(seedEvent.coverImageUrl || "").trim())
       ? null
-      : normalizeCloudinaryPublicId(event.coverImageUrl || ""));
+      : normalizeCloudinaryPublicId(seedEvent.coverImageUrl || ""));
 
   if (extractedPublicId && mediaByPublicId.has(extractedPublicId)) {
     const asset = mediaByPublicId.get(extractedPublicId);
@@ -852,7 +703,7 @@ function resolveCoverAsset(event, legacyEvent, mediaByPublicId, mediaByFolderPre
       coverAssetId: asset.id,
       matchedPublicId: extractedPublicId,
       method: "exact-public-id",
-      source: event.coverImageUrl,
+      source: seedEvent.coverImageUrl,
     };
   }
 
@@ -862,13 +713,14 @@ function resolveCoverAsset(event, legacyEvent, mediaByPublicId, mediaByFolderPre
       coverAssetId: asset.id,
       matchedPublicId: normalizedRawInput,
       method: "normalized-raw-input",
-      source: event.coverImageUrl,
+      source: seedEvent.coverImageUrl,
     };
   }
 
-  for (const folder of event.cloudinaryFolders || []) {
+  for (const folder of seedEvent.cloudinaryFolders || []) {
     const normalizedFolder = normalizeCloudinaryFolder(folder);
     const folderMatches = mediaByFolderPrefix.get(normalizedFolder) || [];
+
     if (folderMatches.length) {
       const asset = folderMatches[0];
       return {
@@ -893,7 +745,7 @@ function resolveCoverAsset(event, legacyEvent, mediaByPublicId, mediaByFolderPre
     coverAssetId: null,
     matchedPublicId: extractedPublicId || normalizedRawInput || null,
     method: "unresolved",
-    source: event.coverImageUrl || null,
+    source: seedEvent.coverImageUrl || null,
   };
 }
 
@@ -923,7 +775,9 @@ function buildRegistrationDuplicateConflicts(registrationRows, legacyEventIdBySl
     }
 
     const [eventPostId, email] = key.split("::");
-    const slug = Array.from(legacyEventIdBySlug.entries()).find(([, value]) => value === eventPostId)?.[0] || null;
+    const slug =
+      Array.from(legacyEventIdBySlug.entries()).find(([, value]) => value === eventPostId)?.[0] ||
+      null;
 
     duplicates.push({
       activeRegistrationIds: rows.map((row) => row.id),
@@ -938,7 +792,9 @@ function buildRegistrationDuplicateConflicts(registrationRows, legacyEventIdBySl
 
 async function upsertEvents(supabase, rows) {
   for (const batch of chunk(rows, 50)) {
-    const { error } = await supabase.from("events").upsert(batch, { onConflict: "slug" });
+    const { error } = await supabase
+      .from("events")
+      .upsert(batch, { onConflict: "slug" });
 
     if (error) {
       throw new Error(`Event upsert failed: ${error.message}`);
@@ -952,7 +808,7 @@ async function fetchEventsBySlugs(supabase, slugs) {
   for (const slugBatch of chunk(slugs, 100)) {
     const { data, error } = await supabase
       .from("events")
-      .select("id, slug, legacy_content_post_id")
+      .select("id, slug, legacy_content_post_id, cover_media_asset_id")
       .in("slug", slugBatch);
 
     if (error) {
@@ -978,6 +834,7 @@ async function backfillRegistrationEventIds(supabase, eventRows, registrationRow
 
   for (const row of registrationRows) {
     const eventId = eventIdByLegacyEventPostId.get(row.event_post_id);
+
     if (!eventId || row.event_id === eventId) {
       continue;
     }
@@ -999,59 +856,45 @@ async function backfillRegistrationEventIds(supabase, eventRows, registrationRow
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const catalog = readJson(options.catalog, "Event catalog");
-  const insightsMarkdown = readText(options.insights, "Event insights");
-  const reportPath = resolveReportPath(
-    "events",
-    "events-seed-import-report",
-    options.report
-  );
-
+  const seed = readSeed(options.file);
+  const reportPath = resolveEventsReportPath(options.report);
   const report = {
-    mode: options.apply ? "apply" : "dry-run",
-    generatedAt: new Date().toISOString(),
-    source: {
-      catalogPath: options.catalog,
-      catalogGeneratedAt: catalog.generatedAt || null,
-      insightsPath: options.insights,
-    },
-    validation: {
-      errors: [],
-      insightsSummary: null,
-    },
-    expected: {
-      eventCount: Array.isArray(catalog.events) ? catalog.events.length : 0,
+    coverage: {
+      ambiguousLegacyMatches: [],
+      duplicateRegistrationConflicts: [],
+      exactCoverMatches: 0,
+      folderFallbackCoverMatches: 0,
+      legacyMatches: {
+        none: 0,
+        slug: 0,
+        "title-date": 0,
+      },
+      legacyMediaFallbackMatches: 0,
+      unresolvedCovers: [],
     },
     execution: {
       eventsInserted: 0,
       eventsUpdated: 0,
       registrationsBackfilled: 0,
     },
-    coverage: {
-      exactCoverMatches: 0,
-      folderFallbackCoverMatches: 0,
-      legacyMediaFallbackMatches: 0,
-      unresolvedCovers: [],
-      legacyMatches: {
-        none: 0,
-        slug: 0,
-        "title-date": 0,
-      },
-      ambiguousLegacyMatches: [],
-      duplicateRegistrationConflicts: [],
+    expected: {
+      eventCount: seed.summary?.eventCount ?? seed.events.length,
+    },
+    generatedAt: new Date().toISOString(),
+    mode: options.apply ? "apply" : "dry-run",
+    source: {
+      filePath: options.file,
+      seedGeneratedAt: seed.generatedAt || null,
+    },
+    validation: {
+      errors: validateSeedEvents(seed.events),
     },
   };
-
-  const catalogErrors = validateEventCatalog(catalog.events || []);
-  const insightsValidation = validateCatalogAndInsights(catalog, insightsMarkdown);
-
-  report.validation.errors.push(...catalogErrors, ...insightsValidation.errors);
-  report.validation.insightsSummary = insightsValidation.insightsSummary;
 
   const supabase = buildSupabaseAdminClient();
   await assertEventsSchemaReady(supabase);
 
-  const events = catalog.events || [];
+  const events = seed.events || [];
   const slugs = events.map((event) => event.slug);
   const existingEvents = await fetchExistingEvents(supabase, slugs);
   const existingEventBySlug = new Map(existingEvents.map((row) => [row.slug, row]));
@@ -1149,8 +992,10 @@ async function main() {
     const legacyRegistrationCount = legacyEvent?.id
       ? legacyRegistrationCountByEventPostId.get(legacyEvent.id) || 0
       : 0;
-    const row = buildEventRow(event, legacyEvent, legacyRegistrationCount, coverLookup);
-    eventRows.push(row);
+
+    eventRows.push(
+      buildEventRow(event, legacyEvent, legacyRegistrationCount, coverLookup)
+    );
 
     if (existingEventBySlug.has(event.slug)) {
       report.execution.eventsUpdated += 1;
@@ -1207,6 +1052,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error.message);
+  console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });

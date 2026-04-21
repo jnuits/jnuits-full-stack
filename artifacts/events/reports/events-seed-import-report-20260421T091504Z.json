@@ -1,0 +1,32 @@
+{
+  "coverage": {
+    "ambiguousLegacyMatches": [],
+    "duplicateRegistrationConflicts": [],
+    "exactCoverMatches": 45,
+    "folderFallbackCoverMatches": 19,
+    "legacyMatches": {
+      "none": 63,
+      "slug": 1,
+      "title-date": 0
+    },
+    "legacyMediaFallbackMatches": 0,
+    "unresolvedCovers": []
+  },
+  "execution": {
+    "eventsInserted": 0,
+    "eventsUpdated": 64,
+    "registrationsBackfilled": 0
+  },
+  "expected": {
+    "eventCount": 64
+  },
+  "generatedAt": "2026-04-21T09:15:04.031Z",
+  "mode": "dry-run",
+  "source": {
+    "filePath": "M:\\jnuits\\jnuits-full-stack\\plan\\data\\jnuits-events-seed.json",
+    "seedGeneratedAt": "2026-04-21T09:14:46.290Z"
+  },
+  "validation": {
+    "errors": []
+  }
+}
