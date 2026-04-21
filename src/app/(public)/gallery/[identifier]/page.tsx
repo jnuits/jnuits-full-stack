@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon } from "lucide-react";
 import { GalleryDescriptionToggle } from "@/components/gallery/gallery-description-toggle";
 import { GalleryLoadMore } from "@/components/gallery/gallery-load-more";
 import { getGalleryAlbumBySlug } from "@/lib/content/gallery";
