@@ -73,18 +73,12 @@ export default async function GalleryDetailPage({
         <div className="grid gap-0 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="grid content-between gap-8 p-6 sm:p-8">
             <div>
-              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-                <Link
-                  className="inline-flex items-center gap-2 rounded-full py-1 text-sm font-semibold text-[var(--muted-foreground)] transition hover:-translate-x-0.5 hover:text-[var(--primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--ring)]"
-                  href="/gallery"
-                >
-                  <ArrowLeft aria-hidden="true" size={16} strokeWidth={2.25} />
-                  Back to gallery
-                </Link>
-                <span className="eyebrow inline-flex">
-                  {album.year} · {toLabel(album.category)}
-                </span>
-              </div>
+              <Link className="queue-link" href="/gallery">
+                Back to gallery
+              </Link>
+              <span className="eyebrow mt-8 inline-flex">
+                {album.year} · {toLabel(album.category)}
+              </span>
               <h1 className="section-title mt-4">{album.title}</h1>
               <GalleryDescriptionToggle
                 text={album.description || album.eventName}
