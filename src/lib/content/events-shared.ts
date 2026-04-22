@@ -42,3 +42,23 @@ export function toEventCategoryLabel(value: string) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
+
+export function toEventDeliveryModeLabel(value: string) {
+  if (value === "offline") {
+    return "Offline";
+  }
+
+  if (value === "online-or-hybrid") {
+    return "Online or Hybrid";
+  }
+
+  if (value === "unknown") {
+    return "Format TBA";
+  }
+
+  return value
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}

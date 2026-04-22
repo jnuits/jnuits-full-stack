@@ -11,6 +11,7 @@ import {
   EVENTS_PER_PAGE,
   EVENT_STATUSES,
   toEventCategoryLabel,
+  toEventDeliveryModeLabel,
   type EventArchiveView,
 } from "@/lib/content/events-shared";
 import type { Tables } from "@/lib/db/types";
@@ -26,6 +27,7 @@ export {
   EVENTS_PER_PAGE,
   EVENT_STATUSES,
   toEventCategoryLabel,
+  toEventDeliveryModeLabel,
 };
 export type { EventArchiveView };
 

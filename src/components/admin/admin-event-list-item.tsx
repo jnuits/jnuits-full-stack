@@ -2,15 +2,19 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   Archive,
+  CalendarClock,
   Camera,
   ExternalLink,
+  MapPin,
   MoreHorizontal,
   Pencil,
+  Radio,
   Trash2,
 } from "lucide-react";
 import type { AdminEventListItem as AdminEventListRow } from "@/lib/content/events";
 import {
   formatEventAdminDate,
+  toEventDeliveryModeLabel,
   toEventCategoryLabel,
 } from "@/lib/content/events";
 import { updateEventLifecycle } from "@/app/admin/content/events/actions";
@@ -41,7 +45,7 @@ function lifecycleLabel(status: string) {
 
 export function AdminEventListItem({ event }: AdminEventListItemProps) {
   return (
-    <article className="admin-gallery-list-row">
+    <article className="admin-gallery-list-row admin-gallery-list-row--event">
       <div className="admin-gallery-list-row__thumb">
         {event.cover ? (
           <Image
@@ -69,13 +73,24 @@ export function AdminEventListItem({ event }: AdminEventListItemProps) {
           ) : null}
         </div>
         <h2 className="admin-gallery-list-row__title">{event.title}</h2>
-        <p className="admin-gallery-list-row__meta">
-          /events/{event.slug} · {formatEventAdminDate(event.startsAt, event.endsAt, event.timezone)}
+        <p className="admin-gallery-list-row__meta">/events/{event.slug}</p>
+        <div className="admin-event-list-row__facts">
+          <span className="admin-event-list-row__fact">
+            <CalendarClock aria-hidden="true" size={13} />
+            {formatEventAdminDate(event.startsAt, event.endsAt, event.timezone)}
+          </span>
+          <span className="admin-event-list-row__fact">
+            <MapPin aria-hidden="true" size={13} />
+            {event.locationLabel}
+          </span>
+          <span className="admin-event-list-row__fact admin-event-list-row__fact--mode">
+            <Radio aria-hidden="true" size={13} />
+            {toEventDeliveryModeLabel(event.deliveryMode)}
+          </span>
+        </div>
+        <p className="admin-gallery-list-row__description admin-gallery-list-row__description--clamp-2">
+          {event.summary}
         </p>
-        <p className="admin-gallery-list-row__meta">
-          {event.locationLabel} · {event.deliveryMode}
-        </p>
-        <p className="admin-gallery-list-row__description">{event.summary}</p>
       </div>
 
       <div className="admin-gallery-list-row__actions">

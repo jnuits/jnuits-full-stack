@@ -99,23 +99,16 @@ export default async function EventsPage({
     <div className="shell py-12">
       <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">
         <div className="event-hero-grid">
-          <div>
-            <span className="eyebrow">JnUITS Events</span>
-            <h1 className="section-title mt-4">
+          <div className="grid gap-5">
+            <span className="eyebrow event-archive-hero__eyebrow">JnUITS Events</span>
+            <h1 className="event-archive-hero__title">
               Browse upcoming programs, competitions, and public society events.
             </h1>
-            <p className="section-copy mt-5">
-              The archive is organized from the new Events module with structured
-              dates, reusable media covers, public status badges, and pagination
-              that scales as the society grows.
+            <p className="section-copy max-w-[58ch]">
+              Explore workshops, competitions, tours, and community programs
+              from Jagannath University IT Society with structured schedules,
+              clear status badges, and a growing archive of public activity.
             </p>
-
-            <EventArchiveFilters
-              categories={archive.categories}
-              category={category}
-              query={query}
-              view={archive.view}
-            />
           </div>
 
           {featuredEvent ? (
@@ -195,15 +188,22 @@ export default async function EventsPage({
         </div>
       </section>
 
+      <EventArchiveFilters
+        categories={archive.categories}
+        category={category}
+        query={query}
+        view={archive.view}
+      />
+
       <section className="mt-8 grid gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="grid gap-3">
             <p className="section-divider">Event archive</p>
             <h2 className="mt-3 font-[family-name:var(--font-heading)] text-[clamp(2rem,4vw,3.4rem)] leading-[0.94] tracking-[-0.05em]">
               {archive.view === "upcoming" ? "Upcoming schedule" : "Past events archive"}
             </h2>
           </div>
-          <span className="status-pill">
+          <span className="status-pill self-end">
             {archive.totalItems} event{archive.totalItems === 1 ? "" : "s"}
           </span>
         </div>

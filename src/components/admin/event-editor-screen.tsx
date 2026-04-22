@@ -6,6 +6,7 @@ import {
   CalendarClock,
   ExternalLink,
   Image as ImageIcon,
+  MapPin,
   Save,
   Trash2,
 } from "lucide-react";
@@ -87,6 +88,40 @@ function archiveIntent(event: EventDetail) {
 export function EventEditorScreen({ event }: EventEditorScreenProps) {
   const isNew = !event;
   const timeZone = event?.timezone || "Asia/Dhaka";
+  const formDefaults = {
+    bodyMarkdown: event?.bodyMarkdown || "",
+    capacity: event?.capacity || "",
+    category: event?.category || "workshop-training",
+    coverAltTextOverride: event?.coverAltTextOverride || "",
+    ctaLabel: event?.ctaLabel || "",
+    ctaUrl: event?.ctaUrl || "",
+    deliveryMode: event?.deliveryMode || "offline",
+    endsAtDate: getEventLocalDateInput(event?.endsAt, timeZone),
+    endsAtTime: getEventLocalTimeInput(event?.endsAt, timeZone),
+    locationLabel: event?.locationLabel || "",
+    locationMode: event?.locationMode || "venue",
+    onlineUrl: event?.onlineUrl || "",
+    registrationClosesAtDate: getEventLocalDateInput(
+      event?.registrationClosesAt,
+      timeZone
+    ),
+    registrationClosesAtTime: getEventLocalTimeInput(
+      event?.registrationClosesAt,
+      timeZone
+    ),
+    registrationMode: event?.registrationMode || "none",
+    registrationOpen: event?.registrationOpen ? "true" : "false",
+    registrationUrl: event?.registrationUrl || "",
+    slug: event?.slug || "",
+    startsAtDate: getEventLocalDateInput(event?.startsAt, timeZone),
+    startsAtTime: getEventLocalTimeInput(event?.startsAt, timeZone),
+    status: event?.status || "draft",
+    summary: event?.summary || "",
+    timezone: timeZone,
+    title: event?.title || "",
+    venueAddress: event?.venueAddress || "",
+    venueName: event?.venueName || "",
+  };
   const tabs = [
     {
       content: (
@@ -101,30 +136,38 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               </p>
             </div>
 
-            <label className="input-label">
-              Title
-              <input
-                defaultValue={event?.title || ""}
-                name="title"
-                placeholder="Speak Up: Interactive Public Speaking Workshop"
-                required
-              />
-            </label>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
+              <label className="input-label">
+                Title
+                <input
+                  autoComplete="off"
+                  defaultValue={formDefaults.title}
+                  id="event-title"
+                  name="title"
+                  placeholder="Speak Up: Interactive Public Speaking Workshop"
+                  required
+                />
+              </label>
 
-            <label className="input-label">
-              Slug
-              <input
-                defaultValue={event?.slug || ""}
-                name="slug"
-                placeholder="speak-up-interactive-public-speaking-workshop"
-                required
-              />
-            </label>
+              <label className="input-label">
+                Slug
+                <input
+                  autoComplete="off"
+                  defaultValue={formDefaults.slug}
+                  id="event-slug"
+                  name="slug"
+                  placeholder="speak-up-interactive-public-speaking-workshop"
+                  required
+                />
+              </label>
+            </div>
 
             <label className="input-label">
               Summary
               <textarea
-                defaultValue={event?.summary || ""}
+                autoComplete="off"
+                defaultValue={formDefaults.summary}
+                id="event-summary"
                 name="summary"
                 placeholder="Short summary for cards, archive previews, and search."
                 rows={4}
@@ -132,10 +175,14 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               />
             </label>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <label className="input-label">
                 Category
-                <select defaultValue={event?.category || "workshop-training"} name="category">
+                <select
+                  defaultValue={formDefaults.category}
+                  id="event-category"
+                  name="category"
+                >
                   {EVENT_CATEGORY_OPTIONS.map((option) => (
                     <option key={option} value={option}>
                       {toEventCategoryLabel(option)}
@@ -146,7 +193,11 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
 
               <label className="input-label">
                 Status
-                <select defaultValue={event?.status || "draft"} name="status">
+                <select
+                  defaultValue={formDefaults.status}
+                  id="event-status"
+                  name="status"
+                >
                   {EVENT_STATUS_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -158,7 +209,8 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 Delivery mode
                 <select
-                  defaultValue={event?.deliveryMode || "offline"}
+                  defaultValue={formDefaults.deliveryMode}
+                  id="event-delivery-mode"
                   name="deliveryMode"
                 >
                   {EVENT_DELIVERY_OPTIONS.map((option) => (
@@ -168,56 +220,74 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
                   ))}
                 </select>
               </label>
-            </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <label className="input-label">
                 Timezone
-                <input defaultValue={timeZone} name="timezone" required />
-              </label>
-              <label className="input-label">
-                Start date
                 <input
-                  defaultValue={getEventLocalDateInput(event?.startsAt, timeZone)}
-                  name="startsAtDate"
+                  autoComplete="off"
+                  defaultValue={formDefaults.timezone}
+                  id="event-timezone"
+                  name="timezone"
                   required
-                  type="date"
-                />
-              </label>
-              <label className="input-label">
-                Start time
-                <input
-                  defaultValue={getEventLocalTimeInput(event?.startsAt, timeZone)}
-                  name="startsAtTime"
-                  type="time"
                 />
               </label>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="input-label">
-                End date
-                <input
-                  defaultValue={getEventLocalDateInput(event?.endsAt, timeZone)}
-                  name="endsAtDate"
-                  type="date"
-                />
-              </label>
-              <label className="input-label">
-                End time
-                <input
-                  defaultValue={getEventLocalTimeInput(event?.endsAt, timeZone)}
-                  name="endsAtTime"
-                  type="time"
-                />
-              </label>
+            <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
+                <label className="input-label">
+                  Start date
+                  <input
+                    autoComplete="off"
+                    defaultValue={formDefaults.startsAtDate}
+                    id="event-starts-at-date"
+                    name="startsAtDate"
+                    required
+                    type="date"
+                  />
+                </label>
+                <label className="input-label">
+                  Start time
+                  <input
+                    autoComplete="off"
+                    defaultValue={formDefaults.startsAtTime}
+                    id="event-starts-at-time"
+                    name="startsAtTime"
+                    type="time"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
+                <label className="input-label">
+                  End date
+                  <input
+                    autoComplete="off"
+                    defaultValue={formDefaults.endsAtDate}
+                    id="event-ends-at-date"
+                    name="endsAtDate"
+                    type="date"
+                  />
+                </label>
+                <label className="input-label">
+                  End time
+                  <input
+                    autoComplete="off"
+                    defaultValue={formDefaults.endsAtTime}
+                    id="event-ends-at-time"
+                    name="endsAtTime"
+                    type="time"
+                  />
+                </label>
+              </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 xl:grid-cols-[14rem_minmax(0,1fr)]">
               <label className="input-label">
                 Location mode
                 <select
-                  defaultValue={event?.locationMode || "venue"}
+                  defaultValue={formDefaults.locationMode}
+                  id="event-location-mode"
                   name="locationMode"
                 >
                   {EVENT_LOCATION_OPTIONS.map((option) => (
@@ -227,10 +297,12 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
                   ))}
                 </select>
               </label>
-              <label className="input-label sm:col-span-2">
+              <label className="input-label">
                 Public location label
                 <input
-                  defaultValue={event?.locationLabel || ""}
+                  autoComplete="off"
+                  defaultValue={formDefaults.locationLabel}
+                  id="event-location-label"
                   name="locationLabel"
                   placeholder="CSE Department VC Room / Google Meet"
                 />
@@ -241,7 +313,9 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 Venue name
                 <input
-                  defaultValue={event?.venueName || ""}
+                  autoComplete="off"
+                  defaultValue={formDefaults.venueName}
+                  id="event-venue-name"
                   name="venueName"
                   placeholder="CSE Department VC Room"
                 />
@@ -249,7 +323,9 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 Venue address
                 <input
-                  defaultValue={event?.venueAddress || ""}
+                  autoComplete="off"
+                  defaultValue={formDefaults.venueAddress}
+                  id="event-venue-address"
                   name="venueAddress"
                   placeholder="Jagannath University, Dhaka"
                 />
@@ -259,7 +335,9 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
             <label className="input-label">
               Online meeting link
               <input
-                defaultValue={event?.onlineUrl || ""}
+                autoComplete="off"
+                defaultValue={formDefaults.onlineUrl}
+                id="event-online-url"
                 name="onlineUrl"
                 placeholder="https://meet.google.com/..."
                 type="url"
@@ -269,27 +347,77 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
 
           <aside className="grid gap-4">
             <section className="admin-review-card">
-              <p className="admin-section-label">Public preview</p>
-              <h2 className="admin-card-row__title">
-                {event?.title || "New event draft"}
-              </h2>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="detail-chip">{event?.lifecycleLabel || "Draft"}</span>
-                <span className="detail-chip">
-                  {toEventCategoryLabel(event?.category || "workshop-training")}
-                </span>
-                {event?.registrationBadgeLabel ? (
-                  <span className="detail-chip">{event.registrationBadgeLabel}</span>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="admin-section-label">Public preview</p>
+                  <h2 className="admin-card-row__title">Mini card preview</h2>
+                </div>
+                {event?.status === "published" ? (
+                  <Link
+                    className="queue-link"
+                    href={`/events/${event.slug}`}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Open public
+                  </Link>
                 ) : null}
               </div>
-              <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
-                {event
-                  ? formatEventDateRange(event.startsAt, event.endsAt, event.timezone)
-                  : "Save the event to preview its public schedule range."}
-              </p>
-              <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-                {event?.locationLabel || "Venue or online details will appear here."}
-              </p>
+
+              <article className="event-editor-preview-card mt-4">
+                <div className="event-editor-preview-card__media">
+                  {event?.cover ? (
+                    <Image
+                      alt={event.cover.alt}
+                      className="object-cover"
+                      fill
+                      sizes="(min-width: 1200px) 28rem, 100vw"
+                      src={event.cover.thumbnailUrl}
+                    />
+                  ) : (
+                    <div className="event-card__placeholder">
+                      <ImageIcon aria-hidden="true" size={18} />
+                      <span>No preview cover yet</span>
+                    </div>
+                  )}
+                </div>
+                <div className="event-editor-preview-card__body">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="detail-chip">{event?.lifecycleLabel || "Draft"}</span>
+                    <span className="detail-chip">
+                      {toEventCategoryLabel(event?.category || "workshop-training")}
+                    </span>
+                    {event?.registrationBadgeLabel ? (
+                      <span className="detail-chip">
+                        {event.registrationBadgeLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <h3 className="mt-4 font-[family-name:var(--font-heading)] text-[1.45rem] leading-[1.02] tracking-[-0.04em]">
+                    {event?.title || "New event draft"}
+                  </h3>
+                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-[var(--muted-foreground)]">
+                    {event?.summary ||
+                      "Save the event to generate a compact public preview with dates, location, and registration state."}
+                  </p>
+                  <div className="mt-4 grid gap-2 text-sm text-[var(--muted-foreground)]">
+                    <span className="inline-flex items-center gap-2">
+                      <CalendarClock aria-hidden="true" size={15} />
+                      {event
+                        ? formatEventDateRange(
+                            event.startsAt,
+                            event.endsAt,
+                            event.timezone
+                          )
+                        : "Schedule preview will appear here."}
+                    </span>
+                    <span className="inline-flex items-center gap-2">
+                      <MapPin aria-hidden="true" size={15} />
+                      {event?.locationLabel || "Venue or online details will appear here."}
+                    </span>
+                  </div>
+                </div>
+              </article>
             </section>
 
             {event ? (
@@ -297,22 +425,27 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
                 <p className="admin-section-label">Lifecycle</p>
                 <h2 className="admin-card-row__title">Publishing controls</h2>
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <form action={updateEventLifecycle}>
-                    <input name="eventId" type="hidden" value={event.id} />
-                    <input name="intent" type="hidden" value={archiveIntent(event)} />
-                    <button className="admin-btn admin-btn--ghost" type="submit">
-                      <Archive aria-hidden="true" size={15} />
-                      {archiveLabel(event)}
-                    </button>
-                  </form>
-                  <form action={updateEventLifecycle}>
-                    <input name="eventId" type="hidden" value={event.id} />
-                    <input name="intent" type="hidden" value="delete" />
-                    <button className="admin-btn admin-btn--danger" type="submit">
-                      <Trash2 aria-hidden="true" size={15} />
-                      Delete event
-                    </button>
-                  </form>
+                  <button
+                    className="admin-btn admin-btn--ghost"
+                    formAction={updateEventLifecycle.bind(
+                      null,
+                      archiveIntent(event)
+                    )}
+                    formNoValidate
+                    type="submit"
+                  >
+                    <Archive aria-hidden="true" size={15} />
+                    {archiveLabel(event)}
+                  </button>
+                  <button
+                    className="admin-btn admin-btn--danger"
+                    formAction={updateEventLifecycle.bind(null, "delete")}
+                    formNoValidate
+                    type="submit"
+                  >
+                    <Trash2 aria-hidden="true" size={15} />
+                    Delete event
+                  </button>
                 </div>
                 {event.legacyContentPostId ? (
                   <p className="mt-4 text-xs leading-6 text-[var(--muted-foreground)]">
@@ -347,7 +480,7 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
             </div>
 
             <EventMarkdownEditor
-              defaultValue={event?.bodyMarkdown || ""}
+              defaultValue={formDefaults.bodyMarkdown}
               name="bodyMarkdown"
               placeholder="## Event overview&#10;&#10;Describe the event, speakers, schedule, and expected outcomes."
             />
@@ -358,7 +491,8 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 Registration mode
                 <select
-                  defaultValue={event?.registrationMode || "none"}
+                  defaultValue={formDefaults.registrationMode}
+                  id="event-registration-mode"
                   name="registrationMode"
                 >
                   {EVENT_REGISTRATION_OPTIONS.map((option) => (
@@ -372,7 +506,9 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 Registration URL
                 <input
-                  defaultValue={event?.registrationUrl || ""}
+                  autoComplete="off"
+                  defaultValue={formDefaults.registrationUrl}
+                  id="event-registration-url"
                   name="registrationUrl"
                   placeholder="https://forms.gle/..."
                   type="url"
@@ -384,7 +520,8 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 Registration open
                 <select
-                  defaultValue={event?.registrationOpen ? "true" : "false"}
+                  defaultValue={formDefaults.registrationOpen}
+                  id="event-registration-open"
                   name="registrationOpen"
                 >
                   <option value="true">Open</option>
@@ -395,7 +532,9 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 Capacity
                 <input
-                  defaultValue={event?.capacity || ""}
+                  autoComplete="off"
+                  defaultValue={formDefaults.capacity}
+                  id="event-capacity"
                   name="capacity"
                   min="1"
                   placeholder="Optional seat limit"
@@ -408,10 +547,9 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 Registration closes date
                 <input
-                  defaultValue={getEventLocalDateInput(
-                    event?.registrationClosesAt,
-                    timeZone
-                  )}
+                  autoComplete="off"
+                  defaultValue={formDefaults.registrationClosesAtDate}
+                  id="event-registration-closes-date"
                   name="registrationClosesAtDate"
                   type="date"
                 />
@@ -419,10 +557,9 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 Registration closes time
                 <input
-                  defaultValue={getEventLocalTimeInput(
-                    event?.registrationClosesAt,
-                    timeZone
-                  )}
+                  autoComplete="off"
+                  defaultValue={formDefaults.registrationClosesAtTime}
+                  id="event-registration-closes-time"
                   name="registrationClosesAtTime"
                   type="time"
                 />
@@ -433,7 +570,9 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 CTA label
                 <input
-                  defaultValue={event?.ctaLabel || ""}
+                  autoComplete="off"
+                  defaultValue={formDefaults.ctaLabel}
+                  id="event-cta-label"
                   name="ctaLabel"
                   placeholder="Learn more"
                 />
@@ -441,7 +580,9 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               <label className="input-label">
                 CTA URL
                 <input
-                  defaultValue={event?.ctaUrl || ""}
+                  autoComplete="off"
+                  defaultValue={formDefaults.ctaUrl}
+                  id="event-cta-url"
                   name="ctaUrl"
                   placeholder="https:// or /internal-route"
                 />
@@ -486,7 +627,9 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
             <label className="input-label">
               Cover alt text override
               <input
-                defaultValue={event?.coverAltTextOverride || ""}
+                autoComplete="off"
+                defaultValue={formDefaults.coverAltTextOverride}
+                id="event-cover-alt-override"
                 name="coverAltTextOverride"
                 placeholder="Optional public alt text specific to this event"
               />
@@ -503,7 +646,7 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
 
   return (
     <div className="grid gap-7">
-      <header className="admin-page-header">
+      <header className="admin-page-header admin-page-header--event-editor admin-page-header--sticky">
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <Link className="queue-link" href="/admin/content/events">
@@ -526,7 +669,7 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
               : "Edit metadata, public markdown, registration settings, and the reusable event cover from one workspace."}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="admin-page-header__actions">
           {event?.status === "published" ? (
             <Link
               className="admin-btn admin-btn--ghost"
@@ -545,7 +688,12 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
         </div>
       </header>
 
-      <form action={saveEvent} className="grid gap-6" id="event-editor-form">
+      <form
+        action={saveEvent}
+        autoComplete="off"
+        className="grid gap-6"
+        id="event-editor-form"
+      >
         <input name="eventId" type="hidden" value={event?.id || ""} />
 
         <section className="event-editor-summary-grid">

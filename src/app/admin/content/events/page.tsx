@@ -182,7 +182,7 @@ export default async function EventsAdminPage({
         timeframe={timeframe}
       />
 
-      <section className="grid gap-4">
+      <section className="grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="admin-section-label">Event queue</p>
           <span className="text-sm text-[var(--muted-foreground)]">
@@ -192,7 +192,7 @@ export default async function EventsAdminPage({
         </div>
 
         {dashboard.items.length ? (
-          <div className="grid gap-3">
+          <div className="grid gap-2.5">
             {dashboard.items.map((event) => (
               <AdminEventListItem event={event} key={event.id} />
             ))}

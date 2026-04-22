@@ -90,7 +90,10 @@ export function AdminEventFilters({
 
   return (
     <section className="admin-review-card">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_200px_200px_200px_auto] xl:items-end">
+      <span aria-live="polite" className="sr-only">
+        {isPending ? "Updating event queue." : ""}
+      </span>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_200px_200px_200px] xl:items-end">
         <label className="input-label">
           Search
           <input
@@ -140,9 +143,6 @@ export function AdminEventFilters({
             ))}
           </select>
         </label>
-        <div className="text-sm text-[var(--muted-foreground)]" aria-live="polite">
-          {isPending ? "Updating queue..." : "Auto-filtering"}
-        </div>
       </div>
     </section>
   );

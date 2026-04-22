@@ -448,7 +448,10 @@ export async function saveEvent(formData: FormData) {
   }
 }
 
-export async function updateEventLifecycle(formData: FormData) {
+export async function updateEventLifecycle(
+  boundIntentOrFormData: "archive" | "delete" | "publish" | FormData,
+  maybeFormData?: FormData
+) {
   const auth = await requireAdminUser({ fallbackPath: "/admin/content/events" });
   const actorUserId = auth.user?.id;
 
@@ -456,8 +459,27 @@ export async function updateEventLifecycle(formData: FormData) {
     redirect("/login");
   }
 
+  const boundIntent =
+    typeof boundIntentOrFormData === "string" ? boundIntentOrFormData : null;
+  const formData =
+    boundIntentOrFormData instanceof FormData
+      ? boundIntentOrFormData
+      : maybeFormData;
+
+  if (!formData) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Event action failed",
+      message: "Choose a valid event action.",
+    });
+    redirect("/admin/content/events");
+  }
+
   const parsed = lifecycleSchema.safeParse(
-    pickFormFields(formData, ["eventId", "intent"])
+    {
+      ...pickFormFields(formData, ["eventId", "intent"]),
+      intent: boundIntent || asString(formData.get("intent")),
+    }
   );
 
   if (!parsed.success) {

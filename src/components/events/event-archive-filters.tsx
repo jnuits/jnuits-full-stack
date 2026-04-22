@@ -88,6 +88,9 @@ export function EventArchiveFilters({
 
   return (
     <section className="gallery-filter-panel">
+      <span aria-live="polite" className="sr-only">
+        {isPending ? "Updating events." : ""}
+      </span>
       <div className="gallery-filter-panel__grid">
         <div className="grid gap-2">
           <span className="input-label">Archive view</span>
@@ -129,9 +132,6 @@ export function EventArchiveFilters({
             ))}
           </select>
         </label>
-        <div className="gallery-filter-panel__status" aria-live="polite">
-          {isPending ? "Updating events..." : "Auto-filtering"}
-        </div>
       </div>
     </section>
   );
