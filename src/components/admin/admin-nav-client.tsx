@@ -6,6 +6,7 @@ import type { ComponentType } from "react";
 import { useState, useEffect } from "react";
 import {
   BarChart2,
+  BellRing,
   BookOpen,
   ClipboardList,
   FileCode2,
@@ -18,6 +19,7 @@ import {
   RefreshCcw,
   ScrollText,
   ShieldCheck,
+  UserCog,
   Users,
   UserCheck,
   X,
@@ -60,23 +62,14 @@ function createNavItem(
   };
 }
 
-function buildNavGroups(counts: AdminBadgeCounts): NavGroup[] {
-  return [
+function buildNavGroups(
+  counts: AdminBadgeCounts,
+  adminRole: null | string
+): NavGroup[] {
+  const groups: NavGroup[] = [
     {
       label: "Overview",
-      items: [
-        createNavItem("/admin", "Dashboard", LayoutDashboard),
-      ],
-    },
-    {
-      label: "Membership",
-      items: [
-        createNavItem("/admin/applications", "Applications", UserCheck, counts.pendingApps),
-        createNavItem("/admin/invitations", "Invitations", Mail),
-        createNavItem("/admin/workplace", "Workplace", ClipboardList, counts.pendingWorkplace),
-        createNavItem("/admin/profile-changes", "Profile Changes", Users, counts.pendingProfile),
-        createNavItem("/admin/membership", "Membership DB", ShieldCheck),
-      ],
+      items: [createNavItem("/admin", "Dashboard", LayoutDashboard)],
     },
     {
       label: "Content",
@@ -90,7 +83,36 @@ function buildNavGroups(counts: AdminBadgeCounts): NavGroup[] {
         createNavItem("/admin/content/pages", "Page Singletons", ScrollText),
       ],
     },
-    {
+  ];
+
+  if (adminRole !== "content_admin") {
+    groups.splice(1, 0, {
+      label: "Membership",
+      items: [
+        createNavItem(
+          "/admin/applications",
+          "Applications",
+          UserCheck,
+          counts.pendingApps
+        ),
+        createNavItem("/admin/invitations", "Invitations", Mail),
+        createNavItem(
+          "/admin/workplace",
+          "Workplace",
+          ClipboardList,
+          counts.pendingWorkplace
+        ),
+        createNavItem(
+          "/admin/profile-changes",
+          "Profile Changes",
+          Users,
+          counts.pendingProfile
+        ),
+        createNavItem("/admin/membership", "Membership DB", ShieldCheck),
+      ],
+    });
+
+    groups.push({
       label: "Organization",
       items: [
         createNavItem("/admin/committee", "Committee", ShieldCheck),
@@ -99,18 +121,38 @@ function buildNavGroups(counts: AdminBadgeCounts): NavGroup[] {
         createNavItem("/admin/certificates", "Certificates", ScrollText),
         createNavItem("/admin/decisions", "Decisions Log", ClipboardList),
       ],
-    },
-  ];
+    });
+
+    groups.push({
+      label: "Settings",
+      items: [
+        createNavItem("/admin/settings/profile", "Profile Settings", UserCog),
+        createNavItem(
+          "/admin/settings/security",
+          "Security Settings",
+          ShieldCheck
+        ),
+        createNavItem(
+          "/admin/settings/notifications",
+          "Notification Settings",
+          BellRing
+        ),
+      ],
+    });
+  }
+
+  return groups;
 }
 
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
 interface Props {
+  adminRole?: null | string;
   badgeCounts: AdminBadgeCounts;
 }
 
-export function AdminNavClient({ badgeCounts }: Props) {
+export function AdminNavClient({ adminRole = null, badgeCounts }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -120,7 +162,7 @@ export function AdminNavClient({ badgeCounts }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  const groups = buildNavGroups(badgeCounts);
+  const groups = buildNavGroups(badgeCounts, adminRole);
 
   function isActive(href: string): boolean {
     // "/admin" should only match exactly (not every admin sub-route)

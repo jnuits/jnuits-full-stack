@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Activity, Clock3, FileClock, ShieldCheck } from "lucide-react";
 import { PortalShell } from "@/components/portal/portal-shell";
-import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { requirePortalUser } from "@/lib/auth/session";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 
 export const metadata = { title: "Activity | JnUITS Member Portal" };
@@ -31,7 +31,7 @@ function requestTone(status: string) {
 }
 
 export default async function PortalActivityPage() {
-  const auth = await requireAuthenticatedUser({ fallbackPath: "/portal" });
+  const auth = await requirePortalUser({ fallbackPath: "/portal/activity" });
   if (!auth.user) return null;
 
   const snapshot = await getPortalMemberSnapshot(auth.user.id);
@@ -54,6 +54,7 @@ export default async function PortalActivityPage() {
     <PortalShell
       memberName={member?.full_name ?? null}
       jnuitsId={member?.jnuits_id ?? null}
+      portalRole={auth.user.portalRole}
     >
       <div className="portal-page-header">
         <div>
@@ -135,7 +136,7 @@ export default async function PortalActivityPage() {
               if your member record already exists.
             </p>
             <div className="mt-4">
-              <Link href="/profile" className="secondary-button">
+              <Link href="/portal/profile" className="secondary-button">
                 Open profile
               </Link>
             </div>
@@ -190,7 +191,7 @@ export default async function PortalActivityPage() {
                 </div>
                 <p className="portal-section__title">Request history</p>
               </div>
-              <Link href="/profile/edit" className="queue-link">
+              <Link href="/portal/profile/edit" className="queue-link">
                 Submit update
               </Link>
             </div>

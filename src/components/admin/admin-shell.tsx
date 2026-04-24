@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminNavClient } from "./admin-nav-client";
@@ -19,8 +20,10 @@ export type AdminBadgeCounts = {
 // ── Server component ──────────────────────────────────────────────────────────
 
 export async function AdminShell({
+  adminRole = null,
   children,
 }: {
+  adminRole?: null | string;
   children: React.ReactNode;
 }) {
   // Fetch badge counts — only plain numbers cross the RSC boundary
@@ -55,7 +58,7 @@ export async function AdminShell({
   return (
     <div className="admin-layout">
       {/* Client component renders sidebar (with icons defined client-side) */}
-      <AdminNavClient badgeCounts={badgeCounts} />
+      <AdminNavClient adminRole={adminRole} badgeCounts={badgeCounts} />
 
       {/* Right-side page wrapper */}
       <div className="admin-page-wrap">
@@ -77,6 +80,10 @@ export async function AdminShell({
             >
               View site <ExternalLink size={11} />
             </Link>
+            <LogoutButton
+              className="secondary-button inline-flex items-center gap-2 text-sm"
+              redirectTo="/admin/login"
+            />
             <ThemeToggle />
           </div>
         </header>

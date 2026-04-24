@@ -59,7 +59,7 @@ export function MemberBlogSubmissionsPanel({
 
       {submissions.length === 0 ? (
         <EmptyState
-          title="No submitted member drafts"
+          title="No blogs waiting for review"
           description="When portal authors submit drafts for editorial review, they will appear here ready to publish or return."
         />
       ) : (
@@ -71,7 +71,7 @@ export function MemberBlogSubmissionsPanel({
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1.04fr)_minmax(320px,0.96fr)]">
                 <div className="application-card__meta">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="eyebrow">Submitted draft</span>
+                    <span className="eyebrow">Editorial review</span>
                     {author?.jnuits_id ? (
                       <span className="detail-chip">{author.jnuits_id}</span>
                     ) : null}
@@ -129,7 +129,7 @@ export function MemberBlogSubmissionsPanel({
                     </label>
                     <label className="input-label">
                       Review status
-                      <input readOnly value="submitted" />
+                      <input readOnly value="pending_review" />
                     </label>
                   </div>
                   <div className="flex flex-wrap gap-3">
@@ -143,7 +143,7 @@ export function MemberBlogSubmissionsPanel({
                       className="secondary-button"
                       formAction={returnMemberBlogSubmission}
                     >
-                      Return to author
+                      Request changes
                     </button>
                   </div>
                 </form>

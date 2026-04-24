@@ -256,10 +256,10 @@ export function buildProfileChangeApprovedEmail(props: ProfileChangeApprovedEmai
     p(`Hi ${esc(memberName)}, your profile change request has been reviewed and approved. The following fields have been updated on your member profile:`),
     `<ul style="margin:0 0 20px;padding:0 0 0 20px;color:${MUTED};">${fieldList}</ul>`,
     noteBlock,
-    button("View your profile", "https://jnuits.org.bd/profile"),
+    button("View your profile", "https://jnuits.org.bd/portal/profile"),
     hr(),
     p(
-      `Need to make another change? ${link("Visit your profile editor", "https://jnuits.org.bd/profile/edit")}.`,
+      `Need to make another change? ${link("Visit your profile editor", "https://jnuits.org.bd/portal/profile/edit")}.`,
       "font-size:13px;margin:0;"
     ),
   ].join("");
@@ -288,7 +288,7 @@ export function buildProfileChangeRejectedEmail(props: ProfileChangeRejectedEmai
     p(`Hi ${esc(memberName)}, your recent profile change request has been reviewed. Unfortunately, we were unable to approve the requested changes at this time.`),
     noteBlock,
     p("If you believe there&rsquo;s been an error or would like to submit a revised request, you can do so from your profile editor at any time."),
-    button("Submit a new request", "https://jnuits.org.bd/profile/edit"),
+    button("Submit a new request", "https://jnuits.org.bd/portal/profile/edit"),
     hr(),
     p(
       `Have questions? ${link("Contact us", "https://jnuits.org.bd/contact")}.`,

@@ -6,12 +6,16 @@ import { z } from "zod";
 
 import { setAdminFlash } from "@/lib/admin/flash";
 import {
+  requireAdminPermission,
+  requireAdminUser,
+} from "@/lib/auth/session";
+import {
   insertAuditEvent as recordAuditEvent,
   upsertCloudinaryMediaAsset,
 } from "@/lib/content/media-assets";
 import type { Json } from "@/lib/db/types";
-import { requireAdminUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
@@ -506,7 +510,7 @@ export async function saveContentPost(formData: FormData) {
   redirect("/admin/content");
 }
 
-async function loadSubmittedBlog(
+async function loadPendingReviewBlog(
   admin: ReturnType<typeof createAdminClient>,
   postId: string
 ) {
@@ -521,7 +525,9 @@ async function loadSubmittedBlog(
 }
 
 export async function publishMemberBlogSubmission(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.blogs.review", {
+    fallbackPath: "/admin/content/blogs",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -529,6 +535,7 @@ export async function publishMemberBlogSubmission(formData: FormData) {
   }
 
   const admin = createAdminClient();
+  const flexibleAdmin = asFlexibleClient(admin);
   const parsed = blogReviewFormSchema.safeParse(
     pickFormFields(formData, ["postId", "publishedAt", "reviewNote"])
   );
@@ -547,7 +554,7 @@ export async function publishMemberBlogSubmission(formData: FormData) {
   const { postId, reviewNote } = parsed.data;
   const publishedAt = parseDateTime(parsed.data.publishedAt);
 
-  const post = await loadSubmittedBlog(admin, postId);
+  const post = await loadPendingReviewBlog(admin, postId);
 
   if (!post) {
     await setAdminFlash({
@@ -558,11 +565,11 @@ export async function publishMemberBlogSubmission(formData: FormData) {
     redirect("/admin/content");
   }
 
-  if (post.status !== "submitted") {
+  if (post.status !== "pending_review") {
     await setAdminFlash({
       tone: "error",
       title: "Blog review failed",
-      message: "Only submitted member drafts can be published from this queue.",
+      message: "Only drafts in editorial review can be published from this queue.",
     });
     redirect("/admin/content");
   }
@@ -592,7 +599,7 @@ export async function publishMemberBlogSubmission(formData: FormData) {
   if (post.author_member_id) {
     await admin.from("membership_lifecycle_events").insert({
       member_id: post.author_member_id,
-      event_type: "blog_draft_published",
+      event_type: "blog_review_published",
       summary: "A member-authored blog draft was published.",
       created_by_user_id: actorUserId,
       metadata: {
@@ -601,6 +608,13 @@ export async function publishMemberBlogSubmission(formData: FormData) {
       },
     });
   }
+
+  await flexibleAdmin.from("blog_review_events" as string).insert({
+    action: "published",
+    note: reviewNote || null,
+    post_id: postId,
+    reviewer_user_id: actorUserId,
+  });
 
   await insertAuditEvent({
     action: "content.member_blog_published",
@@ -625,7 +639,9 @@ export async function publishMemberBlogSubmission(formData: FormData) {
 }
 
 export async function returnMemberBlogSubmission(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.blogs.review", {
+    fallbackPath: "/admin/content/blogs",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -633,6 +649,7 @@ export async function returnMemberBlogSubmission(formData: FormData) {
   }
 
   const admin = createAdminClient();
+  const flexibleAdmin = asFlexibleClient(admin);
   const parsed = blogReviewFormSchema.safeParse(
     pickFormFields(formData, ["postId", "publishedAt", "reviewNote"])
   );
@@ -650,7 +667,7 @@ export async function returnMemberBlogSubmission(formData: FormData) {
 
   const { postId, reviewNote } = parsed.data;
 
-  const post = await loadSubmittedBlog(admin, postId);
+  const post = await loadPendingReviewBlog(admin, postId);
 
   if (!post) {
     await setAdminFlash({
@@ -665,10 +682,10 @@ export async function returnMemberBlogSubmission(formData: FormData) {
   const { error } = await admin
     .from("content_posts")
     .update({
-      review_note: reviewNote || "Returned to the author for revision.",
+      review_note: reviewNote || "Changes requested before publication.",
       reviewed_at: reviewTimestamp,
       reviewed_by_user_id: actorUserId,
-      status: "draft",
+      status: "change_requested",
       updated_at: reviewTimestamp,
     })
     .eq("id", postId);
@@ -685,8 +702,8 @@ export async function returnMemberBlogSubmission(formData: FormData) {
   if (post.author_member_id) {
     await admin.from("membership_lifecycle_events").insert({
       member_id: post.author_member_id,
-      event_type: "blog_draft_returned",
-      summary: "A member-authored blog draft was returned for revision.",
+      event_type: "blog_review_change_requested",
+      summary: "An editor requested changes on a member-authored blog draft.",
       created_by_user_id: actorUserId,
       metadata: {
         postId,
@@ -695,8 +712,15 @@ export async function returnMemberBlogSubmission(formData: FormData) {
     });
   }
 
+  await flexibleAdmin.from("blog_review_events" as string).insert({
+    action: "change_requested",
+    note: reviewNote || "Changes requested before publication.",
+    post_id: postId,
+    reviewer_user_id: actorUserId,
+  });
+
   await insertAuditEvent({
-    action: "content.member_blog_returned",
+    action: "content.member_blog_change_requested",
     actorUserId,
     entityId: postId,
     entityType: "content_post",
@@ -710,8 +734,8 @@ export async function returnMemberBlogSubmission(formData: FormData) {
   revalidatePath("/portal/blogs");
   await setAdminFlash({
     tone: "success",
-    title: "Member blog returned",
-    message: `${post.title} is back in the author's draft queue with your review note.`,
+    title: "Changes requested",
+    message: `${post.title} is back with the author together with your review note.`,
   });
   redirect("/admin/content");
 }

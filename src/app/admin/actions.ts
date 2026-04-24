@@ -1236,6 +1236,10 @@ export async function approveProfileChangeRequest(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/profile");
   revalidatePath("/profile/edit");
+  revalidatePath("/portal/profile");
+  revalidatePath("/portal/profile/edit");
+  revalidatePath("/portal/profile");
+  revalidatePath("/portal/profile/edit");
   await setAdminFlash({
     tone: "success",
     title: "Profile request approved",
@@ -1354,6 +1358,8 @@ export async function rejectProfileChangeRequest(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/profile/edit");
+  revalidatePath("/portal/profile/edit");
+  revalidatePath("/portal/profile/edit");
   await setAdminFlash({
     tone: "success",
     title: "Profile request rejected",

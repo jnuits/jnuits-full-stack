@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
@@ -167,6 +168,7 @@ export async function submitMemberBlogDraft(formData: FormData) {
   }
 
   const { admin, member } = await loadAuthorMember(auth.user.id);
+  const flexibleAdmin = asFlexibleClient(admin);
 
   if (!member) {
     redirect("/portal/blogs?error=member-required");
@@ -192,7 +194,7 @@ export async function submitMemberBlogDraft(formData: FormData) {
       review_note: null,
       reviewed_at: null,
       reviewed_by_user_id: null,
-      status: "submitted",
+      status: "pending_review",
       submitted_at: nowIso,
       updated_at: nowIso,
     })
@@ -203,7 +205,7 @@ export async function submitMemberBlogDraft(formData: FormData) {
   }
 
   await admin.from("audit_events").insert({
-    action: "member.blog_draft_submitted",
+    action: "member.blog_draft_pending_review",
     actor_user_id: auth.user.id,
     entity_id: postId,
     entity_type: "content_post",
@@ -215,12 +217,19 @@ export async function submitMemberBlogDraft(formData: FormData) {
 
   await admin.from("membership_lifecycle_events").insert({
     member_id: member.id,
-    event_type: "blog_draft_submitted",
-    summary: "A member-authored blog draft was submitted for review.",
+    event_type: "blog_draft_pending_review",
+    summary: "A member-authored blog draft entered editorial review.",
     created_by_user_id: auth.user.id,
     metadata: {
       postId,
     },
+  });
+
+  await flexibleAdmin.from("blog_review_events" as string).insert({
+    action: "submitted_for_review",
+    note: null,
+    post_id: postId,
+    reviewer_user_id: auth.user.id,
   });
 
   revalidatePath("/portal/blogs");

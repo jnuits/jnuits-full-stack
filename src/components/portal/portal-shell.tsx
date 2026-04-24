@@ -10,11 +10,14 @@ import {
   FolderKanban,
   KeyRound,
   LayoutDashboard,
+  LifeBuoy,
   Menu,
+  MessageSquareHeart,
   User,
   UserPen,
   X,
 } from "lucide-react";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { SiteBrand } from "@/components/layout/site-brand";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { portalNavigation } from "@/lib/site";
@@ -54,17 +57,19 @@ const NAV_GROUPS: NavGroup[] = [
     label: "My Workspace",
     items: [
       createNavItem("/portal", "Overview", LayoutDashboard),
-      createNavItem("/profile", "My Profile", User),
-      createNavItem("/profile/edit", "Edit Profile", UserPen),
+      createNavItem("/portal/profile", "My Profile", User),
+      createNavItem("/portal/profile/edit", "Edit Profile", UserPen),
     ],
   },
   {
     label: "Member Services",
     items: [
       createNavItem("/portal/blogs", "Draft Blogs", BookOpen),
+      createNavItem("/portal/tickets", "Tickets", LifeBuoy),
+      createNavItem("/portal/mentorship", "Mentorship", MessageSquareHeart),
       createNavItem("/portal/projects", "My Projects", FolderKanban),
       createNavItem("/portal/activity", "Activity", BarChart3),
-      createNavItem("/profile/change-password", "Password", KeyRound),
+      createNavItem("/portal/profile/change-password", "Password", KeyRound),
     ],
   },
 ];
@@ -73,7 +78,6 @@ const NAV_GROUPS: NavGroup[] = [
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/portal") return pathname === "/portal";
-  if (href === "/profile") return pathname === "/profile";
   return pathname.startsWith(href);
 }
 
@@ -94,11 +98,25 @@ interface PortalShellProps {
   memberName?: string | null;
   /** JNUITS ID for the sidebar identity card */
   jnuitsId?: string | null;
+  portalRole?: null | string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function PortalShell({ children, memberName, jnuitsId }: PortalShellProps) {
+function getPortalRoleLabel(portalRole: null | string) {
+  if (!portalRole) {
+    return "Portal workspace";
+  }
+
+  return `${portalRole.replaceAll("_", " ")} workspace`;
+}
+
+export function PortalShell({
+  children,
+  memberName,
+  jnuitsId,
+  portalRole = null,
+}: PortalShellProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -203,7 +221,15 @@ export function PortalShell({ children, memberName, jnuitsId }: PortalShellProps
           >
             {sidebarOpen ? <X size={15} /> : <Menu size={15} />}
           </button>
-          <span className="portal-badge portal-badge--member">Member workspace</span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="portal-badge portal-badge--member">
+              {getPortalRoleLabel(portalRole)}
+            </span>
+            <LogoutButton
+              className="secondary-button inline-flex items-center gap-2 text-sm"
+              redirectTo="/portal/login"
+            />
+          </div>
         </div>
 
         {/* Main scrollable area */}

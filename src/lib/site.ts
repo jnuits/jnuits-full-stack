@@ -113,12 +113,14 @@ export const implementationPhases: ImplementationPhase[] = [
 
 export const portalNavigation: NavItem[] = [
   { href: "/portal", label: "Overview" },
-  { href: "/profile", label: "My Profile" },
-  { href: "/profile/edit", label: "Edit Profile" },
+  { href: "/portal/profile", label: "My Profile" },
+  { href: "/portal/profile/edit", label: "Edit Profile" },
   { href: "/portal/blogs", label: "Draft Blogs" },
+  { href: "/portal/tickets", label: "Tickets" },
+  { href: "/portal/mentorship", label: "Mentorship" },
   { href: "/portal/projects", label: "My Projects" },
   { href: "/portal/activity", label: "Activity" },
-  { href: "/profile/change-password", label: "Password" },
+  { href: "/portal/profile/change-password", label: "Password" },
 ];
 
 export const adminNavigation: NavItem[] = [
@@ -140,4 +142,7 @@ export const adminNavigation: NavItem[] = [
   { href: "/admin/reconcile", label: "Reconcile" },
   { href: "/admin/certificates", label: "Certificates" },
   { href: "/admin/decisions", label: "Decisions Log" },
+  { href: "/admin/settings/profile", label: "Profile Settings" },
+  { href: "/admin/settings/security", label: "Security Settings" },
+  { href: "/admin/settings/notifications", label: "Notification Settings" },
 ];

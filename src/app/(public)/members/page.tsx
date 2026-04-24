@@ -207,7 +207,7 @@ export default async function MembersPage({
             </span>
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/profile/edit" className="secondary-button">
+            <Link href="/portal/profile/edit" className="secondary-button">
               Verify in member portal
             </Link>
             <Link href="/membership-form" className="ghost-button">

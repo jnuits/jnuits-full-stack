@@ -1,0 +1,64 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { requireAdminPermission } from "@/lib/auth/session";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { createClient } from "@/lib/supabase/server";
+
+const notificationSettingsSchema = z.object({
+  notificationEmailOptIn: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  ticketDigestOptIn: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+});
+
+function readCheckbox(formData: FormData, name: string) {
+  return formData.get(name) ? "true" : "false";
+}
+
+export async function saveAdminNotificationSettings(formData: FormData) {
+  const auth = await requireAdminPermission("admin.settings.write", {
+    fallbackPath: "/admin/settings/notifications",
+  });
+
+  if (!auth.user) {
+    redirect("/admin/login?next=%2Fadmin%2Fsettings%2Fnotifications");
+  }
+
+  const parsed = notificationSettingsSchema.safeParse({
+    notificationEmailOptIn: readCheckbox(formData, "notificationEmailOptIn"),
+    ticketDigestOptIn: readCheckbox(formData, "ticketDigestOptIn"),
+  });
+
+  if (!parsed.success) {
+    redirect("/admin/settings/notifications?error=settings-invalid");
+  }
+
+  const supabase = asFlexibleClient(await createClient());
+  const { error } = await supabase.from("portal_user_settings").upsert(
+    {
+      member_id: auth.user.memberId,
+      notification_email_opt_in: parsed.data.notificationEmailOptIn,
+      ticket_digest_opt_in: parsed.data.ticketDigestOptIn,
+      user_id: auth.user.id,
+    },
+    { onConflict: "user_id" }
+  );
+
+  if (error) {
+    redirect(
+      `/admin/settings/notifications?error=${encodeURIComponent(
+        error.message || "settings-save"
+      )}`
+    );
+  }
+
+  revalidatePath("/admin/settings/notifications");
+  redirect("/admin/settings/notifications?message=settings-saved");
+}

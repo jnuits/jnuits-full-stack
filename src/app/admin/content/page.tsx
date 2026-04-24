@@ -39,7 +39,7 @@ export default async function ContentHubPage() {
       .from("content_posts")
       .select("*", { count: "exact", head: true })
       .eq("content_type", "blog")
-      .eq("status", "submitted"),
+      .eq("status", "pending_review"),
   ]);
 
   const tiles = [

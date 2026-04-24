@@ -70,7 +70,7 @@ export default async function BlogsPage({
       .from("content_posts")
       .select("id, title, slug, summary, category, read_time, submitted_at, updated_at, review_note, author_member_id, members!content_posts_author_member_id_fkey(full_name, jnuits_id, email)")
       .eq("content_type", "blog")
-      .eq("status", "submitted")
+      .eq("status", "pending_review")
       .order("submitted_at", { ascending: true })
       .limit(10),
     admin.from("media_assets").select("id, title, public_id, media_kind").order("created_at", { ascending: false }).limit(30),

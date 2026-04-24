@@ -150,7 +150,7 @@ export default function MembershipFormPage() {
               dashboard, update your details, and view your membership history.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
-              <Link href="/login" className="secondary-button">
+              <Link href="/portal/login" className="secondary-button">
                 Sign in
               </Link>
               <Link href="/register" className="ghost-button">

@@ -1,68 +1,55 @@
-import { login } from "@/app/(auth)/actions";
-import { resolveSafeNextPath } from "@/lib/auth/session";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import {
+  resolveLoginPathForRoute,
+  resolveSafeNextPath,
+} from "@/lib/auth/session";
 
-export default async function LoginPage({
+function asSingleParam(value: string | string[] | undefined) {
+  return typeof value === "string" ? value : null;
+}
+
+export default async function LegacyLoginPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const error =
-    typeof resolvedSearchParams.error === "string"
-      ? resolvedSearchParams.error
-      : null;
-  const message =
-    typeof resolvedSearchParams.message === "string"
-      ? resolvedSearchParams.message
-      : null;
-  const next = resolveSafeNextPath(
-    typeof resolvedSearchParams.next === "string"
-      ? resolvedSearchParams.next
-      : null,
-    "/portal"
-  );
+  const requestHeaders = await headers();
+  const explicitNext = asSingleParam(resolvedSearchParams.next);
+  const referer = requestHeaders.get("referer");
+  let inferredNext: null | string = null;
 
-  return (
-    <div>
-      <span className="eyebrow">Member sign in</span>
-      <h1 className="section-title mt-4 text-[2.4rem]">Sign in to your JnUITS account.</h1>
-      <p className="section-copy mt-3">
-        Access your member portal, profile, and activity history. Use the
-        email and password you registered with.
-      </p>
-      {message ? <p className="status-pill mt-6">{message}</p> : null}
-      {error ? (
-        <p className="mt-4 text-sm font-semibold text-[var(--brand-rust)]">{error}</p>
-      ) : null}
-      <form className="mt-8 grid gap-4">
-        <label className="input-label" htmlFor="login-email">
-          Email address
-          <input
-            id="login-email"
-            autoComplete="email"
-            name="email"
-            type="email"
-            placeholder="you@example.com"
-            required
-          />
-        </label>
-        <label className="input-label" htmlFor="login-password">
-          Password
-          <input
-            id="login-password"
-            autoComplete="current-password"
-            name="password"
-            type="password"
-            placeholder="Your password"
-            required
-          />
-        </label>
-        <input type="hidden" name="next" value={next} />
-        <button className="primary-button" formAction={login}>
-          Sign in
-        </button>
-      </form>
-    </div>
-  );
+  if (!explicitNext && referer) {
+    try {
+      const refererUrl = new URL(referer);
+      inferredNext = `${refererUrl.pathname}${refererUrl.search}`;
+    } catch {
+      inferredNext = null;
+    }
+  }
 
+  const nextPath = resolveSafeNextPath(explicitNext ?? inferredNext, "/portal/dashboard");
+  const targetLoginPath = resolveLoginPathForRoute(nextPath);
+  const redirectParams = new URLSearchParams();
+  const error = asSingleParam(resolvedSearchParams.error);
+  const message = asSingleParam(resolvedSearchParams.message);
+
+  if (error) {
+    redirectParams.set("error", error);
+  }
+
+  if (message) {
+    redirectParams.set("message", message);
+  }
+
+  if (explicitNext ?? inferredNext) {
+    redirectParams.set("next", nextPath);
+  }
+
+  redirect(
+    redirectParams.size > 0
+      ? `${targetLoginPath}?${redirectParams.toString()}`
+      : targetLoginPath
+  );
 }

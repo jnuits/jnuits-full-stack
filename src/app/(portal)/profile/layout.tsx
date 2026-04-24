@@ -1,11 +1,11 @@
-import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { requirePortalUser } from "@/lib/auth/session";
 
 export default async function MemberProfileLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireAuthenticatedUser({ fallbackPath: "/profile" });
+  await requirePortalUser({ fallbackPath: "/profile" });
 
   return <>{children}</>;
 }

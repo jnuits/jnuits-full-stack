@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -5073,49 +5074,49 @@ footer {
 }
 
 .event-markdown {
-  display: grid;
-  gap: 1rem;
+  --tw-prose-body: var(--muted-foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-links: var(--brand-blue);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-bullets: color-mix(in oklab, var(--brand-blue) 46%, transparent);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--line);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: color-mix(in oklab, var(--muted) 90%, transparent);
+  --tw-prose-th-borders: var(--line);
+  --tw-prose-td-borders: var(--line);
+  --tw-prose-invert-body: color-mix(in oklab, white 76%, var(--muted-foreground));
+  --tw-prose-invert-headings: color-mix(in oklab, white 92%, var(--foreground));
+  --tw-prose-invert-links: color-mix(in oklab, white 88%, var(--brand-blue));
+  --tw-prose-invert-bold: color-mix(in oklab, white 92%, var(--foreground));
+  --tw-prose-invert-bullets: color-mix(in oklab, white 40%, var(--brand-blue));
+  --tw-prose-invert-counters: color-mix(in oklab, white 72%, var(--muted-foreground));
+  --tw-prose-invert-quotes: color-mix(in oklab, white 92%, var(--foreground));
+  --tw-prose-invert-quote-borders: color-mix(in oklab, var(--line) 78%, white 22%);
+  --tw-prose-invert-code: color-mix(in oklab, white 92%, var(--foreground));
+  --tw-prose-invert-pre-code: color-mix(in oklab, white 92%, var(--foreground));
+  --tw-prose-invert-pre-bg: color-mix(in oklab, var(--card) 88%, black 12%);
+  --tw-prose-invert-th-borders: color-mix(in oklab, var(--line) 82%, white 18%);
+  --tw-prose-invert-td-borders: color-mix(in oklab, var(--line) 82%, white 18%);
 }
 
-.event-markdown h1,
-.event-markdown h2,
-.event-markdown h3,
-.event-markdown h4 {
+.event-markdown :where(h1, h2, h3, h4):not(:where([class~="not-prose"] *)) {
   font-family: var(--font-heading);
   letter-spacing: -0.03em;
-  line-height: 0.98;
-  color: var(--foreground);
+  line-height: 1;
 }
 
-.event-markdown h2 {
+.event-markdown :where(h2):not(:where([class~="not-prose"] *)) {
   font-size: clamp(1.5rem, 2vw, 2rem);
 }
 
-.event-markdown h3 {
+.event-markdown :where(h3):not(:where([class~="not-prose"] *)) {
   font-size: 1.2rem;
 }
 
-.event-markdown p,
-.event-markdown li,
-.event-markdown blockquote {
-  color: var(--muted-foreground);
-  line-height: 1.8;
-}
-
-.event-markdown ul,
-.event-markdown ol {
-  margin-left: 1.2rem;
-  display: grid;
-  gap: 0.4rem;
-}
-
-.event-markdown a {
-  color: var(--brand-blue);
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
-}
-
-.event-markdown code {
+.event-markdown :where(code):not(:where(pre code, [class~="not-prose"] *)) {
   border-radius: 0.45rem;
   background: color-mix(in oklab, var(--muted) 88%, transparent);
   padding: 0.1rem 0.4rem;

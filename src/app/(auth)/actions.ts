@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { resolveSafeNextPath } from "@/lib/auth/session";
+import {
+  hasAdminRole,
+  hasPortalRole,
+  resolveScopedNextPath,
+} from "@/lib/auth/session";
+import { checkAdminMFA } from "@/lib/auth/mfa";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
 import { hashInvitationCode } from "@/lib/members/invitation-code";
@@ -85,32 +90,172 @@ type InvitationLookup = Database["public"]["Tables"]["member_invitations"]["Row"
     | null;
 };
 
-export async function login(formData: FormData) {
+type LoginPortal = "admin" | "portal";
+
+const ADMIN_LOGIN_PREFIXES = ["/admin"];
+const PORTAL_LOGIN_PREFIXES = ["/portal", "/profile"];
+
+function getLoginPagePath(portal: LoginPortal) {
+  return portal === "admin" ? "/admin/login" : "/portal/login";
+}
+
+function getPortalDashboardPath(portal: LoginPortal) {
+  return portal === "admin" ? "/admin/dashboard" : "/portal/dashboard";
+}
+
+function resolveLoginRedirectPath(portal: LoginPortal, nextPath: string) {
+  const fallbackPath = getPortalDashboardPath(portal);
+  const scopedPath = resolveScopedNextPath(
+    nextPath,
+    portal === "admin" ? ADMIN_LOGIN_PREFIXES : PORTAL_LOGIN_PREFIXES,
+    fallbackPath
+  );
+
+  const rootPath = portal === "admin" ? "/admin" : "/portal";
+  if (scopedPath === rootPath || scopedPath === getLoginPagePath(portal)) {
+    return fallbackPath;
+  }
+
+  return scopedPath;
+}
+
+function redirectToLoginPage(
+  portal: LoginPortal,
+  options: {
+    error?: string;
+    message?: string;
+    next?: string;
+  } = {}
+): never {
+  const searchParams = new URLSearchParams();
+
+  if (options.error) {
+    searchParams.set("error", options.error);
+  }
+
+  if (options.message) {
+    searchParams.set("message", options.message);
+  }
+
+  if (options.next) {
+    searchParams.set("next", options.next);
+  }
+
+  const pathname = getLoginPagePath(portal);
+  const query = searchParams.toString();
+
+  redirect(query ? `${pathname}?${query}` : pathname);
+}
+
+async function loadActiveRoleCodes(userId: string) {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("rbac_user_platform_roles")
+    .select("rbac_platform_roles(code)")
+    .eq("user_id", userId)
+    .is("revoked_at", null);
+
+  return (data || [])
+    .map((row) => {
+      const roleRecord = (
+        row as {
+          rbac_platform_roles?:
+            | { code?: string | null }
+            | { code?: string | null }[]
+            | null;
+        }
+      ).rbac_platform_roles;
+
+      if (Array.isArray(roleRecord)) {
+        return typeof roleRecord[0]?.code === "string" ? roleRecord[0].code : null;
+      }
+
+      return typeof roleRecord?.code === "string" ? roleRecord.code : null;
+    })
+    .filter((value): value is string => Boolean(value));
+}
+
+async function loginForPortal(portal: LoginPortal, formData: FormData) {
   const parsed = loginSchema.safeParse(
     pickFormFields(formData, ["email", "password", "next"])
   );
 
   if (!parsed.success) {
-    redirect(
-      `/login?error=${encodeMessage(parsed.error.issues[0]?.message || "Email and password are required.")}`
-    );
+    redirectToLoginPage(portal, {
+      error:
+        parsed.error.issues[0]?.message || "Email and password are required.",
+    });
   }
 
   const { email, password } = parsed.data;
-  const nextPath = resolveSafeNextPath(parsed.data.next, "/portal");
-
+  const nextPath = resolveLoginRedirectPath(portal, parsed.data.next);
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
-    redirect(`/login?error=${encodeMessage(error.message)}`);
+    redirectToLoginPage(portal, {
+      error: error.message,
+      next: nextPath,
+    });
   }
 
+  const userId = data.user?.id;
+  if (!userId) {
+    redirectToLoginPage(portal, {
+      error: "Sign-in succeeded, but the user session could not be established.",
+      next: nextPath,
+    });
+  }
+
+  const { error: refreshError } = await supabase.auth.refreshSession();
+
+  if (refreshError) {
+    await supabase.auth.signOut();
+    redirectToLoginPage(portal, {
+      error: refreshError.message,
+      next: nextPath,
+    });
+  }
+
+  await supabase.auth.getClaims();
+
+  const roles = await loadActiveRoleCodes(userId);
+  const authorized =
+    portal === "admin" ? hasAdminRole(roles) : hasPortalRole(roles);
+
+  if (!authorized) {
+    await supabase.auth.signOut();
+    redirectToLoginPage(portal, {
+      error:
+        portal === "admin"
+          ? "This account does not have access to the admin portal."
+          : "This account does not have access to the member portal.",
+      next: nextPath,
+    });
+  }
+
+  const redirectPath =
+    portal === "admin"
+      ? (await checkAdminMFA(supabase)).redirectTo || nextPath
+      : nextPath;
+
   revalidatePath("/", "layout");
-  redirect(nextPath);
+  redirect(redirectPath);
+}
+
+export async function login(formData: FormData) {
+  await loginPortal(formData);
+}
+
+export async function loginAdmin(formData: FormData) {
+  await loginForPortal("admin", formData);
+}
+
+export async function loginPortal(formData: FormData) {
+  await loginForPortal("portal", formData);
 }
 
 export async function requestPasswordReset(formData: FormData) {
@@ -152,7 +297,9 @@ export async function updatePassword(formData: FormData) {
     redirect(`/reset-password?error=${encodeMessage(error.message)}`);
   }
 
-  redirect("/login?message=Password updated. Sign in with your new password.");
+  redirect(
+    "/portal/login?message=Password updated. Sign in with your new password."
+  );
 }
 
 export async function claimProfile(formData: FormData) {
@@ -213,7 +360,7 @@ export async function claimProfile(formData: FormData) {
     email,
     password,
     options: {
-      emailRedirectTo: getEmailRedirect("/portal"),
+      emailRedirectTo: getEmailRedirect("/portal/dashboard"),
       data: {
         jnuits_id: jnuitsId,
         claim_source: "member_invitation",

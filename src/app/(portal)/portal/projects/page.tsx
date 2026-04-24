@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PortalShell } from "@/components/portal/portal-shell";
-import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { requirePortalUser } from "@/lib/auth/session";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 import { getMemberProjects } from "@/lib/content/projects";
 import { FolderKanban, GitBranch, Globe, Info } from "lucide-react";
@@ -8,7 +8,7 @@ import { FolderKanban, GitBranch, Globe, Info } from "lucide-react";
 export const metadata = { title: "My Projects | JnUITS Member Portal" };
 
 export default async function PortalProjectsPage() {
-  const auth = await requireAuthenticatedUser({ fallbackPath: "/portal" });
+  const auth = await requirePortalUser({ fallbackPath: "/portal/projects" });
   if (!auth.user) return null;
 
   const snapshot = await getPortalMemberSnapshot(auth.user.id);
@@ -22,6 +22,7 @@ export default async function PortalProjectsPage() {
     <PortalShell
       memberName={member?.full_name ?? null}
       jnuitsId={member?.jnuits_id ?? null}
+      portalRole={auth.user.portalRole}
     >
       {/* Page header */}
       <div className="portal-page-header">

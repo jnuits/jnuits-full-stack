@@ -153,7 +153,7 @@ export function SiteHeader({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
-  const authHref = authenticated ? "/portal" : "/login";
+  const authHref = authenticated ? "/portal/dashboard" : "/portal/login";
   const authLabel = authenticated ? "Portal" : "Sign In";
 
   useEffect(() => {

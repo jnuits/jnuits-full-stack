@@ -3,7 +3,7 @@ import {
   submitMemberBlogDraft,
 } from "@/app/(portal)/portal/blogs/actions";
 import { PortalShell } from "@/components/portal/portal-shell";
-import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { requirePortalUser } from "@/lib/auth/session";
 import { getPortalBlogAuthorSnapshot } from "@/lib/portal/blogs";
 import { BookOpen, FilePen, Info, SendHorizonal } from "lucide-react";
 
@@ -23,9 +23,9 @@ const errorMap: Record<string, string> = {
 };
 
 function statusBadgeClass(status: string): string {
-  if (status === "submitted" || status === "pending_review") return "portal-badge--submitted";
+  if (status === "pending_review") return "portal-badge--submitted";
   if (status === "approved" || status === "published") return "portal-badge--verified";
-  if (status === "returned") return "portal-badge--returned";
+  if (status === "change_requested") return "portal-badge--returned";
   return "portal-badge--draft";
 }
 
@@ -34,7 +34,7 @@ export default async function PortalBlogsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const auth = await requireAuthenticatedUser({ fallbackPath: "/portal" });
+  const auth = await requirePortalUser({ fallbackPath: "/portal/blogs" });
   if (!auth.user) return null;
 
   const resolvedSearchParams = await searchParams;
@@ -59,6 +59,7 @@ export default async function PortalBlogsPage({
     <PortalShell
       memberName={snapshot.member?.full_name ?? null}
       jnuitsId={snapshot.member?.jnuits_id ?? null}
+      portalRole={auth.user.portalRole}
     >
       {/* Page header */}
       <div className="portal-page-header">
@@ -246,11 +247,11 @@ export default async function PortalBlogsPage({
                     <input name="postId" type="hidden" value={selectedDraft?.id || ""} />
                     <button
                       className="secondary-button"
-                      disabled={!selectedDraft || selectedDraft.status === "submitted"}
+                      disabled={!selectedDraft || selectedDraft.status === "pending_review"}
                       type="submit"
                       style={{ width: "100%" }}
                     >
-                      {selectedDraft?.status === "submitted"
+                      {selectedDraft?.status === "pending_review"
                         ? "Already submitted"
                         : "Submit selected draft for review"}
                     </button>
@@ -304,9 +305,9 @@ export default async function PortalBlogsPage({
                     <div key={draft.id} className="portal-draft-card">
                       <div className="portal-draft-card__header">
                         <p className="portal-draft-card__title">{draft.title}</p>
-                        <span className={`portal-badge ${statusBadgeClass(draft.status)}`}>
-                          {draft.status.replaceAll("_", " ")}
-                        </span>
+                    <span className={`portal-badge ${statusBadgeClass(draft.status)}`}>
+                      {draft.status.replaceAll("_", " ")}
+                    </span>
                       </div>
                       {draft.summary && (
                         <p className="portal-draft-card__summary">{draft.summary}</p>

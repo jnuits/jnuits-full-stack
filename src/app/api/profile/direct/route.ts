@@ -137,6 +137,8 @@ async function handleDirectEdit(
 
   revalidatePath("/profile");
   revalidatePath("/profile/edit");
+  revalidatePath("/portal/profile");
+  revalidatePath("/portal/profile/edit");
 
   return NextResponse.json(
     {
