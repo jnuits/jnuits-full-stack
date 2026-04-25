@@ -30,15 +30,28 @@ function resolveMember<T>(value: T | T[] | null | undefined): T | null {
 
 function parseProfilePayload(payload: unknown) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return { fullName: null, linkedinUrl: null, phone: null, websiteUrl: null };
+    return {
+      fullName: null,
+      linkedinUrl: null,
+      newEmail: null,
+      newJnuitsId: null,
+      phone: null,
+      websiteUrl: null,
+    };
   }
   const r = payload as Record<string, unknown>;
   return {
     fullName: typeof r.fullName === "string" && r.fullName.trim() ? r.fullName.trim() : null,
     linkedinUrl: typeof r.linkedinUrl === "string" && r.linkedinUrl.trim() ? r.linkedinUrl.trim() : null,
+    newEmail: typeof r.newEmail === "string" && r.newEmail.trim() ? r.newEmail.trim() : null,
+    newJnuitsId: typeof r.newJnuitsId === "string" && r.newJnuitsId.trim() ? r.newJnuitsId.trim() : null,
     phone: typeof r.phone === "string" && r.phone.trim() ? r.phone.trim() : null,
     websiteUrl: typeof r.websiteUrl === "string" && r.websiteUrl.trim() ? r.websiteUrl.trim() : null,
   };
+}
+
+function formatRequestType(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 export const metadata = { title: "Profile Changes — Admin | JnUITS" };
@@ -54,21 +67,21 @@ export default async function ProfileChangesPage() {
       .select(
         "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, phone, linkedin_url, website_url)"
       )
-      .eq("request_type", "profile_change")
+      .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
       .eq("status", "pending")
       .order("requested_at", { ascending: true })
       .limit(20),
     admin
       .from("profile_update_requests")
-      .select("id, member_id, requested_at, reviewed_at, status, members(full_name, jnuits_id)")
-      .eq("request_type", "profile_change")
+      .select("id, member_id, request_type, requested_at, reviewed_at, status, members(full_name, jnuits_id)")
+      .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
       .neq("status", "pending")
       .order("reviewed_at", { ascending: false })
       .limit(10),
     admin
       .from("profile_update_requests")
       .select("*", { count: "exact", head: true })
-      .eq("request_type", "profile_change")
+      .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
       .eq("status", "pending"),
   ]);
 
@@ -143,7 +156,9 @@ export default async function ProfileChangesPage() {
                   <div className="admin-review-card__header">
                     <div>
                       <div className="admin-review-card__chips">
-                        <span className="abadge abadge--pending">Profile change</span>
+                        <span className="abadge abadge--pending">
+                          {formatRequestType(req.request_type)}
+                        </span>
                         {member?.jnuits_id && <span className="detail-chip">{member.jnuits_id}</span>}
                         <span className="detail-chip">{new Date(req.requested_at).toLocaleDateString("en-BD")}</span>
                       </div>
@@ -173,13 +188,25 @@ export default async function ProfileChangesPage() {
                           <span className="truncate text-xs">{payload.linkedinUrl}</span>
                         </div>
                       )}
+                      {payload.newEmail && (
+                        <div className="admin-diff-box__item">
+                          <span className="admin-diff-box__key">New email</span>
+                          <span>{payload.newEmail}</span>
+                        </div>
+                      )}
+                      {payload.newJnuitsId && (
+                        <div className="admin-diff-box__item">
+                          <span className="admin-diff-box__key">New JnUITS ID</span>
+                          <span>{payload.newJnuitsId}</span>
+                        </div>
+                      )}
                       {payload.websiteUrl && (
                         <div className="admin-diff-box__item">
                           <span className="admin-diff-box__key">Website URL</span>
                           <span className="truncate text-xs">{payload.websiteUrl}</span>
                         </div>
                       )}
-                      {!payload.fullName && !payload.phone && !payload.linkedinUrl && !payload.websiteUrl && (
+                      {!payload.fullName && !payload.phone && !payload.linkedinUrl && !payload.websiteUrl && !payload.newEmail && !payload.newJnuitsId && (
                         <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>No specific field changes detected</p>
                       )}
                     </div>
@@ -188,6 +215,14 @@ export default async function ProfileChangesPage() {
                       <div className="admin-diff-box__item">
                         <span className="admin-diff-box__key">Name on record</span>
                         <span>{member?.full_name || "—"}</span>
+                      </div>
+                      <div className="admin-diff-box__item">
+                        <span className="admin-diff-box__key">Email on record</span>
+                        <span>{member?.email || "—"}</span>
+                      </div>
+                      <div className="admin-diff-box__item">
+                        <span className="admin-diff-box__key">JnUITS ID on record</span>
+                        <span>{member?.jnuits_id || "—"}</span>
                       </div>
                       <div className="admin-diff-box__item">
                         <span className="admin-diff-box__key">Phone on record</span>
@@ -237,6 +272,7 @@ export default async function ProfileChangesPage() {
                 <tr>
                   <th>Member</th>
                   <th>JnUITS ID</th>
+                  <th>Type</th>
                   <th>Status</th>
                   <th>Reviewed</th>
                 </tr>
@@ -248,6 +284,7 @@ export default async function ProfileChangesPage() {
                     <tr key={req.id}>
                       <td className="font-semibold text-sm">{m?.full_name || "—"}</td>
                       <td className="text-xs font-mono" style={{ color: "var(--brand-blue)" }}>{m?.jnuits_id || "—"}</td>
+                      <td className="text-xs capitalize">{formatRequestType(req.request_type)}</td>
                       <td><span className={`abadge abadge--${req.status}`}>{req.status}</span></td>
                       <td className="text-xs" style={{ color: "var(--muted-foreground)" }}>
                         {req.reviewed_at ? new Date(req.reviewed_at).toLocaleDateString("en-BD") : "—"}

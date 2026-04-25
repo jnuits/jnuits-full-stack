@@ -300,6 +300,37 @@ export function buildProfileChangeRejectedEmail(props: ProfileChangeRejectedEmai
 
 // ──────────────────────────────────────────────────────────────────────────
 
+export interface EmailChangeVerificationEmailProps {
+  actionLink: string;
+  memberName: string;
+  newEmail: string;
+  oldEmail: string;
+  step: "current" | "new";
+}
+
+export function buildEmailChangeVerificationEmail(
+  props: EmailChangeVerificationEmailProps
+): string {
+  const { actionLink, memberName, newEmail, oldEmail, step } = props;
+  const isCurrentStep = step === "current";
+  const content = [
+    h1(isCurrentStep ? "Confirm your current email" : "Confirm your new email"),
+    p(
+      `Hi ${esc(memberName)}, your JnUITS email change request was approved. To complete the change from <strong style="color:${TEXT};">${esc(oldEmail)}</strong> to <strong style="color:${TEXT};">${esc(newEmail)}</strong>, please verify this ${isCurrentStep ? "current" : "new"} email address.`
+    ),
+    button("Verify email change", actionLink),
+    hr(),
+    p(
+      "If you did not request this change, ignore this email and contact JnUITS support.",
+      "font-size:13px;margin:0;"
+    ),
+  ].join("");
+
+  return wrap("Verify your JnUITS email change request.", content);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+
 const DATE_FMT = new Intl.DateTimeFormat("en-GB", {
   weekday: "long",
   day: "numeric",

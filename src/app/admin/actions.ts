@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Database } from "@/lib/db/types";
 import { requireAdminUser } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
+import { getAppBaseUrl } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   DEFAULT_INVITATION_EXPIRY_DAYS,
@@ -27,6 +28,7 @@ import { sendEmail } from "@/lib/notifications/send-email";
 import {
   buildMembershipApprovedEmail,
   buildMembershipRejectedEmail,
+  buildEmailChangeVerificationEmail,
   buildProfileChangeApprovedEmail,
   buildProfileChangeRejectedEmail,
 } from "@/lib/notifications/email-builders";
@@ -82,6 +84,18 @@ function pickFormFields(formData: FormData, fields: string[]) {
   return Object.fromEntries(
     fields.map((field) => [field, asString(formData.get(field))])
   );
+}
+
+function buildEmailChangeConfirmUrl(options: {
+  nextPath: string;
+  tokenHash: string;
+  type: string;
+}) {
+  const url = new URL("/auth/confirm", getAppBaseUrl());
+  url.searchParams.set("token_hash", options.tokenHash);
+  url.searchParams.set("type", options.type);
+  url.searchParams.set("next", options.nextPath);
+  return url.toString();
 }
 
 async function loadPendingApplication(applicationId: string) {
@@ -1088,11 +1102,15 @@ export async function approveProfileChangeRequest(formData: FormData) {
     redirect("/admin#profile-requests");
   }
 
-  if (request.request_type !== "profile_change") {
+  if (
+    request.request_type !== "profile_change" &&
+    request.request_type !== "email_change" &&
+    request.request_type !== "jnuits_id_change"
+  ) {
     await setAdminFlash({
       tone: "error",
       title: "Unsupported request type",
-      message: "Only profile change requests can be approved from this queue.",
+      message: "Only profile, email, and JnUITS ID change requests can be approved from this queue.",
     });
     redirect("/admin#profile-requests");
   }
@@ -1136,8 +1154,16 @@ export async function approveProfileChangeRequest(formData: FormData) {
     typeof payload.websiteUrl === "string" && payload.websiteUrl.trim()
       ? payload.websiteUrl.trim()
       : null;
+  const newEmail =
+    typeof payload.newEmail === "string" && payload.newEmail.trim()
+      ? payload.newEmail.trim().toLowerCase()
+      : null;
+  const newJnuitsId =
+    typeof payload.newJnuitsId === "string" && payload.newJnuitsId.trim()
+      ? normalizeJnuitsIdForCreation(payload.newJnuitsId)
+      : null;
 
-  if (!fullName && !phone && !linkedinUrl && !websiteUrl) {
+  if (request.request_type === "profile_change" && !fullName && !phone && !linkedinUrl && !websiteUrl) {
     await setAdminFlash({
       tone: "error",
       title: "Profile approval failed",
@@ -1146,9 +1172,27 @@ export async function approveProfileChangeRequest(formData: FormData) {
     redirect("/admin#profile-requests");
   }
 
+  if (request.request_type === "email_change" && !newEmail) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Email approval failed",
+      message: "This request does not contain a valid target email address.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  if (request.request_type === "jnuits_id_change" && !newJnuitsId) {
+    await setAdminFlash({
+      tone: "error",
+      title: "JnUITS ID approval failed",
+      message: "This request does not contain a valid JnUITS ID.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
   const { data: member } = await admin
     .from("members")
-    .select("id, full_name, jnuits_id")
+    .select("id, full_name, email, jnuits_id, user_id")
     .eq("id", request.member_id)
     .maybeSingle();
 
@@ -1162,6 +1206,206 @@ export async function approveProfileChangeRequest(formData: FormData) {
   }
 
   const nowIso = new Date().toISOString();
+
+  if (request.request_type === "jnuits_id_change") {
+    const approvedJnuitsId = newJnuitsId as string;
+    const { data: existingMember } = await admin
+      .from("members")
+      .select("id")
+      .eq("jnuits_id", approvedJnuitsId)
+      .neq("id", member.id)
+      .maybeSingle();
+
+    if (existingMember) {
+      await setAdminFlash({
+        tone: "error",
+        title: "JnUITS ID approval failed",
+        message: `The requested ID ${approvedJnuitsId} is already assigned.`,
+      });
+      redirect("/admin#profile-requests");
+    }
+
+    const { error: memberError } = await admin
+      .from("members")
+      .update({
+        jnuits_id: approvedJnuitsId,
+        updated_at: nowIso,
+      })
+      .eq("id", member.id);
+
+    if (memberError) {
+      await setAdminFlash({
+        tone: "error",
+        title: "JnUITS ID approval failed",
+        message: memberError.message,
+      });
+      redirect("/admin#profile-requests");
+    }
+
+    await admin
+      .from("profile_update_requests")
+      .update({
+        review_note: reviewNote || null,
+        reviewed_at: nowIso,
+        reviewed_by_user_id: actorUserId,
+        status: "approved",
+        updated_at: nowIso,
+      })
+      .eq("id", request.id);
+
+    await admin.from("audit_events").insert({
+      actor_user_id: actorUserId,
+      action: "member.jnuits_id_change_request_approved",
+      entity_type: "profile_update_request",
+      entity_id: request.id,
+      metadata: {
+        memberId: member.id,
+        previousJnuitsId: member.jnuits_id,
+        newJnuitsId: approvedJnuitsId,
+        reviewNote: reviewNote || null,
+      },
+    });
+
+    await admin.from("membership_lifecycle_events").insert({
+      member_id: member.id,
+      event_type: "jnuits_id_change_approved",
+      summary: "A moderated JnUITS ID change request was approved.",
+      created_by_user_id: actorUserId,
+      metadata: {
+        previousJnuitsId: member.jnuits_id,
+        newJnuitsId: approvedJnuitsId,
+        requestId: request.id,
+      },
+    });
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/profile-changes");
+    revalidatePath("/portal/profile");
+    revalidatePath("/portal/profile/edit");
+    await setAdminFlash({
+      tone: "success",
+      title: "JnUITS ID request approved",
+      message: `${member.full_name}'s JnUITS ID has been updated to ${approvedJnuitsId}.`,
+      jnuitsId: approvedJnuitsId,
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  if (request.request_type === "email_change") {
+    if (!member.user_id || !member.email || !newEmail) {
+      await setAdminFlash({
+        tone: "error",
+        title: "Email approval failed",
+        message:
+          "The linked member account needs an existing auth user and email before an email change can be verified.",
+      });
+      redirect("/admin#profile-requests");
+    }
+
+    const nextPath = "/portal/profile?message=email-change-verification-sent";
+    const currentLinkResult = await admin.auth.admin.generateLink({
+      email: member.email,
+      newEmail,
+      options: {
+        redirectTo: getAppBaseUrl(),
+      },
+      type: "email_change_current",
+    });
+    const newLinkResult = await admin.auth.admin.generateLink({
+      email: member.email,
+      newEmail,
+      options: {
+        redirectTo: getAppBaseUrl(),
+      },
+      type: "email_change_new",
+    });
+
+    if (currentLinkResult.error || newLinkResult.error) {
+      await setAdminFlash({
+        tone: "error",
+        title: "Email approval failed",
+        message:
+          currentLinkResult.error?.message ||
+          newLinkResult.error?.message ||
+          "Unable to generate Supabase email verification links.",
+      });
+      redirect("/admin#profile-requests");
+    }
+
+    const currentProperties = currentLinkResult.data.properties;
+    const newProperties = newLinkResult.data.properties;
+    const currentConfirmUrl = buildEmailChangeConfirmUrl({
+      nextPath,
+      tokenHash: currentProperties.hashed_token,
+      type: currentProperties.verification_type,
+    });
+    const newConfirmUrl = buildEmailChangeConfirmUrl({
+      nextPath,
+      tokenHash: newProperties.hashed_token,
+      type: newProperties.verification_type,
+    });
+
+    await admin
+      .from("profile_update_requests")
+      .update({
+        review_note: reviewNote || null,
+        reviewed_at: nowIso,
+        reviewed_by_user_id: actorUserId,
+        status: "approved",
+        updated_at: nowIso,
+      })
+      .eq("id", request.id);
+
+    await admin.from("audit_events").insert({
+      actor_user_id: actorUserId,
+      action: "member.email_change_request_approved",
+      entity_type: "profile_update_request",
+      entity_id: request.id,
+      metadata: {
+        memberId: member.id,
+        newEmail,
+        oldEmail: member.email,
+        reviewNote: reviewNote || null,
+      },
+    });
+
+    void sendEmail({
+      to: member.email,
+      subject: "Confirm your JnUITS email change",
+      html: buildEmailChangeVerificationEmail({
+        actionLink: currentConfirmUrl,
+        memberName: member.full_name,
+        newEmail,
+        oldEmail: member.email,
+        step: "current",
+      }),
+    });
+    void sendEmail({
+      to: newEmail,
+      subject: "Confirm your new JnUITS email",
+      html: buildEmailChangeVerificationEmail({
+        actionLink: newConfirmUrl,
+        memberName: member.full_name,
+        newEmail,
+        oldEmail: member.email,
+        step: "new",
+      }),
+    });
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/profile-changes");
+    revalidatePath("/portal/profile");
+    revalidatePath("/portal/profile/edit");
+    await setAdminFlash({
+      tone: "success",
+      title: "Email request approved",
+      message:
+        "Verification links were generated for the current and new email addresses. The member email syncs after Supabase verifies the change.",
+      jnuitsId: member.jnuits_id,
+    });
+    redirect("/admin#profile-requests");
+  }
+
   const changedFields = [
     fullName ? "full_name" : null,
     phone ? "phone" : null,

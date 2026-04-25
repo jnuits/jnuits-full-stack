@@ -1,5 +1,6 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -20,6 +21,21 @@ export async function GET(request: NextRequest) {
     });
 
     if (!error) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user?.email) {
+        const admin = createAdminClient();
+        await admin
+          .from("members")
+          .update({
+            email: user.email,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", user.id);
+      }
+
       return NextResponse.redirect(redirectTo);
     }
   }

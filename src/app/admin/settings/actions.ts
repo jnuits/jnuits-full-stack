@@ -18,6 +18,13 @@ const notificationSettingsSchema = z.object({
     .transform((value) => value === "true"),
 });
 
+const securitySettingsSchema = z.object({
+  adminTotpEnforced: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+});
+
 function readCheckbox(formData: FormData, name: string) {
   return formData.get(name) ? "true" : "false";
 }
@@ -61,4 +68,42 @@ export async function saveAdminNotificationSettings(formData: FormData) {
 
   revalidatePath("/admin/settings/notifications");
   redirect("/admin/settings/notifications?message=settings-saved");
+}
+
+export async function saveAdminSecuritySettings(formData: FormData) {
+  const auth = await requireAdminPermission("admin.security.write", {
+    fallbackPath: "/admin/settings/security",
+  });
+
+  if (!auth.user) {
+    redirect("/admin/login?next=%2Fadmin%2Fsettings%2Fsecurity");
+  }
+
+  const parsed = securitySettingsSchema.safeParse({
+    adminTotpEnforced: readCheckbox(formData, "adminTotpEnforced"),
+  });
+
+  if (!parsed.success) {
+    redirect("/admin/settings/security?error=security-settings-invalid");
+  }
+
+  const supabase = asFlexibleClient(await createClient());
+  const { error } = await supabase
+    .from("security_settings" as string)
+    .update({
+      admin_totp_enforced: parsed.data.adminTotpEnforced,
+      updated_by_user_id: auth.user.id,
+    })
+    .eq("id", true);
+
+  if (error) {
+    redirect(
+      `/admin/settings/security?error=${encodeURIComponent(
+        error.message || "security-settings-save"
+      )}`
+    );
+  }
+
+  revalidatePath("/admin/settings/security");
+  redirect("/admin/settings/security?message=security-settings-saved");
 }

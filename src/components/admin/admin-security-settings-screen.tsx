@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AdminPasswordForm } from "@/components/admin/admin-password-form";
+import { saveAdminSecuritySettings } from "@/app/admin/settings/actions";
 import { getAdminSettingsSnapshot } from "@/lib/admin/settings";
 import { ShieldCheck, ShieldQuestion, Smartphone, UserLock } from "lucide-react";
 
@@ -25,7 +26,11 @@ export async function AdminSecuritySettingsScreen() {
   }
 
   const sessionState =
-    snapshot.mfaState.currentLevel === "aal2" ? "Verified" : "Step-up required";
+    !snapshot.securitySettings.admin_totp_enforced
+      ? "TOTP optional"
+      : snapshot.mfaState.currentLevel === "aal2"
+        ? "Verified"
+        : "Step-up required";
   const mfaActionHref =
     snapshot.mfaState.redirectTo || "/admin/mfa/challenge";
   const mfaActionLabel =
@@ -95,21 +100,58 @@ export async function AdminSecuritySettingsScreen() {
             <div>
               <p className="text-sm font-semibold">MFA control plane</p>
               <p className="section-copy">
-                Admin routes beyond login require a verified TOTP session.
+                Admin routes beyond login require a verified TOTP session when
+                enforcement is enabled.
               </p>
             </div>
           </div>
+          <form
+            action={saveAdminSecuritySettings}
+            className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4"
+          >
+            <label className="flex items-start gap-3">
+              <input
+                className="mt-1 h-4 w-4 rounded border-[var(--line)]"
+                defaultChecked={snapshot.securitySettings.admin_totp_enforced}
+                name="adminTotpEnforced"
+                type="checkbox"
+                value="true"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-[var(--foreground)]">
+                  Require TOTP for admin routes
+                </span>
+                <span className="section-copy mt-1 block">
+                  Keep this enabled for production. Turn it off only while
+                  testing admin accounts that have not enrolled an authenticator
+                  yet.
+                </span>
+              </span>
+            </label>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button className="secondary-button" type="submit">
+                Save security policy
+              </button>
+              <span className="text-xs text-[var(--muted-foreground)]">
+                Last updated {formatDate(snapshot.securitySettings.updated_at)}
+              </span>
+            </div>
+          </form>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Current level</p>
               <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
-                {snapshot.mfaState.currentLevel || "aal1"}
+                {snapshot.securitySettings.admin_totp_enforced
+                  ? snapshot.mfaState.currentLevel || "aal1"
+                  : "not enforced"}
               </p>
             </div>
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Next required level</p>
               <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
-                {snapshot.mfaState.nextLevel || "aal2"}
+                {snapshot.securitySettings.admin_totp_enforced
+                  ? snapshot.mfaState.nextLevel || "aal2"
+                  : "not enforced"}
               </p>
             </div>
           </div>

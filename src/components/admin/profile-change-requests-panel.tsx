@@ -46,6 +46,8 @@ function parseProfilePayload(payload: unknown) {
     return {
       fullName: null,
       linkedinUrl: null,
+      newEmail: null,
+      newJnuitsId: null,
       phone: null,
       websiteUrl: null,
     };
@@ -61,6 +63,14 @@ function parseProfilePayload(payload: unknown) {
     linkedinUrl:
       typeof record.linkedinUrl === "string" && record.linkedinUrl.trim()
         ? record.linkedinUrl.trim()
+        : null,
+    newEmail:
+      typeof record.newEmail === "string" && record.newEmail.trim()
+        ? record.newEmail.trim()
+        : null,
+    newJnuitsId:
+      typeof record.newJnuitsId === "string" && record.newJnuitsId.trim()
+        ? record.newJnuitsId.trim()
         : null,
     phone:
       typeof record.phone === "string" && record.phone.trim()
@@ -88,8 +98,8 @@ export function ProfileChangeRequestsPanel({
           </h2>
         </div>
         <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
-          Review each member-requested name, phone, and social link edit before
-          it is applied to the member record.
+          Review each member-requested profile, email, and JnUITS ID edit
+          before it is applied to the member record.
         </p>
       </div>
 
@@ -108,7 +118,9 @@ export function ProfileChangeRequestsPanel({
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(320px,0.98fr)]">
                 <div className="application-card__meta">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="eyebrow">Pending moderation</span>
+                    <span className="eyebrow">
+                      Pending {request.request_type.replaceAll("_", " ")}
+                    </span>
                     {member?.jnuits_id ? (
                       <span className="detail-chip">{member.jnuits_id}</span>
                     ) : null}
@@ -134,6 +146,14 @@ export function ProfileChangeRequestsPanel({
                     <div className="route-tile">
                       <h3>LinkedIn URL</h3>
                       <p>{payload.linkedinUrl || member?.linkedin_url || "No change"}</p>
+                    </div>
+                    <div className="route-tile">
+                      <h3>Requested email</h3>
+                      <p>{payload.newEmail || member?.email || "No change"}</p>
+                    </div>
+                    <div className="route-tile">
+                      <h3>Requested JnUITS ID</h3>
+                      <p>{payload.newJnuitsId || member?.jnuits_id || "No change"}</p>
                     </div>
                     <div className="route-tile">
                       <h3>Website URL</h3>

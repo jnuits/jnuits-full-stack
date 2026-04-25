@@ -46,6 +46,10 @@ function resolveProfileMessage(message: null | string) {
     return "Portal preferences saved.";
   }
 
+  if (message === "email-change-verification-sent") {
+    return "Email change verification is in progress. Check both the current and new email inboxes.";
+  }
+
   return null;
 }
 

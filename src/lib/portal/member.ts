@@ -118,7 +118,10 @@ export async function getPortalMemberSnapshot(userId: string) {
     departmentName: resolveDepartmentName(typedMember),
     directoryVerified: isDirectoryVerifiedForUser(cookieStore, userId),
     profileChangeRequests: ((workplaceRequestResult.data || []) as WorkplaceRequestRecord[]).filter(
-      (request) => request.request_type === "profile_change"
+      (request) =>
+        request.request_type === "profile_change" ||
+        request.request_type === "email_change" ||
+        request.request_type === "jnuits_id_change"
     ),
     settings: (settingsResult.data as PortalUserSettingsRecord | null) ?? null,
     timeline: (timelineResult.data || []) as TimelineRecord[],

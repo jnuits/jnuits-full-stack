@@ -1,334 +1,360 @@
 -- Manual provisioning script for RBAC portal testing.
--- Execute this in the Supabase SQL Editor.
+-- Execute this in the Supabase SQL Editor or through the Supabase MCP.
+--
+-- This script is intentionally non-destructive for existing auth users:
+-- - it preserves existing MFA factors and sessions where possible
+-- - it resets the listed test passwords
+-- - it syncs Auth user metadata, members, identities, and canonical RBAC roles
 --
 -- Test credentials created by this script:
 --   Super Admin: jnuitsbd@gmail.com / SuperAdmin#2026!
---   Portal User: contact@redwan.work / Member#2026!
+--   Admin: redwanse@outlook.com / NormalAdmin#2026!
+--   Content Admin: dev.redwan@gmail.com / ContentAdmin#2026!
+--   Portal User (Current): contact@redwan.work / Member#2026!
+--   Portal User (Alumni): info@redwan.work / Member#2026!
 
 begin;
 
 do $$
 declare
-  super_admin_user_id uuid := gen_random_uuid();
-  super_admin_member_id uuid := gen_random_uuid();
-  portal_user_id uuid := gen_random_uuid();
-  portal_member_id uuid := gen_random_uuid();
-  super_admin_role_id uuid;
-  member_role_id uuid;
-  test_user_ids uuid[] := array[]::uuid[];
-  test_user_id_texts text[] := array[]::text[];
+  seed record;
+  resolved_user_id uuid;
+  resolved_member_id uuid;
+  resolved_role_id uuid;
 begin
-  select id
-  into super_admin_role_id
-  from public.rbac_platform_roles
-  where code = 'super_admin';
+  for seed in
+    select *
+    from (
+      values
+        (
+          'jnuitsbd@gmail.com',
+          'SuperAdmin#2026!',
+          'Jagannath University',
+          'IT Society',
+          'Jagannath University IT Society',
+          'JNUITS-ADMIN-0001',
+          null::text,
+          null::integer,
+          'current',
+          'super_admin',
+          'admin',
+          'super_admin'::text,
+          null::text,
+          jsonb_build_array('admin'),
+          'Manual RBAC test provisioning: bootstrap super admin.'
+        ),
+        (
+          'redwanse@outlook.com',
+          'NormalAdmin#2026!',
+          'Redwan',
+          'Admin',
+          'Redwan Admin',
+          'JNUITS-ADMIN-0002',
+          null::text,
+          null::integer,
+          'current',
+          'admin',
+          'admin',
+          'admin'::text,
+          null::text,
+          jsonb_build_array('admin'),
+          'Manual RBAC test provisioning: canonical admin account.'
+        ),
+        (
+          'dev.redwan@gmail.com',
+          'ContentAdmin#2026!',
+          'Redwan',
+          'Content Admin',
+          'Redwan Content Admin',
+          'JNUITS-ADMIN-0003',
+          null::text,
+          null::integer,
+          'current',
+          'content_admin',
+          'admin',
+          'content_admin'::text,
+          null::text,
+          jsonb_build_array('admin'),
+          'Manual RBAC test provisioning: canonical content admin account.'
+        ),
+        (
+          'contact@redwan.work',
+          'Member#2026!',
+          'Redwan',
+          'Ahmed',
+          'Redwan Ahmed',
+          'JNUITS-2023001',
+          'JNUITS-2023001',
+          null::integer,
+          'current',
+          'member',
+          'portal',
+          null::text,
+          'member'::text,
+          jsonb_build_array('portal'),
+          'Manual RBAC test provisioning: canonical current member account.'
+        ),
+        (
+          'info@redwan.work',
+          'Member#2026!',
+          'Redwan',
+          'Alumni',
+          'Redwan Alumni',
+          'JNUITS-ALUMNI-0001',
+          'JNUITS-ALUMNI-0001',
+          2022,
+          'alumni',
+          'alumni',
+          'portal',
+          null::text,
+          'alumni'::text,
+          jsonb_build_array('portal'),
+          'Manual RBAC test provisioning: canonical alumni account.'
+        )
+    ) as seeds(
+      email,
+      password,
+      first_name,
+      last_name,
+      display_name,
+      jnuits_id,
+      student_id,
+      graduation_year,
+      member_type,
+      role_code,
+      role_scope,
+      admin_role,
+      portal_role,
+      portals,
+      role_note
+    )
+  loop
+    select id
+    into resolved_role_id
+    from public.rbac_platform_roles
+    where code = seed.role_code
+      and scope = seed.role_scope;
 
-  if super_admin_role_id is null then
-    raise exception 'Canonical role "super_admin" is missing. Apply the RBAC migrations first.';
-  end if;
-
-  select id
-  into member_role_id
-  from public.rbac_platform_roles
-  where code = 'member';
-
-  if member_role_id is null then
-    raise exception 'Canonical role "member" is missing. Apply the RBAC migrations first.';
-  end if;
-
-  select coalesce(array_agg(id), array[]::uuid[])
-  into test_user_ids
-  from auth.users
-  where lower(email) in ('jnuitsbd@gmail.com', 'contact@redwan.work');
-
-  select coalesce(array_agg(value::text), array[]::text[])
-  into test_user_id_texts
-  from unnest(test_user_ids) as ids(value);
-
-  delete from public.rbac_user_platform_roles
-  where user_id = any(test_user_ids);
-
-  delete from public.members
-  where user_id = any(test_user_ids)
-     or lower(coalesce(email, '')) in ('jnuitsbd@gmail.com', 'contact@redwan.work')
-     or upper(jnuits_id) in ('JNUITS-ADMIN-0001', 'JNUITS-2023001');
-
-  if array_length(test_user_ids, 1) is not null then
-    if to_regclass('auth.mfa_challenges') is not null
-       and to_regclass('auth.mfa_factors') is not null then
-      execute
-        'delete from auth.mfa_challenges
-          where factor_id in (
-            select id from auth.mfa_factors where user_id = any($1)
-          )'
-      using test_user_ids;
+    if resolved_role_id is null then
+      raise exception 'Canonical role "%" in scope "%" is missing. Apply RBAC migrations first.',
+        seed.role_code,
+        seed.role_scope;
     end if;
 
-    if to_regclass('auth.mfa_factors') is not null then
-      execute
-        'delete from auth.mfa_factors where user_id = any($1)'
-      using test_user_ids;
+    select id
+    into resolved_user_id
+    from auth.users
+    where lower(email) = lower(seed.email)
+    order by created_at nulls last
+    limit 1;
+
+    if resolved_user_id is null then
+      resolved_user_id := gen_random_uuid();
+
+      insert into auth.users (
+        instance_id,
+        id,
+        aud,
+        role,
+        email,
+        encrypted_password,
+        email_confirmed_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at,
+        confirmation_token,
+        email_change,
+        email_change_token_new,
+        recovery_token
+      )
+      values (
+        '00000000-0000-0000-0000-000000000000'::uuid,
+        resolved_user_id,
+        'authenticated',
+        'authenticated',
+        lower(seed.email),
+        crypt(seed.password, gen_salt('bf')),
+        timezone('utc', now()),
+        jsonb_build_object(
+          'provider', 'email',
+          'providers', jsonb_build_array('email'),
+          'jnuits_admin_role', seed.admin_role,
+          'jnuits_portal_role', seed.portal_role,
+          'jnuits_portals', seed.portals,
+          'role_scope', seed.role_scope
+        ),
+        jsonb_build_object(
+          'first_name', seed.first_name,
+          'last_name', seed.last_name,
+          'display_name', seed.display_name,
+          'jnuits_id', seed.jnuits_id
+        ),
+        timezone('utc', now()),
+        timezone('utc', now()),
+        '',
+        '',
+        '',
+        ''
+      );
+    else
+      update auth.users
+      set
+        aud = 'authenticated',
+        role = 'authenticated',
+        email = lower(seed.email),
+        encrypted_password = crypt(seed.password, gen_salt('bf')),
+        email_confirmed_at = coalesce(email_confirmed_at, timezone('utc', now())),
+        raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
+          || jsonb_build_object(
+            'provider', 'email',
+            'providers', jsonb_build_array('email'),
+            'jnuits_admin_role', seed.admin_role,
+            'jnuits_portal_role', seed.portal_role,
+            'jnuits_portals', seed.portals,
+            'role_scope', seed.role_scope
+          ),
+        raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb)
+          || jsonb_build_object(
+            'first_name', seed.first_name,
+            'last_name', seed.last_name,
+            'display_name', seed.display_name,
+            'jnuits_id', seed.jnuits_id
+          ),
+        updated_at = timezone('utc', now())
+      where id = resolved_user_id;
     end if;
 
-    if to_regclass('auth.one_time_tokens') is not null then
-      execute
-        'delete from auth.one_time_tokens where user_id = any($1)'
-      using test_user_ids;
+    insert into auth.identities (
+      id,
+      user_id,
+      identity_data,
+      provider,
+      provider_id,
+      created_at,
+      updated_at,
+      last_sign_in_at
+    )
+    values (
+      gen_random_uuid(),
+      resolved_user_id,
+      jsonb_build_object(
+        'sub', resolved_user_id::text,
+        'email', lower(seed.email),
+        'email_verified', true,
+        'first_name', seed.first_name,
+        'last_name', seed.last_name
+      ),
+      'email',
+      resolved_user_id::text,
+      timezone('utc', now()),
+      timezone('utc', now()),
+      timezone('utc', now())
+    )
+    on conflict (provider_id, provider) do update
+    set
+      user_id = excluded.user_id,
+      identity_data = excluded.identity_data,
+      updated_at = timezone('utc', now());
+
+    select id
+    into resolved_member_id
+    from public.members
+    where user_id = resolved_user_id
+       or lower(coalesce(email::text, '')) = lower(seed.email)
+       or upper(jnuits_id::text) = upper(seed.jnuits_id)
+    order by created_at nulls last
+    limit 1;
+
+    if resolved_member_id is null then
+      resolved_member_id := gen_random_uuid();
+
+      insert into public.members (
+        id,
+        first_name,
+        last_name,
+        full_name,
+        email,
+        jnuits_id,
+        student_id,
+        graduation_year,
+        member_type,
+        user_id,
+        is_profile_claimed,
+        profile_claimed_at
+      )
+      values (
+        resolved_member_id,
+        seed.first_name,
+        seed.last_name,
+        seed.display_name,
+        lower(seed.email),
+        seed.jnuits_id,
+        seed.student_id,
+        seed.graduation_year,
+        seed.member_type,
+        resolved_user_id,
+        true,
+        timezone('utc', now())
+      );
+    else
+      update public.members
+      set
+        first_name = seed.first_name,
+        last_name = seed.last_name,
+        full_name = seed.display_name,
+        email = lower(seed.email),
+        jnuits_id = seed.jnuits_id,
+        student_id = seed.student_id,
+        graduation_year = seed.graduation_year,
+        member_type = seed.member_type,
+        user_id = resolved_user_id,
+        is_profile_claimed = true,
+        profile_claimed_at = coalesce(profile_claimed_at, timezone('utc', now())),
+        updated_at = timezone('utc', now())
+      where id = resolved_member_id;
     end if;
 
-    if to_regclass('auth.refresh_tokens') is not null
-       and exists (
-         select 1
-         from information_schema.columns
-         where table_schema = 'auth'
-           and table_name = 'refresh_tokens'
-           and column_name = 'user_id'
-       ) then
-      execute
-        'delete from auth.refresh_tokens where user_id::text = any($1)'
-      using test_user_id_texts;
-    end if;
+    update auth.users
+    set
+      raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
+        || jsonb_build_object('jnuits_member_id', resolved_member_id::text),
+      updated_at = timezone('utc', now())
+    where id = resolved_user_id;
 
-    if to_regclass('auth.sessions') is not null then
-      execute
-        'delete from auth.sessions where user_id = any($1)'
-      using test_user_ids;
-    end if;
-  end if;
+    update public.rbac_user_platform_roles
+    set
+      revoked_at = timezone('utc', now()),
+      note = concat_ws(
+        E'\n',
+        nullif(note, ''),
+        'Revoked by manual RBAC test provisioning because canonical role changed to: ' || seed.role_code
+      )
+    where user_id = resolved_user_id
+      and scope = seed.role_scope
+      and revoked_at is null
+      and role_id <> resolved_role_id;
 
-  delete from auth.identities
-  where user_id = any(test_user_ids);
-
-  delete from auth.users
-  where lower(email) in ('jnuitsbd@gmail.com', 'contact@redwan.work');
-
-  insert into auth.users (
-    instance_id,
-    id,
-    aud,
-    role,
-    email,
-    encrypted_password,
-    email_confirmed_at,
-    raw_app_meta_data,
-    raw_user_meta_data,
-    created_at,
-    updated_at,
-    confirmation_token,
-    email_change,
-    email_change_token_new,
-    recovery_token
-  )
-  values (
-    '00000000-0000-0000-0000-000000000000'::uuid,
-    super_admin_user_id,
-    'authenticated',
-    'authenticated',
-    'jnuitsbd@gmail.com',
-    crypt('SuperAdmin#2026!', gen_salt('bf')),
-    timezone('utc', now()),
-    jsonb_build_object(
-      'provider', 'email',
-      'providers', jsonb_build_array('email'),
-      'jnuits_admin_role', 'super_admin',
-      'jnuits_portal_role', null,
-      'jnuits_portals', jsonb_build_array('admin'),
-      'jnuits_member_id', super_admin_member_id::text,
-      'role_scope', 'admin'
-    ),
-    jsonb_build_object(
-      'first_name', 'Jagannath University',
-      'last_name', 'IT Society',
-      'display_name', 'Jagannath University IT Society',
-      'jnuits_id', 'JNUITS-ADMIN-0001'
-    ),
-    timezone('utc', now()),
-    timezone('utc', now()),
-    '',
-    '',
-    '',
-    ''
-  );
-
-  insert into auth.identities (
-    id,
-    user_id,
-    identity_data,
-    provider,
-    provider_id,
-    created_at,
-    updated_at,
-    last_sign_in_at
-  )
-  values (
-    gen_random_uuid(),
-    super_admin_user_id,
-    jsonb_build_object(
-      'sub', super_admin_user_id::text,
-      'email', 'jnuitsbd@gmail.com',
-      'email_verified', true,
-      'first_name', 'Jagannath University',
-      'last_name', 'IT Society'
-    ),
-    'email',
-    super_admin_user_id::text,
-    timezone('utc', now()),
-    timezone('utc', now()),
-    timezone('utc', now())
-  );
-
-  insert into public.members (
-    id,
-    first_name,
-    last_name,
-    full_name,
-    email,
-    jnuits_id,
-    member_type,
-    user_id,
-    is_profile_claimed,
-    profile_claimed_at
-  )
-  values (
-    super_admin_member_id,
-    'Jagannath University',
-    'IT Society',
-    'Jagannath University IT Society',
-    'jnuitsbd@gmail.com',
-    'JNUITS-ADMIN-0001',
-    'current',
-    super_admin_user_id,
-    true,
-    timezone('utc', now())
-  );
-
-  insert into public.rbac_user_platform_roles (
-    user_id,
-    role_id,
-    scope,
-    note
-  )
-  values (
-    super_admin_user_id,
-    super_admin_role_id,
-    'admin',
-    'Manual RBAC test provisioning: bootstrap super admin.'
-  );
-
-  insert into auth.users (
-    instance_id,
-    id,
-    aud,
-    role,
-    email,
-    encrypted_password,
-    email_confirmed_at,
-    raw_app_meta_data,
-    raw_user_meta_data,
-    created_at,
-    updated_at,
-    confirmation_token,
-    email_change,
-    email_change_token_new,
-    recovery_token
-  )
-  values (
-    '00000000-0000-0000-0000-000000000000'::uuid,
-    portal_user_id,
-    'authenticated',
-    'authenticated',
-    'contact@redwan.work',
-    crypt('Member#2026!', gen_salt('bf')),
-    timezone('utc', now()),
-    jsonb_build_object(
-      'provider', 'email',
-      'providers', jsonb_build_array('email'),
-      'jnuits_admin_role', null,
-      'jnuits_portal_role', 'member',
-      'jnuits_portals', jsonb_build_array('portal'),
-      'jnuits_member_id', portal_member_id::text,
-      'role_scope', 'portal'
-    ),
-    jsonb_build_object(
-      'first_name', 'Redwan',
-      'last_name', 'Ahmed',
-      'display_name', 'Redwan Ahmed',
-      'jnuits_id', 'JNUITS-2023001'
-    ),
-    timezone('utc', now()),
-    timezone('utc', now()),
-    '',
-    '',
-    '',
-    ''
-  );
-
-  insert into auth.identities (
-    id,
-    user_id,
-    identity_data,
-    provider,
-    provider_id,
-    created_at,
-    updated_at,
-    last_sign_in_at
-  )
-  values (
-    gen_random_uuid(),
-    portal_user_id,
-    jsonb_build_object(
-      'sub', portal_user_id::text,
-      'email', 'contact@redwan.work',
-      'email_verified', true,
-      'first_name', 'Redwan',
-      'last_name', 'Ahmed'
-    ),
-    'email',
-    portal_user_id::text,
-    timezone('utc', now()),
-    timezone('utc', now()),
-    timezone('utc', now())
-  );
-
-  insert into public.members (
-    id,
-    first_name,
-    last_name,
-    full_name,
-    email,
-    jnuits_id,
-    student_id,
-    member_type,
-    user_id,
-    is_profile_claimed,
-    profile_claimed_at
-  )
-  values (
-    portal_member_id,
-    'Redwan',
-    'Ahmed',
-    'Redwan Ahmed',
-    'contact@redwan.work',
-    'JNUITS-2023001',
-    'JNUITS-2023001',
-    'current',
-    portal_user_id,
-    true,
-    timezone('utc', now())
-  );
-
-  insert into public.rbac_user_platform_roles (
-    user_id,
-    role_id,
-    scope,
-    note
-  )
-  values (
-    portal_user_id,
-    member_role_id,
-    'portal',
-    'Manual RBAC test provisioning: canonical member account.'
-  );
+    insert into public.rbac_user_platform_roles (
+      user_id,
+      role_id,
+      scope,
+      note
+    )
+    select
+      resolved_user_id,
+      resolved_role_id,
+      seed.role_scope,
+      seed.role_note
+    where not exists (
+      select 1
+      from public.rbac_user_platform_roles
+      where user_id = resolved_user_id
+        and role_id = resolved_role_id
+        and scope = seed.role_scope
+        and revoked_at is null
+    );
+  end loop;
 end
 $$;
 
@@ -340,12 +366,17 @@ select
   users.raw_user_meta_data ->> 'last_name' as last_name,
   users.raw_app_meta_data ->> 'jnuits_admin_role' as app_admin_role,
   users.raw_app_meta_data ->> 'jnuits_portal_role' as app_portal_role,
+  users.raw_app_meta_data -> 'jnuits_portals' as app_portals,
   roles.code as rbac_role_code,
   roles.scope as rbac_scope,
+  roles.is_hidden,
   members.full_name,
-  members.first_name,
-  members.last_name,
-  members.jnuits_id
+  members.first_name as member_first_name,
+  members.last_name as member_last_name,
+  members.member_type,
+  members.jnuits_id,
+  members.student_id,
+  members.graduation_year
 from auth.users as users
 left join public.rbac_user_platform_roles as grants
   on grants.user_id = users.id
@@ -354,5 +385,11 @@ left join public.rbac_platform_roles as roles
   on roles.id = grants.role_id
 left join public.members as members
   on members.user_id = users.id
-where lower(users.email) in ('jnuitsbd@gmail.com', 'contact@redwan.work')
+where lower(users.email) in (
+  'jnuitsbd@gmail.com',
+  'redwanse@outlook.com',
+  'dev.redwan@gmail.com',
+  'contact@redwan.work',
+  'info@redwan.work'
+)
 order by users.email, roles.scope;

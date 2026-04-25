@@ -87,7 +87,9 @@ export async function ProfileEditScreen() {
 
           <ProfileChangeRequestForm
             currentValues={{
+              email: member.email,
               fullName: member.full_name,
+              jnuitsId: member.jnuits_id,
               linkedinUrl: member.linkedin_url,
               phone: member.phone,
               websiteUrl: member.website_url,

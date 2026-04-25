@@ -2,19 +2,57 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { withApiGuard } from "@/lib/security/with-api-guard";
+import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-const profileChangeSchema = z
+const profileChangePayloadSchema = z
   .object({
+    requestType: z.literal("profile_change").optional(),
     fullName: z.string().trim().max(160).optional(),
     phone: z.string().trim().max(40).optional(),
     linkedinUrl: z.string().trim().url().optional().or(z.literal("")),
     websiteUrl: z.string().trim().url().optional().or(z.literal("")),
   })
-  .refine((value) => Object.values(value).some(Boolean), {
+  .refine(
+    (value) =>
+      Boolean(value.fullName || value.phone || value.linkedinUrl || value.websiteUrl),
+    {
     message: "Provide at least one profile field to change.",
+    }
+  );
+
+const emailChangePayloadSchema = z.object({
+  newEmail: z.string().trim().email().max(254),
+  requestType: z.literal("email_change"),
+});
+
+const jnuitsIdChangePayloadSchema = z
+  .object({
+    newJnuitsId: z.string().trim().max(80),
+    requestType: z.literal("jnuits_id_change"),
+  })
+  .transform((value, context) => {
+    const normalized = normalizeJnuitsIdForCreation(value.newJnuitsId);
+
+    if (!normalized) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "JnUITS ID must use the JNUITS-<number> format.",
+      });
+    }
+
+    return {
+      newJnuitsId: normalized,
+      requestType: value.requestType,
+    };
   });
+
+const changeRequestSchema = z.union([
+  profileChangePayloadSchema,
+  emailChangePayloadSchema,
+  jnuitsIdChangePayloadSchema,
+]);
 
 async function requireLinkedMemberUser() {
   const supabase = await createClient();
@@ -38,7 +76,7 @@ async function requireLinkedMemberUser() {
   const admin = createAdminClient();
   const { data: member, error } = await admin
     .from("members")
-    .select("id, jnuits_id, full_name, member_type")
+    .select("id, email, jnuits_id, full_name, member_type")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -73,7 +111,7 @@ export async function GET() {
     .from("profile_update_requests")
     .select("id, request_type, payload, status, requested_at, reviewed_at, review_note, reviewed_by_user_id")
     .eq("member_id", viewer.member.id)
-    .eq("request_type", "profile_change")
+    .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
     .order("requested_at", { ascending: false })
     .limit(20);
 
@@ -103,7 +141,7 @@ async function handlePost(request: NextRequest) {
   }
 
   const payload = await request.json().catch(() => null);
-  const parsed = profileChangeSchema.safeParse(payload);
+  const parsed = changeRequestSchema.safeParse(payload);
 
   if (!parsed.success) {
     return NextResponse.json(
@@ -121,7 +159,7 @@ async function handlePost(request: NextRequest) {
     .insert({
       member_id: viewer.member.id,
       payload: parsed.data,
-      request_type: "profile_change",
+      request_type: parsed.data.requestType || "profile_change",
       status: "pending",
     })
     .select("id, request_type, payload, status, requested_at")
@@ -140,9 +178,9 @@ async function handlePost(request: NextRequest) {
     entity_type: "profile_update_request",
     entity_id: data.id,
     metadata: {
-      memberId: viewer.member.id,
-      requestType: "profile_change",
-    },
+        memberId: viewer.member.id,
+        requestType: parsed.data.requestType || "profile_change",
+      },
   });
 
   return NextResponse.json(

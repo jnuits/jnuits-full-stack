@@ -23,6 +23,12 @@ type NotificationSettingsRecord = {
   ticket_digest_opt_in: boolean;
 };
 
+type SecuritySettingsRecord = {
+  admin_totp_enforced: boolean;
+  updated_at: string;
+  updated_by_user_id: null | string;
+};
+
 type RoleAssignmentRecord = {
   granted_at: null | string;
   note: null | string;
@@ -51,7 +57,14 @@ export async function getAdminSettingsSnapshot() {
   }
 
   const supabase = asFlexibleClient(await createClient());
-  const [userResult, mfaState, roleAssignmentsResult, securityEventsResult, settingsResult] =
+  const [
+    userResult,
+    mfaState,
+    roleAssignmentsResult,
+    securityEventsResult,
+    settingsResult,
+    securitySettingsResult,
+  ] =
     await Promise.all([
       supabase.auth.getUser(),
       checkAdminMFA(supabase),
@@ -72,6 +85,11 @@ export async function getAdminSettingsSnapshot() {
         .select("notification_email_opt_in, ticket_digest_opt_in, preferred_theme, mentorship_opt_in")
         .eq("user_id", auth.user.id)
         .maybeSingle(),
+      supabase
+        .from("security_settings" as string)
+        .select("admin_totp_enforced, updated_by_user_id, updated_at")
+        .eq("id", true)
+        .maybeSingle(),
     ]);
 
   if (roleAssignmentsResult.error) {
@@ -84,6 +102,10 @@ export async function getAdminSettingsSnapshot() {
 
   if (settingsResult.error) {
     throw new Error(settingsResult.error.message);
+  }
+
+  if (securitySettingsResult.error) {
+    throw new Error(securitySettingsResult.error.message);
   }
 
   const admin = createAdminClient();
@@ -120,5 +142,11 @@ export async function getAdminSettingsSnapshot() {
     securityEvents:
       (((securityEventsResult.data as unknown) as SecurityEventRecord[] | null) ||
         []),
+    securitySettings:
+      ((securitySettingsResult.data as unknown) as SecuritySettingsRecord | null) ?? {
+        admin_totp_enforced: true,
+        updated_at: new Date(0).toISOString(),
+        updated_by_user_id: null,
+      },
   };
 }

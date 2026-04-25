@@ -14,7 +14,9 @@ export function ProfileChangeRequestForm({
   initialRequests,
 }: {
   currentValues: {
+    email: string | null;
     fullName: string;
+    jnuitsId: string;
     linkedinUrl: string | null;
     phone: string | null;
     websiteUrl: string | null;
@@ -26,17 +28,10 @@ export function ProfileChangeRequestForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  async function handleSubmit(formData: FormData) {
+  async function submitRequest(payload: Record<string, unknown>) {
     setPending(true);
     setError(null);
     setMessage(null);
-
-    const payload = {
-      fullName: String(formData.get("fullName") || "").trim() || undefined,
-      linkedinUrl: String(formData.get("linkedinUrl") || "").trim() || undefined,
-      phone: String(formData.get("phone") || "").trim() || undefined,
-      websiteUrl: String(formData.get("websiteUrl") || "").trim() || undefined,
-    };
 
     const response = await fetch("/api/profile/change-requests", {
       method: "POST",
@@ -67,6 +62,30 @@ export function ProfileChangeRequestForm({
     setPending(false);
   }
 
+  async function handleProfileSubmit(formData: FormData) {
+    await submitRequest({
+      requestType: "profile_change",
+      fullName: String(formData.get("fullName") || "").trim() || undefined,
+      linkedinUrl: String(formData.get("linkedinUrl") || "").trim() || undefined,
+      phone: String(formData.get("phone") || "").trim() || undefined,
+      websiteUrl: String(formData.get("websiteUrl") || "").trim() || undefined,
+    });
+  }
+
+  async function handleEmailSubmit(formData: FormData) {
+    await submitRequest({
+      requestType: "email_change",
+      newEmail: String(formData.get("newEmail") || "").trim(),
+    });
+  }
+
+  async function handleJnuitsIdSubmit(formData: FormData) {
+    await submitRequest({
+      requestType: "jnuits_id_change",
+      newJnuitsId: String(formData.get("newJnuitsId") || "").trim(),
+    });
+  }
+
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1.06fr)_minmax(18rem,0.94fr)]">
       <div className="section-band grid gap-5">
@@ -77,12 +96,12 @@ export function ProfileChangeRequestForm({
           </h2>
         </div>
         <p className="section-copy">
-          Changes to your name, phone, and social links are reviewed by a
-          moderator before they apply to the public directory.
+          Changes to your name, phone, social links, login email, and JnUITS ID
+          are reviewed by an operator before they apply to your member record.
         </p>
 
         <form
-          action={(formData) => startTransition(() => void handleSubmit(formData))}
+          action={(formData) => startTransition(() => void handleProfileSubmit(formData))}
           className="portal-form-grid"
           id="profile-change-form"
         >
@@ -123,6 +142,53 @@ export function ProfileChangeRequestForm({
           </div>
         </form>
 
+        <div className="grid gap-4 md:grid-cols-2">
+          <form
+            action={(formData) => startTransition(() => void handleEmailSubmit(formData))}
+            className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4"
+          >
+            <label className="input-label" htmlFor="pcr-new-email">
+              Request login email change
+              <input
+                id="pcr-new-email"
+                defaultValue={currentValues.email || ""}
+                name="newEmail"
+                type="email"
+                autoComplete="email"
+              />
+            </label>
+            <p className="section-copy mt-2">
+              After approval, verification links are sent before the auth email
+              change is completed.
+            </p>
+            <button className="secondary-button mt-4" disabled={pending} type="submit">
+              Request email change
+            </button>
+          </form>
+
+          <form
+            action={(formData) => startTransition(() => void handleJnuitsIdSubmit(formData))}
+            className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4"
+          >
+            <label className="input-label" htmlFor="pcr-new-jnuits-id">
+              Request JnUITS ID change
+              <input
+                id="pcr-new-jnuits-id"
+                defaultValue={currentValues.jnuitsId}
+                name="newJnuitsId"
+                placeholder="JNUITS-2026001"
+              />
+            </label>
+            <p className="section-copy mt-2">
+              Admin approval checks that the requested ID is valid and not
+              already assigned.
+            </p>
+            <button className="secondary-button mt-4" disabled={pending} type="submit">
+              Request ID change
+            </button>
+          </form>
+        </div>
+
         {message ? (
           <p className="portal-message portal-message--success">{message}</p>
         ) : null}
@@ -144,7 +210,7 @@ export function ProfileChangeRequestForm({
               <article key={request.id} className="timeline-item">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <strong className="font-[family-name:var(--font-heading)] text-lg">
-                    Profile change
+                    {request.request_type.replaceAll("_", " ")}
                   </strong>
                   <span className="status-pill">
                     {formatRequestStatus(request.status)}

@@ -49,3 +49,4 @@ next-env.d.ts
 # AI related
 .agents
 .playwright-mcp
+skills-lock.json
