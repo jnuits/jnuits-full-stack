@@ -17,22 +17,8 @@ export type AuthContext = {
   roles: string[];
 };
 
-const ADMIN_ROLES = new Set([
-  "super_admin",
-  "admin",
-  "content_admin",
-  "moderator",
-  "content_editor",
-  "committee_author",
-]);
-const OPERATOR_ROLES = new Set([
-  "super_admin",
-  "admin",
-  "content_admin",
-  "moderator",
-  "content_editor",
-  "committee_author",
-]);
+const ADMIN_ROLES = new Set(["super_admin", "admin", "content_admin"]);
+const OPERATOR_ROLES = new Set(["super_admin", "admin", "content_admin"]);
 const PORTAL_ROLES = new Set([
   "member",
   "alumni",
@@ -86,12 +72,6 @@ export function resolveLoginPathForRoute(pathname: string) {
     : "/portal/login";
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
 function asClaimString(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
@@ -100,29 +80,12 @@ function asClaimNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function extractClaimSnapshot(
-  claims: Record<string, unknown> | undefined,
-  appMetadataValue?: unknown
-) {
-  const appMetadata = asRecord(appMetadataValue ?? claims?.app_metadata);
-  const adminRole =
-    asClaimString(claims?.jnuits_admin_role) ||
-    asClaimString(appMetadata.jnuits_admin_role);
-  const portalRole =
-    asClaimString(claims?.jnuits_portal_role) ||
-    asClaimString(appMetadata.jnuits_portal_role);
-  const memberId =
-    asClaimString(claims?.jnuits_member_id) ||
-    asClaimString(appMetadata.jnuits_member_id);
-  const roleVersion =
-    asClaimNumber(claims?.jnuits_role_version) ||
-    asClaimNumber(appMetadata.jnuits_role_version);
-
+function extractClaimSnapshot(claims: Record<string, unknown> | undefined) {
   return {
-    adminRole,
-    memberId,
-    portalRole,
-    roleVersion,
+    adminRole: asClaimString(claims?.jnuits_admin_role),
+    memberId: asClaimString(claims?.jnuits_member_id),
+    portalRole: asClaimString(claims?.jnuits_portal_role),
+    roleVersion: asClaimNumber(claims?.jnuits_role_version),
   };
 }
 
@@ -168,60 +131,98 @@ export async function getAuthContext(): Promise<AuthContext> {
   const email = sessionUser.email ?? asClaimString(claims?.email);
   const aal = asClaimString(claims?.aal);
   const claimRoles = extractClaimRoles(claims);
-  const claimSnapshot = extractClaimSnapshot(claims, sessionUser.app_metadata);
-  const roles =
-    claimRoles.length > 0
-      ? claimRoles
-      : await resolveDatabaseRoles(supabase, userId);
+  const claimSnapshot = extractClaimSnapshot(claims);
+  const needsDatabaseSnapshot =
+    claimRoles.length === 0 ||
+    !claimSnapshot.adminRole ||
+    !claimSnapshot.portalRole ||
+    !claimSnapshot.memberId ||
+    claimSnapshot.roleVersion === null;
+  const databaseSnapshot = needsDatabaseSnapshot
+    ? await resolveDatabaseRoleSnapshot(supabase, userId)
+    : null;
+  const adminRole = claimSnapshot.adminRole || databaseSnapshot?.adminRole || null;
+  const portalRole =
+    claimSnapshot.portalRole || databaseSnapshot?.portalRole || null;
+  const roles = Array.from(
+    new Set(
+      [
+        ...claimRoles,
+        ...(databaseSnapshot?.roles || []),
+        adminRole,
+        portalRole,
+      ].filter((role): role is string => Boolean(role))
+    )
+  );
   const memberId =
-    claimSnapshot.memberId || (await resolveDatabaseMemberId(supabase, userId));
+    claimSnapshot.memberId ||
+    databaseSnapshot?.memberId ||
+    (await resolveDatabaseMemberId(supabase, userId));
+  const roleVersion =
+    claimSnapshot.roleVersion ?? databaseSnapshot?.roleVersion ?? null;
 
   return {
     user: {
-      adminRole: claimSnapshot.adminRole,
+      adminRole,
       memberId,
       id: userId,
       email,
-      portalRole: claimSnapshot.portalRole,
+      portalRole,
       aal,
       rawClaims: claims as Record<string, unknown>,
-      roleVersion: claimSnapshot.roleVersion,
+      roleVersion,
     },
     roles,
   };
 }
 
-async function resolveDatabaseRoles(
+type DatabaseRoleSnapshot = {
+  adminRole: null | string;
+  memberId: null | string;
+  portalRole: null | string;
+  roles: string[];
+  roleVersion: null | number;
+};
+
+function asSnapshotRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+async function resolveDatabaseRoleSnapshot(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string
-) {
-  const { data: roleRows } = await supabase
-    .from("rbac_user_platform_roles")
-    .select("role_id, rbac_platform_roles(code)")
-    .eq("user_id", userId)
-    .is("revoked_at", null);
+): Promise<DatabaseRoleSnapshot> {
+  if (!userId) {
+    return {
+      adminRole: null,
+      memberId: null,
+      portalRole: null,
+      roles: [],
+      roleVersion: null,
+    };
+  }
 
-  return (roleRows || [])
-    .map((row) => {
-      const roleRecord = (
-        row as {
-          rbac_platform_roles?:
-            | { code?: string | null }
-            | { code?: string | null }[]
-            | null;
-        }
-      ).rbac_platform_roles as
-        | { code?: string | null }
-        | { code?: string | null }[]
-        | null;
+  const { data } = await (supabase as never as {
+    rpc: (
+      fn: "current_rbac_claims_snapshot"
+    ) => Promise<{ data: unknown; error: { message?: string } | null }>;
+  }).rpc("current_rbac_claims_snapshot");
+  const snapshot = asSnapshotRecord(data);
+  const adminRole = asClaimString(snapshot.jnuits_admin_role);
+  const portalRole = asClaimString(snapshot.jnuits_portal_role);
+  const roleVersion = asClaimNumber(snapshot.jnuits_role_version);
 
-      if (Array.isArray(roleRecord)) {
-        return typeof roleRecord[0]?.code === "string" ? roleRecord[0].code : null;
-      }
-
-      return typeof roleRecord?.code === "string" ? roleRecord.code : null;
-    })
-    .filter((value): value is string => Boolean(value));
+  return {
+    adminRole,
+    memberId: asClaimString(snapshot.jnuits_member_id),
+    portalRole,
+    roles: [adminRole, portalRole].filter((role): role is string =>
+      Boolean(role)
+    ),
+    roleVersion,
+  };
 }
 
 async function resolveDatabaseMemberId(

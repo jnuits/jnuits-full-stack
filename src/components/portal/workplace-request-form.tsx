@@ -70,7 +70,7 @@ export function WorkplaceRequestForm({
     setRequests((current) => [body.data as WorkplaceRequest, ...current]);
     setMessage(
       body.message ||
-        "Workplace update request submitted. A moderator will review it before anything becomes visible."
+        "Workplace update request submitted. An admin will review it before anything becomes visible."
     );
     setPending(false);
   }
@@ -100,7 +100,7 @@ export function WorkplaceRequestForm({
           </h2>
         </div>
         <p className="section-copy">
-          Alumni edits to workplace identity remain request-based so moderators
+          Alumni edits to workplace identity remain request-based so admins
           can review claims, preserve auditability, and protect the public
           directory from accidental drift.
         </p>

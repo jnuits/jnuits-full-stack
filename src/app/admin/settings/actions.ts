@@ -87,6 +87,10 @@ export async function saveAdminSecuritySettings(formData: FormData) {
     redirect("/admin/settings/security?error=security-settings-invalid");
   }
 
+  if (!parsed.data.adminTotpEnforced && auth.user.adminRole !== "super_admin") {
+    redirect("/admin/settings/security?error=super-admin-required");
+  }
+
   const supabase = asFlexibleClient(await createClient());
   const { error } = await supabase
     .from("security_settings" as string)

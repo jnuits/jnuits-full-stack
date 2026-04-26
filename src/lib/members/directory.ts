@@ -7,7 +7,11 @@ import { createClient } from "@/lib/supabase/server";
 export const MEMBER_DIRECTORY_PAGE_SIZE = 12;
 const MEMBER_DIRECTORY_MAX_PAGE_SIZE = 36;
 const LETTER_PATTERN = /^[A-Z]$/;
-const DIRECTORY_OPERATOR_ROLES = new Set(["super_admin", "admin", "moderator"]);
+const DIRECTORY_OPERATOR_ROLES = new Set([
+  "super_admin",
+  "admin",
+  "content_admin",
+]);
 
 export type MemberDirectoryTypeFilter = "all" | "current" | "alumni";
 

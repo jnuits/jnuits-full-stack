@@ -74,6 +74,19 @@ export function AdminMFAChallenge() {
         return;
       }
 
+      await fetch("/api/security/events", {
+        body: JSON.stringify({
+          eventType: "auth.mfa.challenge_verified",
+          payload: {
+            factorId: factor.id,
+          },
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      }).catch(() => undefined);
+
       router.replace("/admin/dashboard");
       router.refresh();
     } finally {

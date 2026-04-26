@@ -17,7 +17,7 @@ const sections = [
   {
     title: "Accounts and portal access",
     body:
-      "Portal accounts are intended for authorized members, moderators, and administrators. Users are responsible for keeping account credentials secure and using access only for permitted society workflows.",
+      "Portal accounts are intended for authorized members and administrators. Users are responsible for keeping account credentials secure and using access only for permitted society workflows.",
   },
   {
     title: "Certificate verification",

@@ -37,19 +37,34 @@ function asClaimString(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-function extractRBACClaims(
-  claims: Record<string, unknown> | null,
-  appMetadataValue?: unknown
-): RBACClaims {
-  const appMetadata = asRecord(appMetadataValue ?? claims?.app_metadata);
+function extractRBACClaims(claims: Record<string, unknown> | null): RBACClaims {
+  return {
+    adminRole: asClaimString(claims?.jnuits_admin_role),
+    portalRole: asClaimString(claims?.jnuits_portal_role),
+  };
+}
+
+async function resolveDatabaseClaims(
+  supabase: ReturnType<typeof createServerClient<Database>>,
+  userId: string
+): Promise<RBACClaims> {
+  if (!userId) {
+    return {
+      adminRole: null,
+      portalRole: null,
+    };
+  }
+
+  const { data } = await (supabase as never as {
+    rpc: (
+      fn: "current_rbac_claims_snapshot"
+    ) => Promise<{ data: unknown; error: { message?: string } | null }>;
+  }).rpc("current_rbac_claims_snapshot");
+  const snapshot = asRecord(data);
 
   return {
-    adminRole:
-      asClaimString(claims?.jnuits_admin_role) ||
-      asClaimString(appMetadata.jnuits_admin_role),
-    portalRole:
-      asClaimString(claims?.jnuits_portal_role) ||
-      asClaimString(appMetadata.jnuits_portal_role),
+    adminRole: asClaimString(snapshot.jnuits_admin_role),
+    portalRole: asClaimString(snapshot.jnuits_portal_role),
   };
 }
 
@@ -153,7 +168,13 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const claims = (data?.claims || null) as Record<string, unknown> | null;
   const hasSession = Boolean(user);
-  const { adminRole, portalRole } = extractRBACClaims(claims, user?.app_metadata);
+  const claimSnapshot = extractRBACClaims(claims);
+  const databaseSnapshot =
+    hasSession && user && (!claimSnapshot.adminRole || !claimSnapshot.portalRole)
+      ? await resolveDatabaseClaims(supabase, user.id)
+      : { adminRole: null, portalRole: null };
+  const adminRole = claimSnapshot.adminRole || databaseSnapshot.adminRole;
+  const portalRole = claimSnapshot.portalRole || databaseSnapshot.portalRole;
 
   if (!hasSession && isProtectedPath(pathname)) {
     return redirectWithCookies(

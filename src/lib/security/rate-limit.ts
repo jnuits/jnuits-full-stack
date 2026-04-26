@@ -96,4 +96,16 @@ export const RATE_LIMITS = {
 
   /** Event check-in (admin only) — 60 per minute per IP */
   eventCheckin: { limit: 60, windowSeconds: 60 } satisfies RateLimitConfig,
+
+  /** Auth login attempts — 8 per 10 minutes per IP+email */
+  authLogin: { limit: 8, windowSeconds: 600 } satisfies RateLimitConfig,
+
+  /** Account claim/register attempts — 5 per 15 minutes per IP */
+  authRegister: { limit: 5, windowSeconds: 900 } satisfies RateLimitConfig,
+
+  /** Password recovery requests — 5 per 15 minutes per IP+email */
+  authPasswordReset: { limit: 5, windowSeconds: 900 } satisfies RateLimitConfig,
+
+  /** Client-reported security events — 20 per minute per user */
+  securityEvent: { limit: 20, windowSeconds: 60 } satisfies RateLimitConfig,
 } as const;

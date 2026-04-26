@@ -3,6 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
+function asString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const tokenHash = searchParams.get("token_hash");
@@ -25,7 +31,49 @@ export async function GET(request: NextRequest) {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (user?.email) {
+      const metadata = user?.user_metadata ?? {};
+      const claimSource = asString(metadata.claim_source);
+      const claimMemberId = asString(metadata.claim_member_id);
+      const claimInvitationId = asString(metadata.claim_invitation_id);
+
+      if (
+        user?.email &&
+        claimSource === "member_invitation" &&
+        claimMemberId &&
+        claimInvitationId
+      ) {
+        const admin = createAdminClient();
+        const { error: finalizeError } = await (admin as never as {
+          rpc: (
+            fn: "finalize_member_invitation_claim",
+            args: {
+              target_email: string;
+              target_invitation_id: string;
+              target_member_id: string;
+              target_user_id: string;
+            }
+          ) => Promise<{ data: unknown; error: { message?: string } | null }>;
+        }).rpc("finalize_member_invitation_claim", {
+          target_email: user.email,
+          target_invitation_id: claimInvitationId,
+          target_member_id: claimMemberId,
+          target_user_id: user.id,
+        });
+
+        if (finalizeError) {
+          const fallback = request.nextUrl.clone();
+          fallback.pathname = "/verify-email";
+          fallback.search = `?error=${encodeURIComponent(
+            finalizeError.message ||
+              "Email verified, but the member claim could not be completed."
+          )}`;
+          return NextResponse.redirect(fallback);
+        }
+      } else if (
+        user?.email &&
+        typeof type === "string" &&
+        type.startsWith("email_change")
+      ) {
         const admin = createAdminClient();
         await admin
           .from("members")

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -13,6 +14,12 @@ import { checkAdminMFA } from "@/lib/auth/mfa";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
 import { hashInvitationCode } from "@/lib/members/invitation-code";
+import { verifyCaptchaToken } from "@/lib/security/captcha";
+import {
+  checkRateLimit,
+  getRequestIp,
+  RATE_LIMITS,
+} from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -28,6 +35,7 @@ const loginSchema = z.object({
     .transform((value) => value.toLowerCase()),
   next: z.string().trim().optional().default(""),
   password: z.string().min(1, "Password is required."),
+  captchaToken: z.string().trim().optional().default(""),
 });
 
 const passwordResetSchema = z.object({
@@ -36,6 +44,7 @@ const passwordResetSchema = z.object({
     .trim()
     .email("Enter a valid email address.")
     .transform((value) => value.toLowerCase()),
+  captchaToken: z.string().trim().optional().default(""),
 });
 
 const updatePasswordSchema = z
@@ -67,6 +76,7 @@ const claimProfileSchema = z.object({
     .max(40)
     .transform((value) => value.toUpperCase()),
   password: z.string().min(8, "Password must be at least 8 characters."),
+  captchaToken: z.string().trim().optional().default(""),
 });
 
 function pickFormFields(formData: FormData, fields: string[]) {
@@ -77,6 +87,26 @@ function pickFormFields(formData: FormData, fields: string[]) {
 
 function encodeMessage(message: string) {
   return encodeURIComponent(message);
+}
+
+async function enforceAuthActionProtection(options: {
+  captchaToken: string;
+  email?: string;
+  rateLimit: (typeof RATE_LIMITS)[keyof typeof RATE_LIMITS];
+  rateLimitPrefix: string;
+}) {
+  const requestHeaders = await headers();
+  const ip = getRequestIp(requestHeaders);
+  const key = `${options.rateLimitPrefix}:${ip}:${options.email || "unknown"}`;
+  const rateLimit = checkRateLimit(key, options.rateLimit);
+
+  if (!rateLimit.success) {
+    return "Too many attempts. Try again later.";
+  }
+
+  const captcha = await verifyCaptchaToken(options.captchaToken, ip);
+
+  return captcha.ok ? null : captcha.error;
 }
 
 function getEmailRedirect(pathname: string) {
@@ -177,7 +207,7 @@ async function loadActiveRoleCodes(userId: string) {
 
 async function loginForPortal(portal: LoginPortal, formData: FormData) {
   const parsed = loginSchema.safeParse(
-    pickFormFields(formData, ["email", "password", "next"])
+    pickFormFields(formData, ["email", "password", "next", "captchaToken"])
   );
 
   if (!parsed.success) {
@@ -189,6 +219,20 @@ async function loginForPortal(portal: LoginPortal, formData: FormData) {
 
   const { email, password } = parsed.data;
   const nextPath = resolveLoginRedirectPath(portal, parsed.data.next);
+  const protectionError = await enforceAuthActionProtection({
+    captchaToken: parsed.data.captchaToken,
+    email,
+    rateLimit: RATE_LIMITS.authLogin,
+    rateLimitPrefix: `auth-login:${portal}`,
+  });
+
+  if (protectionError) {
+    redirectToLoginPage(portal, {
+      error: protectionError,
+      next: nextPath,
+    });
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -259,12 +303,25 @@ export async function loginPortal(formData: FormData) {
 }
 
 export async function requestPasswordReset(formData: FormData) {
-  const parsed = passwordResetSchema.safeParse(pickFormFields(formData, ["email"]));
+  const parsed = passwordResetSchema.safeParse(
+    pickFormFields(formData, ["email", "captchaToken"])
+  );
 
   if (!parsed.success) {
     redirect(
       `/forgot-password?error=${encodeMessage(parsed.error.issues[0]?.message || "Email is required.")}`
     );
+  }
+
+  const protectionError = await enforceAuthActionProtection({
+    captchaToken: parsed.data.captchaToken,
+    email: parsed.data.email,
+    rateLimit: RATE_LIMITS.authPasswordReset,
+    rateLimitPrefix: "auth-password-reset",
+  });
+
+  if (protectionError) {
+    redirect(`/forgot-password?error=${encodeMessage(protectionError)}`);
   }
 
   const supabase = await createClient();
@@ -304,7 +361,13 @@ export async function updatePassword(formData: FormData) {
 
 export async function claimProfile(formData: FormData) {
   const parsed = claimProfileSchema.safeParse(
-    pickFormFields(formData, ["jnuitsId", "invitationCode", "email", "password"])
+    pickFormFields(formData, [
+      "jnuitsId",
+      "invitationCode",
+      "email",
+      "password",
+      "captchaToken",
+    ])
   );
 
   if (!parsed.success) {
@@ -314,6 +377,17 @@ export async function claimProfile(formData: FormData) {
   }
 
   const { email, invitationCode, jnuitsId, password } = parsed.data;
+  const protectionError = await enforceAuthActionProtection({
+    captchaToken: parsed.data.captchaToken,
+    email,
+    rateLimit: RATE_LIMITS.authRegister,
+    rateLimitPrefix: "auth-register",
+  });
+
+  if (protectionError) {
+    redirect(`/register?error=${encodeMessage(protectionError)}`);
+  }
+
   const admin = createAdminClient();
 
   const invitationResult = await admin
@@ -362,8 +436,10 @@ export async function claimProfile(formData: FormData) {
     options: {
       emailRedirectTo: getEmailRedirect("/portal/dashboard"),
       data: {
-        jnuits_id: jnuitsId,
+        claim_invitation_id: invitationRow.id,
+        claim_member_id: linkedMember.id,
         claim_source: "member_invitation",
+        jnuits_id: jnuitsId,
       },
     },
   });
@@ -372,37 +448,9 @@ export async function claimProfile(formData: FormData) {
     redirect(`/register?error=${encodeMessage(signUpError?.message || "Unable to create account.")}`);
   }
 
-  const nowIso = new Date().toISOString();
-
-  const memberUpdate = await admin
-    .from("members")
-    .update({
-      email,
-      user_id: signUpData.user.id,
-      is_profile_claimed: true,
-      profile_claimed_at: nowIso,
-    })
-    .eq("id", linkedMember.id);
-
-  if (memberUpdate.error) {
-    redirect(`/register?error=${encodeMessage(memberUpdate.error.message)}`);
-  }
-
-  const invitationUpdate = await admin
-    .from("member_invitations")
-    .update({
-      used_count: invitationRow.used_count + 1,
-      last_used_at: nowIso,
-    })
-    .eq("id", invitationRow.id);
-
-  if (invitationUpdate.error) {
-    redirect(`/register?error=${encodeMessage(invitationUpdate.error.message)}`);
-  }
-
   await admin.from("audit_events").insert({
     actor_user_id: signUpData.user.id,
-    action: "member.claimed_profile",
+    action: "member.profile_claim_pending",
     entity_type: "member",
     entity_id: linkedMember.id,
     metadata: {

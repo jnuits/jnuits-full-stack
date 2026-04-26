@@ -1,4 +1,6 @@
 import { claimProfile } from "@/app/(auth)/actions";
+import { TurnstileField } from "@/components/auth/turnstile-field";
+import { getTurnstileSiteKey } from "@/lib/security/captcha";
 
 export default async function RegisterPage({
   searchParams,
@@ -10,6 +12,7 @@ export default async function RegisterPage({
     typeof resolvedSearchParams.error === "string"
       ? resolvedSearchParams.error
       : null;
+  const turnstileSiteKey = getTurnstileSiteKey();
 
   return (
     <div>
@@ -46,6 +49,7 @@ export default async function RegisterPage({
           placeholder="Create password"
           required
         />
+        <TurnstileField siteKey={turnstileSiteKey} />
         <button className="primary-button" formAction={claimProfile}>
           Claim profile
         </button>
