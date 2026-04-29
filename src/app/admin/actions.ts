@@ -9,6 +9,7 @@ import { requireAdminUser } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { getAppBaseUrl } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 import {
   DEFAULT_INVITATION_EXPIRY_DAYS,
   generateInvitationCode,
@@ -16,7 +17,6 @@ import {
   hashInvitationCode,
 } from "@/lib/members/invitation-code";
 import {
-  buildGeneratedJnuitsId,
   extractBatchNumber,
   normalizeJnuitsIdForCreation,
 } from "@/lib/members/jnuits-id";
@@ -26,6 +26,7 @@ import {
 } from "@/lib/members/workplace-payload";
 import { sendEmail } from "@/lib/notifications/send-email";
 import {
+  buildMemberInvitationEmail,
   buildMembershipApprovedEmail,
   buildMembershipRejectedEmail,
   buildEmailChangeVerificationEmail,
@@ -150,6 +151,21 @@ async function getNextInvitationCode(admin: ReturnType<typeof createAdminClient>
   throw new Error("Unable to generate a unique invitation code.");
 }
 
+async function allocateCurrentYearMembershipId(
+  admin: ReturnType<typeof createAdminClient>
+) {
+  const yearBlock = String(new Date().getUTCFullYear());
+  const { data, error } = await asFlexibleClient(admin).rpc("allocate_membership_id" as string, {
+    year_block: yearBlock,
+  });
+
+  if (error || typeof data !== "string") {
+    throw new Error(error?.message || "Unable to allocate the next JnUITS ID.");
+  }
+
+  return data;
+}
+
 async function resolveApprovedMemberId(
   admin: ReturnType<typeof createAdminClient>,
   application: MembershipApplicationRow,
@@ -181,7 +197,7 @@ async function resolveApprovedMemberId(
 
   if (overrideId && !normalizedOverride) {
     throw new Error(
-      "Manual JnUITS ID overrides must use the JNUITS-<number> format."
+      "Manual JnUITS ID overrides must use the JNUITS-YYYYSSS format."
     );
   }
 
@@ -197,20 +213,11 @@ async function resolveApprovedMemberId(
     }
   }
 
-  const { data: existingMemberIds } = await admin
-    .from("members")
-    .select("jnuits_id");
-
   const generatedId =
-    normalizedOverride ||
-    buildGeneratedJnuitsId(
-      (existingMemberIds || [])
-        .map((member) => member.jnuits_id)
-        .filter((value): value is string => typeof value === "string")
-    );
+    normalizedOverride || (await allocateCurrentYearMembershipId(admin));
 
-  const { data: createdMember, error: memberError } = await admin
-    .from("members")
+  const { data: createdMember, error: memberError } = await asFlexibleClient(admin)
+    .from("members" as string)
     .insert({
       jnuits_id: generatedId,
       full_name: application.name,
@@ -218,7 +225,9 @@ async function resolveApprovedMemberId(
       phone: application.phone,
       department_code: application.department_code,
       batch_no: extractBatchNumber(application.batch_label),
+      lifecycle_status: "current",
       member_type: "current",
+      portal_access_status: "active",
       linkedin_url: application.linkedin_url,
       professional_visibility: "members-only",
     })
@@ -577,7 +586,7 @@ export async function revokeMemberInvitation(formData: FormData) {
 
   const { data: member } = await admin
     .from("members")
-    .select("id, jnuits_id, full_name")
+    .select("id, jnuits_id, full_name, email")
     .eq("id", invitation.member_id)
     .maybeSingle();
 
@@ -684,9 +693,9 @@ export async function reissueMemberInvitation(formData: FormData) {
     redirect("/admin#invitations");
   }
 
-  const { data: member } = await admin
+    const { data: member } = await admin
     .from("members")
-    .select("id, jnuits_id, full_name")
+    .select("id, jnuits_id, full_name, email")
     .eq("id", invitation.member_id)
     .maybeSingle();
 
@@ -787,6 +796,19 @@ export async function reissueMemberInvitation(formData: FormData) {
       invitationCode: replacement.code,
       jnuitsId: member.jnuits_id,
     });
+
+    if (member.email) {
+      void sendEmail({
+        html: buildMemberInvitationEmail({
+          invitationCode: replacement.code,
+          invitationExpiresAt: replacement.expiresAt,
+          jnuitsId: member.jnuits_id,
+          memberName: member.full_name,
+        }),
+        subject: "Your replacement JnUITS claim code",
+        to: member.email,
+      });
+    }
   } catch (error) {
     await setAdminFlash({
       tone: "error",

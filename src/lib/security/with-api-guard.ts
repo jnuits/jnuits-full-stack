@@ -31,7 +31,7 @@ import {
 } from "@/lib/security/rate-limit";
 
 type RouteContext = {
-  params?: Promise<Record<string, string | string[] | undefined>>;
+  params: Promise<Record<string, string | string[] | undefined>>;
 } & Record<string, unknown>;
 
 type RouteHandler<Context extends RouteContext = RouteContext> = (
@@ -127,8 +127,11 @@ export function withApiGuard<Context extends RouteContext = RouteContext>(
 ) {
   return async function guardedHandler(
     request: NextRequest,
-    context = {} as Context
+    context: Context
   ): Promise<NextResponse> {
+    const routeContext =
+      (context ?? { params: Promise.resolve({}) }) as Context;
+
     // 1. Same-origin check for unsafe mutation methods.
     if (options.enforceSameOrigin !== false) {
       const sameOriginError = getSameOriginError(request);
@@ -159,6 +162,6 @@ export function withApiGuard<Context extends RouteContext = RouteContext>(
     }
 
     // 4. Delegate to the handler
-    return handler(request, { ...context, userId });
+    return handler(request, { ...routeContext, userId });
   };
 }

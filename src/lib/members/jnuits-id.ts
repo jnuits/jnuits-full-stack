@@ -1,14 +1,22 @@
-const STANDARD_JNUITS_ID_PATTERN = /^JNUITS-(\d+)$/i;
-const DIGITS_ONLY_PATTERN = /^(\d+)$/;
+const STANDARD_JNUITS_ID_PATTERN = /^JNUITS-([0-9]{7})$/i;
+const LEGACY_ALUMNI_ID_PATTERN = /^JNUITS-ALUMNI-([0-9]+)$/i;
+const DIGITS_ONLY_PATTERN = /^([0-9]{7})$/;
+const MEMBER_ID_PART_PATTERN = /^([0-9]{4})([0-9]{3})$/;
 
-function normalizePositiveNumber(value: string) {
-  const parsed = Number.parseInt(value, 10);
+function normalizeMemberIdPart(value: string) {
+  const match = value.match(MEMBER_ID_PART_PATTERN);
 
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  if (!match) {
     return "";
   }
 
-  return String(parsed);
+  const serial = Number.parseInt(match[2] || "", 10);
+
+  if (!Number.isFinite(serial) || serial <= 0) {
+    return "";
+  }
+
+  return `${match[1]}${match[2]}`;
 }
 
 export function normalizeJnuitsIdForCreation(value: string) {
@@ -21,18 +29,61 @@ export function normalizeJnuitsIdForCreation(value: string) {
   const standardMatch = raw.match(STANDARD_JNUITS_ID_PATTERN);
 
   if (standardMatch) {
-    const numericPart = normalizePositiveNumber(standardMatch[1]);
+    const numericPart = normalizeMemberIdPart(standardMatch[1]);
     return numericPart ? `JNUITS-${numericPart}` : "";
   }
 
   const digitsOnlyMatch = raw.match(DIGITS_ONLY_PATTERN);
 
   if (digitsOnlyMatch) {
-    const numericPart = normalizePositiveNumber(digitsOnlyMatch[1]);
+    const numericPart = normalizeMemberIdPart(digitsOnlyMatch[1]);
     return numericPart ? `JNUITS-${numericPart}` : "";
   }
 
   return "";
+}
+
+export function formatMembershipIdForDisplay(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const raw = value.trim();
+  const legacyAlumniMatch = raw.match(LEGACY_ALUMNI_ID_PATTERN);
+
+  if (legacyAlumniMatch) {
+    const serial = Number.parseInt(legacyAlumniMatch[1] || "", 10);
+
+    if (Number.isFinite(serial) && serial > 0 && serial <= 999) {
+      return `JnUITS-0000${String(serial).padStart(3, "0")}`;
+    }
+  }
+
+  const normalized = normalizeJnuitsIdForCreation(value);
+  return normalized ? normalized.replace(/^JNUITS-/i, "JnUITS-") : raw;
+}
+
+export function formatJnuitsIdForDisplay(value: string | null | undefined) {
+  return formatMembershipIdForDisplay(value);
+}
+
+export function parseMembershipIdParts(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = normalizeJnuitsIdForCreation(value);
+  const match = normalized.match(/^JNUITS-([0-9]{4})([0-9]{3})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    normalized,
+    serial: Number.parseInt(match[2], 10),
+    yearBlock: match[1],
+  };
 }
 
 export function buildGeneratedJnuitsId(existingIds: string[], now = new Date()) {
@@ -46,16 +97,14 @@ export function buildGeneratedJnuitsId(existingIds: string[], now = new Date()) 
       continue;
     }
 
-    const numericPart = normalized.replace("JNUITS-", "");
+    const parsed = parseMembershipIdParts(normalized);
 
-    if (!numericPart.startsWith(yearPrefix)) {
+    if (!parsed || parsed.yearBlock !== yearPrefix) {
       continue;
     }
 
-    const yearSequence = Number.parseInt(numericPart.slice(yearPrefix.length), 10);
-
-    if (Number.isFinite(yearSequence) && yearSequence > maxSequence) {
-      maxSequence = yearSequence;
+    if (parsed.serial > maxSequence) {
+      maxSequence = parsed.serial;
     }
   }
 

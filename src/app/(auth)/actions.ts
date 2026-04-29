@@ -14,6 +14,7 @@ import { checkAdminMFA } from "@/lib/auth/mfa";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
 import { hashInvitationCode } from "@/lib/members/invitation-code";
+import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import { verifyCaptchaToken } from "@/lib/security/captcha";
 import {
   checkRateLimit,
@@ -74,7 +75,18 @@ const claimProfileSchema = z.object({
     .trim()
     .min(3, "JnUITS ID is required.")
     .max(40)
-    .transform((value) => value.toUpperCase()),
+    .transform((value, context) => {
+      const normalized = normalizeJnuitsIdForCreation(value);
+
+      if (!normalized) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "JnUITS ID must use the JnUITS-YYYYSSS format.",
+        });
+      }
+
+      return normalized;
+    }),
   password: z.string().min(8, "Password must be at least 8 characters."),
   captchaToken: z.string().trim().optional().default(""),
 });

@@ -131,7 +131,7 @@ export default async function MembersPage({
               <input
                 id="dir-search"
                 name="search"
-                placeholder="e.g. JAKIYA, JNUITS-1025"
+                placeholder="e.g. JAKIYA, JnUITS-2026001"
                 defaultValue={filters.search}
                 autoComplete="off"
               />

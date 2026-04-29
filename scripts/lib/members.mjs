@@ -205,16 +205,18 @@ export function normalizeJnuitsId(value) {
     return "";
   }
 
-  const standardMatch = raw.match(/^JNUITS-(\d+)$/i);
+  const standardMatch = raw.match(/^JNUITS-([0-9]{7})$/i);
 
   if (standardMatch) {
-    return `JNUITS-${standardMatch[1]}`;
+    const serial = Number.parseInt(standardMatch[1].slice(4), 10);
+    return serial > 0 ? `JNUITS-${standardMatch[1]}` : "";
   }
 
-  const digitsMatch = raw.match(/^(\d+)$/);
+  const digitsMatch = raw.match(/^([0-9]{7})$/);
 
   if (digitsMatch) {
-    return `JNUITS-${digitsMatch[1]}`;
+    const serial = Number.parseInt(digitsMatch[1].slice(4), 10);
+    return serial > 0 ? `JNUITS-${digitsMatch[1]}` : "";
   }
 
   return "";
@@ -231,13 +233,13 @@ export function buildGeneratedJnuitsId(existingIds, now = new Date()) {
       continue;
     }
 
-    const numericPart = normalized.replace("JNUITS-", "");
+    const match = normalized.match(/^JNUITS-([0-9]{4})([0-9]{3})$/);
 
-    if (!numericPart.startsWith(yearPrefix)) {
+    if (!match || match[1] !== yearPrefix) {
       continue;
     }
 
-    const sequence = Number.parseInt(numericPart.slice(yearPrefix.length), 10);
+    const sequence = Number.parseInt(match[2], 10);
 
     if (Number.isFinite(sequence) && sequence > maxSequence) {
       maxSequence = sequence;

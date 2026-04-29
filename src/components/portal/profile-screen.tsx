@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { PortalShell } from "@/components/portal/portal-shell";
+import { AvatarUploadField } from "@/components/profile/avatar-upload-field";
 import { savePortalProfilePreferences } from "@/app/(portal)/portal/profile/actions";
 import { requirePortalUser } from "@/lib/auth/session";
+import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 import {
   AlertTriangle,
@@ -78,10 +80,12 @@ export async function ProfileScreen({
   const member = snapshot.member;
   const feedbackMessage = resolveProfileMessage(message);
   const feedbackError = resolveProfileError(error);
+  const canMutateProfile = snapshot.access.canMutate;
+  const displayJnuitsId = formatMembershipIdForDisplay(member?.jnuits_id);
 
   return (
     <PortalShell
-      jnuitsId={member?.jnuits_id ?? null}
+      jnuitsId={displayJnuitsId || null}
       memberName={member?.full_name ?? null}
       portalRole={user.portalRole}
     >
@@ -131,11 +135,17 @@ export async function ProfileScreen({
                 Your member identity, portal preferences, directory data, and lifecycle history.
               </p>
             </div>
-            <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-              <Link href="/portal/profile/edit" className="secondary-button">
-                Edit profile
-              </Link>
-            </div>
+            {canMutateProfile ? (
+              <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+                <Link href="/portal/profile/edit" className="secondary-button">
+                  Edit profile
+                </Link>
+              </div>
+            ) : (
+              <span className="portal-badge portal-badge--locked">
+                {snapshot.access.portalAccessStatus || snapshot.access.lifecycleStatus}
+              </span>
+            )}
           </div>
 
           {feedbackMessage ? (
@@ -150,20 +160,21 @@ export async function ProfileScreen({
           ) : null}
 
           <div className="portal-identity-banner">
-            <div className="portal-identity-banner__avatar" aria-hidden="true">
-              {member.full_name
-                .split(" ")
-                .slice(0, 2)
-                .map((word) => word[0]?.toUpperCase())
-                .join("")}
-            </div>
+            <AvatarUploadField
+              canUpload={canMutateProfile}
+              compact
+              currentUrl={member.avatar_secure_url ?? null}
+              displayName={member.full_name}
+              targetId={member.id}
+              targetType="member"
+            />
             <div className="portal-identity-banner__info">
               <h2 className="portal-identity-banner__name">{member.full_name}</h2>
               <div className="portal-identity-banner__meta">
                 <span>{snapshot.departmentName ?? "Department pending"}</span>
                 <span aria-hidden>·</span>
                 <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
-                  {member.jnuits_id}
+                  {displayJnuitsId}
                 </code>
                 <span aria-hidden>·</span>
                 <span>{member.batch_no ? `Batch ${member.batch_no}` : "Batch unknown"}</span>
@@ -186,6 +197,9 @@ export async function ProfileScreen({
                 {member.is_profile_claimed ? "Claimed" : "Unclaimed"}
               </span>
               <span className="portal-badge portal-badge--member">{member.member_type}</span>
+              {!canMutateProfile ? (
+                <span className="portal-badge portal-badge--locked">Read-only</span>
+              ) : null}
             </div>
           </div>
 
@@ -292,6 +306,7 @@ export async function ProfileScreen({
                     Theme preference
                     <select
                       defaultValue={snapshot.settings?.preferred_theme ?? "system"}
+                      disabled={!canMutateProfile}
                       id="portal-preferred-theme"
                       name="preferredTheme"
                     >
@@ -306,6 +321,7 @@ export async function ProfileScreen({
                     <label style={{ alignItems: "center", display: "flex", gap: "0.55rem" }}>
                       <input
                         defaultChecked={snapshot.settings?.notification_email_opt_in ?? true}
+                        disabled={!canMutateProfile}
                         name="notificationEmailOptIn"
                         type="checkbox"
                         value="true"
@@ -319,6 +335,7 @@ export async function ProfileScreen({
                     <label style={{ alignItems: "center", display: "flex", gap: "0.55rem" }}>
                       <input
                         defaultChecked={snapshot.settings?.ticket_digest_opt_in ?? true}
+                        disabled={!canMutateProfile}
                         name="ticketDigestOptIn"
                         type="checkbox"
                         value="true"
@@ -328,7 +345,7 @@ export async function ProfileScreen({
                   </label>
 
                   <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.35rem" }}>
-                    <button className="primary-button" type="submit">
+                    <button className="primary-button" disabled={!canMutateProfile} type="submit">
                       Save preferences
                     </button>
                     <Link className="secondary-button" href="/portal/profile/change-password">

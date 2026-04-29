@@ -5,15 +5,24 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { setAdminFlash } from "@/lib/admin/flash";
-import { requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPermission, requireAdminUser } from "@/lib/auth/session";
 import type { TablesInsert } from "@/lib/db/types";
+import {
+  buildAlumniConversionDecisionEmail,
+  buildDeletionRequestStatusEmail,
+  buildMemberInvitationEmail,
+} from "@/lib/notifications/email-builders";
+import { sendEmail } from "@/lib/notifications/send-email";
+import { recordSecurityEvent } from "@/lib/security/security-events";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 import {
   DEFAULT_INVITATION_EXPIRY_DAYS,
   generateInvitationCode,
   getInvitationExpiryIso,
   hashInvitationCode,
 } from "@/lib/members/invitation-code";
+import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 type AuditEventInsert = TablesInsert<"audit_events">;
@@ -102,6 +111,38 @@ const batchStatusUpdateSchema = z.object({
   batchId: z.string().trim().min(1, "Missing invitation batch identifier.").max(80),
   nextStatus: batchStatusSchema.optional().default("draft"),
 });
+const lifecycleStatusSchema = z.enum(["current", "former", "alumni", "deleted"]);
+const portalAccessStatusSchema = z.enum([
+  "active",
+  "frozen",
+  "suspended",
+  "deletion_requested",
+  "deactivated",
+]);
+const memberLifecycleUpdateSchema = z.object({
+  memberId: z.string().trim().min(1, "Missing member identifier.").max(80),
+  nextLifecycleStatus: lifecycleStatusSchema,
+  nextPortalAccessStatus: portalAccessStatusSchema,
+  note: z.string().trim().max(1000).optional().default(""),
+});
+const portalRoleUpdateSchema = z.object({
+  memberId: z.string().trim().min(1, "Missing member identifier.").max(80),
+  nextPortalRole: z.enum(["member", "alumni", "executive", "alumni_ambassador"]),
+  note: z.string().trim().max(1000).optional().default(""),
+});
+const accountRequestReviewSchema = z.object({
+  decision: z.enum(["approved", "rejected"]),
+  requestId: z.string().trim().min(1, "Missing request identifier.").max(80),
+  reviewNote: z.string().trim().max(1500).optional().default(""),
+});
+
+type LifecycleStatus = z.infer<typeof lifecycleStatusSchema>;
+type PortalAccessStatus = z.infer<typeof portalAccessStatusSchema>;
+type PortalRoleCode = z.infer<typeof portalRoleUpdateSchema>["nextPortalRole"];
+type MembershipActionResult = {
+  message: string;
+  ok: true;
+};
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
@@ -148,6 +189,472 @@ async function persistOperatorReport(
 
 function redirectMembership(): never {
   redirect("/admin/membership");
+}
+
+async function assignPortalRole(options: {
+  actorUserId: string;
+  admin: AdminClient;
+  note: string;
+  roleCode: "alumni" | "alumni_ambassador" | "executive" | "member";
+  targetUserId: string;
+}) {
+  const flexibleAdmin = asFlexibleClient(options.admin);
+  const { data: role, error: roleError } = await flexibleAdmin
+    .from("rbac_platform_roles" as string)
+    .select("id, code")
+    .eq("scope", "portal")
+    .eq("code", options.roleCode)
+    .eq("is_assignable", true)
+    .maybeSingle();
+
+  if (roleError || !role?.id) {
+    throw new Error(roleError?.message || "The selected portal role is not assignable.");
+  }
+
+  await flexibleAdmin
+    .from("rbac_user_platform_roles" as string)
+    .update({
+      note: options.note || "Replaced by portal role assignment.",
+      revoked_at: new Date().toISOString(),
+    })
+    .eq("user_id", options.targetUserId)
+    .eq("scope", "portal")
+    .is("revoked_at", null);
+
+  const { error: insertError } = await flexibleAdmin
+    .from("rbac_user_platform_roles" as string)
+    .insert({
+      granted_by: options.actorUserId,
+      note: options.note || null,
+      role_id: role.id,
+      scope: "portal",
+      user_id: options.targetUserId,
+    });
+
+  if (insertError) {
+    throw new Error(insertError.message);
+  }
+}
+
+export async function updateMemberLifecycle(
+  memberId: string,
+  lifecycleStatus: LifecycleStatus,
+  portalAccessStatus: PortalAccessStatus,
+  note = ""
+): Promise<MembershipActionResult> {
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/membership",
+  });
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login?next=%2Fadmin%2Fmembership");
+  }
+
+  const parsed = memberLifecycleUpdateSchema.safeParse({
+    memberId,
+    nextLifecycleStatus: lifecycleStatus,
+    nextPortalAccessStatus: portalAccessStatus,
+    note,
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message || "Invalid lifecycle update.");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await asFlexibleClient(admin).rpc(
+    "set_member_lifecycle_status" as string,
+    {
+      next_lifecycle_status: parsed.data.nextLifecycleStatus,
+      next_portal_access_status: parsed.data.nextPortalAccessStatus,
+      reason: parsed.data.note || null,
+      target_member_id: parsed.data.memberId,
+    }
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/admin/membership");
+  revalidatePath("/members");
+
+  return {
+    message: "Member lifecycle and portal access status were updated.",
+    ok: true,
+  };
+}
+
+export async function updateMemberLifecycleAction(formData: FormData) {
+  const parsed = memberLifecycleUpdateSchema.safeParse(
+    pickFormFields(formData, [
+      "memberId",
+      "nextLifecycleStatus",
+      "nextPortalAccessStatus",
+      "note",
+    ])
+  );
+
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Lifecycle update failed",
+      message: parsed.error.issues[0]?.message || "Invalid lifecycle update.",
+    });
+    redirectMembership();
+  }
+
+  try {
+    await updateMemberLifecycle(
+      parsed.data.memberId,
+      parsed.data.nextLifecycleStatus,
+      parsed.data.nextPortalAccessStatus,
+      parsed.data.note
+    );
+  } catch (error) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Lifecycle update failed",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Member lifecycle could not be updated.",
+    });
+    redirectMembership();
+  }
+
+  await setAdminFlash({
+    tone: "success",
+    title: "Lifecycle updated",
+    message: "Member lifecycle and portal access status were updated.",
+  });
+  redirectMembership();
+}
+
+export async function updateMemberPortalRole(
+  memberId: string,
+  role: PortalRoleCode,
+  note = ""
+): Promise<MembershipActionResult> {
+  const auth = await requireAdminPermission("admin.roles.manage_portal", {
+    fallbackPath: "/admin/membership",
+  });
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login?next=%2Fadmin%2Fmembership");
+  }
+
+  const parsed = portalRoleUpdateSchema.safeParse({
+    memberId,
+    nextPortalRole: role,
+    note,
+  });
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message || "Invalid portal role update.");
+  }
+
+  const admin = createAdminClient();
+  const { data: member, error: memberError } = await asFlexibleClient(admin)
+    .from("members" as string)
+    .select("id, user_id, full_name, jnuits_id")
+    .eq("id", parsed.data.memberId)
+    .maybeSingle();
+
+  if (memberError || !member?.user_id) {
+    throw new Error(
+      memberError?.message || "This member does not have a linked portal account."
+    );
+  }
+
+  await assignPortalRole({
+    actorUserId,
+    admin,
+    note: parsed.data.note,
+    roleCode: parsed.data.nextPortalRole,
+    targetUserId: member.user_id,
+  });
+
+  await persistAudit(admin, {
+    actor_user_id: actorUserId,
+    action: "member.portal_role_updated",
+    entity_id: parsed.data.memberId,
+    entity_type: "member",
+    metadata: {
+      jnuitsId: member.jnuits_id,
+      nextPortalRole: parsed.data.nextPortalRole,
+      targetUserId: member.user_id,
+    },
+  });
+
+  await recordSecurityEvent(admin, {
+    actorUserId,
+    eventType: "member.portal_role_updated",
+    payload: {
+      memberId: parsed.data.memberId,
+      nextPortalRole: parsed.data.nextPortalRole,
+    },
+    targetUserId: member.user_id,
+  });
+
+  revalidatePath("/admin/membership");
+  revalidatePath("/members");
+
+  return {
+    message: `${member.full_name || formatMembershipIdForDisplay(member.jnuits_id)} now has the ${parsed.data.nextPortalRole} portal role.`,
+    ok: true,
+  };
+}
+
+export async function updateMemberPortalRoleAction(formData: FormData) {
+  const parsed = portalRoleUpdateSchema.safeParse(
+    pickFormFields(formData, ["memberId", "nextPortalRole", "note"])
+  );
+
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Portal role update failed",
+      message: parsed.error.issues[0]?.message || "Invalid portal role update.",
+    });
+    redirectMembership();
+  }
+
+  let result: MembershipActionResult;
+
+  try {
+    result = await updateMemberPortalRole(
+      parsed.data.memberId,
+      parsed.data.nextPortalRole,
+      parsed.data.note
+    );
+  } catch (error) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Portal role update failed",
+      message: error instanceof Error ? error.message : "Unable to update portal role.",
+    });
+    redirectMembership();
+  }
+
+  await setAdminFlash({
+    tone: "success",
+    title: "Portal role updated",
+    message: result.message,
+  });
+  redirectMembership();
+}
+
+export async function reviewMemberAccountRequestAction(formData: FormData) {
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/membership",
+  });
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login?next=%2Fadmin%2Fmembership");
+  }
+
+  const parsed = accountRequestReviewSchema.safeParse(
+    pickFormFields(formData, ["requestId", "decision", "reviewNote"])
+  );
+
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Account request review failed",
+      message: parsed.error.issues[0]?.message || "Invalid account request review.",
+    });
+    redirectMembership();
+  }
+
+  const admin = createAdminClient();
+  const flexibleAdmin = asFlexibleClient(admin);
+  const { data: request, error: requestError } = await flexibleAdmin
+    .from("profile_update_requests" as string)
+    .select("id, member_id, request_type, status")
+    .eq("id", parsed.data.requestId)
+    .maybeSingle();
+
+  if (
+    requestError ||
+    !request ||
+    request.status !== "pending" ||
+    !["alumni_conversion", "account_deletion"].includes(request.request_type)
+  ) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Account request review failed",
+      message: requestError?.message || "Pending alumni/deletion request could not be loaded.",
+    });
+    redirectMembership();
+  }
+
+  const { data: member, error: memberError } = await flexibleAdmin
+    .from("members" as string)
+    .select("id, user_id, jnuits_id, full_name, email")
+    .eq("id", request.member_id)
+    .maybeSingle();
+
+  if (memberError || !member) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Account request review failed",
+      message: memberError?.message || "The linked member record was not found.",
+    });
+    redirectMembership();
+  }
+
+  const nowIso = new Date().toISOString();
+  const memberEmail = typeof member.email === "string" ? member.email : null;
+  const memberName = typeof member.full_name === "string" ? member.full_name : "JnUITS member";
+
+  if (parsed.data.decision === "approved") {
+    if (request.request_type === "alumni_conversion") {
+      const { error: lifecycleError } = await flexibleAdmin.rpc(
+        "set_member_lifecycle_status" as string,
+        {
+          next_lifecycle_status: "alumni",
+          next_portal_access_status: "active",
+          reason: parsed.data.reviewNote || "Approved alumni conversion request.",
+          target_member_id: member.id,
+        }
+      );
+
+      if (lifecycleError) {
+        await setAdminFlash({
+          tone: "error",
+          title: "Alumni conversion failed",
+          message: lifecycleError.message,
+        });
+        redirectMembership();
+      }
+
+      if (member.user_id) {
+        await assignPortalRole({
+          actorUserId,
+          admin,
+          note: parsed.data.reviewNote,
+          roleCode: "alumni",
+          targetUserId: member.user_id,
+        });
+      }
+    } else {
+      const targetUserId = typeof member.user_id === "string" ? member.user_id : null;
+      const { error: lifecycleError } = await flexibleAdmin.rpc(
+        "set_member_lifecycle_status" as string,
+        {
+          next_lifecycle_status: "deleted",
+          next_portal_access_status: "deactivated",
+          reason: parsed.data.reviewNote || "Approved profile deletion request.",
+          target_member_id: member.id,
+        }
+      );
+
+      if (lifecycleError) {
+        await setAdminFlash({
+          tone: "error",
+          title: "Profile deletion failed",
+          message: lifecycleError.message,
+        });
+        redirectMembership();
+      }
+
+      if (targetUserId) {
+        await flexibleAdmin
+          .from("rbac_user_platform_roles" as string)
+          .update({
+            note: "Revoked after approved profile deletion request.",
+            revoked_at: nowIso,
+          })
+          .eq("user_id", targetUserId)
+          .eq("scope", "portal")
+          .is("revoked_at", null);
+      }
+
+      await flexibleAdmin
+        .from("members" as string)
+        .update({
+          current_organization: null,
+          designation: null,
+          email: null,
+          full_name: "Deleted JnUITS profile",
+          is_profile_claimed: false,
+          linkedin_url: null,
+          phone: null,
+          profile_claimed_at: null,
+          user_id: null,
+          website_url: null,
+          work_location: null,
+        })
+        .eq("id", member.id);
+    }
+  }
+
+  const { error: updateError } = await flexibleAdmin
+    .from("profile_update_requests" as string)
+    .update({
+      review_note: parsed.data.reviewNote || null,
+      reviewed_at: nowIso,
+      reviewed_by_user_id: actorUserId,
+      status: parsed.data.decision,
+      updated_at: nowIso,
+    })
+    .eq("id", request.id);
+
+  if (updateError) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Account request review failed",
+      message: updateError.message,
+    });
+    redirectMembership();
+  }
+
+  await recordSecurityEvent(admin, {
+    actorUserId,
+    eventType: `member.${request.request_type}_${parsed.data.decision}`,
+    payload: {
+      memberId: member.id,
+      requestId: request.id,
+    },
+    severity: request.request_type === "account_deletion" ? "warning" : "info",
+    targetUserId: member.user_id,
+  });
+
+  if (memberEmail) {
+    const approved = parsed.data.decision === "approved";
+    const isAlumniConversion = request.request_type === "alumni_conversion";
+
+    void sendEmail({
+      html: isAlumniConversion
+        ? buildAlumniConversionDecisionEmail({
+            approved,
+            memberName,
+            reviewNote: parsed.data.reviewNote || null,
+          })
+        : buildDeletionRequestStatusEmail({
+            approved,
+            memberName,
+            reviewNote: parsed.data.reviewNote || null,
+          }),
+      subject: isAlumniConversion
+        ? `JnUITS alumni conversion ${parsed.data.decision}`
+        : `JnUITS profile deletion request ${parsed.data.decision}`,
+      to: memberEmail,
+    });
+  }
+
+  revalidatePath("/admin/membership");
+  revalidatePath("/admin/profile-changes");
+  await setAdminFlash({
+    tone: "success",
+    title: "Account request reviewed",
+    message: `${request.request_type.replaceAll("_", " ")} request ${parsed.data.decision}.`,
+  });
+  redirectMembership();
 }
 
 export async function createMembershipCycleAction(formData: FormData) {
@@ -683,7 +1190,7 @@ export async function issueInvitationsFromBatchAction(formData: FormData) {
   let queue = admin
     .from("membership_cycle_memberships")
     .select(
-      "id, member_id, state, members(id, is_profile_claimed, full_name, jnuits_id)"
+      "id, member_id, state, members(id, is_profile_claimed, full_name, jnuits_id, email)"
     )
     .eq("cycle_id", batch.cycle_id);
 
@@ -731,6 +1238,18 @@ export async function issueInvitationsFromBatchAction(formData: FormData) {
 
     if (!inviteError) {
       issued += 1;
+      if (typeof relation.email === "string" && relation.email) {
+        void sendEmail({
+          html: buildMemberInvitationEmail({
+            invitationCode: code.code,
+            invitationExpiresAt: expiresAt,
+            jnuitsId: relation.jnuits_id || "JnUITS member",
+            memberName: relation.full_name || "JnUITS member",
+          }),
+          subject: "Claim your JnUITS member account",
+          to: relation.email,
+        });
+      }
     }
   }
 

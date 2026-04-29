@@ -1,5 +1,10 @@
 import Link from "next/link";
+import {
+  requestAlumniConversionAction,
+  requestProfileDeletionAction,
+} from "@/app/(portal)/portal/profile/actions";
 import { requirePortalUser } from "@/lib/auth/session";
+import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 import { getMemberProjects } from "@/lib/content/projects";
 import { PortalShell } from "@/components/portal/portal-shell";
@@ -8,12 +13,77 @@ import {
   FolderKanban,
   KeyRound,
   Link2,
+  PauseCircle,
   ShieldCheck,
+  Trash2,
   User,
+  UserCheck,
   UserPen,
 } from "lucide-react";
 
-export async function PortalOverviewScreen() {
+type PortalOverviewScreenProps = {
+  access?: null | string;
+  error?: null | string;
+  message?: null | string;
+};
+
+function resolvePortalMessage(value: null | string) {
+  if (value === "alumni-conversion-requested") {
+    return "Alumni conversion request submitted for admin review.";
+  }
+
+  if (value === "alumni-conversion-pending") {
+    return "Your alumni conversion request is already pending.";
+  }
+
+  if (value === "profile-deletion-requested") {
+    return "Profile deletion request submitted for admin review.";
+  }
+
+  if (value === "profile-deletion-pending") {
+    return "Your profile deletion request is already pending.";
+  }
+
+  if (value === "already-alumni") {
+    return "This account is already registered as alumni.";
+  }
+
+  return null;
+}
+
+function resolvePortalError(value: null | string) {
+  if (value === "member-not-linked") {
+    return "No linked member profile exists for this account.";
+  }
+
+  if (value) {
+    return decodeURIComponent(value);
+  }
+
+  return null;
+}
+
+function resolveRestrictedTitle(access: null | string) {
+  if (access === "suspended") {
+    return "Portal access suspended";
+  }
+
+  if (access === "deletion_requested") {
+    return "Profile deletion under review";
+  }
+
+  if (access === "former" || access === "frozen") {
+    return "Former member profile frozen";
+  }
+
+  return "Portal access restricted";
+}
+
+export async function PortalOverviewScreen({
+  access = null,
+  error = null,
+  message = null,
+}: PortalOverviewScreenProps = {}) {
   const auth = await requirePortalUser({ fallbackPath: "/portal" });
   const user = auth.user;
   if (!user) return null;
@@ -26,11 +96,24 @@ export async function PortalOverviewScreen() {
     : [];
 
   const pendingRequests = snapshot.workplaceRequests.filter((r) => r.status === "pending").length;
+  const pendingAlumniConversion = snapshot.accountRequests.some(
+    (request) =>
+      request.request_type === "alumni_conversion" && request.status === "pending"
+  );
+  const pendingDeletion = snapshot.accountRequests.some(
+    (request) =>
+      request.request_type === "account_deletion" && request.status === "pending"
+  );
+  const feedbackMessage = resolvePortalMessage(message);
+  const feedbackError = resolvePortalError(error);
+  const accessStatus = snapshot.access.portalAccessStatus || access;
+  const isRestricted = Boolean(member && snapshot.access.isRestricted);
+  const displayJnuitsId = formatMembershipIdForDisplay(member?.jnuits_id);
 
   return (
     <PortalShell
       memberName={member?.full_name ?? null}
-      jnuitsId={member?.jnuits_id ?? null}
+      jnuitsId={displayJnuitsId || null}
       portalRole={user.portalRole}
     >
       {/* Page header */}
@@ -43,9 +126,98 @@ export async function PortalOverviewScreen() {
           </p>
         </div>
         {member && (
-          <span className="portal-badge portal-badge--member">{member.member_type}</span>
+          <span className="portal-badge portal-badge--member">
+            {member.member_type}
+          </span>
         )}
       </div>
+
+      {feedbackMessage ? (
+        <div className="flash-panel" data-tone="success">
+          <p style={{ fontSize: "0.84rem", lineHeight: 1.6 }}>{feedbackMessage}</p>
+        </div>
+      ) : null}
+      {feedbackError ? (
+        <div className="flash-panel" data-tone="error">
+          <p style={{ fontSize: "0.84rem", lineHeight: 1.6 }}>{feedbackError}</p>
+        </div>
+      ) : null}
+
+      {isRestricted ? (
+        <div className="portal-section">
+          <div className="portal-section__header">
+            <div className="portal-section__header-left">
+              <div className="portal-section__icon"><PauseCircle size={14} /></div>
+              <p className="portal-section__title">
+                {resolveRestrictedTitle(accessStatus)}
+              </p>
+            </div>
+            <span className="portal-badge portal-badge--locked">
+              {snapshot.access.portalAccessStatus || snapshot.access.lifecycleStatus}
+            </span>
+          </div>
+          <div className="portal-section__body">
+            <p style={{ color: "var(--muted-foreground)", fontSize: "0.88rem", lineHeight: 1.7 }}>
+              Your profile is currently read-only. You can keep it frozen, request alumni access,
+              or ask admins to delete the public JnUITS profile after review.
+            </p>
+            <div
+              style={{
+                display: "grid",
+                gap: "0.9rem",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 16rem), 1fr))",
+                marginTop: "1rem",
+              }}
+            >
+              <Link href="/portal/profile" className="portal-quick-action">
+                <div className="portal-quick-action__icon"><PauseCircle size={16} /></div>
+                <p className="portal-quick-action__title">Keep frozen</p>
+                <p className="portal-quick-action__desc">
+                  View profile and timeline in read-only mode.
+                </p>
+                <span className="portal-quick-action__arrow">↗</span>
+              </Link>
+
+              <form action={requestAlumniConversionAction} className="portal-quick-action">
+                <div className="portal-quick-action__icon"><UserCheck size={16} /></div>
+                <p className="portal-quick-action__title">Join alumni</p>
+                <p className="portal-quick-action__desc">
+                  Request conversion to alumni access.
+                </p>
+                <input name="note" type="hidden" value="Requested from frozen portal onboarding." />
+                <button
+                  className="secondary-button"
+                  disabled={pendingAlumniConversion}
+                  style={{ justifyContent: "center", marginTop: "auto" }}
+                  type="submit"
+                >
+                  {pendingAlumniConversion ? "Pending review" : "Request alumni"}
+                </button>
+              </form>
+
+              <form action={requestProfileDeletionAction} className="portal-quick-action">
+                <div className="portal-quick-action__icon"><Trash2 size={16} /></div>
+                <p className="portal-quick-action__title">Delete profile</p>
+                <p className="portal-quick-action__desc">
+                  Submit an admin-reviewed deletion request.
+                </p>
+                <input name="note" type="hidden" value="Requested from frozen portal onboarding." />
+                <button
+                  className="secondary-button"
+                  disabled={pendingDeletion}
+                  style={{ justifyContent: "center", marginTop: "auto" }}
+                  type="submit"
+                >
+                  {pendingDeletion ? "Pending review" : "Request deletion"}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isRestricted ? null : (
+        <>
 
       {/* Stat cards */}
       <div className="portal-stat-grid">
@@ -54,7 +226,7 @@ export async function PortalOverviewScreen() {
           <p className="portal-stat-card__label">Linked profile</p>
           <p className="portal-stat-card__value">{member ? "Active" : "Missing"}</p>
           <p className="portal-stat-card__sub">
-            {member ? `${member.jnuits_id} connected` : "No member record linked yet"}
+            {member ? `${displayJnuitsId} connected` : "No member record linked yet"}
           </p>
         </div>
 
@@ -171,6 +343,8 @@ export async function PortalOverviewScreen() {
           )}
         </div>
       </div>
+        </>
+      )}
     </PortalShell>
   );
 }

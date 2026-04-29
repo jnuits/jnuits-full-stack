@@ -2,11 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
+import { LockKeyhole, ShieldCheck } from "lucide-react";
 
 export function StepUpVerificationForm({
   initiallyActive,
+  username,
 }: {
   initiallyActive: boolean;
+  username?: null | string;
 }) {
   const router = useRouter();
   const [active, setActive] = useState(initiallyActive);
@@ -66,20 +69,23 @@ export function StepUpVerificationForm({
   }
 
   return (
-    <section className="section-band grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="profile-edit-card profile-edit-card--hero">
+      <div className="profile-edit-card__header">
+        <div className="profile-edit-card__icon" data-tone={active ? "success" : "locked"}>
+          {active ? <ShieldCheck size={18} /> : <LockKeyhole size={18} />}
+        </div>
         <div>
-          <span className="eyebrow">Step-up verification</span>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3vw,2.4rem)] leading-[0.96] tracking-[-0.04em]">
+          <p className="profile-edit-kicker">Step-up verification</p>
+          <h2 className="profile-edit-title">
             Unlock direct profile edits with your current password
           </h2>
         </div>
-        <span className="status-pill">
+        <span className="profile-edit-status" data-state={active ? "complete" : "locked"}>
           {active ? "Direct edit unlocked" : "Verification required"}
         </span>
       </div>
 
-      <p className="section-copy">
+      <p className="profile-edit-copy">
         Sensitive profile edits now support a final step-up policy. Verification
         is short-lived, device-scoped, and separate from the directory
         visibility cookie.
@@ -88,19 +94,28 @@ export function StepUpVerificationForm({
       <form
         id="step-up-verification-form"
         action={(formData) => startTransition(() => void handleSubmit(formData))}
-        className="portal-form-grid"
+        className="profile-edit-form-grid"
       >
-        <label className="input-label sm:col-span-2" htmlFor="su-current-password">
+        <input
+          autoComplete="username"
+          hidden
+          name="username"
+          readOnly
+          type="email"
+          value={username || ""}
+        />
+        <label className="input-label profile-edit-span-2" htmlFor="su-current-password">
           Current password
           <input
             id="su-current-password"
             autoComplete="current-password"
             name="currentPassword"
             placeholder="Enter your current password"
+            required
             type="password"
           />
         </label>
-        <div className="flex flex-wrap gap-3 sm:col-span-2">
+        <div className="profile-edit-actions profile-edit-span-2">
           <button className="primary-button" disabled={pending} type="submit">
             {pending ? "Verifying..." : "Verify and unlock"}
           </button>
@@ -118,10 +133,14 @@ export function StepUpVerificationForm({
       </form>
 
       {message ? (
-        <p className="portal-message portal-message--success">{message}</p>
+        <p className="portal-message portal-message--success" aria-live="polite">
+          {message}
+        </p>
       ) : null}
       {error ? (
-        <p className="portal-message portal-message--error">{error}</p>
+        <p className="portal-message portal-message--error" aria-live="assertive">
+          {error}
+        </p>
       ) : null}
     </section>
   );

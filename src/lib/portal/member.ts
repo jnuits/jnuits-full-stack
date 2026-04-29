@@ -1,11 +1,21 @@
 import { cookies } from "next/headers";
 import { isDirectoryVerifiedForUser } from "@/lib/auth/directory-verification";
+import type {
+  MemberLifecycleStatus,
+  PortalAccessStatus,
+  PortalAccessState,
+} from "@/lib/auth/session";
+import { isMutablePortalAccess } from "@/lib/auth/session";
 import type { Tables } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
 type MemberRecord = Tables<"members"> & {
+  avatar_public_id?: string | null;
+  avatar_secure_url?: string | null;
   graduation_year?: number | null;
+  lifecycle_status?: MemberLifecycleStatus | null;
+  portal_access_status?: PortalAccessStatus | null;
   departments?: { name?: string | null } | { name?: string | null }[] | null;
   student_id?: string | null;
 };
@@ -37,7 +47,7 @@ async function loadPortalMemberRecord(
   userId: string
 ) {
   const extendedSelect =
-    "id, jnuits_id, full_name, member_type, email, phone, batch_no, current_organization, designation, work_location, linkedin_url, website_url, professional_visibility, is_profile_claimed, verification_code_hash, student_id, graduation_year, departments(name)";
+    "id, jnuits_id, full_name, member_type, email, phone, batch_no, current_organization, designation, work_location, linkedin_url, website_url, professional_visibility, is_profile_claimed, verification_code_hash, student_id, graduation_year, lifecycle_status, portal_access_status, avatar_public_id, avatar_secure_url, departments(name)";
   const baseSelect =
     "id, jnuits_id, full_name, member_type, email, phone, batch_no, current_organization, designation, work_location, linkedin_url, website_url, professional_visibility, is_profile_claimed, verification_code_hash, departments(name)";
 
@@ -53,7 +63,11 @@ async function loadPortalMemberRecord(
 
   const columnMissing =
     extendedResult.error.message.includes("student_id") ||
-    extendedResult.error.message.includes("graduation_year");
+    extendedResult.error.message.includes("graduation_year") ||
+    extendedResult.error.message.includes("lifecycle_status") ||
+    extendedResult.error.message.includes("portal_access_status") ||
+    extendedResult.error.message.includes("avatar_public_id") ||
+    extendedResult.error.message.includes("avatar_secure_url");
 
   if (!columnMissing) {
     throw extendedResult.error;
@@ -72,6 +86,22 @@ async function loadPortalMemberRecord(
   return (baseResult.data as MemberRecord | null) ?? null;
 }
 
+function resolvePortalAccess(member: MemberRecord | null): PortalAccessState {
+  if (!member) {
+    return {
+      lifecycleStatus: null,
+      memberId: null,
+      portalAccessStatus: null,
+    };
+  }
+
+  return {
+    lifecycleStatus: member.lifecycle_status ?? "current",
+    memberId: member.id,
+    portalAccessStatus: member.portal_access_status ?? "active",
+  };
+}
+
 export async function getPortalMemberSnapshot(userId: string) {
   const admin = createAdminClient();
   const flexibleAdmin = asFlexibleClient(admin);
@@ -80,7 +110,15 @@ export async function getPortalMemberSnapshot(userId: string) {
   const typedMember = await loadPortalMemberRecord(admin, userId);
 
   if (!typedMember) {
+    const access = resolvePortalAccess(null);
+
     return {
+      access: {
+        ...access,
+        canMutate: false,
+        isRestricted: true,
+      },
+      accountRequests: [] as WorkplaceRequestRecord[],
       member: null,
       departmentName: null,
       directoryVerified: false,
@@ -112,12 +150,24 @@ export async function getPortalMemberSnapshot(userId: string) {
       .eq("user_id", userId)
       .maybeSingle(),
   ]);
+  const requests = (workplaceRequestResult.data || []) as WorkplaceRequestRecord[];
+  const access = resolvePortalAccess(typedMember);
 
   return {
+    access: {
+      ...access,
+      canMutate: isMutablePortalAccess(access),
+      isRestricted: !isMutablePortalAccess(access),
+    },
+    accountRequests: requests.filter(
+      (request) =>
+        request.request_type === "alumni_conversion" ||
+        request.request_type === "account_deletion"
+    ),
     member: typedMember,
     departmentName: resolveDepartmentName(typedMember),
     directoryVerified: isDirectoryVerifiedForUser(cookieStore, userId),
-    profileChangeRequests: ((workplaceRequestResult.data || []) as WorkplaceRequestRecord[]).filter(
+    profileChangeRequests: requests.filter(
       (request) =>
         request.request_type === "profile_change" ||
         request.request_type === "email_change" ||
@@ -125,7 +175,7 @@ export async function getPortalMemberSnapshot(userId: string) {
     ),
     settings: (settingsResult.data as PortalUserSettingsRecord | null) ?? null,
     timeline: (timelineResult.data || []) as TimelineRecord[],
-    workplaceRequests: ((workplaceRequestResult.data || []) as WorkplaceRequestRecord[]).filter(
+    workplaceRequests: requests.filter(
       (request) => request.request_type === "workplace_update"
     ),
   };

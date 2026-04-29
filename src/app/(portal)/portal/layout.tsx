@@ -9,6 +9,10 @@ function getPortalPermissionForPath(pathname: string) {
     return null;
   }
 
+  if (pathname === "/portal/profile" || pathname === "/portal/profile/change-password") {
+    return null;
+  }
+
   if (pathname.startsWith("/portal/profile")) {
     return "portal.profile.manage_self";
   }

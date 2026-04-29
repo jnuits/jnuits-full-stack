@@ -62,7 +62,7 @@ async function handlePost(request: NextRequest) {
     );
   }
 
-  await ephemeral.auth.signOut();
+  await ephemeral.auth.signOut({ scope: "local" });
 
   const stepUpCookie = buildStepUpCookie(auth.user.id);
   const response = NextResponse.json(

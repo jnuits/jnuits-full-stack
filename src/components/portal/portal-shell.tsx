@@ -20,6 +20,7 @@ import {
 import { LogoutButton } from "@/components/auth/logout-button";
 import { SiteBrand } from "@/components/layout/site-brand";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { portalNavigation } from "@/lib/site";
 
 // ── Nav structure ─────────────────────────────────────────────────────────────
@@ -127,6 +128,7 @@ export function PortalShell({
   }, [pathname]);
 
   const initials = memberName ? getInitials(memberName) : "M";
+  const displayJnuitsId = formatMembershipIdForDisplay(jnuitsId);
 
   return (
     <>
@@ -163,8 +165,8 @@ export function PortalShell({
             </div>
             <div className="portal-id-card__info">
               <p className="portal-id-card__name">{memberName ?? "Member"}</p>
-              {jnuitsId && (
-                <p className="portal-id-card__id">{jnuitsId}</p>
+              {displayJnuitsId && (
+                <p className="portal-id-card__id">{displayJnuitsId}</p>
               )}
             </div>
           </div>
