@@ -190,6 +190,215 @@ export function buildMembershipApprovedEmail(props: MembershipApprovedEmailProps
 
 // ──────────────────────────────────────────────────────────────────────────
 
+export interface MemberInvitationEmailProps {
+  invitationCode: string;
+  invitationExpiresAt: string;
+  jnuitsId: string;
+  memberName: string;
+}
+
+export function buildMemberInvitationEmail(props: MemberInvitationEmailProps): string {
+  const { invitationCode, invitationExpiresAt, jnuitsId, memberName } = props;
+  const expiryDate = new Date(invitationExpiresAt).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const content = [
+    h1("Claim your JnUITS member account"),
+    p(
+      `Hi ${esc(memberName)}, an admin has invited you to claim your JnUITS member portal account. Your member ID will stay fixed for current and future alumni access.`
+    ),
+    card([
+      ["JnUITS ID", jnuitsId],
+      ["Invite expires", expiryDate],
+    ]),
+    p("Use this claim code to create your portal account. Keep it private."),
+    codeBlock(invitationCode),
+    button("Claim member account", "https://jnuits.org.bd/claim"),
+    hr(),
+    p(
+      `If this invitation looks unexpected, please ${link("contact JnUITS", "https://jnuits.org.bd/contact")}.`,
+      "font-size:13px;margin:0;"
+    ),
+  ].join("");
+
+  return wrap(`You have been invited to claim ${jnuitsId}.`, content);
+}
+
+export interface AlumniInvitationEmailProps {
+  alumniName: string;
+  invitationCode: string;
+  invitationExpiresAt: string;
+  jnuitsId: string;
+}
+
+export function buildAlumniInvitationEmail(props: AlumniInvitationEmailProps): string {
+  const { alumniName, invitationCode, invitationExpiresAt, jnuitsId } = props;
+  const expiryDate = new Date(invitationExpiresAt).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const content = [
+    h1("Join the JnUITS alumni portal"),
+    p(
+      `Hi ${esc(alumniName)}, you have been invited to join the JnUITS alumni portal directly. Your permanent member ID remains <strong style="color:${TEXT};">${esc(jnuitsId)}</strong>.`
+    ),
+    card([
+      ["JnUITS ID", jnuitsId],
+      ["Invite expires", expiryDate],
+    ]),
+    p("Use this claim code to activate alumni portal access."),
+    codeBlock(invitationCode),
+    button("Join alumni portal", "https://jnuits.org.bd/claim"),
+    hr(),
+    p(
+      `Need help? ${link("Contact JnUITS", "https://jnuits.org.bd/contact")}.`,
+      "font-size:13px;margin:0;"
+    ),
+  ].join("");
+
+  return wrap(`Your JnUITS alumni portal invitation for ${jnuitsId}.`, content);
+}
+
+export interface AlumniConversionDecisionEmailProps {
+  approved: boolean;
+  memberName: string;
+  reviewNote?: null | string;
+}
+
+export function buildAlumniConversionDecisionEmail(
+  props: AlumniConversionDecisionEmailProps
+): string {
+  const { approved, memberName, reviewNote } = props;
+  const noteBlock = reviewNote
+    ? card([["Review note", reviewNote]])
+    : "";
+  const content = approved
+    ? [
+        h1("Alumni access approved"),
+        p(
+          `Hi ${esc(memberName)}, your alumni conversion request has been approved. Your profile is active again with alumni portal access.`
+        ),
+        noteBlock,
+        button("Open alumni portal", "https://jnuits.org.bd/portal"),
+        hr(),
+        p("Your JnUITS ID remains unchanged.", "font-size:13px;margin:0;"),
+      ].join("")
+    : [
+        h1("Alumni request reviewed"),
+        p(
+          `Hi ${esc(memberName)}, your alumni conversion request was reviewed but could not be approved at this time.`
+        ),
+        noteBlock,
+        button("View portal", "https://jnuits.org.bd/portal"),
+        hr(),
+        p(
+          `Questions about this decision? ${link("Contact JnUITS", "https://jnuits.org.bd/contact")}.`,
+          "font-size:13px;margin:0;"
+        ),
+      ].join("");
+
+  return wrap(
+    approved
+      ? "Your JnUITS alumni access has been approved."
+      : "Your JnUITS alumni request has been reviewed.",
+    content
+  );
+}
+
+export interface DeletionRequestStatusEmailProps {
+  approved: boolean;
+  memberName: string;
+  reviewNote?: null | string;
+}
+
+export function buildDeletionRequestStatusEmail(
+  props: DeletionRequestStatusEmailProps
+): string {
+  const { approved, memberName, reviewNote } = props;
+  const noteBlock = reviewNote
+    ? card([["Review note", reviewNote]])
+    : "";
+  const content = approved
+    ? [
+        h1("Profile deletion approved"),
+        p(
+          `Hi ${esc(memberName)}, your JnUITS profile deletion request has been approved. Your public profile data has been deactivated while audit history is preserved for security and compliance.`
+        ),
+        noteBlock,
+        hr(),
+        p(
+          `If you believe this was a mistake, please ${link("contact JnUITS", "https://jnuits.org.bd/contact")} immediately.`,
+          "font-size:13px;margin:0;"
+        ),
+      ].join("")
+    : [
+        h1("Profile deletion request reviewed"),
+        p(
+          `Hi ${esc(memberName)}, your JnUITS profile deletion request was reviewed and was not approved at this time.`
+        ),
+        noteBlock,
+        button("Open portal", "https://jnuits.org.bd/portal"),
+        hr(),
+        p(
+          `Questions about this decision? ${link("Contact JnUITS", "https://jnuits.org.bd/contact")}.`,
+          "font-size:13px;margin:0;"
+        ),
+      ].join("");
+
+  return wrap(
+    approved
+      ? "Your JnUITS profile deletion request has been approved."
+      : "Your JnUITS profile deletion request has been reviewed.",
+    content
+  );
+}
+
+export interface BulkOperationSummaryEmailProps {
+  committedRows: number;
+  errorRows: number;
+  operationId: string;
+  operationType: string;
+  operatorName: string;
+  totalRows: number;
+}
+
+export function buildBulkOperationSummaryEmail(
+  props: BulkOperationSummaryEmailProps
+): string {
+  const {
+    committedRows,
+    errorRows,
+    operationId,
+    operationType,
+    operatorName,
+    totalRows,
+  } = props;
+  const content = [
+    h1("Bulk operation completed"),
+    p(`Hi ${esc(operatorName)}, a JnUITS bulk membership operation has completed.`),
+    card([
+      ["Operation", operationType.replaceAll("_", " ")],
+      ["Operation ID", operationId],
+      ["Total rows", String(totalRows)],
+      ["Committed rows", String(committedRows)],
+      ["Error rows", String(errorRows)],
+    ]),
+    button("Review bulk operations", "https://jnuits.org.bd/admin/bulk-operations"),
+    hr(),
+    p(
+      "This is an operational summary for admin audit and reconciliation.",
+      "font-size:13px;margin:0;"
+    ),
+  ].join("");
+
+  return wrap(`Bulk operation ${operationType} committed ${committedRows} rows.`, content);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+
 export interface MembershipRejectedEmailProps {
   applicantName: string;
   reviewNote?: string | null;

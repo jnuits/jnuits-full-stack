@@ -6,6 +6,7 @@ import {
   setDirectoryVerificationCookies,
 } from "@/lib/auth/directory-verification";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
@@ -45,9 +46,9 @@ async function handleVerify(request: NextRequest): Promise<NextResponse> {
   }
 
   const admin = createAdminClient();
-  const { data: member, error } = await admin
-    .from("members")
-    .select("id, jnuits_id, full_name, member_type, is_profile_claimed, user_id, verification_code_hash")
+  const { data: member, error } = await asFlexibleClient(admin)
+    .from("members" as string)
+    .select("id, jnuits_id, full_name, member_type, is_profile_claimed, user_id, verification_code_hash, lifecycle_status, portal_access_status")
     .eq("jnuits_id", parsed.data.jnuitsId.trim().toUpperCase())
     .maybeSingle();
 
@@ -67,6 +68,26 @@ async function handleVerify(request: NextRequest): Promise<NextResponse> {
         message: "Only the claimed member account can complete directory verification.",
       },
       { status: 403 }
+    );
+    clearDirectoryVerificationCookies(response.cookies);
+    return response;
+  }
+
+  const lifecycleStatus =
+    typeof member.lifecycle_status === "string" ? member.lifecycle_status : "current";
+  const portalAccessStatus =
+    typeof member.portal_access_status === "string" ? member.portal_access_status : "active";
+
+  if (
+    portalAccessStatus !== "active" ||
+    (lifecycleStatus !== "current" && lifecycleStatus !== "alumni")
+  ) {
+    const response = NextResponse.json(
+      {
+        verified: false,
+        message: "Directory verification is unavailable while this profile is frozen or restricted.",
+      },
+      { status: 423 }
     );
     clearDirectoryVerificationCookies(response.cookies);
     return response;

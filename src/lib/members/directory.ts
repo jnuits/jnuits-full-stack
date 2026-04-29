@@ -1,7 +1,9 @@
 import { cookies } from "next/headers";
 import type { Tables } from "@/lib/db/types";
 import { isDirectoryVerifiedForUser } from "@/lib/auth/directory-verification";
+import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
 
 export const MEMBER_DIRECTORY_PAGE_SIZE = 12;
@@ -298,7 +300,7 @@ function mapDirectoryMember(member: MemberDirectoryRow, viewer: ViewerContext) {
 
   return {
     id: member.id,
-    jnuitsId: member.jnuits_id,
+    jnuitsId: formatMembershipIdForDisplay(member.jnuits_id),
     fullName: member.full_name,
     memberType: member.member_type === "alumni" ? "alumni" : "current",
     batchNo: member.batch_no,
@@ -321,16 +323,25 @@ export async function getPublicMemberDirectory(
 ): Promise<MemberDirectoryResult> {
   const query = normalizeDirectoryQuery(input);
   const admin = createAdminClient();
+  const flexibleAdmin = asFlexibleClient(admin);
   const viewer = await resolveViewerContext();
   const selectClause =
     "id, jnuits_id, full_name, member_type, batch_no, department_code, linkedin_url, website_url, current_organization, designation, work_location, professional_visibility, departments(name)";
 
+  const applyPublicMemberFilters = (
+    request: ReturnType<typeof flexibleAdmin.from>
+  ) =>
+    request
+      .in("lifecycle_status", ["current", "alumni"])
+      .eq("portal_access_status", "active")
+      .not("jnuits_id", "ilike", "JNUITS-ADMIN-%");
+
   const buildMembersQuery = () => {
-    const request = admin.from("members").select(selectClause, {
+    const request = flexibleAdmin.from("members" as string).select(selectClause, {
       count: "exact",
     });
 
-    let result = request;
+    let result = applyPublicMemberFilters(request);
 
     if (query.type !== "all") {
       result = result.eq("member_type", query.type);
@@ -389,15 +400,21 @@ export async function getPublicMemberDirectory(
 
   const [totalMembersResult, currentMembersResult, alumniMembersResult, departmentsResult] =
     await Promise.all([
-      admin.from("members").select("id", { head: true, count: "exact" }),
-      admin
-        .from("members")
-        .select("id", { head: true, count: "exact" })
-        .eq("member_type", "current"),
-      admin
-        .from("members")
-        .select("id", { head: true, count: "exact" })
-        .eq("member_type", "alumni"),
+      applyPublicMemberFilters(
+        flexibleAdmin.from("members" as string).select("id", { head: true, count: "exact" })
+      ),
+      applyPublicMemberFilters(
+        flexibleAdmin
+          .from("members" as string)
+          .select("id", { head: true, count: "exact" })
+          .eq("member_type", "current")
+      ),
+      applyPublicMemberFilters(
+        flexibleAdmin
+          .from("members" as string)
+          .select("id", { head: true, count: "exact" })
+          .eq("member_type", "alumni")
+      ),
       admin
         .from("departments")
         .select("code, name")

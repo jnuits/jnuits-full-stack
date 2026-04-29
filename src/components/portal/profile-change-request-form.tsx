@@ -1,7 +1,9 @@
 "use client";
 
 import { startTransition, useState } from "react";
+import { Clock3, FilePenLine, IdCard, Mail } from "lucide-react";
 import type { Tables } from "@/lib/db/types";
+import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 
 type ProfileChangeRequest = Tables<"profile_update_requests">;
 
@@ -27,6 +29,7 @@ export function ProfileChangeRequestForm({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const displayJnuitsId = formatMembershipIdForDisplay(currentValues.jnuitsId);
 
   async function submitRequest(payload: Record<string, unknown>) {
     setPending(true);
@@ -87,31 +90,48 @@ export function ProfileChangeRequestForm({
   }
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.06fr)_minmax(18rem,0.94fr)]">
-      <div className="section-band grid gap-5">
-        <div>
-          <span className="eyebrow">Profile moderation</span>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3vw,2.4rem)] leading-[0.96] tracking-[-0.04em]">
-            Request moderated changes to core member profile fields
-          </h2>
+    <section className="profile-edit-wide-grid">
+      <div className="profile-edit-card profile-edit-card--moderation">
+        <div className="profile-edit-card__header">
+          <div className="profile-edit-card__icon" data-tone="info">
+            <FilePenLine size={18} />
+          </div>
+          <div>
+            <p className="profile-edit-kicker">Profile moderation</p>
+            <h2 className="profile-edit-title">
+              Request moderated changes to core member profile fields
+            </h2>
+          </div>
         </div>
-        <p className="section-copy">
+
+        <p className="profile-edit-copy">
           Changes to your name, phone, social links, login email, and JnUITS ID
           are reviewed by an operator before they apply to your member record.
         </p>
 
         <form
           action={(formData) => startTransition(() => void handleProfileSubmit(formData))}
-          className="portal-form-grid"
+          className="profile-edit-form-grid"
           id="profile-change-form"
         >
           <label className="input-label" htmlFor="pcr-full-name">
             Full name
-            <input id="pcr-full-name" defaultValue={currentValues.fullName} name="fullName" autoComplete="name" />
+            <input
+              id="pcr-full-name"
+              defaultValue={currentValues.fullName}
+              name="fullName"
+              autoComplete="name"
+            />
           </label>
           <label className="input-label" htmlFor="pcr-phone">
             Phone
-            <input id="pcr-phone" defaultValue={currentValues.phone || ""} name="phone" type="tel" autoComplete="tel" />
+            <input
+              id="pcr-phone"
+              defaultValue={currentValues.phone || ""}
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+            />
           </label>
           <label className="input-label" htmlFor="pcr-linkedin-url">
             LinkedIn URL
@@ -135,18 +155,22 @@ export function ProfileChangeRequestForm({
               placeholder="https://your-site.example"
             />
           </label>
-          <div className="flex flex-wrap gap-3 sm:col-span-2">
+          <div className="profile-edit-actions profile-edit-span-2">
             <button className="primary-button" disabled={pending} type="submit">
               {pending ? "Submitting..." : "Submit profile change"}
             </button>
           </div>
         </form>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="profile-edit-mini-grid">
           <form
             action={(formData) => startTransition(() => void handleEmailSubmit(formData))}
-            className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4"
+            className="profile-edit-mini-card"
           >
+            <div className="profile-edit-mini-card__header">
+              <Mail size={16} />
+              <span>Login email</span>
+            </div>
             <label className="input-label" htmlFor="pcr-new-email">
               Request login email change
               <input
@@ -155,51 +179,68 @@ export function ProfileChangeRequestForm({
                 name="newEmail"
                 type="email"
                 autoComplete="email"
+                required
               />
             </label>
-            <p className="section-copy mt-2">
-              After approval, verification links are sent before the auth email
-              change is completed.
+            <p className="profile-edit-note">
+              Approval sends verification links before the auth email changes.
             </p>
-            <button className="secondary-button mt-4" disabled={pending} type="submit">
+            <button className="secondary-button" disabled={pending} type="submit">
               Request email change
             </button>
           </form>
 
           <form
             action={(formData) => startTransition(() => void handleJnuitsIdSubmit(formData))}
-            className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4"
+            className="profile-edit-mini-card"
           >
+            <div className="profile-edit-mini-card__header">
+              <IdCard size={16} />
+              <span>Membership ID</span>
+            </div>
             <label className="input-label" htmlFor="pcr-new-jnuits-id">
               Request JnUITS ID change
               <input
                 id="pcr-new-jnuits-id"
-                defaultValue={currentValues.jnuitsId}
+                defaultValue={displayJnuitsId}
                 name="newJnuitsId"
-                placeholder="JNUITS-2026001"
+                placeholder="JnUITS-2026001"
+                required
               />
             </label>
-            <p className="section-copy mt-2">
-              Admin approval checks that the requested ID is valid and not
-              already assigned.
+            <p className="profile-edit-note">
+              Approval checks that the requested ID is valid and unassigned.
             </p>
-            <button className="secondary-button mt-4" disabled={pending} type="submit">
+            <button className="secondary-button" disabled={pending} type="submit">
               Request ID change
             </button>
           </form>
         </div>
 
         {message ? (
-          <p className="portal-message portal-message--success">{message}</p>
+          <p className="portal-message portal-message--success" aria-live="polite">
+            {message}
+          </p>
         ) : null}
         {error ? (
-          <p className="portal-message portal-message--error">{error}</p>
+          <p className="portal-message portal-message--error" aria-live="assertive">
+            {error}
+          </p>
         ) : null}
       </div>
 
-      <div className="section-band">
-        <span className="eyebrow">Recent profile requests</span>
-        <div className="mt-5 grid gap-3">
+      <aside className="profile-edit-card profile-edit-card--history">
+        <div className="profile-edit-card__header">
+          <div className="profile-edit-card__icon" data-tone="pending">
+            <Clock3 size={18} />
+          </div>
+          <div>
+            <p className="profile-edit-kicker">Recent profile requests</p>
+            <h2 className="profile-edit-side-title">Moderation history</h2>
+          </div>
+        </div>
+
+        <div className="profile-edit-history-list">
           {requests.length === 0 ? (
             <div className="empty-state">
               No profile change requests yet. Your first request will appear here
@@ -208,15 +249,13 @@ export function ProfileChangeRequestForm({
           ) : (
             requests.map((request) => (
               <article key={request.id} className="timeline-item">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong className="font-[family-name:var(--font-heading)] text-lg">
-                    {request.request_type.replaceAll("_", " ")}
-                  </strong>
-                  <span className="status-pill">
+                <div className="profile-edit-history-row">
+                  <strong>{request.request_type.replaceAll("_", " ")}</strong>
+                  <span className="profile-edit-status" data-state="pending">
                     {formatRequestStatus(request.status)}
                   </span>
                 </div>
-                <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                <p className="profile-edit-history-date">
                   Requested{" "}
                   {new Date(request.requested_at).toLocaleDateString("en-BD", {
                     day: "2-digit",
@@ -225,15 +264,13 @@ export function ProfileChangeRequestForm({
                   })}
                 </p>
                 {request.review_note ? (
-                  <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-                    {request.review_note}
-                  </p>
+                  <p className="profile-edit-note">{request.review_note}</p>
                 ) : null}
               </article>
             ))
           )}
         </div>
-      </div>
+      </aside>
     </section>
   );
 }

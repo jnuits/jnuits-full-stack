@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useState } from "react";
+import { BriefcaseBusiness, Clock3, LockKeyhole } from "lucide-react";
 import type { Tables } from "@/lib/db/types";
 
 type WorkplaceRequest = Tables<"profile_update_requests">;
@@ -77,12 +78,19 @@ export function WorkplaceRequestForm({
 
   if (memberType !== "alumni") {
     return (
-      <section className="section-band grid gap-4">
-        <span className="eyebrow">Workplace moderation</span>
-        <h2 className="font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3vw,2.4rem)] leading-[0.96] tracking-[-0.04em]">
-          Workplace self-service is reserved for alumni accounts
-        </h2>
-        <p className="section-copy">
+      <section className="profile-edit-card profile-edit-card--muted">
+        <div className="profile-edit-card__header">
+          <div className="profile-edit-card__icon" data-tone="locked">
+            <LockKeyhole size={18} />
+          </div>
+          <div>
+            <p className="profile-edit-kicker">Workplace moderation</p>
+            <h2 className="profile-edit-title">
+              Workplace self-service is reserved for alumni accounts
+            </h2>
+          </div>
+        </div>
+        <p className="profile-edit-copy">
           Current student and internal member profiles will keep using the safer
           member/profile update lanes instead of the alumni workplace workflow.
         </p>
@@ -91,15 +99,20 @@ export function WorkplaceRequestForm({
   }
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)]">
-      <div className="section-band grid gap-5">
-        <div>
-          <span className="eyebrow">Workplace request</span>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3vw,2.4rem)] leading-[0.96] tracking-[-0.04em]">
-            Submit moderated workplace changes without touching admin tools
-          </h2>
+    <section className="profile-edit-wide-grid">
+      <div className="profile-edit-card profile-edit-card--workplace">
+        <div className="profile-edit-card__header">
+          <div className="profile-edit-card__icon" data-tone="info">
+            <BriefcaseBusiness size={18} />
+          </div>
+          <div>
+            <p className="profile-edit-kicker">Workplace request</p>
+            <h2 className="profile-edit-title">
+              Submit moderated workplace changes without touching admin tools
+            </h2>
+          </div>
         </div>
-        <p className="section-copy">
+        <p className="profile-edit-copy">
           Alumni edits to workplace identity remain request-based so admins
           can review claims, preserve auditability, and protect the public
           directory from accidental drift.
@@ -107,7 +120,7 @@ export function WorkplaceRequestForm({
 
         <form
           action={(formData) => startTransition(() => void handleSubmit(formData))}
-          className="portal-form-grid"
+          className="profile-edit-form-grid"
           id="workplace-request-form"
         >
           <label className="input-label" htmlFor="wp-organization">
@@ -173,20 +186,36 @@ export function WorkplaceRequestForm({
               autoComplete="url"
             />
           </label>
-          <div className="flex flex-wrap gap-3 sm:col-span-2">
+          <div className="profile-edit-actions profile-edit-span-2">
             <button className="primary-button" disabled={pending} type="submit">
               {pending ? "Submitting..." : "Submit moderated update"}
             </button>
           </div>
         </form>
 
-        {message ? <p className="portal-message portal-message--success">{message}</p> : null}
-        {error ? <p className="portal-message portal-message--error">{error}</p> : null}
+        {message ? (
+          <p className="portal-message portal-message--success" aria-live="polite">
+            {message}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="portal-message portal-message--error" aria-live="assertive">
+            {error}
+          </p>
+        ) : null}
       </div>
 
-      <div className="section-band">
-        <span className="eyebrow">Recent requests</span>
-        <div className="mt-5 grid gap-3">
+      <aside className="profile-edit-card profile-edit-card--history">
+        <div className="profile-edit-card__header">
+          <div className="profile-edit-card__icon" data-tone="pending">
+            <Clock3 size={18} />
+          </div>
+          <div>
+            <p className="profile-edit-kicker">Recent requests</p>
+            <h2 className="profile-edit-side-title">Workplace history</h2>
+          </div>
+        </div>
+        <div className="profile-edit-history-list">
           {requests.length === 0 ? (
             <div className="empty-state">
               No workplace requests yet. Your first submission will appear here
@@ -195,15 +224,13 @@ export function WorkplaceRequestForm({
           ) : (
             requests.map((request) => (
               <article key={request.id} className="timeline-item">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong className="font-[family-name:var(--font-heading)] text-lg">
-                    Workplace update
-                  </strong>
-                  <span className="status-pill">
+                <div className="profile-edit-history-row">
+                  <strong>Workplace update</strong>
+                  <span className="profile-edit-status" data-state="pending">
                     {formatRequestStatus(request.status)}
                   </span>
                 </div>
-                <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                <p className="profile-edit-history-date">
                   Requested{" "}
                   {new Date(request.requested_at).toLocaleDateString("en-BD", {
                     day: "2-digit",
@@ -212,15 +239,13 @@ export function WorkplaceRequestForm({
                   })}
                 </p>
                 {request.review_note ? (
-                  <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-                    {request.review_note}
-                  </p>
+                  <p className="profile-edit-note">{request.review_note}</p>
                 ) : null}
               </article>
             ))
           )}
         </div>
-      </div>
+      </aside>
     </section>
   );
 }

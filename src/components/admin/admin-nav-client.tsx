@@ -109,6 +109,7 @@ function buildNavGroups(
           counts.pendingProfile
         ),
         createNavItem("/admin/membership", "Membership DB", ShieldCheck),
+        createNavItem("/admin/bulk-operations", "Bulk Operations", ClipboardList),
       ],
     });
 
@@ -126,6 +127,7 @@ function buildNavGroups(
     groups.push({
       label: "Settings",
       items: [
+        createNavItem("/admin/admin-profiles", "Admin Profiles", UserCog),
         createNavItem("/admin/settings/profile", "Profile Settings", UserCog),
         createNavItem(
           "/admin/settings/security",

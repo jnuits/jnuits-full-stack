@@ -1,6 +1,8 @@
 "use client";
 
 import { startTransition, useState } from "react";
+import { LockKeyhole, ShieldCheck } from "lucide-react";
+import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 
 export function DirectoryVerificationForm({
   initiallyVerified,
@@ -17,6 +19,7 @@ export function DirectoryVerificationForm({
   );
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const displayJnuitsId = formatMembershipIdForDisplay(jnuitsId);
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -56,20 +59,23 @@ export function DirectoryVerificationForm({
   }
 
   return (
-    <section className="section-band grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="profile-edit-card profile-edit-card--directory">
+      <div className="profile-edit-card__header">
+        <div className="profile-edit-card__icon" data-tone={verified ? "success" : "locked"}>
+          {verified ? <ShieldCheck size={18} /> : <LockKeyhole size={18} />}
+        </div>
         <div>
-          <span className="eyebrow">Directory gate</span>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3vw,2.4rem)] leading-[0.96] tracking-[-0.04em]">
+          <p className="profile-edit-kicker">Directory gate</p>
+          <h2 className="profile-edit-title">
             Verify your directory session before exposing sensitive workplace data
           </h2>
         </div>
-        <span className="status-pill">
+        <span className="profile-edit-status" data-state={verified ? "complete" : "locked"}>
           {verified ? "Verified for this browser" : "Verification required"}
         </span>
       </div>
 
-      <p className="section-copy">
+      <p className="profile-edit-copy">
         Workplace details are intentionally hidden until the claimed member
         account proves possession of its directory verification code. The cookie
         is short-lived and scoped to this signed-in account only.
@@ -78,13 +84,13 @@ export function DirectoryVerificationForm({
       <form
         id="directory-verification-form"
         action={(formData) => startTransition(() => void handleSubmit(formData))}
-        className="portal-form-grid"
+        className="profile-edit-form-grid profile-edit-form-grid--single"
       >
-        <label className="input-label sm:col-span-2" htmlFor="dv-jnuits-id">
+        <label className="input-label" htmlFor="dv-jnuits-id">
           JnUITS ID
-          <input id="dv-jnuits-id" value={jnuitsId} readOnly name="jnuitsId" />
+          <input id="dv-jnuits-id" value={displayJnuitsId} readOnly name="jnuitsId" />
         </label>
-        <label className="input-label sm:col-span-2" htmlFor="dv-verification-code">
+        <label className="input-label" htmlFor="dv-verification-code">
           Directory verification code
           <input
             id="dv-verification-code"
@@ -94,15 +100,23 @@ export function DirectoryVerificationForm({
             required
           />
         </label>
-        <div className="flex flex-wrap gap-3 sm:col-span-2">
+        <div className="profile-edit-actions">
           <button className="primary-button" disabled={pending} type="submit">
             {pending ? "Verifying..." : "Verify directory access"}
           </button>
         </div>
       </form>
 
-      {message ? <p className="portal-message portal-message--success">{message}</p> : null}
-      {error ? <p className="portal-message portal-message--error">{error}</p> : null}
+      {message ? (
+        <p className="portal-message portal-message--success" aria-live="polite">
+          {message}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="portal-message portal-message--error" aria-live="assertive">
+          {error}
+        </p>
+      ) : null}
     </section>
   );
 }

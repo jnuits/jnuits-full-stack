@@ -5,6 +5,7 @@ import {
   approveWorkplaceUpdateRequest,
   rejectWorkplaceUpdateRequest,
 } from "@/app/admin/actions";
+import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { getWorkplacePayloadEntries } from "@/lib/members/workplace-payload";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CheckCircle, Clock, XCircle } from "lucide-react";
@@ -143,6 +144,8 @@ export default async function WorkplacePage() {
             {pending.map((req) => {
               const member = resolveMember(req);
               const payloadEntries = getWorkplacePayloadEntries(req.payload);
+              const displayJnuitsId =
+                formatMembershipIdForDisplay(member?.jnuits_id) || req.member_id;
 
               return (
                 <div key={req.id} className="admin-review-card admin-review-card--pending">
@@ -158,7 +161,7 @@ export default async function WorkplacePage() {
                         )}
                       </div>
                       <p className="admin-review-card__name mt-1">{member?.full_name || "Linked member"}</p>
-                      <p className="admin-review-card__id">{member?.jnuits_id || req.member_id}</p>
+                      <p className="admin-review-card__id">{displayJnuitsId}</p>
                     </div>
                     {member?.email && (
                       <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>{member.email}</p>
@@ -240,10 +243,11 @@ export default async function WorkplacePage() {
               <tbody>
                 {recent.map((req) => {
                   const m = Array.isArray(req.members) ? req.members[0] : req.members;
+                  const displayJnuitsId = formatMembershipIdForDisplay(m?.jnuits_id);
                   return (
                     <tr key={req.id}>
                       <td className="font-semibold text-sm">{m?.full_name || "—"}</td>
-                      <td className="text-xs font-mono" style={{ color: "var(--brand-blue)" }}>{m?.jnuits_id || "—"}</td>
+                      <td className="text-xs font-mono" style={{ color: "var(--brand-blue)" }}>{displayJnuitsId || "—"}</td>
                       <td><span className={`abadge abadge--${req.status}`}>{req.status}</span></td>
                       <td className="text-xs" style={{ color: "var(--muted-foreground)" }}>
                         {req.reviewed_at ? new Date(req.reviewed_at).toLocaleDateString("en-BD") : "—"}

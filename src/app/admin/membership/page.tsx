@@ -4,13 +4,19 @@ import {
   createMembershipCycleAction,
   enrollMemberInCycleAction,
   issueInvitationsFromBatchAction,
+  reviewMemberAccountRequestAction,
   syncInvitationBatchMetricsAction,
+  updateMemberLifecycleAction,
+  updateMemberPortalRoleAction,
   updateCycleMemberStateAction,
   updateInvitationBatchStatusAction,
   updateMembershipCycleStatusAction,
 } from "@/app/admin/membership/actions";
+import { AvatarUploadField } from "@/components/profile/avatar-upload-field";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
+import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 
 type MembershipCycleRecord = {
   id: string;
@@ -61,6 +67,52 @@ type InvitationBatchRecord = {
   created_at: string;
 };
 
+type ManagedMemberRecord = {
+  id: string;
+  avatar_secure_url: string | null;
+  email: string | null;
+  full_name: string;
+  is_profile_claimed: boolean | null;
+  jnuits_id: string;
+  lifecycle_status: string | null;
+  member_type: string | null;
+  portal_access_status: string | null;
+  updated_at: string;
+  user_id: string | null;
+};
+
+type PortalRoleOptionRecord = {
+  code: "alumni" | "alumni_ambassador" | "executive" | "member";
+  display_name: string;
+};
+
+type PortalRoleGrantRecord = {
+  user_id: string;
+  rbac_platform_roles:
+    | { code?: string | null; display_name?: string | null }
+    | { code?: string | null; display_name?: string | null }[]
+    | null;
+};
+
+type AccountRequestRecord = {
+  id: string;
+  member_id: string;
+  request_type: string;
+  status: string;
+  requested_at: string;
+  review_note: string | null;
+  members?:
+    | {
+        full_name?: string | null;
+        jnuits_id?: string | null;
+      }
+    | {
+        full_name?: string | null;
+        jnuits_id?: string | null;
+      }[]
+    | null;
+};
+
 function resolveMember(
   relation: CycleMemberRecord["members"]
 ):
@@ -71,6 +123,32 @@ function resolveMember(
       is_profile_claimed?: boolean | null;
     }
   | null {
+  if (!relation) {
+    return null;
+  }
+
+  if (Array.isArray(relation)) {
+    return relation[0] || null;
+  }
+
+  return relation;
+}
+
+function resolveAccountRequestMember(relation: AccountRequestRecord["members"]) {
+  if (!relation) {
+    return null;
+  }
+
+  if (Array.isArray(relation)) {
+    return relation[0] || null;
+  }
+
+  return relation;
+}
+
+function resolvePortalRoleRelation(
+  relation: PortalRoleGrantRecord["rbac_platform_roles"]
+) {
   if (!relation) {
     return null;
   }
@@ -108,12 +186,26 @@ function normalizeBatchStatus(status: string) {
   return "draft";
 }
 
+function displayMembershipId(
+  value: null | string | undefined,
+  fallback = "Unknown ID"
+) {
+  return formatMembershipIdForDisplay(value) || fallback;
+}
+
 export default async function AdminMembershipPage() {
   const admin = createAdminClient();
+  const flexibleAdmin = asFlexibleClient(admin);
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
 
-  const [cyclesResult, cycleMembersResult, batchesResult] = await Promise.all([
+  const [
+    cyclesResult,
+    cycleMembersResult,
+    batchesResult,
+    managedMembersResult,
+    accountRequestsResult,
+  ] = await Promise.all([
     admin
       .from("membership_cycles")
       .select(
@@ -136,11 +228,58 @@ export default async function AdminMembershipPage() {
       )
       .order("created_at", { ascending: false })
       .limit(20),
+    flexibleAdmin
+      .from("members" as string)
+      .select(
+        "id, user_id, jnuits_id, full_name, email, member_type, is_profile_claimed, lifecycle_status, portal_access_status, avatar_secure_url, updated_at"
+      )
+      .not("jnuits_id", "ilike", "JNUITS-ADMIN-%")
+      .order("updated_at", { ascending: false })
+      .limit(40),
+    flexibleAdmin
+      .from("profile_update_requests" as string)
+      .select(
+        "id, member_id, request_type, status, requested_at, review_note, members(full_name, jnuits_id)"
+      )
+      .in("request_type", ["alumni_conversion", "account_deletion"])
+      .eq("status", "pending")
+      .order("requested_at", { ascending: true })
+      .limit(30),
   ]);
 
   const cycles = (cyclesResult.data || []) as MembershipCycleRecord[];
   const cycleMembers = (cycleMembersResult.data || []) as CycleMemberRecord[];
   const batches = (batchesResult.data || []) as InvitationBatchRecord[];
+  const managedMembers = (managedMembersResult.data || []) as ManagedMemberRecord[];
+  const accountRequests = (accountRequestsResult.data || []) as AccountRequestRecord[];
+  const memberUserIds = managedMembers
+    .map((member) => member.user_id)
+    .filter((value): value is string => Boolean(value));
+  const [portalRolesResult, activePortalRoleGrantsResult] = await Promise.all([
+    flexibleAdmin
+      .from("rbac_platform_roles" as string)
+      .select("code, display_name")
+      .eq("scope", "portal")
+      .eq("is_assignable", true)
+      .order("rank", { ascending: true }),
+    memberUserIds.length > 0
+      ? flexibleAdmin
+          .from("rbac_user_platform_roles" as string)
+          .select("user_id, rbac_platform_roles(code, display_name)")
+          .eq("scope", "portal")
+          .is("revoked_at", null)
+          .in("user_id", memberUserIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const portalRoleOptions = (portalRolesResult.data || []) as PortalRoleOptionRecord[];
+  const activePortalRoleByUserId = new Map(
+    ((activePortalRoleGrantsResult.data || []) as PortalRoleGrantRecord[])
+      .map((grant) => {
+        const role = resolvePortalRoleRelation(grant.rbac_platform_roles);
+        return [grant.user_id, role?.code || null] as const;
+      })
+      .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
+  );
   const activeCycle = cycles.find((cycle) => cycle.status === "active") || null;
   const pendingRenewals = cycleMembers.filter(
     (row) => row.state === "pending_renewal"
@@ -237,6 +376,219 @@ export default async function AdminMembershipPage() {
         </article>
       </section>
 
+      <section className="section-band">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <span className="eyebrow">Member operations</span>
+            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.7rem)] leading-[0.96] tracking-[-0.04em]">
+              Lifecycle, access, and portal roles
+            </h2>
+          </div>
+          <span className="status-pill">{managedMembers.length} loaded</span>
+        </div>
+
+        <div className="mt-6 grid gap-4">
+          {managedMembers.length === 0 ? (
+            <div className="empty-state">No member records found.</div>
+          ) : (
+            managedMembers.map((member) => {
+              const currentPortalRole = member.user_id
+                ? activePortalRoleByUserId.get(member.user_id) || "member"
+                : "member";
+              const displayJnuitsId = displayMembershipId(member.jnuits_id);
+
+              return (
+                <article key={member.id} className="application-card">
+                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
+                    <div>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex min-w-0 flex-wrap items-start gap-3">
+                          <AvatarUploadField
+                            canUpload
+                            compact
+                            currentUrl={member.avatar_secure_url}
+                            displayName={member.full_name}
+                            targetId={member.id}
+                            targetType="member"
+                          />
+                          <div className="min-w-0">
+                            <h3 className="font-[family-name:var(--font-heading)] text-[1.6rem] leading-[0.98] tracking-[-0.04em]">
+                              {member.full_name}
+                            </h3>
+                            <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                              {displayJnuitsId} • {member.email || "No email"}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="status-pill">
+                          {member.portal_access_status || "active"}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="detail-chip">
+                          Lifecycle {member.lifecycle_status || "current"}
+                        </span>
+                        <span className="detail-chip">
+                          Type {member.member_type || "current"}
+                        </span>
+                        <span className="detail-chip">
+                          {member.is_profile_claimed ? "Claimed" : "Unclaimed"}
+                        </span>
+                        <span className="detail-chip">
+                          Portal role {currentPortalRole}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3">
+                      <form action={updateMemberLifecycleAction} className="grid gap-2">
+                        <input name="memberId" type="hidden" value={member.id} />
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className="input-label">
+                            Lifecycle
+                            <select
+                              defaultValue={member.lifecycle_status || "current"}
+                              name="nextLifecycleStatus"
+                            >
+                              <option value="current">Current</option>
+                              <option value="former">Former</option>
+                              <option value="alumni">Alumni</option>
+                              <option value="deleted">Deleted</option>
+                            </select>
+                          </label>
+                          <label className="input-label">
+                            Portal access
+                            <select
+                              defaultValue={member.portal_access_status || "active"}
+                              name="nextPortalAccessStatus"
+                            >
+                              <option value="active">Active</option>
+                              <option value="frozen">Frozen</option>
+                              <option value="suspended">Suspended</option>
+                              <option value="deletion_requested">Deletion requested</option>
+                              <option value="deactivated">Deactivated</option>
+                            </select>
+                          </label>
+                        </div>
+                        <label className="input-label">
+                          Lifecycle note
+                          <input name="note" placeholder="Reason for lifecycle change" />
+                        </label>
+                        <button className="secondary-button" type="submit">
+                          Update lifecycle
+                        </button>
+                      </form>
+
+                      <form action={updateMemberPortalRoleAction} className="grid gap-2">
+                        <input name="memberId" type="hidden" value={member.id} />
+                        <label className="input-label">
+                          Portal role
+                          <select
+                            defaultValue={currentPortalRole}
+                            disabled={!member.user_id}
+                            name="nextPortalRole"
+                          >
+                            {portalRoleOptions.map((role) => (
+                              <option key={role.code} value={role.code}>
+                                {role.display_name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="input-label">
+                          Role note
+                          <input
+                            disabled={!member.user_id}
+                            name="note"
+                            placeholder="Reason for role change"
+                          />
+                        </label>
+                        <button
+                          className="secondary-button"
+                          disabled={!member.user_id}
+                          type="submit"
+                        >
+                          Update portal role
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      <section className="section-band">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <span className="eyebrow">Account request reviews</span>
+            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.7rem)] leading-[0.96] tracking-[-0.04em]">
+              Alumni conversion and deletion queue
+            </h2>
+          </div>
+          <span className="status-pill">{accountRequests.length} pending</span>
+        </div>
+
+        <div className="mt-6 grid gap-4">
+          {accountRequests.length === 0 ? (
+            <div className="empty-state">No account requests pending review.</div>
+          ) : (
+            accountRequests.map((request) => {
+              const member = resolveAccountRequestMember(request.members);
+              const displayJnuitsId = member?.jnuits_id
+                ? displayMembershipId(member.jnuits_id)
+                : request.member_id;
+
+              return (
+                <article key={request.id} className="route-tile">
+                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.7fr)]">
+                    <div>
+                      <h3>{request.request_type.replaceAll("_", " ")}</h3>
+                      <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                        {member?.full_name || "Member record"} • {displayJnuitsId}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="status-pill">{request.status}</span>
+                        <span className="detail-chip">
+                          Requested {request.requested_at.slice(0, 10)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <form action={reviewMemberAccountRequestAction} className="grid gap-2">
+                        <input name="requestId" type="hidden" value={request.id} />
+                        <input name="decision" type="hidden" value="approved" />
+                        <label className="input-label">
+                          Review note
+                          <input name="reviewNote" placeholder="Approval note" />
+                        </label>
+                        <button className="primary-button" type="submit">
+                          Approve request
+                        </button>
+                      </form>
+                      <form action={reviewMemberAccountRequestAction} className="grid gap-2">
+                        <input name="requestId" type="hidden" value={request.id} />
+                        <input name="decision" type="hidden" value="rejected" />
+                        <label className="input-label">
+                          Rejection note
+                          <input name="reviewNote" placeholder="Reason for rejection" />
+                        </label>
+                        <button className="secondary-button" type="submit">
+                          Reject request
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+      </section>
+
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_minmax(0,0.96fr)]">
         <form action={createMembershipCycleAction} className="section-band grid gap-4">
           <div>
@@ -316,7 +668,7 @@ export default async function AdminMembershipPage() {
             </label>
             <label className="input-label sm:col-span-2">
               Member JnUITS ID
-              <input name="memberJnuitsId" placeholder="JNUITS-2026001" required />
+              <input name="memberJnuitsId" placeholder="JnUITS-2026001" required />
             </label>
             <label className="input-label">
               Expires on
@@ -501,6 +853,7 @@ export default async function AdminMembershipPage() {
           ) : (
             cycleMembers.map((row) => {
               const member = resolveMember(row.members);
+              const displayJnuitsId = displayMembershipId(member?.jnuits_id);
 
               return (
                 <article key={row.id} className="route-tile">
@@ -508,7 +861,7 @@ export default async function AdminMembershipPage() {
                     <div>
                       <h3>{member?.full_name || "Member record"}</h3>
                       <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-                        {member?.jnuits_id || "Unknown ID"} • Cycle row {row.cycle_id}
+                        {displayJnuitsId} • Cycle row {row.cycle_id}
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <span className="status-pill">{row.state}</span>

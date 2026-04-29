@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { checkAdminMFA } from "@/lib/auth/mfa";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthContext = {
@@ -15,6 +16,21 @@ export type AuthContext = {
     roleVersion: null | number;
   };
   roles: string[];
+};
+
+export type PortalAccessStatus =
+  | "active"
+  | "deactivated"
+  | "deletion_requested"
+  | "frozen"
+  | "suspended";
+
+export type MemberLifecycleStatus = "alumni" | "current" | "deleted" | "former";
+
+export type PortalAccessState = {
+  lifecycleStatus: MemberLifecycleStatus | null;
+  memberId: string | null;
+  portalAccessStatus: PortalAccessStatus | null;
 };
 
 const ADMIN_ROLES = new Set(["super_admin", "admin", "content_admin"]);
@@ -78,6 +94,25 @@ function asClaimString(value: unknown) {
 
 function asClaimNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function asPortalAccessStatus(value: unknown): PortalAccessStatus | null {
+  return value === "active" ||
+    value === "deactivated" ||
+    value === "deletion_requested" ||
+    value === "frozen" ||
+    value === "suspended"
+    ? value
+    : null;
+}
+
+function asMemberLifecycleStatus(value: unknown): MemberLifecycleStatus | null {
+  return value === "alumni" ||
+    value === "current" ||
+    value === "deleted" ||
+    value === "former"
+    ? value
+    : null;
 }
 
 function extractClaimSnapshot(claims: Record<string, unknown> | undefined) {
@@ -238,6 +273,40 @@ async function resolveDatabaseMemberId(
   return typeof data?.id === "string" ? data.id : null;
 }
 
+export function isMutablePortalAccess(access: PortalAccessState) {
+  return (
+    access.portalAccessStatus === "active" &&
+    (access.lifecycleStatus === "current" || access.lifecycleStatus === "alumni")
+  );
+}
+
+async function resolvePortalAccessState(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<PortalAccessState> {
+  const { data } = await asFlexibleClient(supabase)
+    .from("members" as string)
+    .select("id, lifecycle_status, portal_access_status")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const record = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+
+  return {
+    lifecycleStatus: asMemberLifecycleStatus(record.lifecycle_status),
+    memberId: asClaimString(record.id),
+    portalAccessStatus: asPortalAccessStatus(record.portal_access_status),
+  };
+}
+
+function portalAccessRedirectPath(access: PortalAccessState) {
+  const status =
+    access.portalAccessStatus ||
+    access.lifecycleStatus ||
+    (access.memberId ? "restricted" : "unlinked");
+
+  return `/portal?access=${encodeURIComponent(status)}`;
+}
+
 async function hasPermissionInternal(
   requestedPermission: string | string[]
 ): Promise<boolean> {
@@ -353,6 +422,13 @@ export async function requirePortalPermission(
   const auth = await requirePortalUser({
     fallbackPath: options?.fallbackPath || "/portal/dashboard",
   });
+  const supabase = await createClient();
+  const access = await resolvePortalAccessState(supabase, auth.user?.id || "");
+
+  if (!isMutablePortalAccess(access)) {
+    redirect(portalAccessRedirectPath(access));
+  }
+
   const authorized = await hasPermissionInternal(requestedPermission);
 
   if (!authorized) {
