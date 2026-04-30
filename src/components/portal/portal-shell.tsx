@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { SiteBrand } from "@/components/layout/site-brand";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { portalNavigation } from "@/lib/site";
@@ -82,18 +83,10 @@ function isActive(pathname: string, href: string): boolean {
   return pathname.startsWith(href);
 }
 
-// Helper: initials from a name string
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface PortalShellProps {
+  avatarUrl?: null | string;
   children: React.ReactNode;
   /** Member's display name for the sidebar identity card */
   memberName?: string | null;
@@ -113,6 +106,7 @@ function getPortalRoleLabel(portalRole: null | string) {
 }
 
 export function PortalShell({
+  avatarUrl = null,
   children,
   memberName,
   jnuitsId,
@@ -127,7 +121,6 @@ export function PortalShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  const initials = memberName ? getInitials(memberName) : "M";
   const displayJnuitsId = formatMembershipIdForDisplay(jnuitsId);
 
   return (
@@ -160,9 +153,12 @@ export function PortalShell({
 
           {/* Identity card */}
           <div className="portal-id-card">
-            <div className="portal-id-card__avatar" aria-hidden="true">
-              {initials}
-            </div>
+            <ProfileAvatar
+              className="portal-id-card__profile-avatar"
+              name={memberName}
+              src={avatarUrl}
+              size="sm"
+            />
             <div className="portal-id-card__info">
               <p className="portal-id-card__name">{memberName ?? "Member"}</p>
               {displayJnuitsId && (

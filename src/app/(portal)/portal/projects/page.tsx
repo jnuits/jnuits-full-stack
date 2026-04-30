@@ -20,6 +20,7 @@ export default async function PortalProjectsPage() {
 
   return (
     <PortalShell
+      avatarUrl={member?.avatar_secure_url ?? null}
       memberName={member?.full_name ?? null}
       jnuitsId={member?.jnuits_id ?? null}
       portalRole={auth.user.portalRole}

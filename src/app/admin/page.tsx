@@ -67,12 +67,14 @@ type InvitationRecord = {
         full_name?: string | null;
         jnuits_id?: string | null;
         member_type?: string | null;
+        avatar_secure_url?: string | null;
       }
     | {
         email?: string | null;
         full_name?: string | null;
         jnuits_id?: string | null;
         member_type?: string | null;
+        avatar_secure_url?: string | null;
       }[]
     | null;
 };
@@ -94,6 +96,7 @@ type WorkplaceRequestRecord = {
         full_name?: string | null;
         jnuits_id?: string | null;
         member_type?: string | null;
+        avatar_secure_url?: string | null;
         professional_visibility?: string | null;
         work_location?: string | null;
       }
@@ -104,6 +107,7 @@ type WorkplaceRequestRecord = {
         full_name?: string | null;
         jnuits_id?: string | null;
         member_type?: string | null;
+        avatar_secure_url?: string | null;
         professional_visibility?: string | null;
         work_location?: string | null;
       }[]
@@ -124,6 +128,7 @@ type ProfileChangeRequestRecord = {
         email?: string | null;
         full_name?: string | null;
         jnuits_id?: string | null;
+        avatar_secure_url?: string | null;
         phone?: string | null;
         linkedin_url?: string | null;
         website_url?: string | null;
@@ -132,6 +137,7 @@ type ProfileChangeRequestRecord = {
         email?: string | null;
         full_name?: string | null;
         jnuits_id?: string | null;
+        avatar_secure_url?: string | null;
         phone?: string | null;
         linkedin_url?: string | null;
         website_url?: string | null;
@@ -213,7 +219,7 @@ export default async function AdminPage() {
     admin
       .from("member_invitations")
       .select(
-        "id, member_id, created_at, expires_at, is_active, last_used_at, max_uses, notes, revoked_at, used_count, members(full_name, jnuits_id, email, member_type)"
+        "id, member_id, created_at, expires_at, is_active, last_used_at, max_uses, notes, revoked_at, used_count, members(full_name, jnuits_id, email, member_type, avatar_secure_url)"
       )
       .eq("is_active", true)
       .is("revoked_at", null)
@@ -222,7 +228,7 @@ export default async function AdminPage() {
     admin
       .from("profile_update_requests")
       .select(
-        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, member_type, current_organization, designation, work_location, professional_visibility)"
+        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, member_type, avatar_secure_url, current_organization, designation, work_location, professional_visibility)"
       )
       .eq("request_type", "workplace_update")
       .eq("status", "pending")
@@ -245,7 +251,7 @@ export default async function AdminPage() {
     admin
       .from("profile_update_requests")
       .select(
-        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, phone, linkedin_url, website_url)"
+        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, avatar_secure_url, phone, facebook_url, linkedin_url, website_url)"
       )
       .eq("request_type", "profile_change")
       .eq("status", "pending")

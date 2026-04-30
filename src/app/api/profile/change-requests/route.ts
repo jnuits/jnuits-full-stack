@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { isActiveDepartmentCode } from "@/lib/departments.server";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,7 +10,9 @@ import { createClient } from "@/lib/supabase/server";
 
 const profileChangePayloadSchema = z
   .object({
+    departmentCode: z.string().trim().max(80).optional(),
     requestType: z.literal("profile_change").optional(),
+    facebookUrl: z.string().trim().url().optional().or(z.literal("")),
     fullName: z.string().trim().max(160).optional(),
     phone: z.string().trim().max(40).optional(),
     linkedinUrl: z.string().trim().url().optional().or(z.literal("")),
@@ -17,7 +20,14 @@ const profileChangePayloadSchema = z
   })
   .refine(
     (value) =>
-      Boolean(value.fullName || value.phone || value.linkedinUrl || value.websiteUrl),
+      Boolean(
+          value.departmentCode ||
+          value.facebookUrl ||
+          value.fullName ||
+          value.phone ||
+          value.linkedinUrl ||
+          value.websiteUrl
+      ),
     {
     message: "Provide at least one profile field to change.",
     }
@@ -77,7 +87,7 @@ async function requireLinkedMemberUser() {
   const admin = createAdminClient();
   const { data: member, error } = await asFlexibleClient(admin)
     .from("members" as string)
-    .select("id, email, jnuits_id, full_name, member_type, lifecycle_status, portal_access_status")
+    .select("id, email, jnuits_id, full_name, member_type, department_code, lifecycle_status, portal_access_status")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -187,6 +197,19 @@ async function handlePost(request: NextRequest) {
       },
       { status: 400 }
     );
+  }
+
+  if ("departmentCode" in parsed.data) {
+    const departmentCode = parsed.data.departmentCode?.trim().toLowerCase() || "";
+
+    if (departmentCode && !(await isActiveDepartmentCode(departmentCode))) {
+      return NextResponse.json(
+        { message: "Choose a valid active department." },
+        { status: 400 }
+      );
+    }
+
+    parsed.data.departmentCode = departmentCode;
   }
 
   const { data, error } = await viewer.admin

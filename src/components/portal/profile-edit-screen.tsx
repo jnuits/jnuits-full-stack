@@ -6,8 +6,10 @@ import { PortalShell } from "@/components/portal/portal-shell";
 import { ProfileChangeRequestForm } from "@/components/portal/profile-change-request-form";
 import { StepUpVerificationForm } from "@/components/portal/step-up-verification-form";
 import { WorkplaceRequestForm } from "@/components/portal/workplace-request-form";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { isStepUpActiveForUser } from "@/lib/auth/step-up";
 import { requirePortalUser } from "@/lib/auth/session";
+import { getActiveDepartmentOptions } from "@/lib/departments.server";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 import {
@@ -28,7 +30,10 @@ export async function ProfileEditScreen() {
   if (!user) return null;
 
   const cookieStore = await cookies();
-  const snapshot = await getPortalMemberSnapshot(user.id);
+  const [snapshot, departments] = await Promise.all([
+    getPortalMemberSnapshot(user.id),
+    getActiveDepartmentOptions(),
+  ]);
   const stepUpActive = isStepUpActiveForUser(cookieStore, user.id);
   const member = snapshot.member;
   const displayJnuitsId = formatMembershipIdForDisplay(member?.jnuits_id);
@@ -38,15 +43,10 @@ export async function ProfileEditScreen() {
   const pendingWorkplaceRequests = snapshot.workplaceRequests.filter(
     (request) => request.status === "pending"
   ).length;
-  const memberInitials =
-    member?.full_name
-      .split(" ")
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("") || "M";
 
   return (
     <PortalShell
+      avatarUrl={member?.avatar_secure_url ?? null}
       jnuitsId={displayJnuitsId || null}
       memberName={member?.full_name ?? null}
       portalRole={user.portalRole}
@@ -61,9 +61,7 @@ export async function ProfileEditScreen() {
         </div>
         {member ? (
           <div className="profile-edit-header-card" aria-label="Current member profile">
-            <div className="profile-edit-header-card__avatar" aria-hidden="true">
-              {memberInitials}
-            </div>
+            <ProfileAvatar name={member.full_name} src={member.avatar_secure_url ?? null} size="sm" />
             <div>
               <p className="profile-edit-header-card__name">{member.full_name}</p>
               <p className="profile-edit-header-card__meta">
@@ -176,11 +174,14 @@ export async function ProfileEditScreen() {
           <div className="profile-edit-grid">
             <DirectProfileEditForm
               currentValues={{
+                facebookUrl: member.facebook_url ?? null,
                 fullName: member.full_name,
+                departmentCode: member.department_code ?? null,
                 linkedinUrl: member.linkedin_url,
                 phone: member.phone,
                 websiteUrl: member.website_url,
               }}
+              departments={departments}
               stepUpActive={stepUpActive}
             />
 
@@ -193,12 +194,15 @@ export async function ProfileEditScreen() {
           <ProfileChangeRequestForm
             currentValues={{
               email: member.email,
+              facebookUrl: member.facebook_url ?? null,
               fullName: member.full_name,
+              departmentCode: member.department_code ?? null,
               jnuitsId: displayJnuitsId,
               linkedinUrl: member.linkedin_url,
               phone: member.phone,
               websiteUrl: member.website_url,
             }}
+            departments={departments}
             initialRequests={snapshot.profileChangeRequests}
           />
 

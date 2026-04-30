@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 import type { Tables } from "@/lib/db/types";
 import { isDirectoryVerifiedForUser } from "@/lib/auth/directory-verification";
+import {
+  getActiveDepartmentOptions,
+  type DepartmentOption,
+} from "@/lib/departments.server";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
@@ -26,6 +30,7 @@ export type MemberDirectoryQueryInput = {
   department?: string | string[] | undefined;
   sort?: string | string[] | undefined;
   page?: string | string[] | undefined;
+  perPage?: string | string[] | undefined;
   pageSize?: string | string[] | undefined;
 };
 
@@ -37,6 +42,7 @@ type MemberDirectoryRow = Pick<
   | "member_type"
   | "batch_no"
   | "department_code"
+  | "facebook_url"
   | "linkedin_url"
   | "website_url"
   | "current_organization"
@@ -44,6 +50,7 @@ type MemberDirectoryRow = Pick<
   | "work_location"
   | "professional_visibility"
 > & {
+  avatar_secure_url?: string | null;
   departments?: { name?: string | null } | { name?: string | null }[] | null;
 };
 
@@ -73,6 +80,8 @@ export type MemberDirectoryEntry = {
   batchNo: number | null;
   departmentCode: string | null;
   departmentName: string | null;
+  avatarSecureUrl: string | null;
+  facebookUrl: string | null;
   linkedinUrl: string | null;
   websiteUrl: string | null;
   workplace: {
@@ -83,8 +92,6 @@ export type MemberDirectoryEntry = {
     workLocation: string | null;
   };
 };
-
-export type DepartmentOption = { code: string; name: string };
 
 export type MemberDirectoryResult = {
   filters: {
@@ -98,6 +105,14 @@ export type MemberDirectoryResult = {
     total: number;
     current: number;
     alumni: number;
+  };
+  facets: {
+    departments: Array<DepartmentOption & { count: number }>;
+    types: {
+      all: number;
+      current: number;
+      alumni: number;
+    };
   };
   pagination: {
     page: number;
@@ -116,6 +131,9 @@ export type MemberDirectoryResult = {
   departments: DepartmentOption[];
   members: MemberDirectoryEntry[];
 };
+
+const MEMBER_DIRECTORY_SELECT_CLAUSE =
+  "id, jnuits_id, full_name, member_type, batch_no, department_code, avatar_secure_url, facebook_url, linkedin_url, website_url, current_organization, designation, work_location, professional_visibility, departments(name)";
 
 function firstString(value: string | string[] | undefined) {
   if (typeof value === "string") {
@@ -140,7 +158,7 @@ function normalizePageValue(value: string, fallback: number, max: number) {
 }
 
 const VALID_SORT_KEYS = new Set<MemberDirectorySortKey>(["name", "batch", "joined"]);
-const DEPT_CODE_PATTERN = /^[A-Z0-9_-]{1,20}$/;
+const DEPT_CODE_PATTERN = /^[A-Z0-9_-]{1,80}$/i;
 
 function normalizeDirectoryQuery(
   input: MemberDirectoryQueryInput
@@ -148,7 +166,7 @@ function normalizeDirectoryQuery(
   const typeRaw = firstString(input.type).trim().toLowerCase();
   const searchRaw = firstString(input.search).trim();
   const letterRaw = firstString(input.letter).trim().toUpperCase();
-  const deptRaw = firstString(input.department).trim().toUpperCase();
+  const deptRaw = firstString(input.department).trim().toLowerCase();
   const sortRaw = firstString(input.sort).trim().toLowerCase() as MemberDirectorySortKey;
   const type: MemberDirectoryTypeFilter =
     typeRaw === "current" || typeRaw === "alumni" ? typeRaw : "all";
@@ -169,9 +187,9 @@ function normalizeDirectoryQuery(
     sort: VALID_SORT_KEYS.has(sortRaw) ? sortRaw : "name",
     page: normalizePageValue(firstString(input.page), 1, 500),
     pageSize: normalizePageValue(
-      firstString(input.pageSize),
+      firstString(input.perPage) || firstString(input.pageSize),
       MEMBER_DIRECTORY_PAGE_SIZE,
-      MEMBER_DIRECTORY_MAX_PAGE_SIZE
+      Math.max(MEMBER_DIRECTORY_MAX_PAGE_SIZE, 48)
     ),
   };
 }
@@ -306,6 +324,8 @@ function mapDirectoryMember(member: MemberDirectoryRow, viewer: ViewerContext) {
     batchNo: member.batch_no,
     departmentCode: member.department_code,
     departmentName: resolveDepartmentName(member),
+    avatarSecureUrl: member.avatar_secure_url ?? null,
+    facebookUrl: member.facebook_url ?? null,
     linkedinUrl: member.linkedin_url,
     websiteUrl: member.website_url,
     workplace: {
@@ -325,8 +345,6 @@ export async function getPublicMemberDirectory(
   const admin = createAdminClient();
   const flexibleAdmin = asFlexibleClient(admin);
   const viewer = await resolveViewerContext();
-  const selectClause =
-    "id, jnuits_id, full_name, member_type, batch_no, department_code, linkedin_url, website_url, current_organization, designation, work_location, professional_visibility, departments(name)";
 
   const applyPublicMemberFilters = (
     request: ReturnType<typeof flexibleAdmin.from>
@@ -337,7 +355,7 @@ export async function getPublicMemberDirectory(
       .not("jnuits_id", "ilike", "JNUITS-ADMIN-%");
 
   const buildMembersQuery = () => {
-    const request = flexibleAdmin.from("members" as string).select(selectClause, {
+    const request = flexibleAdmin.from("members" as string).select(MEMBER_DIRECTORY_SELECT_CLAUSE, {
       count: "exact",
     });
 
@@ -350,6 +368,23 @@ export async function getPublicMemberDirectory(
     if (query.department) {
       result = result.eq("department_code", query.department);
     }
+
+    if (query.letter) {
+      result = result.ilike("full_name", `${query.letter}%`);
+    }
+
+    if (query.search) {
+      const pattern = `%${query.search}%`;
+      result = result.or(`full_name.ilike.${pattern},jnuits_id.ilike.${pattern}`);
+    }
+
+    return result;
+  };
+
+  const applySearchAndLetterFilters = (
+    request: ReturnType<typeof flexibleAdmin.from>
+  ) => {
+    let result = applyPublicMemberFilters(request);
 
     if (query.letter) {
       result = result.ilike("full_name", `${query.letter}%`);
@@ -398,7 +433,14 @@ export async function getPublicMemberDirectory(
     }
   }
 
-  const [totalMembersResult, currentMembersResult, alumniMembersResult, departmentsResult] =
+  const [
+    totalMembersResult,
+    currentMembersResult,
+    alumniMembersResult,
+    departments,
+    departmentFacetResult,
+    typeFacetResult,
+  ] =
     await Promise.all([
       applyPublicMemberFilters(
         flexibleAdmin.from("members" as string).select("id", { head: true, count: "exact" })
@@ -415,20 +457,72 @@ export async function getPublicMemberDirectory(
           .select("id", { head: true, count: "exact" })
           .eq("member_type", "alumni")
       ),
-      admin
-        .from("departments")
-        .select("code, name")
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true }),
+      getActiveDepartmentOptions(),
+      (() => {
+        let result = applyPublicMemberFilters(
+          flexibleAdmin
+            .from("members" as string)
+            .select("id, member_type, department_code")
+        );
+
+        if (query.type !== "all") {
+          result = result.eq("member_type", query.type);
+        }
+
+        return result;
+      })(),
+      (() => {
+        let result = applySearchAndLetterFilters(
+          flexibleAdmin
+            .from("members" as string)
+            .select("id, member_type, department_code")
+        );
+
+        if (query.department) {
+          result = result.eq("department_code", query.department);
+        }
+
+        return result;
+      })(),
     ]);
 
   const members = ((membersResult.data || []) as MemberDirectoryRow[]).map((member) =>
     mapDirectoryMember(member, viewer)
   );
 
-  const departments: DepartmentOption[] = (
-    (departmentsResult.data || []) as { code: string; name: string }[]
-  ).map((d) => ({ code: d.code, name: d.name }));
+  if (departmentFacetResult.error || typeFacetResult.error) {
+    throw new Error("Unable to load members directory facets.");
+  }
+
+  const departmentFacetRows = (departmentFacetResult.data || []) as Array<{
+    department_code?: string | null;
+  }>;
+  const typeFacetRows = (typeFacetResult.data || []) as Array<{
+    member_type?: string | null;
+  }>;
+  const departmentCounts = new Map<string, number>();
+  const typeCounts = {
+    all: typeFacetRows.length,
+    alumni: 0,
+    current: 0,
+  };
+
+  for (const row of departmentFacetRows) {
+    if (row.department_code) {
+      departmentCounts.set(
+        row.department_code,
+        (departmentCounts.get(row.department_code) || 0) + 1
+      );
+    }
+  }
+
+  for (const row of typeFacetRows) {
+    if (row.member_type === "alumni") {
+      typeCounts.alumni += 1;
+    } else {
+      typeCounts.current += 1;
+    }
+  }
 
   return {
     filters: {
@@ -442,6 +536,13 @@ export async function getPublicMemberDirectory(
       total: totalMembersResult.count || 0,
       current: currentMembersResult.count || 0,
       alumni: alumniMembersResult.count || 0,
+    },
+    facets: {
+      departments: departments.map((department) => ({
+        ...department,
+        count: departmentCounts.get(department.code) || 0,
+      })),
+      types: typeCounts,
     },
     pagination: {
       page: currentPage,
@@ -460,4 +561,32 @@ export async function getPublicMemberDirectory(
     departments,
     members,
   };
+}
+
+export async function getPublicMemberByJnuitsId(
+  jnuitsId: string
+): Promise<MemberDirectoryEntry | null> {
+  const displayId = formatMembershipIdForDisplay(decodeURIComponent(jnuitsId));
+
+  if (!displayId) {
+    return null;
+  }
+
+  const admin = createAdminClient();
+  const flexibleAdmin = asFlexibleClient(admin);
+  const viewer = await resolveViewerContext();
+  const { data, error } = await flexibleAdmin
+    .from("members" as string)
+    .select(MEMBER_DIRECTORY_SELECT_CLAUSE)
+    .in("lifecycle_status", ["current", "alumni"])
+    .eq("portal_access_status", "active")
+    .not("jnuits_id", "ilike", "JNUITS-ADMIN-%")
+    .ilike("jnuits_id", displayId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapDirectoryMember(data as MemberDirectoryRow, viewer);
 }

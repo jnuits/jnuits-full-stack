@@ -2,6 +2,7 @@ import {
   approveProfileChangeRequest,
   rejectProfileChangeRequest,
 } from "@/app/admin/actions";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 
 type ProfileChangeRequestRecord = {
@@ -18,6 +19,8 @@ type ProfileChangeRequestRecord = {
         email?: string | null;
         full_name?: string | null;
         jnuits_id?: string | null;
+        avatar_secure_url?: string | null;
+        facebook_url?: string | null;
         phone?: string | null;
         linkedin_url?: string | null;
         website_url?: string | null;
@@ -26,6 +29,8 @@ type ProfileChangeRequestRecord = {
         email?: string | null;
         full_name?: string | null;
         jnuits_id?: string | null;
+        avatar_secure_url?: string | null;
+        facebook_url?: string | null;
         phone?: string | null;
         linkedin_url?: string | null;
         website_url?: string | null;
@@ -44,6 +49,8 @@ function resolveRelation<T>(value: T | T[] | null | undefined) {
 function parseProfilePayload(payload: unknown) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return {
+      departmentCode: null,
+      facebookUrl: null,
       fullName: null,
       linkedinUrl: null,
       newEmail: null,
@@ -56,9 +63,17 @@ function parseProfilePayload(payload: unknown) {
   const record = payload as Record<string, unknown>;
 
   return {
+    departmentCode:
+      typeof record.departmentCode === "string" && record.departmentCode.trim()
+        ? record.departmentCode.trim().toLowerCase()
+        : null,
     fullName:
       typeof record.fullName === "string" && record.fullName.trim()
         ? record.fullName.trim()
+        : null,
+    facebookUrl:
+      typeof record.facebookUrl === "string" && record.facebookUrl.trim()
+        ? record.facebookUrl.trim()
         : null,
     linkedinUrl:
       typeof record.linkedinUrl === "string" && record.linkedinUrl.trim()
@@ -125,13 +140,20 @@ export function ProfileChangeRequestsPanel({
                       <span className="detail-chip">{member.jnuits_id}</span>
                     ) : null}
                   </div>
-                  <div>
-                    <h3 className="font-[family-name:var(--font-heading)] text-3xl font-semibold tracking-[-0.04em]">
-                      {member?.full_name || "Linked member"}
-                    </h3>
-                    <p className="mt-2 text-base font-semibold text-[var(--brand-blue)]">
-                      {member?.email || "Email unavailable"}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <ProfileAvatar
+                      name={member?.full_name}
+                      src={member?.avatar_secure_url ?? null}
+                      size="md"
+                    />
+                    <div className="min-w-0">
+                      <h3 className="font-[family-name:var(--font-heading)] text-3xl font-semibold">
+                        {member?.full_name || "Linked member"}
+                      </h3>
+                      <p className="mt-2 text-base font-semibold text-[var(--brand-blue)]">
+                        {member?.email || "Email unavailable"}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -144,8 +166,16 @@ export function ProfileChangeRequestsPanel({
                       <p>{payload.phone || member?.phone || "No change"}</p>
                     </div>
                     <div className="route-tile">
+                      <h3>Requested department</h3>
+                      <p>{payload.departmentCode || "No change"}</p>
+                    </div>
+                    <div className="route-tile">
                       <h3>LinkedIn URL</h3>
                       <p>{payload.linkedinUrl || member?.linkedin_url || "No change"}</p>
+                    </div>
+                    <div className="route-tile">
+                      <h3>Facebook URL</h3>
+                      <p>{payload.facebookUrl || member?.facebook_url || "No change"}</p>
                     </div>
                     <div className="route-tile">
                       <h3>Requested email</h3>

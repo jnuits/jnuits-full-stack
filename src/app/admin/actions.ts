@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Database } from "@/lib/db/types";
 import { requireAdminUser } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
+import { isActiveDepartmentCode } from "@/lib/departments.server";
 import { getAppBaseUrl } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
@@ -228,6 +229,7 @@ async function resolveApprovedMemberId(
       lifecycle_status: "current",
       member_type: "current",
       portal_access_status: "active",
+      facebook_url: application.facebook_url,
       linkedin_url: application.linkedin_url,
       professional_visibility: "members-only",
     })
@@ -1168,6 +1170,14 @@ export async function approveProfileChangeRequest(formData: FormData) {
     typeof payload.phone === "string" && payload.phone.trim()
       ? payload.phone.trim()
       : null;
+  const departmentCode =
+    typeof payload.departmentCode === "string" && payload.departmentCode.trim()
+      ? payload.departmentCode.trim().toLowerCase()
+      : null;
+  const facebookUrl =
+    typeof payload.facebookUrl === "string" && payload.facebookUrl.trim()
+      ? payload.facebookUrl.trim()
+      : null;
   const linkedinUrl =
     typeof payload.linkedinUrl === "string" && payload.linkedinUrl.trim()
       ? payload.linkedinUrl.trim()
@@ -1185,11 +1195,28 @@ export async function approveProfileChangeRequest(formData: FormData) {
       ? normalizeJnuitsIdForCreation(payload.newJnuitsId)
       : null;
 
-  if (request.request_type === "profile_change" && !fullName && !phone && !linkedinUrl && !websiteUrl) {
+  if (
+    request.request_type === "profile_change" &&
+    !departmentCode &&
+    !facebookUrl &&
+    !fullName &&
+    !phone &&
+    !linkedinUrl &&
+    !websiteUrl
+  ) {
     await setAdminFlash({
       tone: "error",
       title: "Profile approval failed",
       message: "This request does not contain any valid profile fields.",
+    });
+    redirect("/admin#profile-requests");
+  }
+
+  if (departmentCode && !(await isActiveDepartmentCode(departmentCode))) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Profile approval failed",
+      message: "The requested department is not active or does not exist.",
     });
     redirect("/admin#profile-requests");
   }
@@ -1214,7 +1241,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
 
   const { data: member } = await admin
     .from("members")
-    .select("id, full_name, email, jnuits_id, user_id")
+    .select("id, full_name, email, jnuits_id, user_id, department_code, facebook_url, linkedin_url, phone, website_url")
     .eq("id", request.member_id)
     .maybeSingle();
 
@@ -1302,6 +1329,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
 
     revalidatePath("/admin");
     revalidatePath("/admin/profile-changes");
+    revalidatePath("/members");
     revalidatePath("/portal/profile");
     revalidatePath("/portal/profile/edit");
     await setAdminFlash({
@@ -1430,6 +1458,8 @@ export async function approveProfileChangeRequest(formData: FormData) {
 
   const changedFields = [
     fullName ? "full_name" : null,
+    departmentCode ? "department_code" : null,
+    facebookUrl ? "facebook_url" : null,
     phone ? "phone" : null,
     linkedinUrl ? "linkedin_url" : null,
     websiteUrl ? "website_url" : null,
@@ -1438,11 +1468,13 @@ export async function approveProfileChangeRequest(formData: FormData) {
   const { error: memberError } = await admin
     .from("members")
     .update({
+      department_code: departmentCode || member.department_code,
+      facebook_url: facebookUrl || member.facebook_url,
       full_name: fullName || member.full_name,
-      linkedin_url: linkedinUrl,
-      phone,
+      linkedin_url: linkedinUrl || member.linkedin_url,
+      phone: phone || member.phone,
       updated_at: nowIso,
-      website_url: websiteUrl,
+      website_url: websiteUrl || member.website_url,
     })
     .eq("id", member.id);
 
@@ -1500,6 +1532,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
   });
 
   revalidatePath("/admin");
+  revalidatePath("/members");
   revalidatePath("/profile");
   revalidatePath("/profile/edit");
   revalidatePath("/portal/profile");

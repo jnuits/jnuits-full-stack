@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
+import { getActiveDepartmentOptions } from "@/lib/departments.server";
 import {
   approveProfileChangeRequest,
   rejectProfileChangeRequest,
@@ -18,8 +19,8 @@ type ProfileChangeRequestRecord = {
   reviewed_at: string | null;
   status: string;
   members?:
-    | { email?: string | null; full_name?: string | null; jnuits_id?: string | null; phone?: string | null; linkedin_url?: string | null; website_url?: string | null }
-    | { email?: string | null; full_name?: string | null; jnuits_id?: string | null; phone?: string | null; linkedin_url?: string | null; website_url?: string | null }[]
+    | { department_code?: string | null; email?: string | null; facebook_url?: string | null; full_name?: string | null; jnuits_id?: string | null; phone?: string | null; linkedin_url?: string | null; website_url?: string | null }
+    | { department_code?: string | null; email?: string | null; facebook_url?: string | null; full_name?: string | null; jnuits_id?: string | null; phone?: string | null; linkedin_url?: string | null; website_url?: string | null }[]
     | null;
 };
 
@@ -32,6 +33,8 @@ function parseProfilePayload(payload: unknown) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return {
       fullName: null,
+      departmentCode: null,
+      facebookUrl: null,
       linkedinUrl: null,
       newEmail: null,
       newJnuitsId: null,
@@ -42,6 +45,8 @@ function parseProfilePayload(payload: unknown) {
   const r = payload as Record<string, unknown>;
   return {
     fullName: typeof r.fullName === "string" && r.fullName.trim() ? r.fullName.trim() : null,
+    departmentCode: typeof r.departmentCode === "string" && r.departmentCode.trim() ? r.departmentCode.trim().toLowerCase() : null,
+    facebookUrl: typeof r.facebookUrl === "string" && r.facebookUrl.trim() ? r.facebookUrl.trim() : null,
     linkedinUrl: typeof r.linkedinUrl === "string" && r.linkedinUrl.trim() ? r.linkedinUrl.trim() : null,
     newEmail: typeof r.newEmail === "string" && r.newEmail.trim() ? r.newEmail.trim() : null,
     newJnuitsId: typeof r.newJnuitsId === "string" && r.newJnuitsId.trim() ? r.newJnuitsId.trim() : null,
@@ -61,11 +66,11 @@ export default async function ProfileChangesPage() {
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
 
-  const [pendingResult, recentResult, countResult] = await Promise.all([
+  const [pendingResult, recentResult, countResult, departments] = await Promise.all([
     admin
       .from("profile_update_requests")
       .select(
-        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, phone, linkedin_url, website_url)"
+        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, phone, department_code, facebook_url, linkedin_url, website_url)"
       )
       .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
       .eq("status", "pending")
@@ -83,11 +88,15 @@ export default async function ProfileChangesPage() {
       .select("*", { count: "exact", head: true })
       .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
       .eq("status", "pending"),
+    getActiveDepartmentOptions(),
   ]);
 
   const pending = (pendingResult.data || []) as ProfileChangeRequestRecord[];
   const recent = (recentResult.data || []) as ProfileChangeRequestRecord[];
   const pendingCount = countResult.count || 0;
+  const departmentNameByCode = new Map(
+    departments.map((department) => [department.code, department.name])
+  );
 
   return (
     <div className="grid gap-8">
@@ -182,10 +191,22 @@ export default async function ProfileChangesPage() {
                           <span>{payload.phone}</span>
                         </div>
                       )}
+                      {payload.departmentCode && (
+                        <div className="admin-diff-box__item">
+                          <span className="admin-diff-box__key">Department</span>
+                          <span>{departmentNameByCode.get(payload.departmentCode) || payload.departmentCode}</span>
+                        </div>
+                      )}
                       {payload.linkedinUrl && (
                         <div className="admin-diff-box__item">
                           <span className="admin-diff-box__key">LinkedIn URL</span>
                           <span className="truncate text-xs">{payload.linkedinUrl}</span>
+                        </div>
+                      )}
+                      {payload.facebookUrl && (
+                        <div className="admin-diff-box__item">
+                          <span className="admin-diff-box__key">Facebook URL</span>
+                          <span className="truncate text-xs">{payload.facebookUrl}</span>
                         </div>
                       )}
                       {payload.newEmail && (
@@ -206,7 +227,7 @@ export default async function ProfileChangesPage() {
                           <span className="truncate text-xs">{payload.websiteUrl}</span>
                         </div>
                       )}
-                      {!payload.fullName && !payload.phone && !payload.linkedinUrl && !payload.websiteUrl && !payload.newEmail && !payload.newJnuitsId && (
+                      {!payload.fullName && !payload.departmentCode && !payload.phone && !payload.facebookUrl && !payload.linkedinUrl && !payload.websiteUrl && !payload.newEmail && !payload.newJnuitsId && (
                         <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>No specific field changes detected</p>
                       )}
                     </div>
@@ -229,8 +250,20 @@ export default async function ProfileChangesPage() {
                         <span>{member?.phone || "Not set"}</span>
                       </div>
                       <div className="admin-diff-box__item">
+                        <span className="admin-diff-box__key">Department on record</span>
+                        <span>
+                          {member?.department_code
+                            ? departmentNameByCode.get(member.department_code) || member.department_code
+                            : "Not set"}
+                        </span>
+                      </div>
+                      <div className="admin-diff-box__item">
                         <span className="admin-diff-box__key">LinkedIn on record</span>
                         <span className="truncate text-xs">{member?.linkedin_url || "Not set"}</span>
+                      </div>
+                      <div className="admin-diff-box__item">
+                        <span className="admin-diff-box__key">Facebook on record</span>
+                        <span className="truncate text-xs">{member?.facebook_url || "Not set"}</span>
                       </div>
                     </div>
                   </div>

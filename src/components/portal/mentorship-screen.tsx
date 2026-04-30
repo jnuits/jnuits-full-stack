@@ -73,6 +73,7 @@ export async function MentorshipScreen({
 
   return (
     <PortalShell
+      avatarUrl={member?.avatar_secure_url ?? null}
       jnuitsId={member?.jnuits_id ?? null}
       memberName={member?.full_name ?? null}
       portalRole={user.portalRole}

@@ -9,7 +9,9 @@ export async function GET(request: NextRequest) {
       type: request.nextUrl.searchParams.get("type") || undefined,
       search: request.nextUrl.searchParams.get("search") || undefined,
       letter: request.nextUrl.searchParams.get("letter") || undefined,
+      department: request.nextUrl.searchParams.get("department") || undefined,
       page: request.nextUrl.searchParams.get("page") || undefined,
+      perPage: request.nextUrl.searchParams.get("perPage") || undefined,
       pageSize: request.nextUrl.searchParams.get("pageSize") || undefined,
     });
 
