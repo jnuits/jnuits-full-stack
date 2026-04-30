@@ -3,17 +3,22 @@
 import { useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
 import { CheckCircle2, LockKeyhole, Route } from "lucide-react";
+import type { DepartmentOption } from "@/lib/departments.server";
 
 export function DirectProfileEditForm({
   currentValues,
+  departments,
   stepUpActive,
 }: {
   currentValues: {
+    departmentCode: string | null;
+    facebookUrl: string | null;
     fullName: string;
     linkedinUrl: string | null;
     phone: string | null;
     websiteUrl: string | null;
   };
+  departments: DepartmentOption[];
   stepUpActive: boolean;
 }) {
   const router = useRouter();
@@ -32,6 +37,9 @@ export function DirectProfileEditForm({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        departmentCode: String(formData.get("departmentCode") || "").trim(),
+        facebookUrl:
+          String(formData.get("facebookUrl") || "").trim() || undefined,
         fullName: String(formData.get("fullName") || "").trim() || undefined,
         linkedinUrl:
           String(formData.get("linkedinUrl") || "").trim() || undefined,
@@ -112,6 +120,17 @@ export function DirectProfileEditForm({
             placeholder="https://linkedin.com/in/..."
           />
         </label>
+        <label className="input-label" htmlFor="dpe-facebook-url">
+          Facebook URL
+          <input
+            autoComplete="url"
+            defaultValue={currentValues.facebookUrl || ""}
+            id="dpe-facebook-url"
+            name="facebookUrl"
+            placeholder="https://facebook.com/..."
+            type="url"
+          />
+        </label>
         <label className="input-label" htmlFor="dpe-website-url">
           Website URL
           <input
@@ -122,6 +141,21 @@ export function DirectProfileEditForm({
             autoComplete="url"
             placeholder="https://your-site.example"
           />
+        </label>
+        <label className="input-label profile-edit-span-2" htmlFor="dpe-department">
+          Department
+          <select
+            defaultValue={currentValues.departmentCode || ""}
+            id="dpe-department"
+            name="departmentCode"
+          >
+            <option value="">Department pending</option>
+            {departments.map((department) => (
+              <option key={department.code} value={department.code}>
+                {department.name}
+              </option>
+            ))}
+          </select>
         </label>
         <div className="profile-edit-actions profile-edit-span-2">
           <button

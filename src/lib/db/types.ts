@@ -1211,6 +1211,7 @@ export type Database = {
           department_code: string | null
           designation: string | null
           email: string | null
+          facebook_url: string | null
           full_name: string
           id: string
           is_profile_claimed: boolean
@@ -1234,6 +1235,7 @@ export type Database = {
           department_code?: string | null
           designation?: string | null
           email?: string | null
+          facebook_url?: string | null
           full_name: string
           id?: string
           is_profile_claimed?: boolean
@@ -1257,6 +1259,7 @@ export type Database = {
           department_code?: string | null
           designation?: string | null
           email?: string | null
+          facebook_url?: string | null
           full_name?: string
           id?: string
           is_profile_claimed?: boolean

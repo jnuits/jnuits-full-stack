@@ -57,6 +57,7 @@ export default async function PortalBlogsPage({
 
   return (
     <PortalShell
+      avatarUrl={snapshot.member?.avatar_secure_url ?? null}
       memberName={snapshot.member?.full_name ?? null}
       jnuitsId={snapshot.member?.jnuits_id ?? null}
       portalRole={auth.user.portalRole}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { isCloudinaryAssetUrl } from "@/lib/cloudinary/config";
@@ -111,6 +112,10 @@ async function handlePost(request: NextRequest) {
     },
     targetUserId: authorization.target.targetUserId,
   });
+
+  revalidatePath("/members");
+  revalidatePath("/portal/profile");
+  revalidatePath("/portal/profile/edit");
 
   return NextResponse.json(
     {

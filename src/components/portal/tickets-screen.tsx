@@ -81,6 +81,7 @@ export async function TicketsScreen({
 
   return (
     <PortalShell
+      avatarUrl={workspace.member?.avatar_secure_url ?? null}
       jnuitsId={workspace.member?.jnuits_id ?? null}
       memberName={workspace.member?.full_name ?? null}
       portalRole={user.portalRole}

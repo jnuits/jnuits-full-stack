@@ -1,43 +1,71 @@
 import Link from "next/link";
-import {
-  getPublicMemberDirectory,
-  type MemberDirectoryTypeFilter,
-  type MemberDirectorySortKey,
-} from "@/lib/members/directory";
-import { EmptyState } from "@/components/ui/empty-state";
+import type { Metadata } from "next";
+import { GraduationCap, Info, UserCheck, Users } from "lucide-react";
 
-const MEMBER_TYPE_TABS: Array<{ key: MemberDirectoryTypeFilter; label: string }> = [
-  { key: "all", label: "All" },
-  { key: "current", label: "Current" },
-  { key: "alumni", label: "Alumni" },
-];
+import { MemberDirectoryCard } from "@/components/members/member-directory-card";
+import { MemberDirectoryEmptyState } from "@/components/members/member-directory-empty-state";
+import { MemberDirectoryErrorState } from "@/components/members/member-directory-error-state";
+import { MemberDirectoryFilters } from "@/components/members/member-directory-filters";
+import { MemberDirectoryPagination } from "@/components/members/member-directory-pagination";
+import { getAppBaseUrl } from "@/lib/env";
+import { getPublicMemberDirectory } from "@/lib/members/directory";
 
-const SORT_OPTIONS: Array<{ value: MemberDirectorySortKey; label: string }> = [
-  { value: "name", label: "Name (A–Z)" },
-  { value: "batch", label: "Batch number" },
-  { value: "joined", label: "Recently joined" },
-];
+export const metadata: Metadata = {
+  description:
+    "Explore the public directory of Jagannath University IT Society members and alumni.",
+  openGraph: {
+    description:
+      "Explore public JnUITS member and alumni profiles with privacy-aware workplace visibility.",
+    siteName: "JnUITS",
+    title: "Members & Alumni Directory | JnUITS",
+    type: "website",
+    url: `${getAppBaseUrl()}/members`,
+  },
+  title: "Members & Alumni Directory | JnUITS",
+};
 
-const ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const STAT_TOOLTIPS = {
+  alumni: "Former members who have graduated or left the society",
+  current: "Active members with a valid membership in the current term",
+  total: "All members who have opted-in to the public directory",
+};
 
-/** Visibility display helpers */
-function visibilityChip(v: "public" | "members-only" | "private") {
-  if (v === "public") return { label: "Public", cls: "text-emerald-400" };
-  if (v === "private") return { label: "Private", cls: "text-rose-400" };
-  return { label: "Members only", cls: "text-amber-400" };
-}
-
-function buildHref(base: Record<string, string>, overrides: Record<string, string>): string {
-  const p = new URLSearchParams({ ...base, ...overrides });
-  // strip defaults
-  if (p.get("type") === "all") p.delete("type");
-  if (p.get("department") === "") p.delete("department");
-  if (p.get("sort") === "name") p.delete("sort");
-  if (p.get("letter") === "") p.delete("letter");
-  if (p.get("search") === "") p.delete("search");
-  if (p.get("pageSize") === "12") p.delete("pageSize");
-  const qs = p.toString();
-  return qs ? `/members?${qs}` : "/members";
+function DirectoryStatCard({
+  icon: Icon,
+  label,
+  tooltip,
+  value,
+}: {
+  icon: typeof Users;
+  label: string;
+  tooltip: string;
+  value: number;
+}) {
+  return (
+    <article className="rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 shadow-[var(--shadow-xs)]">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-3xl font-bold leading-none text-[var(--foreground)]">
+          {value}
+        </p>
+        <Icon className="text-[var(--brand-blue)]" size={18} aria-hidden="true" />
+      </div>
+      <div className="group relative mt-2 inline-flex items-center gap-1.5">
+        <p className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+          {label}
+        </p>
+        <button
+          aria-label={`${label} information`}
+          className="inline-flex size-4 items-center justify-center rounded-full text-[var(--muted-foreground)]"
+          type="button"
+        >
+          <Info size={13} aria-hidden="true" />
+        </button>
+        <span className="pointer-events-none absolute left-0 top-6 z-10 w-64 rounded-lg bg-slate-950 px-3 py-2 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-lg transition group-focus-within:opacity-100 group-hover:opacity-100 dark:bg-slate-100 dark:text-slate-950">
+          {tooltip}
+        </span>
+      </div>
+    </article>
+  );
 }
 
 export default async function MembersPage({
@@ -46,29 +74,43 @@ export default async function MembersPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const directory = await getPublicMemberDirectory({
-    type: sp.type,
-    search: sp.search,
-    letter: sp.letter,
-    department: sp.department,
-    sort: sp.sort,
-    page: sp.page,
-    pageSize: sp.pageSize,
-  });
+  let directory;
 
-  const { filters, pagination, counters, departments, members, viewer } = directory;
+  try {
+    directory = await getPublicMemberDirectory({
+      department: sp.department,
+      page: sp.page,
+      perPage: sp.perPage,
+      pageSize: sp.pageSize,
+      search: sp.search,
+      sort: sp.sort,
+      type: sp.type,
+    });
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error(error);
+    }
 
-  // Build a stable base object for href composition
-  const base: Record<string, string> = {
-    type: filters.type,
-    search: filters.search,
-    letter: filters.letter,
-    department: filters.department,
-    sort: filters.sort,
-    pageSize: String(pagination.pageSize),
-  };
+    return <MemberDirectoryErrorState />;
+  }
+
+  const { counters, facets, filters, members, pagination } = directory;
 
   return (
+    <main className="shell py-10">
+      <section aria-labelledby="members-page-title" className="border-b border-[var(--line)] pb-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <h1
+              className="font-[family-name:var(--font-heading)] text-4xl font-semibold leading-tight text-[var(--foreground)] sm:text-5xl"
+              id="members-page-title"
+            >
+              Members &amp; alumni directory
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+              Browse public JnUITS profiles with privacy-aware workplace visibility and
+              canonical membership IDs.
+            </p>
     <div className="shell py-12">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="glass-card px-6 py-8 sm:px-8">
@@ -185,206 +227,96 @@ export default async function MembersPage({
               Reset all
             </Link>
           </div>
-        </form>
 
-        {/* Verification gate info */}
-        <article className="section-band">
-          <p className="section-divider">Verification gate</p>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3vw,2.3rem)] leading-[0.98] tracking-[-0.04em]">
-            Workplace details follow member privacy policy
-          </h2>
-          <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            Public workplace fields stay visible only when a member marks them public.
-            Members-only workplace data appears after directory verification from the
-            claimed account.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <span className="detail-chip">
-              Signed in: {viewer.signedIn ? "Yes" : "No"}
-            </span>
-            <span className="detail-chip">
-              Directory verified: {viewer.directoryVerified ? "Yes" : "No"}
-            </span>
-          </div>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/portal/profile/edit" className="secondary-button">
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className="inline-flex h-9 items-center rounded-full bg-[var(--brand-blue)] px-4 text-sm font-semibold text-white shadow-[var(--shadow-xs)] transition hover:opacity-90"
+              href="/portal/profile/edit"
+            >
               Verify in member portal
             </Link>
-            <Link href="/membership-form" className="ghost-button">
+            <Link
+              className="inline-flex h-9 items-center rounded-full border border-[var(--line)] bg-transparent px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--brand-blue)] hover:text-[var(--brand-blue)]"
+              href="/membership-form"
+            >
               Check application status
             </Link>
           </div>
-        </article>
-      </section>
+        </div>
 
-      {/* ── Alpha quick-jump ──────────────────────────────────────────────── */}
-      <section className="mt-6 section-band">
-        <div className="flex flex-wrap gap-1.5">
-          <Link
-            href={buildHref(base, { letter: "", page: "1" })}
-            className={`detail-chip transition-colors hover:border-[var(--brand-blue)] hover:text-[var(--brand-blue)]${!filters.letter ? " border-[var(--brand-blue)] text-[var(--brand-blue)]" : ""}`}
-          >
-            All
-          </Link>
-          {ALPHA.map((l) => (
-            <Link
-              key={l}
-              href={buildHref(base, { letter: l, page: "1" })}
-              aria-current={filters.letter === l ? "page" : undefined}
-              className={`detail-chip transition-colors hover:border-[var(--brand-blue)] hover:text-[var(--brand-blue)]${filters.letter === l ? " border-[var(--brand-blue)] text-[var(--brand-blue)]" : ""}`}
-            >
-              {l}
-            </Link>
-          ))}
+        <div className="mt-8 grid gap-3 sm:grid-cols-3">
+          <DirectoryStatCard
+            icon={Users}
+            label="Total Listed"
+            tooltip={STAT_TOOLTIPS.total}
+            value={counters.total}
+          />
+          <DirectoryStatCard
+            icon={UserCheck}
+            label="Current Members"
+            tooltip={STAT_TOOLTIPS.current}
+            value={counters.current}
+          />
+          <DirectoryStatCard
+            icon={GraduationCap}
+            label="Alumni"
+            tooltip={STAT_TOOLTIPS.alumni}
+            value={counters.alumni}
+          />
         </div>
       </section>
 
-      {/* ── Directory listing ─────────────────────────────────────────────── */}
-      <section className="mt-6 section-band">
+      <section aria-labelledby="members-filter-title" className="mt-6">
+        <h2 className="sr-only" id="members-filter-title">
+          Filter members and alumni
+        </h2>
+        <MemberDirectoryFilters
+          departments={facets.departments}
+          filters={{
+            department: filters.department,
+            search: filters.search,
+            sort: filters.sort,
+            type: filters.type,
+          }}
+          pageSize={pagination.pageSize}
+          typeCounts={facets.types}
+        />
+      </section>
+
+      <section aria-labelledby="members-listing-title" className="mt-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="section-divider">Directory listing</p>
-            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(1.8rem,3vw,2.4rem)] leading-[0.96] tracking-[-0.04em]">
+            <h2
+              className="text-xl font-semibold leading-7 text-[var(--foreground)]"
+              id="members-listing-title"
+            >
               {pagination.totalItems} record{pagination.totalItems === 1 ? "" : "s"} found
             </h2>
+            {pagination.totalPages > 1 ? (
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Page {pagination.page} of {pagination.totalPages}
+              </p>
+            ) : null}
           </div>
-          <p className="text-sm text-[var(--muted-foreground)]">
-            Page {pagination.page} of {pagination.totalPages}
-          </p>
         </div>
 
         {members.length === 0 ? (
-          <EmptyState
-            title={
-              filters.search || filters.letter || filters.department
-                ? "No members matched your filters"
-                : "Member directory is being set up"
-            }
-            description={
-              filters.search || filters.letter || filters.department
-                ? "Try adjusting your filters or reset to see the full directory."
-                : "Our team is onboarding members to the platform. Check back soon."
-            }
-            actions={[
-              { label: "Reset filters", href: "/members", variant: "secondary" },
-              { label: "Apply for membership", href: "/membership-form", variant: "ghost" },
-            ]}
-            className="mt-6"
-          />
+          <MemberDirectoryEmptyState />
         ) : (
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {members.map((member) => {
-              const chip = visibilityChip(member.workplace.visibility);
-              return (
-                <article
-                  key={member.id}
-                  className="application-card flex flex-col gap-4"
-                >
-                  {/* Name / ID / type */}
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="font-[family-name:var(--font-heading)] text-xl leading-tight truncate">
-                        {member.fullName}
-                      </h3>
-                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                        {member.jnuitsId}
-                      </p>
-                    </div>
-                    <span
-                      className="status-pill shrink-0"
-                      style={
-                        member.memberType === "alumni"
-                          ? { background: "color-mix(in oklab,var(--brand-blue) 14%,transparent)", color: "var(--brand-blue)" }
-                          : {}
-                      }
-                    >
-                      {member.memberType === "alumni" ? "Alumni" : "Current"}
-                    </span>
-                  </div>
-
-                  {/* Department + Batch chips */}
-                  <div className="flex flex-wrap gap-2">
-                    {member.departmentName ? (
-                      <span className="detail-chip">{member.departmentName}</span>
-                    ) : null}
-                    {member.batchNo !== null ? (
-                      <span className="detail-chip">Batch {member.batchNo}</span>
-                    ) : null}
-                  </div>
-
-                  {/* Workplace */}
-                  <div className="route-tile mt-auto">
-                    <h3 className={`text-xs font-bold uppercase tracking-[0.14em] ${chip.cls}`}>
-                      {chip.label}
-                    </h3>
-                    {member.workplace.visible ? (
-                      <p className="mt-1.5 text-sm leading-6 text-[var(--muted-foreground)]">
-                        {[member.workplace.designation, member.workplace.currentOrganization]
-                          .filter(Boolean)
-                          .join(" · ") || "No workplace details published."}
-                        {member.workplace.workLocation
-                          ? ` (${member.workplace.workLocation})`
-                          : ""}
-                      </p>
-                    ) : (
-                      <p className="mt-1.5 text-sm leading-6 text-[var(--muted-foreground)]">
-                        {member.workplace.visibility === "private"
-                          ? "This member has kept workplace details private."
-                          : "Visible after directory verification in the member portal."}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Links */}
-                  {(member.linkedinUrl || member.websiteUrl) ? (
-                    <div className="flex flex-wrap gap-2">
-                      {member.linkedinUrl ? (
-                        <Link href={member.linkedinUrl} target="_blank" className="secondary-button">
-                          LinkedIn ↗
-                        </Link>
-                      ) : null}
-                      {member.websiteUrl ? (
-                        <Link href={member.websiteUrl} target="_blank" className="secondary-button">
-                          Website ↗
-                        </Link>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </article>
-              );
-            })}
+          <div className="members-grid mt-5">
+            {members.map((member) => (
+              <MemberDirectoryCard key={member.id} member={member} />
+            ))}
           </div>
         )}
 
-        {/* Pagination */}
-        <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-[var(--muted-foreground)]">
-            Showing {Math.min(pagination.pageSize, members.length)} of {pagination.totalItems} records
-          </p>
-          <div className="flex gap-2">
-            {pagination.hasPrevious ? (
-              <Link
-                href={buildHref(base, { page: String(pagination.page - 1) })}
-                className="secondary-button"
-              >
-                ← Previous
-              </Link>
-            ) : (
-              <span className="secondary-button pointer-events-none opacity-50">← Previous</span>
-            )}
-            {pagination.hasNext ? (
-              <Link
-                href={buildHref(base, { page: String(pagination.page + 1) })}
-                className="secondary-button"
-              >
-                Next →
-              </Link>
-            ) : (
-              <span className="secondary-button pointer-events-none opacity-50">Next →</span>
-            )}
-          </div>
-        </div>
+        <MemberDirectoryPagination
+          currentPage={pagination.page}
+          pageSize={pagination.pageSize}
+          totalItems={pagination.totalItems}
+          totalPages={pagination.totalPages}
+        />
       </section>
-    </div>
+    </main>
   );
 }

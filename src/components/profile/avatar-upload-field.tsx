@@ -4,6 +4,8 @@ import { Camera, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
+
 type AvatarTargetType = "admin_profile" | "member";
 
 type AvatarUploadFieldProps = {
@@ -240,6 +242,7 @@ export function AvatarUploadField({
       }}
     >
       <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: "0.65rem" }}>
+        <ProfileAvatar name={displayName} src={currentUrl} size={compact ? "md" : "lg"} />
         <div
           aria-hidden="true"
           className="portal-identity-banner__avatar"

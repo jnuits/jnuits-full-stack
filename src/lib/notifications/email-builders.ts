@@ -433,6 +433,7 @@ export function buildMembershipRejectedEmail(props: MembershipRejectedEmailProps
 const FIELD_LABELS: Record<string, string> = {
   full_name: "Full name",
   phone: "Phone number",
+  facebook_url: "Facebook URL",
   linkedin_url: "LinkedIn URL",
   website_url: "Website URL",
   current_organization: "Current organization",

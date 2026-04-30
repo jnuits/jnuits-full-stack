@@ -3,6 +3,7 @@
 import { startTransition, useState } from "react";
 import { Clock3, FilePenLine, IdCard, Mail } from "lucide-react";
 import type { Tables } from "@/lib/db/types";
+import type { DepartmentOption } from "@/lib/departments.server";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 
 type ProfileChangeRequest = Tables<"profile_update_requests">;
@@ -13,16 +14,20 @@ function formatRequestStatus(status: string) {
 
 export function ProfileChangeRequestForm({
   currentValues,
+  departments,
   initialRequests,
 }: {
   currentValues: {
+    departmentCode: string | null;
     email: string | null;
+    facebookUrl: string | null;
     fullName: string;
     jnuitsId: string;
     linkedinUrl: string | null;
     phone: string | null;
     websiteUrl: string | null;
   };
+  departments: DepartmentOption[];
   initialRequests: ProfileChangeRequest[];
 }) {
   const [requests, setRequests] = useState(initialRequests);
@@ -68,6 +73,8 @@ export function ProfileChangeRequestForm({
   async function handleProfileSubmit(formData: FormData) {
     await submitRequest({
       requestType: "profile_change",
+      departmentCode: String(formData.get("departmentCode") || "").trim(),
+      facebookUrl: String(formData.get("facebookUrl") || "").trim() || undefined,
       fullName: String(formData.get("fullName") || "").trim() || undefined,
       linkedinUrl: String(formData.get("linkedinUrl") || "").trim() || undefined,
       phone: String(formData.get("phone") || "").trim() || undefined,
@@ -142,9 +149,20 @@ export function ProfileChangeRequestForm({
               type="url"
               autoComplete="url"
               placeholder="https://linkedin.com/in/..."
-            />
-          </label>
-          <label className="input-label" htmlFor="pcr-website-url">
+          />
+        </label>
+        <label className="input-label" htmlFor="pcr-facebook-url">
+          Facebook URL
+          <input
+            autoComplete="url"
+            defaultValue={currentValues.facebookUrl || ""}
+            id="pcr-facebook-url"
+            name="facebookUrl"
+            placeholder="https://facebook.com/..."
+            type="url"
+          />
+        </label>
+        <label className="input-label" htmlFor="pcr-website-url">
             Website URL
             <input
               id="pcr-website-url"
@@ -154,6 +172,21 @@ export function ProfileChangeRequestForm({
               autoComplete="url"
               placeholder="https://your-site.example"
             />
+          </label>
+          <label className="input-label profile-edit-span-2" htmlFor="pcr-department">
+            Department
+            <select
+              defaultValue={currentValues.departmentCode || ""}
+              id="pcr-department"
+              name="departmentCode"
+            >
+              <option value="">Department pending</option>
+              {departments.map((department) => (
+                <option key={department.code} value={department.code}>
+                  {department.name}
+                </option>
+              ))}
+            </select>
           </label>
           <div className="profile-edit-actions profile-edit-span-2">
             <button className="primary-button" disabled={pending} type="submit">

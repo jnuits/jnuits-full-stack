@@ -47,9 +47,10 @@ async function loadPortalMemberRecord(
   userId: string
 ) {
   const extendedSelect =
+    "id, jnuits_id, full_name, member_type, email, phone, batch_no, department_code, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility, is_profile_claimed, verification_code_hash, student_id, graduation_year, lifecycle_status, portal_access_status, avatar_public_id, avatar_secure_url, departments(name)";
     "id, jnuits_id, full_name, member_type, email, phone, batch_no, current_organization, designation, work_location, linkedin_url, website_url, professional_visibility, is_profile_claimed, verification_code_hash, student_id, graduation_year, lifecycle_status, portal_access_status, avatar_public_id, avatar_secure_url, departments(name)";
   const baseSelect =
-    "id, jnuits_id, full_name, member_type, email, phone, batch_no, current_organization, designation, work_location, linkedin_url, website_url, professional_visibility, is_profile_claimed, verification_code_hash, departments(name)";
+    "id, jnuits_id, full_name, member_type, email, phone, batch_no, department_code, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility, is_profile_claimed, verification_code_hash, departments(name)";
 
   const extendedResult = await admin
     .from("members")

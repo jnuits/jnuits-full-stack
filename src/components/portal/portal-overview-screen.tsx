@@ -112,6 +112,7 @@ export async function PortalOverviewScreen({
 
   return (
     <PortalShell
+      avatarUrl={member?.avatar_secure_url ?? null}
       memberName={member?.full_name ?? null}
       jnuitsId={displayJnuitsId || null}
       portalRole={user.portalRole}

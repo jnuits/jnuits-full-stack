@@ -2,6 +2,7 @@ import {
   approveWorkplaceUpdateRequest,
   rejectWorkplaceUpdateRequest,
 } from "@/app/admin/actions";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getWorkplacePayloadEntries } from "@/lib/members/workplace-payload";
 
@@ -22,6 +23,7 @@ type WorkplaceRequestRecord = {
         full_name?: string | null;
         jnuits_id?: string | null;
         member_type?: string | null;
+        avatar_secure_url?: string | null;
         professional_visibility?: string | null;
         work_location?: string | null;
       }
@@ -32,6 +34,7 @@ type WorkplaceRequestRecord = {
         full_name?: string | null;
         jnuits_id?: string | null;
         member_type?: string | null;
+        avatar_secure_url?: string | null;
         professional_visibility?: string | null;
         work_location?: string | null;
       }[]
@@ -87,13 +90,20 @@ export function WorkplaceRequestsPanel({
                       {new Date(request.requested_at).toLocaleDateString("en-BD")}
                     </span>
                   </div>
-                  <div>
-                    <h3 className="font-[family-name:var(--font-heading)] text-3xl font-semibold tracking-[-0.04em]">
-                      {member?.full_name || "Linked member"}
-                    </h3>
-                    <p className="mt-2 text-base font-semibold text-[var(--brand-blue)]">
-                      {member?.jnuits_id || request.member_id}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <ProfileAvatar
+                      name={member?.full_name}
+                      src={member?.avatar_secure_url ?? null}
+                      size="md"
+                    />
+                    <div className="min-w-0">
+                      <h3 className="font-[family-name:var(--font-heading)] text-3xl font-semibold">
+                        {member?.full_name || "Linked member"}
+                      </h3>
+                      <p className="mt-2 text-base font-semibold text-[var(--brand-blue)]">
+                        {member?.jnuits_id || request.member_id}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {member?.email ? (

@@ -85,6 +85,7 @@ export async function ProfileScreen({
 
   return (
     <PortalShell
+      avatarUrl={member?.avatar_secure_url ?? null}
       jnuitsId={displayJnuitsId || null}
       memberName={member?.full_name ?? null}
       portalRole={user.portalRole}

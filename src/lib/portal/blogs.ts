@@ -1,12 +1,22 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
+
+type PortalBlogAuthorMember = {
+  avatar_secure_url?: string | null;
+  full_name: string | null;
+  id: string;
+  jnuits_id: string | null;
+  member_type: string | null;
+};
 
 export async function getPortalBlogAuthorSnapshot(userId: string) {
   const admin = createAdminClient();
-  const { data: member } = await admin
-    .from("members")
-    .select("id, full_name, jnuits_id, member_type")
+  const flexibleAdmin = asFlexibleClient(admin);
+  const { data: member } = await flexibleAdmin
+    .from("members" as string)
+    .select("id, full_name, jnuits_id, member_type, avatar_secure_url")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -29,6 +39,6 @@ export async function getPortalBlogAuthorSnapshot(userId: string) {
 
   return {
     drafts: posts || [],
-    member,
+    member: member as PortalBlogAuthorMember,
   };
 }

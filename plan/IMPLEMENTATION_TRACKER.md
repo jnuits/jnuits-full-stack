@@ -8,6 +8,10 @@
 | Phase D: Membership and ops backend completion | In progress | Staging API still reports `membership_cycles`, `membership_cycle_memberships`, and `invitation_batches` as missing (`PGRST205`); rollover apply path remains blocked until migration can be applied on target project | Codex + technical operators | Phase C complete | `supabase/migrations/20260409051000_membership_cycles_and_batches.sql`, `src/app/admin/membership/page.tsx`, `src/app/admin/membership/actions.ts`, `src/lib/db/types.ts`, `scripts/onboard-members.mjs`, `scripts/reconcile-members.mjs`, `scripts/rollover-membership-cycle.mjs`, `artifacts/reports/membership/membership-cycles-migration-blocker-20260409T083342Z.json` | Apply migration to staging and re-run rollover dry-run/apply with real cycle id, then capture success evidence |
 | Phase E: Observability, rehearsal, cutover evidence | Completed | None (Phase E gates met) | Codex + project owner | Phase D migration blocker resolved for full closeout | `src/app/admin/reports/actions.ts`, `src/app/admin/reports/page.tsx`, `scripts/verify-sentry-ingest.mjs`, `scripts/relocate-cloudinary-assets.mjs`, `scripts/validate-cloudinary-assets.mjs`, `scripts/rollback-drill.mjs`, `scripts/build-cutover-evidence-pack.mjs`, `artifacts/reports/rehearsal/sentry-ingest-verification-report-20260409T083041Z.json`, `artifacts/reports/rehearsal/cloudinary-relocation-report-20260409T082920Z.json`, `artifacts/reports/rehearsal/cloudinary-validation-report-20260409T083025Z.json`, `artifacts/reports/rehearsal/cutover-evidence-pack-20260409T083420Z.json` | Sentry verification envelope accepted, Cloudinary folder parity fixed, cutover/rollback evidence pack archived |
 
+## Tooling Notes
+
+- Supabase plugin is available in Codex sessions from 2026-04-30 onward. Prefer it for live Supabase schema, migration, RLS, policy, and data verification before falling back to CLI/manual SQL paths.
+
 ## Evidence Rules
 
 - Keep migration SQL files in `supabase/migrations/` and reference file names per phase.
