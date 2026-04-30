@@ -354,8 +354,17 @@ export async function getPublicMemberDirectory(
       .eq("portal_access_status", "active")
       .not("jnuits_id", "ilike", "JNUITS-ADMIN-%");
 
+  const applyPublicMemberFilters = (
+    request: ReturnType<typeof flexibleAdmin.from>
+  ) =>
+    request
+      .in("lifecycle_status", ["current", "alumni"])
+      .eq("portal_access_status", "active")
+      .not("jnuits_id", "ilike", "JNUITS-ADMIN-%");
+
   const buildMembersQuery = () => {
     const request = flexibleAdmin.from("members" as string).select(MEMBER_DIRECTORY_SELECT_CLAUSE, {
+    const request = flexibleAdmin.from("members" as string).select(selectClause, {
       count: "exact",
     });
 
@@ -484,6 +493,11 @@ export async function getPublicMemberDirectory(
 
         return result;
       })(),
+      admin
+        .from("departments")
+        .select("code, name")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
     ]);
 
   const members = ((membersResult.data || []) as MemberDirectoryRow[]).map((member) =>

@@ -88,6 +88,7 @@ async function requireLinkedMemberUser() {
   const { data: member, error } = await asFlexibleClient(admin)
     .from("members" as string)
     .select("id, email, jnuits_id, full_name, member_type, department_code, lifecycle_status, portal_access_status")
+    .select("id, email, jnuits_id, full_name, member_type, lifecycle_status, portal_access_status")
     .eq("user_id", userId)
     .maybeSingle();
 

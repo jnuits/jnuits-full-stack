@@ -59,6 +59,7 @@ async function handleDirectEdit(
   const { data: member, error: memberError } = await asFlexibleClient(admin)
     .from("members" as string)
     .select("id, full_name, jnuits_id, department_code, facebook_url, linkedin_url, phone, website_url, lifecycle_status, portal_access_status")
+    .select("id, full_name, jnuits_id, linkedin_url, phone, website_url, lifecycle_status, portal_access_status")
     .eq("user_id", userId)
     .maybeSingle();
 

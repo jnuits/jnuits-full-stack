@@ -121,6 +121,7 @@ export function PortalShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  const initials = memberName ? getInitials(memberName) : "M";
   const displayJnuitsId = formatMembershipIdForDisplay(jnuitsId);
 
   return (

@@ -52,6 +52,15 @@ const MAX_DIMENSION = 800;
 const HELPER_TEXT =
   "Please upload a photo between 400x400 and 800x800 pixels. Maximum file size: 1MB.";
 
+function getInitials(displayName: string) {
+  return displayName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase())
+    .join("");
+}
+
 function getImageDimensions(file: File) {
   return new Promise<{ height: number; width: number }>((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
@@ -113,6 +122,7 @@ export function AvatarUploadField({
     message: null,
     pending: false,
   });
+  const initials = getInitials(displayName);
 
   async function uploadAvatar(file: File) {
     setState({ error: null, message: null, pending: true });
@@ -233,6 +243,18 @@ export function AvatarUploadField({
     >
       <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: "0.65rem" }}>
         <ProfileAvatar name={displayName} src={currentUrl} size={compact ? "md" : "lg"} />
+        <div
+          aria-hidden="true"
+          className="portal-identity-banner__avatar"
+          style={{
+            backgroundImage: currentUrl ? `url("${currentUrl}")` : undefined,
+            backgroundPosition: "center",
+            backgroundSize: "cover",
+            flex: "0 0 auto",
+          }}
+        >
+          {currentUrl ? null : initials}
+        </div>
         {canUpload ? (
           <>
             <button

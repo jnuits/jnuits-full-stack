@@ -47,6 +47,15 @@ export async function ProfileEditScreen() {
   return (
     <PortalShell
       avatarUrl={member?.avatar_secure_url ?? null}
+  const memberInitials =
+    member?.full_name
+      .split(" ")
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "M";
+
+  return (
+    <PortalShell
       jnuitsId={displayJnuitsId || null}
       memberName={member?.full_name ?? null}
       portalRole={user.portalRole}
@@ -62,6 +71,9 @@ export async function ProfileEditScreen() {
         {member ? (
           <div className="profile-edit-header-card" aria-label="Current member profile">
             <ProfileAvatar name={member.full_name} src={member.avatar_secure_url ?? null} size="sm" />
+            <div className="profile-edit-header-card__avatar" aria-hidden="true">
+              {memberInitials}
+            </div>
             <div>
               <p className="profile-edit-header-card__name">{member.full_name}</p>
               <p className="profile-edit-header-card__meta">
@@ -177,6 +189,7 @@ export async function ProfileEditScreen() {
                 facebookUrl: member.facebook_url ?? null,
                 fullName: member.full_name,
                 departmentCode: member.department_code ?? null,
+                fullName: member.full_name,
                 linkedinUrl: member.linkedin_url,
                 phone: member.phone,
                 websiteUrl: member.website_url,
