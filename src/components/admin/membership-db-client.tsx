@@ -10,7 +10,6 @@ import {
   Ellipsis,
   Info,
   Lock,
-  Mail,
   Pencil,
   RefreshCw,
   Search,
@@ -22,16 +21,12 @@ import { useFormStatus } from "react-dom";
 
 import {
   bulkReviewMemberAccountRequestsAction,
-  createInvitationBatchAction,
   createMembershipCycleAction,
   enrollMemberInCycleAction,
-  issueInvitationsFromBatchAction,
   lookupMemberForCycleAction,
   reviewMemberAccountRequestAction,
   saveMemberOperationsAction,
-  syncInvitationBatchMetricsAction,
   updateCycleMemberStateAction,
-  updateInvitationBatchStatusAction,
   updateMembershipCycleStatusAction,
 } from "@/app/admin/membership/actions";
 
@@ -144,21 +139,17 @@ const cycleMemberStates = [
   "expired",
   "lapsed",
 ] as const;
-const batchStatuses = ["draft", "active", "closed", "archived"] as const;
 const stickyNavItems = [
   { label: "Members", tabId: "tab-members", targetId: "member-operations" },
   { label: "Cycles", tabId: "tab-cycles", targetId: "cycle-management" },
   { label: "Enrollment", tabId: "tab-enrollment", targetId: "member-enrollment" },
-  { label: "Invitations", tabId: "tab-invitations", targetId: "invitation-batches" },
   { label: "Registry", tabId: "tab-registry", targetId: "cycle-registry" },
 ] as const;
 
 const stickySectionToTab: Record<string, (typeof stickyNavItems)[number]["tabId"]> = {
   "alumni-queue": "tab-members",
-  "batch-registry": "tab-registry",
   "cycle-management": "tab-cycles",
   "cycle-registry": "tab-registry",
-  "invitation-batches": "tab-invitations",
   "member-enrollment": "tab-enrollment",
   "member-operations": "tab-members",
   "renewal-queue": "tab-registry",
@@ -374,8 +365,18 @@ function WorkflowProgress({
   const rawSteps = [
     { complete: cyclesCount > 0, id: "cycle-management", label: "Create cycle" },
     { complete: activeMembersInCycles > 0, id: "member-enrollment", label: "Enroll members" },
-    { complete: batchesCount > 0, id: "invitation-batches", label: "Create batches" },
-    { complete: issuedCount > 0, id: "invitation-batches", label: "Issue invitations" },
+    {
+      complete: batchesCount > 0,
+      href: "/admin/invitations#batches",
+      id: "invitations-batches-link",
+      label: "Create batches",
+    },
+    {
+      complete: issuedCount > 0,
+      href: "/admin/invitations#issue",
+      id: "invitations-issue-link",
+      label: "Issue invitations",
+    },
   ];
   const currentIndex = Math.max(0, rawSteps.findIndex((step) => !step.complete));
 
@@ -388,7 +389,13 @@ function WorkflowProgress({
             <button
               className="membership-workflow__step"
               data-state={state}
-              onClick={() => scrollToSection(step.id)}
+              onClick={() => {
+                if ("href" in step && step.href) {
+                  window.location.href = step.href;
+                  return;
+                }
+                scrollToSection(step.id);
+              }}
               type="button"
             >
               <span className="membership-workflow__circle">
@@ -953,7 +960,7 @@ function MemberOperationsSection({
         >
           <button
             onClick={() => {
-              setTransientFeedback("Use invitation batches to issue member invitations.");
+              window.location.href = "/admin/invitations#issue";
               setOpenMenu(null);
             }}
             type="button"
@@ -2055,237 +2062,6 @@ function CycleAndEnrollmentForms({
   );
 }
 
-function InvitationBatchForms({
-  batches,
-  cycleMembers,
-  cycles,
-}: {
-  batches: InvitationBatchClientRecord[];
-  cycleMembers: CycleMemberClientRecord[];
-  cycles: MembershipCycleClientRecord[];
-}) {
-  const [expiresDate, setExpiresDate] = useState("");
-  const [expiresTime, setExpiresTime] = useState("23:59");
-  const [selectedBatchId, setSelectedBatchId] = useState("");
-  const [onlyPending, setOnlyPending] = useState(true);
-  const [confirmIssue, setConfirmIssue] = useState(false);
-  const [expiryDays, setExpiryDays] = useState("14");
-  const [maxUses, setMaxUses] = useState("1");
-  const [previewPending, setPreviewPending] = useState(false);
-  const previewTimerRef = useRef<number | null>(null);
-  const selectedBatch = batches.find((batch) => batch.id === selectedBatchId);
-  const previewCount =
-    selectedBatch?.cycle_id
-      ? cycleMembers.filter(
-          (row) =>
-            row.cycle_id === selectedBatch.cycle_id &&
-            (!onlyPending || row.state === "pending_renewal")
-        ).length
-      : 0;
-  const expiryError =
-    Number(expiryDays) < 1 || Number(expiryDays) > 365 ? "Expiry days must be 1–365." : null;
-  const maxUsesError =
-    Number(maxUses) < 1 || Number(maxUses) > 1000
-      ? "Max uses must be 1–1000."
-      : null;
-
-  function markPreviewPending() {
-    setPreviewPending(true);
-    if (previewTimerRef.current) {
-      window.clearTimeout(previewTimerRef.current);
-    }
-    previewTimerRef.current = window.setTimeout(() => setPreviewPending(false), 250);
-  }
-
-  useEffect(() => {
-    return () => {
-      if (previewTimerRef.current) {
-        window.clearTimeout(previewTimerRef.current);
-      }
-    };
-  }, []);
-
-  return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_minmax(0,0.96fr)]" id="invitation-batches">
-      <form action={createInvitationBatchAction} className="section-band grid gap-4">
-        <div>
-          <span className="eyebrow">Invitation batches</span>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-            Create invitation batch
-          </h2>
-        </div>
-        <div className="portal-form-grid">
-          <label className="input-label sm:col-span-2" htmlFor="batch-label">
-            Label
-            <input id="batch-label" name="label" placeholder="Renewal outreach batch A" required />
-          </label>
-          <label className="input-label" htmlFor="batch-source">
-            Source
-            <select defaultValue="renewal" id="batch-source" name="source">
-              <option value="manual">Manual</option>
-              <option value="csv_onboarding">CSV onboarding</option>
-              <option value="reconciliation">Reconciliation</option>
-              <option value="renewal">Renewal</option>
-            </select>
-          </label>
-          <label className="input-label" htmlFor="batch-status">
-            Status
-            <select defaultValue="draft" id="batch-status" name="status">
-              {batchStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {humanize(status)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="input-label" htmlFor="batch-cycle">
-            Linked cycle
-            <select id="batch-cycle" name="cycleId">
-              <option value="">No cycle link</option>
-              {cycles.map((cycle) => (
-                <option key={cycle.id} value={cycle.id}>
-                  {cycle.code}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="grid gap-2">
-            <DatePickerField
-              label="Expires at"
-              name="expiresAtDate"
-              onChange={setExpiresDate}
-              value={expiresDate}
-            />
-            <label className="input-label" htmlFor="batch-expiry-time">
-              Time
-              <input
-                id="batch-expiry-time"
-                onChange={(event) => setExpiresTime(event.target.value)}
-                pattern="\\d{2}:\\d{2}"
-                placeholder="23:59"
-                value={expiresTime}
-              />
-            </label>
-            <input
-              name="expiresAt"
-              readOnly
-              type="hidden"
-              value={expiresDate ? `${expiresDate}T${expiresTime}` : ""}
-            />
-          </div>
-        </div>
-        <PendingSubmitButton>Save batch</PendingSubmitButton>
-      </form>
-
-      <form action={issueInvitationsFromBatchAction} className="section-band grid gap-4">
-        <div>
-          <span className="eyebrow">Renewal queue issue</span>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-            Issue invitations from cycle queue
-          </h2>
-        </div>
-        <div className="portal-form-grid">
-          <label className="input-label sm:col-span-2" htmlFor="issue-batch">
-            Batch
-            <select
-              id="issue-batch"
-              name="batchId"
-              onChange={(event) => {
-                setSelectedBatchId(event.target.value);
-                setConfirmIssue(false);
-                markPreviewPending();
-              }}
-              required
-              value={selectedBatchId}
-            >
-              <option value="">Select batch</option>
-              {batches.map((batch) => (
-                <option key={batch.id} value={batch.id}>
-                  {batch.label} ({batch.status})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="input-label" htmlFor="expiry-days">
-            Expiry days
-            <input
-              aria-invalid={Boolean(expiryError)}
-              id="expiry-days"
-              max={365}
-              min={1}
-              name="invitationExpiresInDays"
-              onChange={(event) => setExpiryDays(event.target.value)}
-              type="number"
-              value={expiryDays}
-            />
-            <span className="membership-helper">1–365 days</span>
-            {expiryError ? <span className="membership-field-error">{expiryError}</span> : null}
-          </label>
-          <label className="input-label" htmlFor="max-uses">
-            Max uses
-            <input
-              aria-invalid={Boolean(maxUsesError)}
-              id="max-uses"
-              max={1000}
-              min={1}
-              name="maxUses"
-              onChange={(event) => setMaxUses(event.target.value)}
-              type="number"
-              value={maxUses}
-            />
-            <span className="membership-helper">1–1000 uses per invitation link</span>
-            {maxUsesError ? <span className="membership-field-error">{maxUsesError}</span> : null}
-          </label>
-          <label className="toggle-label sm:col-span-2" htmlFor="only-pending-renewal">
-            <input
-              className="toggle-input"
-              checked={onlyPending}
-              id="only-pending-renewal"
-              name="onlyPendingRenewal"
-              onChange={(event) => {
-                setOnlyPending(event.target.checked);
-                markPreviewPending();
-              }}
-              type="checkbox"
-              value="true"
-            />
-            <span className="toggle-track" aria-hidden="true">
-              <span className="toggle-thumb" />
-            </span>
-            <span className="toggle-text">Pending renewal members only</span>
-          </label>
-        </div>
-
-        <button
-          className="primary-button"
-          disabled={!selectedBatchId || Boolean(expiryError || maxUsesError)}
-          onClick={() => setConfirmIssue(true)}
-          type="button"
-        >
-          Issue invitations
-        </button>
-        {confirmIssue ? (
-          <div className="membership-confirm-bar membership-confirm-bar--warning">
-            <span>
-              {previewPending ? (
-                <span className="membership-spinner" aria-hidden="true" />
-              ) : (
-                `Issue invitations to ${previewCount} pending members using batch "${selectedBatch?.label || "selected batch"}"? This cannot be undone.`
-              )}
-            </span>
-            <PendingSubmitButton className="admin-btn admin-btn--danger" disabled={previewPending}>
-              Confirm — issue now
-            </PendingSubmitButton>
-            <button className="ghost-button" onClick={() => setConfirmIssue(false)} type="button">
-              Cancel
-            </button>
-          </div>
-        ) : null}
-      </form>
-    </section>
-  );
-}
-
 function EmptyRegistryState({
   body,
   cta,
@@ -2294,10 +2070,10 @@ function EmptyRegistryState({
 }: {
   body: string;
   cta?: { label: string; targetId: string };
-  icon: "calendar" | "mail" | "refresh";
+  icon: "calendar" | "refresh";
   title: string;
 }) {
-  const Icon = icon === "calendar" ? CalendarDays : icon === "mail" ? Mail : RefreshCw;
+  const Icon = icon === "calendar" ? CalendarDays : RefreshCw;
   return (
     <div className="membership-empty-state">
       <Icon aria-hidden="true" size={48} />
@@ -2313,11 +2089,9 @@ function EmptyRegistryState({
 }
 
 function RegistrySections({
-  batches,
   cycles,
   cycleMembers,
 }: {
-  batches: InvitationBatchClientRecord[];
   cycles: MembershipCycleClientRecord[];
   cycleMembers: CycleMemberClientRecord[];
 }) {
@@ -2442,73 +2216,6 @@ function RegistrySections({
           )}
         </div>
       </section>
-
-      <section className="section-band" id="batch-registry">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <span className="eyebrow">Invitation batches</span>
-            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.7rem)] leading-[0.96] tracking-[-0.04em]">
-              Batch registry and sync controls
-            </h2>
-          </div>
-        </div>
-        <div className="mt-6 grid gap-4">
-          {batches.length === 0 ? (
-            <EmptyRegistryState
-              body="Create a batch above and it will appear here."
-              cta={{ label: "Create batch", targetId: "invitation-batches" }}
-              icon="mail"
-              title="No invitation batches yet"
-            />
-          ) : (
-            batches.map((batch) => (
-              <article key={batch.id} className="application-card">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-[family-name:var(--font-heading)] text-[1.6rem] leading-[0.98] tracking-[-0.04em]">
-                      {batch.label}
-                    </h3>
-                    <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-                      Source {batch.source} • status {batch.status}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <MemberChip>Issued {batch.issued_count}</MemberChip>
-                      <MemberChip>Claimed {batch.claimed_count}</MemberChip>
-                      <MemberChip>{batch.cycle_id ? "Cycle linked" : "No cycle link"}</MemberChip>
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:min-w-[290px]">
-                    <form action={updateInvitationBatchStatusAction} className="grid gap-2">
-                      <input name="batchId" type="hidden" value={batch.id} />
-                      <label className="input-label" htmlFor={`batch-status-${batch.id}`}>
-                        Update status
-                        <select
-                          defaultValue={batch.status}
-                          id={`batch-status-${batch.id}`}
-                          name="nextStatus"
-                        >
-                          {batchStatuses.map((status) => (
-                            <option key={status} value={status}>
-                              {humanize(status)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <PendingSubmitButton className="secondary-button">Apply batch status</PendingSubmitButton>
-                    </form>
-                    <form action={syncInvitationBatchMetricsAction}>
-                      <input name="batchId" type="hidden" value={batch.id} />
-                      <PendingSubmitButton className="ghost-button w-full">
-                        Sync issued/claimed metrics
-                      </PendingSubmitButton>
-                    </form>
-                  </div>
-                </div>
-              </article>
-            ))
-          )}
-        </div>
-      </section>
     </>
   );
 }
@@ -2539,7 +2246,7 @@ export function MembershipDbClient({
           <p className="admin-page-header__breadcrumb">Admin / Membership</p>
           <h1 className="admin-page-header__title">Membership DB</h1>
           <p className="admin-page-header__desc">
-            Cycle lifecycle management, renewal queue, member-cycle state transitions, and invitation batch controls.
+            Cycle lifecycle management, renewal queue, member-cycle state transitions, and member access controls.
           </p>
         </div>
         {activeCycle ? <StatusBadge value={`${activeCycle.code} active`} /> : null}
@@ -2592,9 +2299,29 @@ export function MembershipDbClient({
 
       <CycleAndEnrollmentForms cycles={cycles} />
 
-      <InvitationBatchForms batches={batches} cycleMembers={cycleMembers} cycles={cycles} />
+      <section className="section-band" id="membership-invitation-handoff">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="eyebrow">Invitation workspace</span>
+            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
+              Invitation operations now live on the dedicated page
+            </h2>
+            <p className="section-copy mt-3">
+              Create batches, issue claim codes, monitor delivery, and revoke invitations from the Invitations workspace.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <a className="ghost-button" href="/admin/invitations#issue">
+              Issue invitations
+            </a>
+            <a className="primary-button" href="/admin/invitations#batches">
+              Manage batches
+            </a>
+          </div>
+        </div>
+      </section>
 
-      <RegistrySections batches={batches} cycleMembers={cycleMembers} cycles={cycles} />
+      <RegistrySections cycleMembers={cycleMembers} cycles={cycles} />
     </div>
   );
 }

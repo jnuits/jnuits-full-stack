@@ -4,7 +4,6 @@ import {
   approveMembershipApplication,
   rejectMembershipApplication,
 } from "@/app/admin/actions";
-import { InvitationsPanel } from "@/components/admin/invitations-panel";
 import { ProfileChangeRequestsPanel } from "@/components/admin/profile-change-requests-panel";
 import { WorkplaceRequestsPanel } from "@/components/admin/workplace-requests-panel";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -48,35 +47,6 @@ type ApplicationRecord = {
   invitation_id: string | null;
   processed_member_id: string | null;
   departments?: { name?: string | null } | { name?: string | null }[] | null;
-};
-
-type InvitationRecord = {
-  id: string;
-  member_id: string;
-  created_at: string;
-  expires_at: string;
-  is_active: boolean;
-  last_used_at: string | null;
-  max_uses: number;
-  notes: string | null;
-  revoked_at: string | null;
-  used_count: number;
-  members?:
-    | {
-        email?: string | null;
-        full_name?: string | null;
-        jnuits_id?: string | null;
-        member_type?: string | null;
-        avatar_secure_url?: string | null;
-      }
-    | {
-        email?: string | null;
-        full_name?: string | null;
-        jnuits_id?: string | null;
-        member_type?: string | null;
-        avatar_secure_url?: string | null;
-      }[]
-    | null;
 };
 
 type WorkplaceRequestRecord = {
@@ -182,7 +152,6 @@ export default async function AdminPage() {
     pendingCountResult,
     activeInvitationsResult,
     membersCountResult,
-    activeInvitationRowsResult,
     pendingWorkplaceRequestsResult,
     pendingWorkplaceCountResult,
     recentWorkplaceDecisionsResult,
@@ -216,15 +185,6 @@ export default async function AdminPage() {
       .eq("is_active", true)
       .is("revoked_at", null),
     admin.from("members").select("*", { count: "exact", head: true }),
-    admin
-      .from("member_invitations")
-      .select(
-        "id, member_id, created_at, expires_at, is_active, last_used_at, max_uses, notes, revoked_at, used_count, members(full_name, jnuits_id, email, member_type, avatar_secure_url)"
-      )
-      .eq("is_active", true)
-      .is("revoked_at", null)
-      .order("created_at", { ascending: false })
-      .limit(8),
     admin
       .from("profile_update_requests")
       .select(
@@ -273,8 +233,6 @@ export default async function AdminPage() {
     (pendingApplicationsResult.data || []) as ApplicationRecord[];
   const recentDecisions =
     (recentDecisionsResult.data || []) as ApplicationRecord[];
-  const activeInvitationRows =
-    (activeInvitationRowsResult.data || []) as InvitationRecord[];
   const pendingWorkplaceRequests =
     (pendingWorkplaceRequestsResult.data || []) as WorkplaceRequestRecord[];
   const recentWorkplaceDecisions =
@@ -550,7 +508,7 @@ export default async function AdminPage() {
             </span>
             Applications
           </Link>
-          <Link href="/admin#invitations" className="admin-quick-tile">
+          <Link href="/admin/invitations" className="admin-quick-tile">
             <span className="admin-quick-tile__icon">
               <Mail size={16} />
             </span>
@@ -769,7 +727,19 @@ export default async function AdminPage() {
         )}
       </section>
 
-      <InvitationsPanel invitations={activeInvitationRows} />
+      <section className="route-tile" id="invitations">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3>Invitation workspace</h3>
+            <p className="mt-2">
+              Claim codes, direct invites, delivery state, batch issuance, and revocation now live on the dedicated invitations page.
+            </p>
+          </div>
+          <Link className="primary-button" href="/admin/invitations">
+            Open invitations
+          </Link>
+        </div>
+      </section>
 
       <WorkplaceRequestsPanel requests={pendingWorkplaceRequests} />
 

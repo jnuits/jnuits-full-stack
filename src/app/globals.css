@@ -2544,6 +2544,186 @@
   opacity: 0.65;
 }
 
+.invitation-workspace .admin-metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+}
+
+.invitation-workspace .section-band form .primary-button,
+.invitation-workspace form .primary-button {
+  width: 100%;
+  height: 40px;
+  min-height: 0;
+  border-radius: 8px;
+  background: var(--brand-blue);
+  box-shadow: none;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.invitation-code-reveal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.invitation-code-reveal span {
+  border: 1px dashed var(--color-border-info);
+  border-radius: 0.75rem;
+  background: var(--color-background-info);
+  color: var(--brand-blue);
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  padding: 0.65rem 0.8rem;
+}
+
+.invitation-code-reveal button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 34px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 0.65rem;
+  padding: 0 0.75rem;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.membership-table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.membership-table-toolbar select,
+.membership-table-toolbar .ghost-button {
+  flex: 0 0 auto;
+  height: 36px;
+  min-height: 0;
+  border-radius: 0.65rem;
+  padding: 0 0.75rem;
+  font-size: 13px;
+}
+
+.membership-table-search {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 16rem;
+}
+
+.membership-table-search svg {
+  position: absolute;
+  left: 0.8rem;
+  top: 50%;
+  color: var(--color-text-secondary);
+  transform: translateY(-50%);
+}
+
+.membership-table-search input {
+  width: 100%;
+  height: 36px;
+  border-radius: 0.65rem;
+  padding: 0 0.75rem 0 2rem;
+  font-size: 13px;
+}
+
+.invitation-table {
+  min-width: 1120px;
+}
+
+.invitation-table th:nth-child(2) {
+  width: 25%;
+}
+
+.invitation-table th:nth-child(3),
+.invitation-table th:nth-child(4),
+.invitation-table th:nth-child(5),
+.invitation-table th:nth-child(7) {
+  width: 125px;
+}
+
+.invitation-table th:nth-child(6) {
+  width: 150px;
+}
+
+.invitation-detail-grid label span {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.45;
+  text-transform: none;
+}
+
+.invitation-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: transparent;
+}
+
+.invitation-batch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.55fr) auto;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 1rem;
+  background: var(--color-background-primary);
+  padding: 0.9rem;
+}
+
+.invitation-batch-row h3 {
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.invitation-batch-row p,
+.invitation-batch-row__progress span {
+  margin-top: 0.2rem;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.invitation-batch-row__progress i {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  height: 5px;
+  margin-top: 0.45rem;
+  border-radius: 999px;
+  background: var(--color-border-tertiary);
+}
+
+.invitation-batch-row__progress b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-blue);
+}
+
+@media (max-width: 780px) {
+  .membership-table-toolbar,
+  .invitation-batch-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .membership-table-search,
+  .membership-table-toolbar select,
+  .membership-table-toolbar .ghost-button {
+    width: 100%;
+  }
+}
+
 .membership-bulk-toolbar {
   position: sticky;
   top: 0;
