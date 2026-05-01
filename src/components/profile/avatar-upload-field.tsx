@@ -240,7 +240,10 @@ export function AvatarUploadField({
         maxWidth: compact ? "18rem" : undefined,
       }}
     >
-      <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: "0.65rem" }}>
+      <div
+        className="avatar-upload-row"
+        style={{ alignItems: "center", display: "flex", flexWrap: "nowrap", gap: "0.65rem" }}
+      >
         <ProfileAvatar name={displayName} src={currentUrl} size={compact ? "md" : "lg"} />
         <div
           aria-hidden="true"

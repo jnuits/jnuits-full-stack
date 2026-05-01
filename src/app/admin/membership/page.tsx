@@ -94,6 +94,17 @@ function parsePositiveInt(
   return Math.min(parsed, max);
 }
 
+function parseMemberPageSize(value: string | string[] | undefined) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = Number.parseInt(raw || "", 10);
+  return [15, 20, 50].includes(parsed) ? parsed : 20;
+}
+
+function parseFilter(value: string | string[] | undefined) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw?.trim() || "";
+}
+
 export default async function AdminMembershipPage({
   searchParams,
 }: {
@@ -104,14 +115,19 @@ export default async function AdminMembershipPage({
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
   const resolvedSearchParams = await searchParams;
-  const memberLimit = parsePositiveInt(resolvedSearchParams.memberLimit, 40, 200);
+  const memberPage = parsePositiveInt(resolvedSearchParams.memberPage, 1, 10_000);
+  const memberPageSize = parseMemberPageSize(resolvedSearchParams.memberPageSize);
+  const memberLifecycleFilter = parseFilter(resolvedSearchParams.memberLifecycle);
+  const memberRoleFilter = parseFilter(resolvedSearchParams.memberRole);
+  const memberRangeFrom = (memberPage - 1) * memberPageSize;
+  const memberRangeTo = memberRangeFrom + memberPageSize - 1;
 
   const [
     cyclesResult,
     cycleMembersResult,
     batchesResult,
-    managedMembersResult,
     accountRequestsResult,
+    portalRolesResult,
   ] = await Promise.all([
     admin
       .from("membership_cycles")
@@ -136,15 +152,6 @@ export default async function AdminMembershipPage({
       .order("created_at", { ascending: false })
       .limit(20),
     flexibleAdmin
-      .from("members" as string)
-      .select(
-        "id, user_id, jnuits_id, full_name, email, member_type, is_profile_claimed, lifecycle_status, portal_access_status, avatar_secure_url, updated_at",
-        { count: "exact" }
-      )
-      .not("jnuits_id", "ilike", "JNUITS-ADMIN-%")
-      .order("updated_at", { ascending: false })
-      .limit(memberLimit),
-    flexibleAdmin
       .from("profile_update_requests" as string)
       .select(
         "id, member_id, request_type, status, requested_at, review_note, members(full_name, jnuits_id)"
@@ -153,7 +160,70 @@ export default async function AdminMembershipPage({
       .eq("status", "pending")
       .order("requested_at", { ascending: true })
       .limit(30),
+    flexibleAdmin
+      .from("rbac_platform_roles" as string)
+      .select("code, display_name")
+      .eq("scope", "portal")
+      .eq("is_assignable", true)
+      .order("rank", { ascending: true }),
   ]);
+
+  const portalRoleOptions = (portalRolesResult.data || []) as PortalRoleOptionClientRecord[];
+  const validPortalRoleCodes = new Set(portalRoleOptions.map((role) => role.code));
+  const normalizedRoleFilter = validPortalRoleCodes.has(
+    memberRoleFilter as PortalRoleOptionClientRecord["code"]
+  )
+    ? memberRoleFilter
+    : "";
+
+  let roleFilteredUserIds: string[] | null = null;
+  if (normalizedRoleFilter) {
+    const { data: grants } = await flexibleAdmin
+      .from("rbac_user_platform_roles" as string)
+      .select("user_id, rbac_platform_roles!inner(code)")
+      .eq("scope", "portal")
+      .is("revoked_at", null)
+      .eq("rbac_platform_roles.code", normalizedRoleFilter);
+
+    roleFilteredUserIds = Array.from(
+      new Set(
+        ((grants || []) as { user_id?: string | null }[])
+          .map((grant) => grant.user_id)
+          .filter((value): value is string => Boolean(value))
+      )
+    );
+  }
+
+  let managedMembersResult: {
+    count: number | null;
+    data: unknown[] | null;
+  };
+
+  if (roleFilteredUserIds && roleFilteredUserIds.length === 0) {
+    managedMembersResult = { count: 0, data: [] };
+  } else {
+    let managedMembersQuery = flexibleAdmin
+      .from("members" as string)
+      .select(
+        "id, user_id, jnuits_id, full_name, email, member_type, is_profile_claimed, lifecycle_status, portal_access_status, avatar_secure_url, updated_at",
+        { count: "exact" }
+      )
+      .not("jnuits_id", "ilike", "JNUITS-ADMIN-%");
+
+    if (memberLifecycleFilter === "current") {
+      managedMembersQuery = managedMembersQuery.or("lifecycle_status.eq.current,lifecycle_status.is.null");
+    } else if (memberLifecycleFilter) {
+      managedMembersQuery = managedMembersQuery.eq("lifecycle_status", memberLifecycleFilter);
+    }
+
+    if (roleFilteredUserIds) {
+      managedMembersQuery = managedMembersQuery.in("user_id", roleFilteredUserIds);
+    }
+
+    managedMembersResult = await managedMembersQuery
+      .order("updated_at", { ascending: false })
+      .range(memberRangeFrom, memberRangeTo);
+  }
 
   const cycles = (cyclesResult.data || []) as MembershipCycleClientRecord[];
   const rawCycleMembers = (cycleMembersResult.data || []) as CycleMemberRecord[];
@@ -167,13 +237,7 @@ export default async function AdminMembershipPage({
     .map((member) => member.user_id)
     .filter((value): value is string => Boolean(value));
 
-  const [portalRolesResult, activePortalRoleGrantsResult] = await Promise.all([
-    flexibleAdmin
-      .from("rbac_platform_roles" as string)
-      .select("code, display_name")
-      .eq("scope", "portal")
-      .eq("is_assignable", true)
-      .order("rank", { ascending: true }),
+  const [activePortalRoleGrantsResult] = await Promise.all([
     memberUserIds.length > 0
       ? flexibleAdmin
           .from("rbac_user_platform_roles" as string)
@@ -184,7 +248,6 @@ export default async function AdminMembershipPage({
       : Promise.resolve({ data: [] }),
   ]);
 
-  const portalRoleOptions = (portalRolesResult.data || []) as PortalRoleOptionClientRecord[];
   const activePortalRoleByUserId = new Map(
     ((activePortalRoleGrantsResult.data || []) as PortalRoleGrantRecord[])
       .map((grant) => {
@@ -268,7 +331,10 @@ export default async function AdminMembershipPage({
       flash={flash}
       managedMemberTotal={managedMembersResult.count || managedMembers.length}
       managedMembers={managedMembers}
-      memberLimit={memberLimit}
+      memberLifecycleFilter={memberLifecycleFilter}
+      memberPage={memberPage}
+      memberPageSize={memberPageSize}
+      memberRoleFilter={normalizedRoleFilter}
       pendingRenewals={pendingRenewals}
       portalRoleOptions={portalRoleOptions}
       totalClaimedInvitations={totalClaimedInvitations}

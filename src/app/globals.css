@@ -1530,9 +1530,40 @@
   height: 40px;
   min-height: 0;
   border-radius: 8px;
+  background: var(--brand-blue);
+  box-shadow: 0 12px 24px color-mix(in oklab, var(--brand-blue) 22%, transparent);
   padding: 0 16px;
   font-size: 14px;
   font-weight: 500;
+}
+
+.membership-metric-description {
+  min-height: 32px;
+}
+
+.membership-db .portal-form-grid {
+  align-items: start;
+}
+
+.membership-db .portal-form-grid > * {
+  align-self: start;
+}
+
+.membership-db .portal-form-grid .input-label > input:not([type="hidden"]),
+.membership-db .portal-form-grid .input-label > select,
+.membership-db .portal-form-grid .membership-date-button {
+  box-sizing: border-box;
+  height: 48px;
+  min-height: 48px;
+  border-radius: 1rem;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.membership-db .portal-form-grid .membership-date-button {
+  display: inline-flex;
 }
 
 .membership-card-action {
@@ -1638,6 +1669,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: 20px;
   height: 20px;
   border: 1.5px solid var(--color-border-secondary);
@@ -1782,13 +1814,13 @@
 .membership-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.6rem;
 }
 
 .membership-search-field {
   flex: 1 1 auto;
   position: relative;
-  min-width: 14rem;
+  min-width: 18rem;
 }
 
 .membership-search-field svg {
@@ -1807,11 +1839,13 @@
   line-height: 36px;
 }
 
-.membership-lifecycle-filter {
-  flex: 0 0 160px;
+.membership-lifecycle-filter,
+.membership-role-filter {
+  flex: 0 0 150px;
 }
 
-.membership-lifecycle-filter select {
+.membership-lifecycle-filter select,
+.membership-role-filter select {
   height: 36px;
   padding: 0 0.75rem;
   border-radius: 0.65rem;
@@ -1823,16 +1857,561 @@
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
+  justify-content: center;
   height: 36px;
   min-height: 36px;
   padding: 0 8px;
-  border: 0;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 0.65rem;
   background: transparent;
   color: var(--brand-blue);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+}
+
+.membership-table-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.membership-table-heading > p,
+.membership-table-count,
+.membership-table__cycle,
+.membership-table__role {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.membership-table-count {
+  margin-left: auto;
+  min-width: max-content;
+  white-space: nowrap;
+}
+
+.membership-table-feedback {
+  margin-top: 0.75rem;
+  color: var(--brand-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.membership-table-shell {
+  overflow-x: auto;
+  margin-top: 1rem;
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 1rem;
+  background: var(--color-background-primary);
+}
+
+.membership-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.membership-table th {
+  height: 40px;
+  border-bottom: 1px solid var(--color-border-tertiary);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0 1rem;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.membership-table td {
+  border-bottom: 1px solid var(--color-border-tertiary);
+  color: var(--foreground);
+  font-size: 13px;
+  padding: 0.85rem 1rem;
+  vertical-align: middle;
+}
+
+.membership-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.membership-table-row {
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.membership-table-row:hover {
+  background: var(--color-background-secondary);
+}
+
+.membership-table-row[data-selected="true"],
+.membership-table-row[data-editing="true"] {
+  background: color-mix(in oklab, var(--color-background-info) 68%, transparent);
+}
+
+.membership-table__checkbox {
+  width: 36px;
+  padding-inline: 0.7rem !important;
+}
+
+.membership-table th:nth-child(2) {
+  width: 34%;
+}
+
+.membership-table th:nth-child(3),
+.membership-table th:nth-child(4) {
+  width: 120px;
+}
+
+.membership-table th:nth-child(5) {
+  width: 145px;
+}
+
+.membership-table th:nth-child(6) {
+  width: 100px;
+}
+
+.membership-table__checkbox input {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.25rem;
+  padding: 0;
+}
+
+.membership-table__actions {
+  width: 104px;
+  text-align: right !important;
+}
+
+.membership-table-member {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.membership-table-member strong {
+  display: block;
+  color: var(--foreground);
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.membership-table-member small {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.membership-table-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  color: white;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.membership-table-avatar[data-tone="0"] {
+  background: var(--brand-blue);
+}
+
+.membership-table-avatar[data-tone="1"] {
+  background: var(--brand-green);
+}
+
+.membership-table-avatar[data-tone="2"] {
+  background: color-mix(in oklab, var(--brand-blue) 58%, #7c3aed);
+}
+
+.membership-table-avatar[data-tone="3"] {
+  background: var(--brand-gold);
+}
+
+.membership-table-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.membership-table-badge[data-kind="lifecycle"][data-value="current"] {
+  background: var(--color-background-success);
+  color: var(--color-text-success);
+}
+
+.membership-table-badge[data-kind="lifecycle"][data-value="alumni"] {
+  background: color-mix(in oklab, var(--brand-blue) 12%, var(--card));
+  color: color-mix(in oklab, var(--brand-blue) 76%, var(--foreground));
+}
+
+.membership-table-badge[data-kind="lifecycle"][data-value="pending"],
+.membership-table-badge[data-kind="lifecycle"][data-value="former"] {
+  background: var(--color-background-warning);
+  color: color-mix(in oklab, var(--brand-gold) 78%, var(--foreground));
+}
+
+.membership-table-badge[data-kind="access"][data-value="active"] {
+  background: var(--color-background-info);
+  color: var(--brand-blue);
+}
+
+.membership-table-badge[data-kind="access"][data-value="suspended"],
+.membership-table-badge[data-kind="access"][data-value="deletion_requested"] {
+  background: var(--color-background-warning);
+  color: color-mix(in oklab, var(--brand-gold) 78%, var(--foreground));
+}
+
+.membership-table-badge[data-value="inactive"],
+.membership-table-badge[data-value="deleted"],
+.membership-table-badge[data-value="frozen"],
+.membership-table-badge[data-value="deactivated"] {
+  background: color-mix(in oklab, var(--muted) 70%, transparent);
+  color: var(--color-text-secondary);
+}
+
+.membership-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.membership-row-actions > button,
+.membership-row-menu-wrap > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  background: transparent;
+}
+
+.membership-row-actions > button:hover,
+.membership-row-menu-wrap > button:hover {
+  color: var(--foreground);
+  background: var(--color-background-secondary);
+}
+
+.membership-row-menu-wrap {
+  position: relative;
+}
+
+.membership-row-menu {
+  position: fixed;
+  z-index: 100;
+  display: grid;
+  width: 172px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 8px;
+  background: var(--color-background-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 0.35rem;
+  text-align: left;
+}
+
+.membership-row-menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  border-radius: 0.45rem;
+  padding: 0.48rem 0.6rem;
+  color: var(--foreground);
+  font-size: 12px;
+  text-align: left;
+}
+
+.membership-row-menu button:hover {
+  background: var(--color-background-secondary);
+}
+
+.membership-row-menu__danger {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--color-border-tertiary);
+  color: var(--brand-rust) !important;
+}
+
+.membership-inline-editor {
+  overflow: hidden;
+  margin-top: 0.75rem;
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 1rem;
+  background: var(--color-background-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.membership-inline-editor__header,
+.membership-inline-editor__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--color-background-secondary);
+  padding: 0.75rem 0.9rem;
+}
+
+.membership-inline-editor__header {
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+
+.membership-inline-editor__footer {
+  border-top: 1px solid var(--color-border-tertiary);
+}
+
+.membership-inline-editor__header strong {
+  display: block;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.membership-inline-editor__header small {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.membership-inline-editor__body {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+}
+
+.membership-inline-editor__body label,
+.membership-bulk-member-bar__form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.membership-inline-editor__body input,
+.membership-inline-editor__body select,
+.membership-bulk-member-bar__form select {
+  height: 34px;
+}
+
+.membership-inline-editor__body textarea,
+.membership-bulk-member-bar__form textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.membership-inline-editor__wide {
+  grid-column: 1 / 3;
+}
+
+.membership-inline-editor__footer > div {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.membership-inline-editor__footer .primary-button,
+.membership-bulk-member-bar .primary-button {
+  width: auto;
+  height: 30px;
+  min-height: 0;
+  border-radius: 7px;
+  background: var(--brand-blue);
+  box-shadow: none;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.membership-inline-editor__footer .ghost-button,
+.membership-inline-editor__footer .admin-btn,
+.membership-bulk-member-bar .ghost-button,
+.membership-bulk-member-bar .admin-btn {
+  height: 30px;
+  min-height: 0;
+  border-radius: 7px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.membership-inline-editor__footer .primary-button[data-state="saved"] {
+  background: var(--color-background-success);
+  color: var(--color-text-success);
+}
+
+.membership-inline-editor__error {
+  padding: 0 0.9rem 0.85rem;
+  color: var(--brand-rust);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.membership-bulk-member-bar {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+  border: 1px solid var(--color-border-info);
+  border-radius: 8px;
+  background: var(--color-background-info);
+  padding: 8px 12px;
+  transform: translateY(0);
+  animation: membership-bulk-enter 150ms ease both;
+}
+
+@keyframes membership-bulk-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.membership-bulk-member-bar__summary,
+.membership-bulk-member-bar__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.membership-bulk-member-bar__summary strong {
+  margin-right: 0.25rem;
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.membership-bulk-member-bar__form label {
+  min-width: 160px;
+  flex: 1 1 160px;
+}
+
+.membership-bulk-member-bar__form button {
+  align-self: end;
+}
+
+.membership-pagination {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.membership-pagination__pages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.membership-pagination button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 6px;
+  color: var(--foreground);
+}
+
+.membership-pagination button[data-active="true"] {
+  border-color: var(--brand-blue);
+  background: var(--brand-blue);
+  color: white;
+}
+
+.membership-pagination button:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.membership-pagination select {
+  justify-self: end;
+  width: 118px;
+  height: 32px;
+  border-radius: 0.55rem;
+  padding: 0 0.55rem;
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.membership-history-panel {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 55;
+  width: min(24rem, calc(100vw - 2rem));
+  overflow: hidden;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 1rem;
+  background: var(--color-background-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+.membership-history-panel > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--color-border-tertiary);
+  background: var(--color-background-secondary);
+  padding: 0.8rem 0.95rem;
+}
+
+.membership-history-panel h3 {
+  color: var(--foreground);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.membership-history-panel button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.membership-history-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  padding: 2rem 1rem;
+  color: var(--color-text-secondary);
+  text-align: center;
 }
 
 .membership-member-card {
@@ -2056,7 +2635,7 @@
 }
 
 .membership-date-button[data-empty="true"] {
-  color: var(--color-text-tertiary);
+  color: color-mix(in oklab, var(--color-text-tertiary) 72%, transparent);
 }
 
 .membership-date-button svg {
@@ -2254,6 +2833,15 @@
   margin-left: 0.15rem;
 }
 
+.avatar-upload-row {
+  flex-wrap: nowrap;
+}
+
+.avatar-upload-row .secondary-button {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
 .avatar-upload-info span {
   bottom: calc(100% + 0.45rem);
   left: 50%;
@@ -2281,6 +2869,42 @@
 
   .membership-lifecycle-filter {
     flex: 1 1 160px;
+  }
+
+  .membership-role-filter {
+    flex: 1 1 160px;
+  }
+
+  .membership-table-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .membership-table-count {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+
+  .membership-pagination {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .membership-pagination select {
+    justify-self: start;
+  }
+
+  .membership-inline-editor__body {
+    grid-template-columns: 1fr;
+  }
+
+  .membership-inline-editor__wide {
+    grid-column: auto;
+  }
+
+  .membership-inline-editor__footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .membership-workflow {
@@ -3187,6 +3811,16 @@
   font-weight: 700;
   background: color-mix(in oklab, var(--accent) 18%, transparent);
   color: color-mix(in oklab, var(--accent-foreground) 86%, var(--foreground));
+}
+
+.membership-pending-count {
+  background: var(--color-background-secondary);
+  color: var(--color-text-secondary);
+}
+
+.membership-pending-count[data-pending="true"] {
+  background: var(--color-background-warning);
+  color: color-mix(in oklab, var(--brand-gold) 82%, var(--foreground));
 }
 
 .primary-button,

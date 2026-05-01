@@ -5,11 +5,16 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock3,
+  Copy,
+  Ellipsis,
   Info,
   Lock,
   Mail,
+  Pencil,
   RefreshCw,
   Search,
+  X,
   Unlock,
 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -29,7 +34,6 @@ import {
   updateInvitationBatchStatusAction,
   updateMembershipCycleStatusAction,
 } from "@/app/admin/membership/actions";
-import { AvatarUploadField } from "@/components/profile/avatar-upload-field";
 
 export type MembershipCycleClientRecord = {
   code: string;
@@ -114,7 +118,10 @@ type MembershipDbClientProps = {
   flash: AdminFlash;
   managedMemberTotal: number;
   managedMembers: ManagedMemberClientRecord[];
-  memberLimit: number;
+  memberLifecycleFilter: string;
+  memberPage: number;
+  memberPageSize: number;
+  memberRoleFilter: string;
   pendingRenewals: number;
   portalRoleOptions: PortalRoleOptionClientRecord[];
   totalClaimedInvitations: number;
@@ -288,13 +295,13 @@ function StatsBar({
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <MetricCard label="Cycles" value={cyclesCount}>
-        <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+        <p className="membership-metric-description mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
           Draft, active, closed, and archived membership windows.
         </p>
       </MetricCard>
 
       <MetricCard important label="Active cycle" value={activeCycle ? activeCycle.code : "None"}>
-        <div className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+        <div className="membership-metric-description mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
           {activeCycle ? (
             <p>
               <strong className="text-[var(--foreground)]">{activeCycle.title}</strong>{" "}
@@ -319,13 +326,13 @@ function StatsBar({
       </MetricCard>
 
       <MetricCard important label="Pending renewals" value={pendingRenewals}>
-        <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+        <p className="membership-metric-description mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
           Members waiting for renewal decision or invitation outreach.
         </p>
       </MetricCard>
 
       <MetricCard label="Active cycle members" value={activeMembersInCycles}>
-        <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+        <p className="membership-metric-description mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
           Members currently active across loaded cycle rows.
         </p>
       </MetricCard>
@@ -471,59 +478,272 @@ function MemberChip({ children }: { children: React.ReactNode }) {
   return <span className="membership-chip">{children}</span>;
 }
 
+function getMemberInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] || "M";
+  const second = parts.length > 1 ? parts[parts.length - 1]?.[0] : parts[0]?.[1] || "";
+  return `${first}${second}`.toUpperCase();
+}
+
+function getAvatarTone(memberId: string) {
+  const value = Number.parseInt(memberId.slice(-2), 16);
+  return Number.isFinite(value) ? value % 4 : 0;
+}
+
+function getMemberLifecycle(member: ManagedMemberClientRecord) {
+  return member.lifecycle_status || "current";
+}
+
+function getMemberPortalAccess(member: ManagedMemberClientRecord) {
+  return member.portal_access_status || "active";
+}
+
+function updateMembershipQuery(updates: Record<string, string>) {
+  const params = new URLSearchParams(window.location.search);
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+  }
+
+  window.location.search = params.toString();
+}
+
+function getPaginationItems(currentPage: number, totalPages: number) {
+  const items = new Set<number>([1, totalPages]);
+
+  for (let page = Math.max(1, currentPage - 1); page <= Math.min(totalPages, currentPage + 1); page += 1) {
+    items.add(page);
+  }
+
+  return Array.from(items).sort((a, b) => a - b);
+}
+
+function TableBadge({ type, value }: { type: "access" | "lifecycle"; value: string }) {
+  const normalized = value || (type === "access" ? "active" : "current");
+
+  return (
+    <span className="membership-table-badge" data-kind={type} data-value={normalized}>
+      {humanize(normalized)}
+    </span>
+  );
+}
+
+function MemberTableAvatar({ member }: { member: ManagedMemberClientRecord }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="membership-table-avatar"
+      data-tone={getAvatarTone(member.displayJnuitsId || member.id)}
+    >
+      {getMemberInitials(member.full_name)}
+    </span>
+  );
+}
+
 function MemberOperationsSection({
+  cycles,
+  cycleMembers,
+  memberLifecycleFilter,
+  memberPage,
+  memberPageSize,
+  memberRoleFilter,
   managedMemberTotal,
   managedMembers,
-  memberLimit,
   portalRoleOptions,
 }: {
+  cycles: MembershipCycleClientRecord[];
+  cycleMembers: CycleMemberClientRecord[];
+  memberLifecycleFilter: string;
+  memberPage: number;
+  memberPageSize: number;
+  memberRoleFilter: string;
   managedMemberTotal: number;
   managedMembers: ManagedMemberClientRecord[];
-  memberLimit: number;
   portalRoleOptions: PortalRoleOptionClientRecord[];
 }) {
+  const [members, setMembers] = useState(managedMembers);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(() => new Set());
+  const [editingMemberId, setEditingMemberId] = useState<null | string>(null);
+  const [historyMember, setHistoryMember] = useState<ManagedMemberClientRecord | null>(null);
+  const [openMenu, setOpenMenu] = useState<null | {
+    memberId: string;
+    left: number;
+    top: number;
+  }>(null);
+  const [feedback, setFeedback] = useState<null | string>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [lifecycleFilter, setLifecycleFilter] = useState("all");
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim().toLowerCase()), 300);
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim().toLowerCase()), 250);
     return () => window.clearTimeout(timeout);
   }, [search]);
+
+  useEffect(() => {
+    if (!openMenu) {
+      return undefined;
+    }
+
+    function handleOutsideClick(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    }
+
+    function closeFloatingMenu() {
+      setOpenMenu(null);
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    window.addEventListener("resize", closeFloatingMenu);
+    window.addEventListener("scroll", closeFloatingMenu, true);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      window.removeEventListener("resize", closeFloatingMenu);
+      window.removeEventListener("scroll", closeFloatingMenu, true);
+    };
+  }, [openMenu]);
 
   const lifecycleValues = useMemo(
     () =>
       Array.from(
-        new Set(managedMembers.map((member) => member.lifecycle_status || "current"))
+        new Set([...members.map((member) => getMemberLifecycle(member)), memberLifecycleFilter].filter(Boolean))
       ).sort(),
-    [managedMembers]
+    [memberLifecycleFilter, members]
   );
 
-  const filteredMembers = useMemo(() => {
-    return managedMembers.filter((member) => {
-      const lifecycle = member.lifecycle_status || "current";
-      const matchesLifecycle = lifecycleFilter === "all" || lifecycle === lifecycleFilter;
-      const haystack = `${member.full_name} ${member.displayJnuitsId} ${member.email || ""}`.toLowerCase();
-      return matchesLifecycle && (!debouncedSearch || haystack.includes(debouncedSearch));
-    });
-  }, [debouncedSearch, lifecycleFilter, managedMembers]);
+  const roleValues = useMemo(
+    () =>
+      portalRoleOptions.length > 0
+        ? portalRoleOptions
+        : Array.from(new Set(members.map((member) => member.currentPortalRole))).map((code) => ({
+            code,
+            display_name: humanize(code),
+          })),
+    [members, portalRoleOptions]
+  );
 
-  function loadMore() {
-    const params = new URLSearchParams(window.location.search);
-    params.set("memberLimit", String(memberLimit + 40));
-    window.location.search = params.toString();
+  const cycleLabelByJnuitsId = useMemo(() => {
+    const cycleById = new Map(cycles.map((cycle) => [cycle.id, cycle.code] as const));
+    const labelByMemberId = new Map<string, string>();
+
+    for (const row of cycleMembers) {
+      if (!labelByMemberId.has(row.displayJnuitsId)) {
+        labelByMemberId.set(row.displayJnuitsId, cycleById.get(row.cycle_id) || "Cycle");
+      }
+    }
+
+    return labelByMemberId;
+  }, [cycleMembers, cycles]);
+
+  const filteredMembers = useMemo(() => {
+    return members.filter((member) => {
+      const haystack = `${member.full_name} ${member.displayJnuitsId} ${member.email || ""}`.toLowerCase();
+      return !debouncedSearch || haystack.includes(debouncedSearch);
+    });
+  }, [debouncedSearch, members]);
+
+  const selectedMembers = useMemo(
+    () => members.filter((member) => selectedMemberIds.has(member.id)),
+    [members, selectedMemberIds]
+  );
+  const editingMember = members.find((member) => member.id === editingMemberId) || null;
+  const menuMember = members.find((member) => member.id === openMenu?.memberId) || null;
+  const visibleMemberIds = filteredMembers.map((member) => member.id);
+  const allVisibleSelected =
+    visibleMemberIds.length > 0 && visibleMemberIds.every((memberId) => selectedMemberIds.has(memberId));
+  const totalPages = Math.max(1, Math.ceil(managedMemberTotal / memberPageSize));
+  const currentPage = Math.min(memberPage, totalPages);
+  const pageItems = getPaginationItems(currentPage, totalPages);
+
+  function setTransientFeedback(message: string) {
+    setFeedback(message);
+    window.setTimeout(() => setFeedback(null), 1600);
+  }
+
+  async function copyMemberId(member: ManagedMemberClientRecord) {
+    await navigator.clipboard.writeText(member.displayJnuitsId);
+    setTransientFeedback("Member ID copied.");
+  }
+
+  function openMemberMenu(
+    event: React.MouseEvent<HTMLButtonElement>,
+    member: ManagedMemberClientRecord
+  ) {
+    event.stopPropagation();
+
+    if (openMenu?.memberId === member.id) {
+      setOpenMenu(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 172;
+    const menuHeight = 210;
+    const viewportPadding = 12;
+    const left = Math.min(
+      window.innerWidth - menuWidth - viewportPadding,
+      Math.max(viewportPadding, rect.right - menuWidth)
+    );
+    const hasRoomBelow = rect.bottom + menuHeight + viewportPadding < window.innerHeight;
+    const top = hasRoomBelow
+      ? rect.bottom + 8
+      : Math.max(viewportPadding, rect.top - menuHeight - 8);
+
+    setOpenMenu({
+      left,
+      memberId: member.id,
+      top,
+    });
+  }
+
+  function updateMemberInTable(updatedMember: ManagedMemberClientRecord) {
+    setMembers((current) =>
+      current.map((member) => (member.id === updatedMember.id ? updatedMember : member))
+    );
+  }
+
+  function toggleMemberSelection(memberId: string, checked: boolean) {
+    setSelectedMemberIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(memberId);
+      } else {
+        next.delete(memberId);
+      }
+      return next;
+    });
+  }
+
+  function toggleVisibleMembers(checked: boolean) {
+    setSelectedMemberIds((current) => {
+      const next = new Set(current);
+      for (const memberId of visibleMemberIds) {
+        if (checked) {
+          next.add(memberId);
+        } else {
+          next.delete(memberId);
+        }
+      }
+      return next;
+    });
   }
 
   return (
     <section className="section-band" id="member-operations">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="membership-table-heading">
         <div>
           <span className="eyebrow">Member operations</span>
           <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.7rem)] leading-[0.96] tracking-[-0.04em]">
             Lifecycle, access, and portal roles
           </h2>
         </div>
-        <span className="status-pill">Showing {filteredMembers.length} members</span>
+        <p>Click any row to edit inline</p>
       </div>
 
       <div className="membership-toolbar mt-6">
@@ -541,13 +761,38 @@ function MemberOperationsSection({
           <span className="sr-only">Lifecycle</span>
           <select
             id="member-ops-lifecycle"
-            onChange={(event) => setLifecycleFilter(event.target.value)}
-            value={lifecycleFilter}
+            onChange={(event) =>
+              updateMembershipQuery({
+                memberLifecycle: event.target.value,
+                memberPage: "1",
+              })
+            }
+            value={memberLifecycleFilter}
           >
-            <option value="all">All lifecycles</option>
+            <option value="">All lifecycles</option>
             {lifecycleValues.map((value) => (
               <option key={value} value={value}>
                 {humanize(value)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="input-label membership-role-filter" htmlFor="member-ops-role">
+          <span className="sr-only">Portal role</span>
+          <select
+            id="member-ops-role"
+            onChange={(event) =>
+              updateMembershipQuery({
+                memberPage: "1",
+                memberRole: event.target.value,
+              })
+            }
+            value={memberRoleFilter}
+          >
+            <option value="">All roles</option>
+            {roleValues.map((role) => (
+              <option key={role.code} value={role.code}>
+                {role.display_name}
               </option>
             ))}
           </select>
@@ -556,32 +801,286 @@ function MemberOperationsSection({
           className="membership-clear-link"
           onClick={() => {
             setSearch("");
-            setLifecycleFilter("all");
+            updateMembershipQuery({
+              memberLifecycle: "",
+              memberPage: "1",
+              memberRole: "",
+            });
           }}
           type="button"
         >
           Clear filters
         </button>
+        <span className="membership-table-count">
+          Showing {filteredMembers.length} of {managedMemberTotal} members
+        </span>
       </div>
 
-      <div className="mt-6 grid gap-4">
-        {filteredMembers.length === 0 ? (
-          <div className="empty-state">No members match the current filters.</div>
-        ) : (
-          filteredMembers.map((member) => (
-            <ManagedMemberCard
-              key={member.id}
-              member={member}
-              portalRoleOptions={portalRoleOptions}
-            />
-          ))
-        )}
+      {selectedMemberIds.size > 0 ? (
+        <BulkMemberOperationsBar
+          onClear={() => setSelectedMemberIds(new Set())}
+          onMembersChanged={(updatedMembers) => {
+            setMembers((current) =>
+              current.map((member) => updatedMembers.find((updated) => updated.id === member.id) || member)
+            );
+            setSelectedMemberIds(new Set());
+          }}
+          portalRoleOptions={portalRoleOptions}
+          selectedMembers={selectedMembers}
+        />
+      ) : null}
+
+      {feedback ? <p className="membership-table-feedback">{feedback}</p> : null}
+
+      <div className="membership-table-shell">
+        <table className="membership-table">
+          <thead>
+            <tr>
+              <th className="membership-table__checkbox">
+                <input
+                  aria-label="Select all visible members"
+                  checked={allVisibleSelected}
+                  onChange={(event) => toggleVisibleMembers(event.target.checked)}
+                  type="checkbox"
+                />
+              </th>
+              <th>Member</th>
+              <th>Lifecycle</th>
+              <th>Portal access</th>
+              <th>Portal role</th>
+              <th>Cycle</th>
+              <th className="membership-table__actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredMembers.length === 0 ? (
+              <tr>
+                <td colSpan={7}>
+                  <div className="empty-state">No members match the current filters.</div>
+                </td>
+              </tr>
+            ) : (
+              filteredMembers.map((member) => {
+                const isSelected = selectedMemberIds.has(member.id);
+                const cycleLabel = cycleLabelByJnuitsId.get(member.displayJnuitsId) || "-";
+
+                return (
+                  <tr
+                    className="membership-table-row"
+                    data-editing={editingMemberId === member.id}
+                    data-selected={isSelected}
+                    key={member.id}
+                    onClick={() => setEditingMemberId(member.id)}
+                  >
+                    <td className="membership-table__checkbox">
+                      <input
+                        aria-label={`Select ${member.full_name}`}
+                        checked={isSelected}
+                        onChange={(event) => toggleMemberSelection(member.id, event.target.checked)}
+                        onClick={(event) => event.stopPropagation()}
+                        type="checkbox"
+                      />
+                    </td>
+                    <td>
+                      <div className="membership-table-member">
+                        <MemberTableAvatar member={member} />
+                        <span>
+                          <strong>{member.full_name}</strong>
+                          <small>
+                            {member.displayJnuitsId} · {member.email || "No email"}
+                          </small>
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <TableBadge type="lifecycle" value={getMemberLifecycle(member)} />
+                    </td>
+                    <td>
+                      <TableBadge type="access" value={getMemberPortalAccess(member)} />
+                    </td>
+                    <td className="membership-table__role">{humanize(member.currentPortalRole)}</td>
+                    <td className="membership-table__cycle">{cycleLabel}</td>
+                    <td className="membership-table__actions">
+                      <div className="membership-row-actions">
+                        <button
+                          aria-label={`Edit ${member.full_name}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setEditingMemberId(member.id);
+                          }}
+                          title="Edit member"
+                          type="button"
+                        >
+                          <Pencil aria-hidden="true" size={13} />
+                        </button>
+                        <button
+                          aria-label={`View ${member.full_name} history`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setHistoryMember(member);
+                          }}
+                          title="History"
+                          type="button"
+                        >
+                          <Clock3 aria-hidden="true" size={13} />
+                        </button>
+                        <div className="membership-row-menu-wrap">
+                          <button
+                            aria-label={`Open actions for ${member.full_name}`}
+                            onClick={(event) => openMemberMenu(event, member)}
+                            title="More actions"
+                            type="button"
+                          >
+                            <Ellipsis aria-hidden="true" size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {managedMemberTotal > managedMembers.length ? (
-        <button className="ghost-button mt-5 w-full" onClick={loadMore} type="button">
-          Load more
-        </button>
+      {openMenu && menuMember ? (
+        <div
+          className="membership-row-menu"
+          onClick={(event) => event.stopPropagation()}
+          ref={menuRef}
+          style={{ left: openMenu.left, top: openMenu.top }}
+        >
+          <button
+            onClick={() => {
+              setTransientFeedback("Use invitation batches to issue member invitations.");
+              setOpenMenu(null);
+            }}
+            type="button"
+          >
+            Send invitation
+          </button>
+          <button
+            onClick={() => {
+              setEditingMemberId(menuMember.id);
+              setOpenMenu(null);
+            }}
+            type="button"
+          >
+            Reset portal access
+          </button>
+          <button
+            onClick={() => {
+              setEditingMemberId(menuMember.id);
+              setOpenMenu(null);
+            }}
+            type="button"
+          >
+            Move to alumni queue
+          </button>
+          <button
+            onClick={() => {
+              void copyMemberId(menuMember);
+              setOpenMenu(null);
+            }}
+            type="button"
+          >
+            <Copy aria-hidden="true" size={13} />
+            Copy member ID
+          </button>
+          <button
+            className="membership-row-menu__danger"
+            onClick={() => {
+              setEditingMemberId(menuMember.id);
+              setOpenMenu(null);
+            }}
+            type="button"
+          >
+            Revoke access
+          </button>
+        </div>
+      ) : null}
+
+      {editingMember ? (
+        <ManagedMemberCard
+          key={editingMember.id}
+          member={editingMember}
+          onClose={() => setEditingMemberId(null)}
+          onSaved={(updatedMember) => {
+            updateMemberInTable(updatedMember);
+            setEditingMemberId(null);
+          }}
+          portalRoleOptions={portalRoleOptions}
+        />
+      ) : null}
+
+      <div className="membership-pagination">
+        <span>
+          Page {currentPage} of {totalPages}
+        </span>
+        <div className="membership-pagination__pages">
+          <button
+            aria-label="Previous member page"
+            disabled={currentPage <= 1}
+            onClick={() => updateMembershipQuery({ memberPage: String(currentPage - 1) })}
+            type="button"
+          >
+            ←
+          </button>
+          {pageItems.map((page, index) => (
+            <Fragment key={page}>
+              {index > 0 && page - pageItems[index - 1] > 1 ? <span aria-hidden="true">…</span> : null}
+              <button
+                aria-current={page === currentPage ? "page" : undefined}
+                data-active={page === currentPage}
+                onClick={() => updateMembershipQuery({ memberPage: String(page) })}
+                type="button"
+              >
+                {page}
+              </button>
+            </Fragment>
+          ))}
+          <button
+            aria-label="Next member page"
+            disabled={currentPage >= totalPages}
+            onClick={() => updateMembershipQuery({ memberPage: String(currentPage + 1) })}
+            type="button"
+          >
+            →
+          </button>
+        </div>
+        <label className="sr-only" htmlFor="member-page-size">
+          Members per page
+        </label>
+        <select
+          id="member-page-size"
+          onChange={(event) =>
+            updateMembershipQuery({
+              memberPage: "1",
+              memberPageSize: event.target.value,
+            })
+          }
+          value={String(memberPageSize)}
+        >
+          <option value="15">15 / page</option>
+          <option value="20">20 / page</option>
+          <option value="50">50 / page</option>
+        </select>
+      </div>
+
+      {historyMember ? (
+        <div className="membership-history-panel" role="dialog" aria-label={`${historyMember.full_name} history`}>
+          <div>
+            <h3>{historyMember.full_name}</h3>
+            <button aria-label="Close history panel" onClick={() => setHistoryMember(null)} type="button">
+              <X aria-hidden="true" size={15} />
+            </button>
+          </div>
+          <div className="membership-history-empty">
+            <Clock3 aria-hidden="true" size={34} />
+            <p>No changes recorded yet.</p>
+          </div>
+        </div>
       ) : null}
     </section>
   );
@@ -589,24 +1088,37 @@ function MemberOperationsSection({
 
 function ManagedMemberCard({
   member,
+  onClose,
+  onSaved,
   portalRoleOptions,
 }: {
   member: ManagedMemberClientRecord;
+  onClose: () => void;
+  onSaved: (member: ManagedMemberClientRecord) => void;
   portalRoleOptions: PortalRoleOptionClientRecord[];
 }) {
-  const [lifecycle, setLifecycle] = useState(member.lifecycle_status || "current");
-  const [portalAccess, setPortalAccess] = useState(member.portal_access_status || "active");
+  const [lifecycle, setLifecycle] = useState(getMemberLifecycle(member));
+  const [portalAccess, setPortalAccess] = useState(getMemberPortalAccess(member));
   const [portalRole, setPortalRole] = useState(member.currentPortalRole);
   const [lifecycleNote, setLifecycleNote] = useState("");
   const [roleNote, setRoleNote] = useState("");
   const [isPending, startTransition] = useTransition();
   const [saveState, setSaveState] = useState<"idle" | "saved" | "saving">("idle");
   const [error, setError] = useState<null | string>(null);
-  const messageTimerRef = useRef<number | null>(null);
+  const [revokeConfirming, setRevokeConfirming] = useState(false);
+
+  useEffect(() => {
+    if (!revokeConfirming) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => setRevokeConfirming(false), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [revokeConfirming]);
 
   const lifecycleDirty =
-    lifecycle !== (member.lifecycle_status || "current") ||
-    portalAccess !== (member.portal_access_status || "active") ||
+    lifecycle !== getMemberLifecycle(member) ||
+    portalAccess !== getMemberPortalAccess(member) ||
     Boolean(lifecycleNote.trim());
   const roleDirty = member.user_id
     ? portalRole !== member.currentPortalRole || Boolean(roleNote.trim())
@@ -616,9 +1128,6 @@ function ManagedMemberCard({
   function save() {
     setError(null);
     setSaveState("saving");
-    if (messageTimerRef.current) {
-      window.clearTimeout(messageTimerRef.current);
-    }
     startTransition(async () => {
       try {
         await saveMemberOperationsAction({
@@ -632,9 +1141,14 @@ function ManagedMemberCard({
           updatePortalRole: roleDirty,
         });
         setSaveState("saved");
-        setLifecycleNote("");
-        setRoleNote("");
-        messageTimerRef.current = window.setTimeout(() => setSaveState("idle"), 2000);
+        window.setTimeout(() => {
+          onSaved({
+            ...member,
+            currentPortalRole: portalRole,
+            lifecycle_status: lifecycle,
+            portal_access_status: portalAccess,
+          });
+        }, 1800);
       } catch (saveError) {
         setSaveState("idle");
         setError(saveError instanceof Error ? saveError.message : "Unable to save member changes.");
@@ -642,47 +1156,302 @@ function ManagedMemberCard({
     });
   }
 
-  return (
-    <article className="application-card membership-member-card">
-      <div className="membership-member-card-grid grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
-        <div className="membership-member-left">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-start gap-3">
-              <AvatarUploadField
-                canUpload
-                compact
-                currentUrl={member.avatar_secure_url}
-                displayName={member.full_name}
-                targetId={member.id}
-                targetType="member"
-              />
-              <div className="min-w-0">
-                <h3 className="membership-member-name">{member.full_name}</h3>
-                <p className="membership-member-meta">
-                  {member.displayJnuitsId}
-                  <span aria-hidden="true">|</span>
-                  {member.email || "No email"}
-                </p>
-              </div>
-            </div>
-            <StatusBadge value={member.portal_access_status || "active"} />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <MemberChip>Lifecycle {humanize(member.lifecycle_status || "current")}</MemberChip>
-            <MemberChip>Type {humanize(member.member_type || "current")}</MemberChip>
-            <MemberChip>{member.is_profile_claimed ? "Claimed" : "Unclaimed"}</MemberChip>
-            <MemberChip>Portal role {humanize(member.currentPortalRole)}</MemberChip>
-          </div>
-        </div>
+  function revokeAccess() {
+    if (!revokeConfirming) {
+      setRevokeConfirming(true);
+      return;
+    }
 
-        <div className="membership-member-editor">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="input-label" htmlFor={`lifecycle-${member.id}`}>
+    setError(null);
+    setSaveState("saving");
+    startTransition(async () => {
+      try {
+        await saveMemberOperationsAction({
+          lifecycleNote: "Portal access revoked from Membership DB.",
+          memberId: member.id,
+          nextLifecycleStatus: getMemberLifecycle(member),
+          nextPortalAccessStatus: "suspended",
+          nextPortalRole: member.currentPortalRole,
+          roleNote: "",
+          updateLifecycle: true,
+          updatePortalRole: false,
+        });
+        onSaved({
+          ...member,
+          portal_access_status: "suspended",
+        });
+      } catch (saveError) {
+        setSaveState("idle");
+        setError(saveError instanceof Error ? saveError.message : "Unable to revoke portal access.");
+      }
+    });
+  }
+
+  return (
+    <div className="membership-inline-editor">
+      <div className="membership-inline-editor__header">
+        <span>
+          <strong>{member.full_name}</strong>
+          <small>
+            {member.displayJnuitsId} · {member.email || "No email"}
+          </small>
+        </span>
+        <button className="ghost-button" onClick={onClose} type="button">
+          <X aria-hidden="true" size={13} />
+          Close
+        </button>
+      </div>
+      <div className="membership-inline-editor__body">
+        <label htmlFor={`inline-lifecycle-${member.id}`}>
+          Lifecycle
+          <select
+            id={`inline-lifecycle-${member.id}`}
+            onChange={(event) => setLifecycle(event.target.value)}
+            value={lifecycle}
+          >
+            {lifecycleOptions.map((option) => (
+              <option key={option} value={option}>
+                {humanize(option)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label htmlFor={`inline-access-${member.id}`}>
+          Portal access
+          <select
+            id={`inline-access-${member.id}`}
+            onChange={(event) => setPortalAccess(event.target.value)}
+            value={portalAccess}
+          >
+            {portalAccessOptions.map((option) => (
+              <option key={option} value={option}>
+                {humanize(option)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label htmlFor={`inline-role-${member.id}`}>
+          Portal role
+          <select
+            disabled={!member.user_id}
+            id={`inline-role-${member.id}`}
+            onChange={(event) =>
+              setPortalRole(event.target.value as ManagedMemberClientRecord["currentPortalRole"])
+            }
+            value={portalRole}
+          >
+            {portalRoleOptions.map((role) => (
+              <option key={role.code} value={role.code}>
+                {role.display_name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="membership-inline-editor__wide" htmlFor={`inline-lifecycle-note-${member.id}`}>
+          Lifecycle note
+          <textarea
+            id={`inline-lifecycle-note-${member.id}`}
+            onChange={(event) => setLifecycleNote(event.target.value)}
+            value={lifecycleNote}
+          />
+        </label>
+        <label htmlFor={`inline-role-note-${member.id}`}>
+          Role note
+          <textarea
+            disabled={!member.user_id}
+            id={`inline-role-note-${member.id}`}
+            onChange={(event) => setRoleNote(event.target.value)}
+            value={roleNote}
+          />
+        </label>
+      </div>
+      <div className="membership-inline-editor__footer">
+        <div>
+          <button
+            className="primary-button"
+            data-state={saveState}
+            disabled={!canSave || isPending || saveState === "saving"}
+            onClick={save}
+            type="button"
+          >
+            {saveState === "saving" || isPending ? (
+              <span className="membership-spinner membership-spinner--sm" aria-hidden="true" />
+            ) : saveState === "saved" ? (
+              "✓ Saved"
+            ) : (
+              "Save changes"
+            )}
+          </button>
+          <button className="ghost-button" onClick={onClose} type="button">
+            Cancel
+          </button>
+        </div>
+        <button className="admin-btn admin-btn--danger" onClick={revokeAccess} type="button">
+          {revokeConfirming ? "Click again to confirm" : "Revoke access"}
+        </button>
+      </div>
+      {error ? <p className="membership-inline-editor__error">{error}</p> : null}
+    </div>
+  );
+}
+
+function BulkMemberOperationsBar({
+  onClear,
+  onMembersChanged,
+  portalRoleOptions,
+  selectedMembers,
+}: {
+  onClear: () => void;
+  onMembersChanged: (members: ManagedMemberClientRecord[]) => void;
+  portalRoleOptions: PortalRoleOptionClientRecord[];
+  selectedMembers: ManagedMemberClientRecord[];
+}) {
+  const [mode, setMode] = useState<null | "lifecycle" | "role">(null);
+  const [bulkLifecycle, setBulkLifecycle] = useState("current");
+  const [bulkRole, setBulkRole] = useState<ManagedMemberClientRecord["currentPortalRole"]>("member");
+  const [bulkNote, setBulkNote] = useState("");
+  const [error, setError] = useState<null | string>(null);
+  const [revokeConfirming, setRevokeConfirming] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!revokeConfirming) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => setRevokeConfirming(false), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [revokeConfirming]);
+
+  function applyLifecycle() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await Promise.all(
+          selectedMembers.map((member) =>
+            saveMemberOperationsAction({
+              lifecycleNote: bulkNote,
+              memberId: member.id,
+              nextLifecycleStatus: bulkLifecycle,
+              nextPortalAccessStatus: getMemberPortalAccess(member),
+              nextPortalRole: member.currentPortalRole,
+              roleNote: "",
+              updateLifecycle: true,
+              updatePortalRole: false,
+            })
+          )
+        );
+        onMembersChanged(
+          selectedMembers.map((member) => ({
+            ...member,
+            lifecycle_status: bulkLifecycle,
+          }))
+        );
+      } catch (bulkError) {
+        setError(bulkError instanceof Error ? bulkError.message : "Bulk lifecycle update failed.");
+      }
+    });
+  }
+
+  function applyRole() {
+    const targets = selectedMembers.filter((member) => member.user_id);
+
+    if (targets.length === 0) {
+      setError("Selected members do not have linked portal accounts.");
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await Promise.all(
+          targets.map((member) =>
+            saveMemberOperationsAction({
+              lifecycleNote: "",
+              memberId: member.id,
+              nextLifecycleStatus: getMemberLifecycle(member),
+              nextPortalAccessStatus: getMemberPortalAccess(member),
+              nextPortalRole: bulkRole,
+              roleNote: bulkNote,
+              updateLifecycle: false,
+              updatePortalRole: true,
+            })
+          )
+        );
+        onMembersChanged(
+          targets.map((member) => ({
+            ...member,
+            currentPortalRole: bulkRole,
+          }))
+        );
+      } catch (bulkError) {
+        setError(bulkError instanceof Error ? bulkError.message : "Bulk role update failed.");
+      }
+    });
+  }
+
+  function revokeSelected() {
+    if (!revokeConfirming) {
+      setRevokeConfirming(true);
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await Promise.all(
+          selectedMembers.map((member) =>
+            saveMemberOperationsAction({
+              lifecycleNote: "Portal access revoked from Membership DB bulk action.",
+              memberId: member.id,
+              nextLifecycleStatus: getMemberLifecycle(member),
+              nextPortalAccessStatus: "suspended",
+              nextPortalRole: member.currentPortalRole,
+              roleNote: "",
+              updateLifecycle: true,
+              updatePortalRole: false,
+            })
+          )
+        );
+        onMembersChanged(
+          selectedMembers.map((member) => ({
+            ...member,
+            portal_access_status: "suspended",
+          }))
+        );
+      } catch (bulkError) {
+        setError(bulkError instanceof Error ? bulkError.message : "Bulk revoke failed.");
+      }
+    });
+  }
+
+  return (
+    <div className="membership-bulk-member-bar">
+      <div className="membership-bulk-member-bar__summary">
+        <Check aria-hidden="true" size={14} />
+        <strong>{selectedMembers.length} selected</strong>
+        <button className="ghost-button" onClick={() => setMode("lifecycle")} type="button">
+          Update lifecycle
+        </button>
+        <button className="ghost-button" onClick={() => setMode("role")} type="button">
+          Update role
+        </button>
+        <button className="admin-btn admin-btn--danger" onClick={revokeSelected} type="button">
+          {revokeConfirming ? "Click again to confirm" : "Revoke access"}
+        </button>
+        <button className="ghost-button" onClick={onClear} type="button">
+          Clear
+        </button>
+      </div>
+      {mode ? (
+        <div className="membership-bulk-member-bar__form">
+          {mode === "lifecycle" ? (
+            <label htmlFor="bulk-lifecycle">
               Lifecycle
               <select
-                id={`lifecycle-${member.id}`}
-                onChange={(event) => setLifecycle(event.target.value)}
-                value={lifecycle}
+                id="bulk-lifecycle"
+                onChange={(event) => setBulkLifecycle(event.target.value)}
+                value={bulkLifecycle}
               >
                 {lifecycleOptions.map((option) => (
                   <option key={option} value={option}>
@@ -691,76 +1460,48 @@ function ManagedMemberCard({
                 ))}
               </select>
             </label>
-            <label className="input-label" htmlFor={`portal-access-${member.id}`}>
-              Portal access
+          ) : (
+            <label htmlFor="bulk-role">
+              Role
               <select
-                id={`portal-access-${member.id}`}
-                onChange={(event) => setPortalAccess(event.target.value)}
-                value={portalAccess}
+                id="bulk-role"
+                onChange={(event) =>
+                  setBulkRole(event.target.value as ManagedMemberClientRecord["currentPortalRole"])
+                }
+                value={bulkRole}
               >
-                {portalAccessOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {humanize(option)}
+                {portalRoleOptions.map((role) => (
+                  <option key={role.code} value={role.code}>
+                    {role.display_name}
                   </option>
                 ))}
               </select>
             </label>
-          </div>
-          <label className="input-label" htmlFor={`lifecycle-note-${member.id}`}>
-            Lifecycle note
-            <input
-              id={`lifecycle-note-${member.id}`}
-              onChange={(event) => setLifecycleNote(event.target.value)}
-              placeholder="Reason for lifecycle change"
-              value={lifecycleNote}
+          )}
+          <label htmlFor="bulk-note">
+            Note
+            <textarea
+              id="bulk-note"
+              onChange={(event) => setBulkNote(event.target.value)}
+              value={bulkNote}
             />
           </label>
-          <label className="input-label" htmlFor={`portal-role-${member.id}`}>
-            Portal role
-            <select
-              disabled={!member.user_id}
-              id={`portal-role-${member.id}`}
-              onChange={(event) => setPortalRole(event.target.value as ManagedMemberClientRecord["currentPortalRole"])}
-              value={portalRole}
-            >
-              {portalRoleOptions.map((role) => (
-                <option key={role.code} value={role.code}>
-                  {role.display_name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="input-label" htmlFor={`role-note-${member.id}`}>
-            Role note
-            <input
-              disabled={!member.user_id}
-              id={`role-note-${member.id}`}
-              onChange={(event) => setRoleNote(event.target.value)}
-              placeholder="Reason for role change"
-              value={roleNote}
-            />
-          </label>
-          <div className="membership-member-save-row">
-            {error ? <span className="portal-message portal-message--error">{error}</span> : null}
-            <button
-              className="primary-button membership-save-button"
-              data-state={saveState}
-              disabled={!canSave || isPending || saveState === "saving"}
-              onClick={save}
-              type="button"
-            >
-              {saveState === "saving" || isPending ? (
-                <span className="membership-spinner membership-spinner--sm" aria-hidden="true" />
-              ) : saveState === "saved" ? (
-                "✓ Saved"
-              ) : (
-                "Save changes"
-              )}
-            </button>
-          </div>
+          <button
+            className="primary-button"
+            disabled={isPending}
+            onClick={mode === "lifecycle" ? applyLifecycle : applyRole}
+            type="button"
+          >
+            {isPending ? (
+              <span className="membership-spinner membership-spinner--sm" aria-hidden="true" />
+            ) : (
+              "Apply to all"
+            )}
+          </button>
         </div>
-      </div>
-    </article>
+      ) : null}
+      {error ? <p className="membership-inline-editor__error">{error}</p> : null}
+    </div>
   );
 }
 
@@ -819,7 +1560,9 @@ function AccountRequestsSection({
             Alumni conversion and deletion queue
           </h2>
         </div>
-        <span className="status-pill">{accountRequests.length} pending</span>
+        <span className="status-pill membership-pending-count" data-pending={accountRequests.length > 0}>
+          {accountRequests.length} pending
+        </span>
       </div>
 
       <div className="mt-6 grid gap-4">
@@ -1780,7 +2523,10 @@ export function MembershipDbClient({
   flash,
   managedMemberTotal,
   managedMembers,
-  memberLimit,
+  memberLifecycleFilter,
+  memberPage,
+  memberPageSize,
+  memberRoleFilter,
   pendingRenewals,
   portalRoleOptions,
   totalClaimedInvitations,
@@ -1830,9 +2576,15 @@ export function MembershipDbClient({
       <StickySectionNav />
 
       <MemberOperationsSection
+        key={`${memberPage}:${memberPageSize}:${memberLifecycleFilter}:${memberRoleFilter}`}
+        cycles={cycles}
+        cycleMembers={cycleMembers}
         managedMemberTotal={managedMemberTotal}
         managedMembers={managedMembers}
-        memberLimit={memberLimit}
+        memberLifecycleFilter={memberLifecycleFilter}
+        memberPage={memberPage}
+        memberPageSize={memberPageSize}
+        memberRoleFilter={memberRoleFilter}
         portalRoleOptions={portalRoleOptions}
       />
 
