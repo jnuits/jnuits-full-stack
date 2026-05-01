@@ -7,6 +7,7 @@ import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { SiteBrand } from "@/components/layout/site-brand";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import {
+  publicMemberNavigation,
   publicPrimaryNavigation,
   publicResourceNavigation,
   type NavItem,
@@ -46,19 +47,21 @@ function PublicNavLink({
   );
 }
 
-function ResourcesMenu({
+function NavDropdownMenu({
+  items,
+  label,
   onNavigate,
   pathname,
 }: {
+  items: NavItem[];
+  label: string;
   onNavigate?: () => void;
   pathname: string;
 }) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
-  const active = publicResourceNavigation.some((item) =>
-    isActivePath(pathname, item.href)
-  );
+  const active = items.some((item) => isActivePath(pathname, item.href));
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -90,7 +93,7 @@ function ResourcesMenu({
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
-        Resources
+        {label}
         <ChevronDown aria-hidden="true" size={15} />
       </button>
       <div
@@ -99,7 +102,7 @@ function ResourcesMenu({
         id={menuId}
         role="menu"
       >
-        {publicResourceNavigation.map((item) => (
+        {items.map((item) => (
           <Link
             className="site-resource-menu__item"
             href={item.href}
@@ -131,13 +134,27 @@ function PublicNav({
     <>
       {publicPrimaryNavigation.map((item) => (
         <Fragment key={item.href}>
-          <PublicNavLink
-            item={item}
-            onNavigate={onNavigate}
-            pathname={pathname}
-          />
+          {item.href === "/members" ? (
+            <NavDropdownMenu
+              items={publicMemberNavigation}
+              label="Members"
+              onNavigate={onNavigate}
+              pathname={pathname}
+            />
+          ) : (
+            <PublicNavLink
+              item={item}
+              onNavigate={onNavigate}
+              pathname={pathname}
+            />
+          )}
           {item.href === "/events" ? (
-            <ResourcesMenu onNavigate={onNavigate} pathname={pathname} />
+            <NavDropdownMenu
+              items={publicResourceNavigation}
+              label="Resources"
+              onNavigate={onNavigate}
+              pathname={pathname}
+            />
           ) : null}
         </Fragment>
       ))}

@@ -17,6 +17,9 @@ const statusLabels: Record<MembershipStatus, string> = {
   rejected: "Rejected — contact us if you believe this is an error.",
 };
 
+const membershipContactHref =
+  "/contact?category=membership&subject=Membership%20and%20alumni%20support";
+
 export default function MembershipFormPage() {
   const [statusEmail, setStatusEmail] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -91,7 +94,10 @@ export default function MembershipFormPage() {
                 Contact the team for onboarding support or questions about your
                 membership status.
               </p>
-              <Link href="/contact" className="secondary-button mt-4 inline-flex">
+              <Link
+                href={membershipContactHref}
+                className="secondary-button mt-4 inline-flex"
+              >
                 Contact JnUITS
               </Link>
             </article>

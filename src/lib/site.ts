@@ -19,6 +19,29 @@ export const publicPrimaryNavigation: NavItem[] = [
   { href: "/contact", label: "Contact" },
 ];
 
+export const publicMemberNavigation: NavItem[] = [
+  {
+    href: "/members",
+    label: "Members directory",
+    description: "Browse listed members and alumni with permanent JnUITS IDs.",
+  },
+  {
+    href: "/membership-form",
+    label: "Application form",
+    description: "Check application status and membership onboarding options.",
+  },
+  {
+    href: "/register",
+    label: "Claim profile",
+    description: "Use an invitation code to claim an existing member profile.",
+  },
+  {
+    href: "/alumni",
+    label: "Join alumni",
+    description: "Request alumni access even if your past profile is not listed yet.",
+  },
+];
+
 export const publicResourceNavigation: NavItem[] = [
   {
     href: "/blogs",
@@ -58,9 +81,13 @@ export const publicNavigation: NavItem[] = [
   { href: "/", label: "Home" },
   ...publicFooterNavigation,
   ...publicPrimaryNavigation,
+  ...publicMemberNavigation,
   ...publicResourceNavigation,
   ...publicPolicyNavigation,
-];
+].filter(
+  (item, index, items) =>
+    items.findIndex((candidate) => candidate.href === item.href) === index
+);
 
 
 export const implementationPhases: ImplementationPhase[] = [

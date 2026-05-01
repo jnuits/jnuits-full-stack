@@ -82,6 +82,19 @@ export default async function ContactPage({
     typeof resolvedSearchParams.error === "string"
       ? resolvedSearchParams.error
       : null;
+  const categoryParam =
+    typeof resolvedSearchParams.category === "string"
+      ? resolvedSearchParams.category
+      : null;
+  const defaultCategory =
+    categoryParam &&
+    inquiryCategories.some((category) => category.value === categoryParam)
+    ? categoryParam
+    : "general";
+  const defaultSubject =
+    typeof resolvedSearchParams.subject === "string"
+      ? resolvedSearchParams.subject
+      : "";
   const phoneHref = `tel:${contactContent.phone.replace(/[^\d+]/g, "")}`;
 
   return (
@@ -130,7 +143,12 @@ export default async function ContactPage({
 
             <label className="input-label" htmlFor="contact-category">
               Inquiry category
-              <select id="contact-category" name="category" defaultValue="general" required>
+              <select
+                id="contact-category"
+                name="category"
+                defaultValue={defaultCategory}
+                required
+              >
                 {inquiryCategories.map((category) => (
                   <option key={category.value} value={category.value}>
                     {category.label}
@@ -144,6 +162,7 @@ export default async function ContactPage({
               <input
                 id="contact-subject"
                 name="subject"
+                defaultValue={defaultSubject}
                 placeholder="e.g. Certificate verification support"
                 required
               />

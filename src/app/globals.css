@@ -70,6 +70,18 @@
   --brand-rust: #c24e3e;
   --panel: color-mix(in oklab, var(--card) 88%, var(--secondary) 12%);
   --line: color-mix(in oklab, var(--border) 84%, var(--foreground) 16%);
+  --color-background-primary: var(--card);
+  --color-background-secondary: var(--panel);
+  --color-background-info: color-mix(in oklab, var(--brand-blue) 18%, var(--card));
+  --color-background-success: color-mix(in oklab, var(--brand-green) 12%, var(--card));
+  --color-background-warning: color-mix(in oklab, var(--brand-gold) 14%, var(--card));
+  --color-border-info: var(--primary);
+  --color-border-secondary: var(--line);
+  --color-border-tertiary: color-mix(in oklab, var(--line) 60%, transparent);
+  --color-border-warning: var(--brand-gold);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-tertiary: color-mix(in oklab, var(--muted-foreground) 78%, transparent);
+  --color-text-success: var(--brand-green);
   --tracking-normal: -0.01em;
   --spacing: 0.25rem;
   --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -146,6 +158,18 @@
   --brand-cream: #181d30;
   --panel: color-mix(in oklab, var(--card) 88%, var(--secondary) 12%);
   --line: color-mix(in oklab, var(--border) 82%, white 18%);
+  --color-background-primary: var(--card);
+  --color-background-secondary: var(--panel);
+  --color-background-info: color-mix(in oklab, var(--brand-blue) 24%, var(--card));
+  --color-background-success: color-mix(in oklab, var(--brand-green) 18%, var(--card));
+  --color-background-warning: color-mix(in oklab, var(--brand-gold) 18%, var(--card));
+  --color-border-info: var(--ring);
+  --color-border-secondary: var(--line);
+  --color-border-tertiary: color-mix(in oklab, var(--line) 58%, transparent);
+  --color-border-warning: var(--brand-gold);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-tertiary: color-mix(in oklab, var(--muted-foreground) 82%, transparent);
+  --color-text-success: color-mix(in oklab, var(--brand-green) 80%, white);
   --shadow-soft: 0 24px 90px rgba(0, 0, 0, 0.35);
   --shadow-panel: var(--shadow-lg);
 }
@@ -288,7 +312,7 @@
   }
 
   *:focus-visible {
-    outline: 2px solid #4F46E5;
+    outline: 2px solid var(--color-border-info);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -1475,6 +1499,7 @@
   box-shadow: var(--shadow-sm);
 }
 
+.route-tile h2,
 .route-tile h3 {
   font-family: var(--font-heading), sans-serif;
   font-size: 1.08rem;
@@ -1484,6 +1509,793 @@
 .route-tile p,
 .route-tile li {
   color: var(--muted-foreground);
+}
+
+.membership-metric-card[data-important="true"] {
+  border-color: color-mix(in oklab, var(--brand-blue) 40%, transparent);
+}
+
+.membership-db .eyebrow {
+  padding: 2px 8px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* standardized: h-10 = 40px, all form submit buttons */
+.membership-db form .primary-button {
+  width: 100%;
+  height: 40px;
+  min-height: 0;
+  border-radius: 8px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.membership-card-action {
+  height: 30px;
+  min-height: 0;
+  padding: 0 0.75rem;
+  font-size: 0.78rem;
+}
+
+.membership-inline-action {
+  display: inline-flex;
+  margin-left: 0.35rem;
+  color: var(--brand-blue);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.membership-sub-label,
+.membership-helper {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.membership-claims-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0;
+  margin-top: 1rem;
+}
+
+.membership-claims-number {
+  color: var(--foreground);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.membership-claims-divider {
+  align-self: center;
+  width: 1px;
+  height: 36px;
+  margin: 0 12px;
+  background: var(--color-border-tertiary);
+}
+
+.membership-progress {
+  overflow: hidden;
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--color-border-tertiary);
+}
+
+.membership-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-background-info);
+  transition: width 0.4s ease;
+}
+
+.membership-progress span[data-complete="true"] {
+  background: var(--color-background-success);
+}
+
+.membership-workflow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 38px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 1.3rem;
+  background: color-mix(in oklab, var(--panel) 94%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.membership-workflow__step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 0.35rem;
+  height: 24px;
+  min-height: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 0.25rem;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+}
+
+.membership-workflow__circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--color-border-secondary);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.membership-workflow__connector {
+  flex: 1 1 2rem;
+  height: 1px;
+  background: var(--color-border-secondary);
+}
+
+.membership-workflow__connector[data-complete="true"] {
+  background: color-mix(in oklab, var(--color-text-success) 40%, transparent);
+}
+
+.membership-workflow__step[data-state="complete"],
+.membership-workflow__step[data-state="current"] {
+  color: var(--foreground);
+}
+
+.membership-workflow__step[data-state="complete"] .membership-workflow__circle {
+  border-color: var(--color-text-success);
+  background: var(--color-text-success);
+  color: white;
+}
+
+.membership-workflow__step[data-state="current"] .membership-workflow__circle {
+  border-color: var(--brand-blue);
+  background: var(--brand-blue);
+  color: white;
+}
+
+.membership-sticky-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  border-bottom: 1px solid var(--color-border-tertiary);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--color-background-primary) 96%, transparent);
+  padding: 0.65rem 0.75rem;
+  backdrop-filter: blur(14px);
+}
+
+.membership-sticky-nav .nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 40px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 400;
+  padding: 0 0.45rem 8px;
+  border-bottom: 2px solid transparent;
+}
+
+.membership-sticky-nav .nav-tab.tab-active {
+  color: var(--foreground);
+  border-bottom-color: currentColor;
+  font-weight: 500;
+}
+
+.membership-info {
+  position: relative;
+  display: inline-flex;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.membership-info__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+}
+
+.membership-info__panel,
+.membership-code-tooltip,
+.avatar-upload-info span {
+  position: absolute;
+  z-index: 35;
+  width: min(15rem, calc(100vw - 2rem));
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 0.7rem;
+  background: var(--color-background-secondary);
+  box-shadow: var(--shadow-lg);
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.45;
+  opacity: 0;
+  padding: 0.55rem 0.75rem;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+  visibility: hidden;
+}
+
+.membership-info__panel {
+  bottom: calc(100% + 0.45rem);
+  left: 50%;
+  transform: translate(-50%, 4px);
+}
+
+.membership-info:hover .membership-info__panel,
+.membership-info:focus-within .membership-info__panel {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  visibility: visible;
+}
+
+.membership-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid color-mix(in oklab, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 999px;
+  animation: spin 1s linear infinite;
+}
+
+.membership-spinner--sm {
+  width: 14px;
+  height: 14px;
+  animation-duration: 0.8s;
+}
+
+.membership-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.membership-search-field {
+  flex: 1 1 auto;
+  position: relative;
+  min-width: 14rem;
+}
+
+.membership-search-field svg {
+  position: absolute;
+  left: 0.95rem;
+  top: 50%;
+  color: var(--color-text-secondary);
+  transform: translateY(-50%);
+}
+
+.membership-search-field input {
+  height: 36px;
+  padding: 0 0.75rem 0 32px;
+  border-radius: 0.65rem;
+  font-size: 13px;
+  line-height: 36px;
+}
+
+.membership-lifecycle-filter {
+  flex: 0 0 160px;
+}
+
+.membership-lifecycle-filter select {
+  height: 36px;
+  padding: 0 0.75rem;
+  border-radius: 0.65rem;
+  font-size: 13px;
+  line-height: 36px;
+}
+
+.membership-clear-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--brand-blue);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.membership-member-card {
+  overflow: visible;
+}
+
+.membership-member-card-grid {
+  align-items: flex-start;
+}
+
+.membership-member-left {
+  align-self: flex-start;
+}
+
+.membership-member-name {
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.membership-member-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.membership-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid color-mix(in oklab, var(--brand-blue) 30%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--brand-blue) 10%, transparent);
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+}
+
+.membership-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.membership-status-badge[data-tone="success"] {
+  background: var(--color-background-success);
+  color: var(--color-text-success);
+}
+
+.membership-status-badge[data-tone="warning"] {
+  border-color: color-mix(in oklab, var(--brand-gold) 35%, transparent);
+  background: var(--color-background-warning);
+  color: color-mix(in oklab, var(--brand-gold) 78%, var(--foreground));
+}
+
+.membership-status-badge[data-tone="neutral"] {
+  background: color-mix(in oklab, var(--muted) 70%, transparent);
+  color: var(--color-text-secondary);
+}
+
+.membership-member-editor {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.membership-member-save-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: auto;
+}
+
+.membership-member-save-row .portal-message {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+  font-size: 12px;
+}
+
+.membership-db .membership-save-button {
+  width: auto;
+  height: 36px;
+  min-height: 0;
+  border-radius: 8px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.membership-db .membership-save-button[data-state="saved"] {
+  animation: membership-save-flash 150ms ease;
+}
+
+@keyframes membership-save-flash {
+  from {
+    background: var(--color-background-success);
+  }
+  to {
+    background: linear-gradient(135deg, var(--brand-deep), var(--brand-blue));
+  }
+}
+
+.membership-save-button:disabled,
+.membership-bulk-toolbar button:disabled,
+.membership-confirm-bar button:disabled,
+.primary-button:disabled,
+.secondary-button:disabled,
+.ghost-button:disabled,
+.admin-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.membership-db .membership-save-button:disabled {
+  opacity: 0.65;
+}
+
+.membership-bulk-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: inherit;
+  padding: 0.7rem;
+}
+
+.membership-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--foreground);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.membership-checkbox-row input,
+.route-tile > div > input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.25rem;
+  padding: 0;
+}
+
+.membership-confirm-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  border-radius: 0.8rem;
+  border-left: 3px solid var(--brand-blue);
+  background: var(--color-background-info);
+  padding: 0.65rem 1rem;
+  color: var(--foreground);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.membership-confirm-bar--warning {
+  border-left-color: var(--color-border-warning);
+  background: var(--color-background-warning);
+}
+
+.membership-required,
+.membership-field-error {
+  color: var(--brand-rust);
+}
+
+.membership-field-error,
+.membership-field-warning {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.membership-field-warning {
+  color: color-mix(in oklab, var(--brand-gold) 80%, var(--foreground));
+}
+
+.membership-date-field {
+  position: relative;
+}
+
+.membership-date-control {
+  position: relative;
+}
+
+.membership-date-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 0.65rem;
+  background: var(--color-background-primary);
+  color: var(--foreground);
+  padding: 0 10px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.membership-date-button[data-empty="true"] {
+  color: var(--color-text-tertiary);
+}
+
+.membership-date-button svg {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+}
+
+.membership-date-button[data-invalid="true"] {
+  border-color: var(--brand-rust);
+}
+
+.membership-calendar__header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.membership-calendar {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 30;
+  width: min(18rem, calc(100vw - 2rem));
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--card);
+  box-shadow: var(--shadow-lg);
+  padding: 0.85rem;
+}
+
+.membership-calendar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.membership-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.membership-calendar__grid span {
+  color: var(--color-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding-block: 0.25rem;
+}
+
+.membership-calendar__grid button,
+.membership-calendar__grid i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  border-radius: 0.65rem;
+  font-size: 0.82rem;
+}
+
+.membership-calendar__grid button:hover,
+.membership-calendar__grid button[data-selected="true"] {
+  background: var(--brand-blue);
+  color: white;
+}
+
+.membership-code-field,
+.membership-lookup-field {
+  position: relative;
+}
+
+.membership-code-field > button {
+  position: absolute;
+  top: 2.15rem;
+  right: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+}
+
+.membership-code-tooltip {
+  right: 0;
+  top: 4.55rem;
+}
+
+.membership-code-field > button:hover + .membership-code-tooltip,
+.membership-code-field > button:focus-visible + .membership-code-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+.membership-lookup-indicator {
+  position: absolute;
+  right: 0.95rem;
+  top: 2.75rem;
+  color: var(--brand-blue);
+  font-weight: 800;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-track {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--color-border-secondary);
+  transition: background 0.2s ease;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.toggle-input:checked + .toggle-track {
+  background: var(--color-background-info);
+}
+
+.toggle-input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(16px);
+}
+
+.toggle-input:focus-visible + .toggle-track {
+  outline: 2px solid var(--color-border-info);
+  outline-offset: 2px;
+}
+
+.toggle-text {
+  color: var(--foreground);
+}
+
+.membership-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.membership-empty-state svg {
+  color: var(--color-text-tertiary);
+}
+
+.membership-empty-state h3 {
+  color: var(--foreground);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.membership-empty-state p {
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.avatar-upload-info {
+  position: relative;
+  display: inline-flex;
+  margin-left: 0.15rem;
+}
+
+.avatar-upload-info span {
+  bottom: calc(100% + 0.45rem);
+  left: 50%;
+  transform: translate(-50%, 4px);
+}
+
+.avatar-upload-info:hover span,
+.avatar-upload-info:focus-within span,
+.secondary-button:hover .avatar-upload-info span,
+.secondary-button:focus-within .avatar-upload-info span {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  visibility: visible;
+}
+
+@media (max-width: 767px) {
+  .membership-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .membership-search-field {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .membership-lifecycle-filter {
+    flex: 1 1 160px;
+  }
+
+  .membership-workflow {
+    min-height: 36px;
+  }
+
+  .membership-workflow__label {
+    display: none;
+  }
+
+  .membership-sticky-nav {
+    top: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
 }
 
 .portal-shell,

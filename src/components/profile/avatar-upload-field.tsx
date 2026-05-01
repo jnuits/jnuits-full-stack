@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Loader2 } from "lucide-react";
+import { Camera, Info, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
@@ -49,8 +49,7 @@ type CloudinaryUploadResponse = {
 const MAX_FILE_BYTES = 1_048_576;
 const MIN_DIMENSION = 400;
 const MAX_DIMENSION = 800;
-const HELPER_TEXT =
-  "Please upload a photo between 400x400 and 800x800 pixels. Maximum file size: 1MB.";
+const HELPER_TEXT = "JPG or PNG · 400–800px wide · 400–800px tall · max 1MB";
 
 function getInitials(displayName: string) {
   return displayName
@@ -270,6 +269,10 @@ export function AvatarUploadField({
             >
               {state.pending ? <Loader2 size={15} /> : <Camera size={15} />}
               {state.pending ? "Uploading..." : "Upload photo"}
+              <span className="avatar-upload-info">
+                <Info aria-hidden="true" size={13} />
+                <span role="tooltip">{HELPER_TEXT}</span>
+              </span>
             </button>
             <input
               accept="image/*"
@@ -282,11 +285,6 @@ export function AvatarUploadField({
           </>
         ) : null}
       </div>
-      {canUpload ? (
-        <p style={{ color: "var(--muted-foreground)", fontSize: "0.74rem", lineHeight: 1.5 }}>
-          {HELPER_TEXT}
-        </p>
-      ) : null}
       {state.message ? (
         <p className="portal-message portal-message--success">{state.message}</p>
       ) : null}

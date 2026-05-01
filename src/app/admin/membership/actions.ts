@@ -99,7 +99,7 @@ const createInvitationBatchSchema = z.object({
 const issueInvitationBatchSchema = z.object({
   batchId: z.string().trim().min(1, "Missing invitation batch identifier.").max(80),
   invitationExpiresInDays: optionalPositiveInt(DEFAULT_INVITATION_EXPIRY_DAYS, 365),
-  maxUses: optionalPositiveInt(1, 20),
+  maxUses: optionalPositiveInt(1, 1000),
   onlyPendingRenewal: booleanStringSchema,
 });
 
@@ -135,10 +135,29 @@ const accountRequestReviewSchema = z.object({
   requestId: z.string().trim().min(1, "Missing request identifier.").max(80),
   reviewNote: z.string().trim().max(1500).optional().default(""),
 });
+const accountRequestBulkReviewSchema = z.object({
+  decision: z.enum(["approved", "rejected"]),
+  requestIds: z.array(z.string().trim().min(1).max(80)).min(1).max(50),
+  reviewNote: z.string().trim().max(1500).optional().default(""),
+});
+const memberOperationsSaveSchema = z.object({
+  lifecycleNote: z.string().trim().max(1000).optional().default(""),
+  memberId: z.string().trim().min(1, "Missing member identifier.").max(80),
+  nextLifecycleStatus: lifecycleStatusSchema,
+  nextPortalAccessStatus: portalAccessStatusSchema,
+  nextPortalRole: z.enum(["member", "alumni", "executive", "alumni_ambassador"]),
+  roleNote: z.string().trim().max(1000).optional().default(""),
+  updateLifecycle: z.boolean().optional().default(false),
+  updatePortalRole: z.boolean().optional().default(false),
+});
+const memberLookupSchema = z.object({
+  jnuitsId: z.string().trim().min(1, "Member JnUITS ID is required.").max(80),
+});
 
 type LifecycleStatus = z.infer<typeof lifecycleStatusSchema>;
 type PortalAccessStatus = z.infer<typeof portalAccessStatusSchema>;
 type PortalRoleCode = z.infer<typeof portalRoleUpdateSchema>["nextPortalRole"];
+type AccountRequestDecision = z.infer<typeof accountRequestReviewSchema>["decision"];
 type MembershipActionResult = {
   message: string;
   ok: true;
@@ -447,35 +466,102 @@ export async function updateMemberPortalRoleAction(formData: FormData) {
   redirectMembership();
 }
 
-export async function reviewMemberAccountRequestAction(formData: FormData) {
-  const auth = await requireAdminPermission("admin.membership.manage", {
-    fallbackPath: "/admin/membership",
-  });
-  const actorUserId = auth.user?.id;
-
-  if (!actorUserId) {
-    redirect("/login?next=%2Fadmin%2Fmembership");
-  }
-
-  const parsed = accountRequestReviewSchema.safeParse(
-    pickFormFields(formData, ["requestId", "decision", "reviewNote"])
-  );
+export async function saveMemberOperationsAction(
+  input: unknown
+): Promise<MembershipActionResult> {
+  const parsed = memberOperationsSaveSchema.safeParse(input);
 
   if (!parsed.success) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Account request review failed",
-      message: parsed.error.issues[0]?.message || "Invalid account request review.",
-    });
-    redirectMembership();
+    throw new Error(parsed.error.issues[0]?.message || "Invalid member update.");
   }
 
+  const updates: string[] = [];
+
+  if (parsed.data.updateLifecycle) {
+    await updateMemberLifecycle(
+      parsed.data.memberId,
+      parsed.data.nextLifecycleStatus,
+      parsed.data.nextPortalAccessStatus,
+      parsed.data.lifecycleNote
+    );
+    updates.push("lifecycle");
+  }
+
+  if (parsed.data.updatePortalRole) {
+    await updateMemberPortalRole(
+      parsed.data.memberId,
+      parsed.data.nextPortalRole,
+      parsed.data.roleNote
+    );
+    updates.push("portal role");
+  }
+
+  if (updates.length === 0) {
+    return {
+      message: "No changes to save.",
+      ok: true,
+    };
+  }
+
+  return {
+    message: `Saved ${updates.join(" and ")} changes.`,
+    ok: true,
+  };
+}
+
+export async function lookupMemberForCycleAction(input: unknown): Promise<{
+  displayJnuitsId: string;
+  fullName: string;
+  id: string;
+} | null> {
+  await requireAdminUser({ fallbackPath: "/admin/membership" });
+
+  const parsed = memberLookupSchema.safeParse(input);
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message || "Invalid member ID.");
+  }
+
+  const normalizedId = parsed.data.jnuitsId.toUpperCase();
   const admin = createAdminClient();
-  const flexibleAdmin = asFlexibleClient(admin);
+  const { data, error } = await asFlexibleClient(admin)
+    .from("members" as string)
+    .select("id, jnuits_id, full_name")
+    .eq("jnuits_id", normalizedId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data?.id) {
+    return null;
+  }
+
+  return {
+    displayJnuitsId: formatMembershipIdForDisplay(
+      typeof data.jnuits_id === "string" ? data.jnuits_id : normalizedId
+    ),
+    fullName:
+      typeof data.full_name === "string" && data.full_name.trim()
+        ? data.full_name
+        : "Member record",
+    id: String(data.id),
+  };
+}
+
+async function reviewMemberAccountRequest(options: {
+  actorUserId: string;
+  admin: AdminClient;
+  decision: AccountRequestDecision;
+  requestId: string;
+  reviewNote: string;
+}) {
+  const flexibleAdmin = asFlexibleClient(options.admin);
   const { data: request, error: requestError } = await flexibleAdmin
     .from("profile_update_requests" as string)
     .select("id, member_id, request_type, status")
-    .eq("id", parsed.data.requestId)
+    .eq("id", options.requestId)
     .maybeSingle();
 
   if (
@@ -484,12 +570,10 @@ export async function reviewMemberAccountRequestAction(formData: FormData) {
     request.status !== "pending" ||
     !["alumni_conversion", "account_deletion"].includes(request.request_type)
   ) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Account request review failed",
-      message: requestError?.message || "Pending alumni/deletion request could not be loaded.",
-    });
-    redirectMembership();
+    throw new Error(
+      requestError?.message ||
+        "Pending alumni/deletion request could not be loaded."
+    );
   }
 
   const { data: member, error: memberError } = await flexibleAdmin
@@ -499,44 +583,34 @@ export async function reviewMemberAccountRequestAction(formData: FormData) {
     .maybeSingle();
 
   if (memberError || !member) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Account request review failed",
-      message: memberError?.message || "The linked member record was not found.",
-    });
-    redirectMembership();
+    throw new Error(memberError?.message || "The linked member record was not found.");
   }
 
   const nowIso = new Date().toISOString();
   const memberEmail = typeof member.email === "string" ? member.email : null;
   const memberName = typeof member.full_name === "string" ? member.full_name : "JnUITS member";
 
-  if (parsed.data.decision === "approved") {
+  if (options.decision === "approved") {
     if (request.request_type === "alumni_conversion") {
       const { error: lifecycleError } = await flexibleAdmin.rpc(
         "set_member_lifecycle_status" as string,
         {
           next_lifecycle_status: "alumni",
           next_portal_access_status: "active",
-          reason: parsed.data.reviewNote || "Approved alumni conversion request.",
+          reason: options.reviewNote || "Approved alumni conversion request.",
           target_member_id: member.id,
         }
       );
 
       if (lifecycleError) {
-        await setAdminFlash({
-          tone: "error",
-          title: "Alumni conversion failed",
-          message: lifecycleError.message,
-        });
-        redirectMembership();
+        throw new Error(lifecycleError.message);
       }
 
       if (member.user_id) {
         await assignPortalRole({
-          actorUserId,
-          admin,
-          note: parsed.data.reviewNote,
+          actorUserId: options.actorUserId,
+          admin: options.admin,
+          note: options.reviewNote,
           roleCode: "alumni",
           targetUserId: member.user_id,
         });
@@ -548,18 +622,13 @@ export async function reviewMemberAccountRequestAction(formData: FormData) {
         {
           next_lifecycle_status: "deleted",
           next_portal_access_status: "deactivated",
-          reason: parsed.data.reviewNote || "Approved profile deletion request.",
+          reason: options.reviewNote || "Approved profile deletion request.",
           target_member_id: member.id,
         }
       );
 
       if (lifecycleError) {
-        await setAdminFlash({
-          tone: "error",
-          title: "Profile deletion failed",
-          message: lifecycleError.message,
-        });
-        redirectMembership();
+        throw new Error(lifecycleError.message);
       }
 
       if (targetUserId) {
@@ -596,26 +665,21 @@ export async function reviewMemberAccountRequestAction(formData: FormData) {
   const { error: updateError } = await flexibleAdmin
     .from("profile_update_requests" as string)
     .update({
-      review_note: parsed.data.reviewNote || null,
+      review_note: options.reviewNote || null,
       reviewed_at: nowIso,
-      reviewed_by_user_id: actorUserId,
-      status: parsed.data.decision,
+      reviewed_by_user_id: options.actorUserId,
+      status: options.decision,
       updated_at: nowIso,
     })
     .eq("id", request.id);
 
   if (updateError) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Account request review failed",
-      message: updateError.message,
-    });
-    redirectMembership();
+    throw new Error(updateError.message);
   }
 
-  await recordSecurityEvent(admin, {
-    actorUserId,
-    eventType: `member.${request.request_type}_${parsed.data.decision}`,
+  await recordSecurityEvent(options.admin, {
+    actorUserId: options.actorUserId,
+    eventType: `member.${request.request_type}_${options.decision}`,
     payload: {
       memberId: member.id,
       requestId: request.id,
@@ -625,7 +689,7 @@ export async function reviewMemberAccountRequestAction(formData: FormData) {
   });
 
   if (memberEmail) {
-    const approved = parsed.data.decision === "approved";
+    const approved = options.decision === "approved";
     const isAlumniConversion = request.request_type === "alumni_conversion";
 
     void sendEmail({
@@ -633,18 +697,67 @@ export async function reviewMemberAccountRequestAction(formData: FormData) {
         ? buildAlumniConversionDecisionEmail({
             approved,
             memberName,
-            reviewNote: parsed.data.reviewNote || null,
+            reviewNote: options.reviewNote || null,
           })
         : buildDeletionRequestStatusEmail({
             approved,
             memberName,
-            reviewNote: parsed.data.reviewNote || null,
+            reviewNote: options.reviewNote || null,
           }),
       subject: isAlumniConversion
-        ? `JnUITS alumni conversion ${parsed.data.decision}`
-        : `JnUITS profile deletion request ${parsed.data.decision}`,
+        ? `JnUITS alumni conversion ${options.decision}`
+        : `JnUITS profile deletion request ${options.decision}`,
       to: memberEmail,
     });
+  }
+
+  return request.request_type as string;
+}
+
+export async function reviewMemberAccountRequestAction(formData: FormData) {
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/membership",
+  });
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login?next=%2Fadmin%2Fmembership");
+  }
+
+  const parsed = accountRequestReviewSchema.safeParse(
+    pickFormFields(formData, ["requestId", "decision", "reviewNote"])
+  );
+
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Account request review failed",
+      message: parsed.error.issues[0]?.message || "Invalid account request review.",
+    });
+    redirectMembership();
+  }
+
+  const admin = createAdminClient();
+  let requestType = "account";
+
+  try {
+    requestType = await reviewMemberAccountRequest({
+      actorUserId,
+      admin,
+      decision: parsed.data.decision,
+      requestId: parsed.data.requestId,
+      reviewNote: parsed.data.reviewNote,
+    });
+  } catch (error) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Account request review failed",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Pending alumni/deletion request could not be reviewed.",
+    });
+    redirectMembership();
   }
 
   revalidatePath("/admin/membership");
@@ -652,9 +765,50 @@ export async function reviewMemberAccountRequestAction(formData: FormData) {
   await setAdminFlash({
     tone: "success",
     title: "Account request reviewed",
-    message: `${request.request_type.replaceAll("_", " ")} request ${parsed.data.decision}.`,
+    message: `${requestType.replaceAll("_", " ")} request ${parsed.data.decision}.`,
   });
   redirectMembership();
+}
+
+export async function bulkReviewMemberAccountRequestsAction(
+  input: unknown
+): Promise<MembershipActionResult> {
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/membership",
+  });
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login?next=%2Fadmin%2Fmembership");
+  }
+
+  const parsed = accountRequestBulkReviewSchema.safeParse(input);
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message || "Invalid bulk review.");
+  }
+
+  const admin = createAdminClient();
+  let reviewedCount = 0;
+
+  for (const requestId of parsed.data.requestIds) {
+    await reviewMemberAccountRequest({
+      actorUserId,
+      admin,
+      decision: parsed.data.decision,
+      requestId,
+      reviewNote: parsed.data.reviewNote,
+    });
+    reviewedCount += 1;
+  }
+
+  revalidatePath("/admin/membership");
+  revalidatePath("/admin/profile-changes");
+
+  return {
+    message: `${reviewedCount} request${reviewedCount === 1 ? "" : "s"} ${parsed.data.decision}.`,
+    ok: true,
+  };
 }
 
 export async function createMembershipCycleAction(formData: FormData) {
