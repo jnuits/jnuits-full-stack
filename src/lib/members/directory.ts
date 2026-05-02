@@ -295,14 +295,18 @@ function isWorkplaceVisible(member: MemberDirectoryRow, viewer: ViewerContext) {
   }
 
   if (visibility === "members-only") {
-    return viewer.directoryVerified || viewer.isOperator;
+    return Boolean(viewer.memberId) || viewer.isOperator;
   }
 
   if (visibility === "private") {
-    return viewer.isOperator || viewer.memberId === member.id;
+    return false;
   }
 
   return false;
+}
+
+function canViewMembersOnlyProfile(viewer: ViewerContext) {
+  return Boolean(viewer.memberId) || viewer.isOperator;
 }
 
 function getVisibility(value: string): "public" | "members-only" | "private" {
@@ -348,11 +352,22 @@ export async function getPublicMemberDirectory(
 
   const applyPublicMemberFilters = (
     request: ReturnType<typeof flexibleAdmin.from>
-  ) =>
-    request
+  ) => {
+    let result = request
       .in("lifecycle_status", ["current", "alumni"])
       .eq("portal_access_status", "active")
       .not("jnuits_id", "ilike", "JNUITS-ADMIN-%");
+
+    if (canViewMembersOnlyProfile(viewer)) {
+      result = result.or(
+        "professional_visibility.eq.public,professional_visibility.eq.members-only,professional_visibility.is.null"
+      );
+    } else {
+      result = result.eq("professional_visibility", "public");
+    }
+
+    return result;
+  };
 
   const buildMembersQuery = () => {
     const request = flexibleAdmin.from("members" as string).select(MEMBER_DIRECTORY_SELECT_CLAUSE, {
@@ -555,7 +570,7 @@ export async function getPublicMemberDirectory(
     viewer: {
       signedIn: viewer.signedIn,
       directoryVerified: viewer.directoryVerified,
-      canViewMembersOnly: viewer.directoryVerified || viewer.isOperator,
+      canViewMembersOnly: canViewMembersOnlyProfile(viewer),
       isOperator: viewer.isOperator,
     },
     departments,
@@ -575,12 +590,22 @@ export async function getPublicMemberByJnuitsId(
   const admin = createAdminClient();
   const flexibleAdmin = asFlexibleClient(admin);
   const viewer = await resolveViewerContext();
-  const { data, error } = await flexibleAdmin
+  let request = flexibleAdmin
     .from("members" as string)
     .select(MEMBER_DIRECTORY_SELECT_CLAUSE)
     .in("lifecycle_status", ["current", "alumni"])
     .eq("portal_access_status", "active")
-    .not("jnuits_id", "ilike", "JNUITS-ADMIN-%")
+    .not("jnuits_id", "ilike", "JNUITS-ADMIN-%");
+
+  if (canViewMembersOnlyProfile(viewer)) {
+    request = request.or(
+      "professional_visibility.eq.public,professional_visibility.eq.members-only,professional_visibility.is.null"
+    );
+  } else {
+    request = request.eq("professional_visibility", "public");
+  }
+
+  const { data, error } = await request
     .ilike("jnuits_id", displayId)
     .maybeSingle();
 

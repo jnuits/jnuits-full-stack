@@ -158,9 +158,7 @@ export async function ProfileEditScreen() {
                 <strong>
                   {pendingWorkplaceRequests > 0
                     ? `${pendingWorkplaceRequests} pending`
-                    : member.member_type === "alumni"
-                      ? "Ready"
-                      : "Alumni only"}
+                    : "Ready"}
                 </strong>
               </div>
             </div>
@@ -210,13 +208,18 @@ export async function ProfileEditScreen() {
             currentValues={{
               currentOrganization: member.current_organization,
               designation: member.designation,
+              facebookUrl: member.facebook_url ?? null,
               linkedinUrl: member.linkedin_url,
               professionalVisibility: member.professional_visibility,
               websiteUrl: member.website_url,
               workLocation: member.work_location,
             }}
             initialRequests={snapshot.workplaceRequests}
+            lifecycleStatus={member.lifecycle_status ?? snapshot.access.lifecycleStatus}
             memberType={member.member_type}
+            portalAccessStatus={
+              member.portal_access_status ?? snapshot.access.portalAccessStatus
+            }
           />
         </div>
       )}

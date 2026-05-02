@@ -1,6 +1,7 @@
 export type WorkplaceUpdatePayload = {
   currentOrganization?: string;
   designation?: string;
+  facebookUrl?: string;
   linkedinUrl?: string;
   professionalVisibility?: string;
   websiteUrl?: string;
@@ -10,6 +11,7 @@ export type WorkplaceUpdatePayload = {
 const WORKPLACE_FIELD_LABELS: Record<keyof WorkplaceUpdatePayload, string> = {
   currentOrganization: "Current organization",
   designation: "Designation",
+  facebookUrl: "Facebook URL",
   linkedinUrl: "LinkedIn URL",
   professionalVisibility: "Visibility",
   websiteUrl: "Website URL",
@@ -32,6 +34,8 @@ export function parseWorkplaceUpdatePayload(
         : undefined,
     designation:
       typeof record.designation === "string" ? record.designation : undefined,
+    facebookUrl:
+      typeof record.facebookUrl === "string" ? record.facebookUrl : undefined,
     linkedinUrl:
       typeof record.linkedinUrl === "string" ? record.linkedinUrl : undefined,
     professionalVisibility:

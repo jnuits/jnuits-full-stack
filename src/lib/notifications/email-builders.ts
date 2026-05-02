@@ -508,6 +508,91 @@ export function buildProfileChangeRejectedEmail(props: ProfileChangeRejectedEmai
   return wrap("An update on your JnUITS profile change request.", content);
 }
 
+export interface WorkplaceRequestDecisionEmailProps {
+  approved: boolean;
+  memberName: string;
+  reviewNote?: null | string;
+  updatedFields?: string[];
+}
+
+export function buildWorkplaceRequestDecisionEmail(
+  props: WorkplaceRequestDecisionEmailProps
+): string {
+  const { approved, memberName, reviewNote, updatedFields = [] } = props;
+  const noteBlock = reviewNote ? card([["Review note", reviewNote]]) : "";
+  const fieldsBlock =
+    updatedFields.length > 0
+      ? card([["Updated fields", updatedFields.join(", ")]])
+      : "";
+  const content = [
+    h1(approved ? "Workplace update approved" : "Workplace update reviewed"),
+    p(
+      approved
+        ? `Hi ${esc(memberName)}, your workplace update request has been reviewed and approved. Your member profile now reflects the approved workplace details.`
+        : `Hi ${esc(memberName)}, your workplace update request has been reviewed. We were unable to approve the requested changes at this time.`
+    ),
+    fieldsBlock,
+    noteBlock,
+    button("Open profile editor", "https://jnuits.org.bd/portal/profile/edit"),
+    hr(),
+    p(
+      `Questions about this decision? ${link("Contact JnUITS", "https://jnuits.org.bd/contact")}.`,
+      "font-size:13px;margin:0;"
+    ),
+  ].join("");
+
+  return wrap(
+    approved
+      ? "Your JnUITS workplace update has been approved."
+      : "Your JnUITS workplace update has been reviewed.",
+    content
+  );
+}
+
+export interface WorkplaceAdminCorrectionEmailProps {
+  memberName: string;
+  note?: null | string;
+}
+
+export function buildWorkplaceAdminCorrectionEmail(
+  props: WorkplaceAdminCorrectionEmailProps
+): string {
+  const noteBlock = props.note ? card([["Admin note", props.note]]) : "";
+  const content = [
+    h1("Workplace profile updated"),
+    p(
+      `Hi ${esc(props.memberName)}, an admin updated your JnUITS workplace profile to keep the directory accurate.`
+    ),
+    noteBlock,
+    button("View your profile", "https://jnuits.org.bd/portal/profile"),
+    hr(),
+    p(
+      `If this looks wrong, ${link("submit a new workplace request", "https://jnuits.org.bd/portal/profile/edit")}.`,
+      "font-size:13px;margin:0;"
+    ),
+  ].join("");
+
+  return wrap("Your JnUITS workplace profile was updated.", content);
+}
+
+export interface WorkplaceRequestReceivedEmailProps {
+  memberName: string;
+}
+
+export function buildWorkplaceRequestReceivedEmail(
+  props: WorkplaceRequestReceivedEmailProps
+): string {
+  const content = [
+    h1("Workplace request received"),
+    p(
+      `Hi ${esc(props.memberName)}, we received your workplace update request. An admin will review it before it appears in member-facing surfaces.`
+    ),
+    button("Open profile editor", "https://jnuits.org.bd/portal/profile/edit"),
+  ].join("");
+
+  return wrap("We received your JnUITS workplace update request.", content);
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 
 export interface EmailChangeVerificationEmailProps {

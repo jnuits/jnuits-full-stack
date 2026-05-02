@@ -2272,6 +2272,310 @@
   font-weight: 650;
 }
 
+.membership-edit-panel {
+  overflow: hidden;
+  margin-top: 0.9rem;
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 1rem;
+  background: var(--color-background-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.membership-edit-panel__header,
+.membership-edit-panel__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--color-background-secondary);
+  padding: 0.75rem 0.9rem;
+}
+
+.membership-edit-panel__header {
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+
+.membership-edit-panel__footer {
+  border-top: 1px solid var(--color-border-tertiary);
+}
+
+.membership-edit-panel__header strong {
+  display: block;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.membership-edit-panel__header p {
+  margin-top: 0.12rem;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.membership-edit-grid,
+.workplace-diff-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+}
+
+.workplace-diff-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.membership-edit-panel > .input-label {
+  display: block;
+  padding: 0 14px 14px;
+}
+
+.membership-edit-grid label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.membership-edit-grid input,
+.membership-edit-grid select {
+  height: 34px;
+}
+
+.membership-edit-grid textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.membership-edit-help,
+.membership-edit-error {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.45;
+  text-transform: none;
+}
+
+.membership-edit-error {
+  color: var(--brand-rust);
+}
+
+.membership-edit-grid textarea[aria-invalid="true"] {
+  border-color: var(--brand-rust);
+}
+
+.membership-edit-panel__footer .primary-button,
+.membership-edit-panel__footer .ghost-button,
+.membership-edit-panel__footer .admin-btn {
+  height: 30px;
+  min-height: 0;
+  border-radius: 7px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.workplace-table {
+  min-width: 1120px;
+}
+
+.workplace-directory-table {
+  min-width: 1040px;
+}
+
+.workplace-table th:nth-child(2),
+.workplace-directory-table th:nth-child(1) {
+  width: 24%;
+}
+
+.workplace-table th:nth-child(3),
+.workplace-table th:nth-child(4) {
+  width: 18%;
+}
+
+.workplace-metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+}
+
+.workplace-history-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.workplace-history-row {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.25fr) minmax(18rem, 1.6fr) auto minmax(8rem, 0.7fr);
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 0.9rem;
+  background: var(--color-background-primary);
+  padding: 0.85rem 1rem;
+  box-shadow: var(--shadow-xs);
+}
+
+.workplace-history-row__member {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.workplace-history-row__member strong,
+.workplace-history-row__date strong {
+  display: block;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.workplace-history-row__member small,
+.workplace-history-row__summary small,
+.workplace-history-row__date span {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.workplace-history-row__summary span {
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workplace-history-row__summary p {
+  margin-top: 0.12rem;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.workplace-history-row__note {
+  grid-column: 2 / -1;
+  margin: -0.25rem 0 0;
+  border-left: 2px solid var(--color-border-secondary);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  padding-left: 0.7rem;
+}
+
+.workplace-guidance-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.8fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.workplace-guidance-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.workplace-guidance-card,
+.workplace-guidance-checklist {
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 0.9rem;
+  background: var(--color-background-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.workplace-guidance-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.95rem;
+}
+
+.workplace-guidance-card__icon,
+.workplace-guidance-checklist__header > svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 0.65rem;
+  background: var(--color-background-secondary);
+  color: var(--brand-blue);
+}
+
+.workplace-guidance-card h3,
+.workplace-guidance-checklist h3 {
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.workplace-guidance-card p,
+.workplace-guidance-checklist p {
+  margin-top: 0.25rem;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.workplace-guidance-checklist {
+  align-self: start;
+  overflow: hidden;
+}
+
+.workplace-guidance-checklist__header {
+  display: flex;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--color-border-tertiary);
+  background: var(--color-background-secondary);
+  padding: 0.95rem;
+}
+
+.workplace-guidance-checklist ul {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.95rem;
+}
+
+.workplace-guidance-checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.workplace-guidance-checklist li svg {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: var(--color-text-success);
+}
+
+@media (max-width: 900px) {
+  .workplace-history-row,
+  .workplace-guidance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workplace-history-row__note {
+    grid-column: 1;
+  }
+}
+
+.membership-pagination button[data-current="true"] {
+  border-color: var(--brand-blue);
+  background: var(--brand-blue);
+  color: white;
+}
+
 .membership-bulk-member-bar {
   display: grid;
   gap: 0.65rem;

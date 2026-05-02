@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useState } from "react";
-import { BriefcaseBusiness, Clock3, LockKeyhole } from "lucide-react";
+import { BriefcaseBusiness, Clock3, LockKeyhole, XCircle } from "lucide-react";
 import type { Tables } from "@/lib/db/types";
 
 type WorkplaceRequest = Tables<"profile_update_requests">;
@@ -13,23 +13,36 @@ function formatRequestStatus(status: string) {
 export function WorkplaceRequestForm({
   currentValues,
   initialRequests,
+  lifecycleStatus,
   memberType,
+  portalAccessStatus,
 }: {
   currentValues: {
     currentOrganization: string | null;
     designation: string | null;
+    facebookUrl: string | null;
     linkedinUrl: string | null;
     professionalVisibility: string;
     websiteUrl: string | null;
     workLocation: string | null;
   };
   initialRequests: WorkplaceRequest[];
+  lifecycleStatus?: string | null;
   memberType: string;
+  portalAccessStatus?: string | null;
 }) {
   const [requests, setRequests] = useState(initialRequests);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const activePendingRequest = requests.find(
+    (request) => request.status === "pending"
+  );
+  const profileKind = memberType === "alumni" ? "alumni" : "member";
+  const canSubmit =
+    (portalAccessStatus ?? "active") === "active" &&
+    ((lifecycleStatus ?? "current") === "current" ||
+      (lifecycleStatus ?? "current") === "alumni");
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -41,13 +54,14 @@ export function WorkplaceRequestForm({
         String(formData.get("currentOrganization") || "").trim() || undefined,
       designation: String(formData.get("designation") || "").trim() || undefined,
       workLocation: String(formData.get("workLocation") || "").trim() || undefined,
+      facebookUrl: String(formData.get("facebookUrl") || "").trim() || undefined,
       linkedinUrl: String(formData.get("linkedinUrl") || "").trim() || undefined,
       websiteUrl: String(formData.get("websiteUrl") || "").trim() || undefined,
       professionalVisibility:
         String(formData.get("professionalVisibility") || "").trim() || undefined,
     };
 
-    const response = await fetch("/api/alumni/workplace-updates", {
+    const response = await fetch("/api/portal/workplace-requests", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -76,7 +90,38 @@ export function WorkplaceRequestForm({
     setPending(false);
   }
 
-  if (memberType !== "alumni") {
+  async function handleCancel(requestId: string) {
+    setPending(true);
+    setError(null);
+    setMessage(null);
+
+    const response = await fetch("/api/portal/workplace-requests", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "cancel", requestId }),
+    });
+    const body = (await response.json().catch(() => null)) as
+      | { message?: string }
+      | null;
+
+    if (!response.ok) {
+      setError(body?.message || "Unable to cancel workplace request.");
+      setPending(false);
+      return;
+    }
+
+    setRequests((current) =>
+      current.map((request) =>
+        request.id === requestId ? { ...request, status: "cancelled" } : request
+      )
+    );
+    setMessage(body?.message || "Workplace request cancelled.");
+    setPending(false);
+  }
+
+  if (!canSubmit) {
     return (
       <section className="profile-edit-card profile-edit-card--muted">
         <div className="profile-edit-card__header">
@@ -86,13 +131,14 @@ export function WorkplaceRequestForm({
           <div>
             <p className="profile-edit-kicker">Workplace moderation</p>
             <h2 className="profile-edit-title">
-              Workplace self-service is reserved for alumni accounts
+              Workplace requests are locked while this profile is restricted
             </h2>
           </div>
         </div>
         <p className="profile-edit-copy">
-          Current student and internal member profiles will keep using the safer
-          member/profile update lanes instead of the alumni workplace workflow.
+          Active member and alumni accounts can submit moderated workplace
+          changes. Frozen, suspended, deleted, or former-state accounts remain
+          read-only until an admin restores access.
         </p>
       </section>
     );
@@ -108,15 +154,38 @@ export function WorkplaceRequestForm({
           <div>
             <p className="profile-edit-kicker">Workplace request</p>
             <h2 className="profile-edit-title">
-              Submit moderated workplace changes without touching admin tools
+              Submit moderated {profileKind} workplace changes
             </h2>
           </div>
         </div>
         <p className="profile-edit-copy">
-          Alumni edits to workplace identity remain request-based so admins
-          can review claims, preserve auditability, and protect the public
-          directory from accidental drift.
+          Workplace identity edits remain request-based for every active portal
+          user so admins can review claims, preserve auditability, and protect
+          the public directory from accidental drift.
         </p>
+
+        {activePendingRequest ? (
+          <div className="portal-message portal-message--info">
+            <div className="profile-edit-history-row">
+              <strong>Pending workplace request</strong>
+              <span className="profile-edit-status" data-state="pending">
+                Pending review
+              </span>
+            </div>
+            <p className="mt-2 text-sm">
+              Cancel the pending request before submitting a revised workplace
+              update.
+            </p>
+            <button
+              className="ghost-button mt-3"
+              disabled={pending}
+              onClick={() => void handleCancel(activePendingRequest.id)}
+              type="button"
+            >
+              <XCircle size={14} /> Cancel pending request
+            </button>
+          </div>
+        ) : null}
 
         <form
           action={(formData) => startTransition(() => void handleSubmit(formData))}
@@ -137,7 +206,7 @@ export function WorkplaceRequestForm({
             Designation
             <input
               id="wp-designation"
-              defaultValue={currentValues.designation || ""}
+              defaultValue={currentValues.designation || "Student"}
               name="designation"
               placeholder="Role or designation"
               autoComplete="organization-title"
@@ -164,6 +233,17 @@ export function WorkplaceRequestForm({
               <option value="private">Private</option>
             </select>
           </label>
+          <label className="input-label" htmlFor="wp-facebook-url">
+            Facebook URL
+            <input
+              id="wp-facebook-url"
+              defaultValue={currentValues.facebookUrl || ""}
+              name="facebookUrl"
+              placeholder="https://facebook.com/..."
+              type="url"
+              autoComplete="url"
+            />
+          </label>
           <label className="input-label" htmlFor="wp-linkedin-url">
             LinkedIn URL
             <input
@@ -187,7 +267,11 @@ export function WorkplaceRequestForm({
             />
           </label>
           <div className="profile-edit-actions profile-edit-span-2">
-            <button className="primary-button" disabled={pending} type="submit">
+            <button
+              className="primary-button"
+              disabled={pending || Boolean(activePendingRequest)}
+              type="submit"
+            >
               {pending ? "Submitting..." : "Submit moderated update"}
             </button>
           </div>
