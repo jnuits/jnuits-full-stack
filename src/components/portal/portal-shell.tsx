@@ -8,6 +8,7 @@ import {
   BarChart3,
   BookOpen,
   FolderKanban,
+  GraduationCap,
   KeyRound,
   LayoutDashboard,
   LifeBuoy,
@@ -76,6 +77,18 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+const ADVISOR_NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Advisor Workspace",
+    items: [
+      createNavItem("/portal", "Overview", LayoutDashboard),
+      createNavItem("/portal/advisor/profile", "Advisor Profile", GraduationCap),
+      createNavItem("/portal/blogs", "Draft Blogs", BookOpen),
+      createNavItem("/portal/profile/change-password", "Password", KeyRound),
+    ],
+  },
+];
+
 // ── Helper: active state (exact for / paths, prefix for sub-routes) ───────────
 
 function isActive(pathname: string, href: string): boolean {
@@ -114,6 +127,7 @@ export function PortalShell({
 }: PortalShellProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navGroups = portalRole === "advisor" ? ADVISOR_NAV_GROUPS : NAV_GROUPS;
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -138,7 +152,7 @@ export function PortalShell({
       <aside
         className="portal-sidebar"
         data-open={sidebarOpen ? "true" : "false"}
-        aria-label="Member portal navigation"
+        aria-label={portalRole === "advisor" ? "Advisor portal navigation" : "Member portal navigation"}
         style={{
           // On mobile hide off-screen; on desktop always visible
           transform: sidebarOpen ? "translateX(0)" : undefined,
@@ -160,7 +174,7 @@ export function PortalShell({
               size="sm"
             />
             <div className="portal-id-card__info">
-              <p className="portal-id-card__name">{memberName ?? "Member"}</p>
+              <p className="portal-id-card__name">{memberName ?? (portalRole === "advisor" ? "Advisor" : "Member")}</p>
               {displayJnuitsId && (
                 <p className="portal-id-card__id">{displayJnuitsId}</p>
               )}
@@ -170,7 +184,7 @@ export function PortalShell({
 
         {/* Nav groups */}
         <nav className="portal-sidebar__nav">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.label} className="portal-nav-group">
               <p className="portal-nav-group__label">{group.label}</p>
               {group.items.map((item) => {

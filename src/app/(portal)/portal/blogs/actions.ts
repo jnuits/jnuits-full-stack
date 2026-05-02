@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { requirePortalUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
@@ -27,6 +27,24 @@ const submitDraftSchema = z.object({
   postId: z.string().trim().min(1, "Draft is required.").max(80),
 });
 
+type BlogAuthor =
+  | {
+      advisor: null;
+      advisorId: null;
+      authorKind: "member";
+      jnuitsId: null | string;
+      memberId: string;
+      name: null | string;
+    }
+  | {
+      advisor: string;
+      advisorId: string;
+      authorKind: "advisor";
+      jnuitsId: null;
+      memberId: null;
+      name: null | string;
+    };
+
 function pickFormFields(formData: FormData, fields: string[]) {
   return Object.fromEntries(
     fields.map((field) => [field, asString(formData.get(field))])
@@ -41,47 +59,93 @@ function slugify(value: string) {
     .slice(0, 120);
 }
 
-async function loadAuthorMember(userId: string) {
+async function loadBlogAuthor(userId: string) {
   const admin = createAdminClient();
-  const { data: member } = await admin
-    .from("members")
+  const flexibleAdmin = asFlexibleClient(admin);
+  const { data: member } = await flexibleAdmin
+    .from("members" as string)
     .select("id, full_name, jnuits_id")
     .eq("user_id", userId)
     .maybeSingle();
 
+  if (member && typeof member === "object") {
+    const record = member as Record<string, unknown>;
+    if (typeof record.id === "string") {
+      return {
+        admin,
+        author: {
+          advisor: null,
+          advisorId: null,
+          authorKind: "member",
+          jnuitsId: typeof record.jnuits_id === "string" ? record.jnuits_id : null,
+          memberId: record.id,
+          name: typeof record.full_name === "string" ? record.full_name : null,
+        } satisfies BlogAuthor,
+      };
+    }
+  }
+
+  const { data: advisor } = await flexibleAdmin
+    .from("advisor_profiles" as string)
+    .select("id, full_name")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (advisor && typeof advisor === "object") {
+    const record = advisor as Record<string, unknown>;
+    if (typeof record.id === "string") {
+      return {
+        admin,
+        author: {
+          advisor: record.id,
+          advisorId: record.id,
+          authorKind: "advisor",
+          jnuitsId: null,
+          memberId: null,
+          name: typeof record.full_name === "string" ? record.full_name : null,
+        } satisfies BlogAuthor,
+      };
+    }
+  }
+
   return {
     admin,
-    member,
+    author: null,
   };
 }
 
 async function loadOwnedDraft(
   admin: ReturnType<typeof createAdminClient>,
-  memberId: string,
+  author: BlogAuthor,
   postId: string
 ) {
-  const { data } = await admin
-    .from("content_posts")
-    .select("id, author_member_id, content_type, status, title")
+  let query = asFlexibleClient(admin)
+    .from("content_posts" as string)
+    .select("id, author_member_id, author_advisor_profile_id, content_type, status, title")
     .eq("id", postId)
-    .eq("author_member_id", memberId)
-    .eq("content_type", "blog")
-    .maybeSingle();
+    .eq("content_type", "blog");
 
+  query =
+    author.authorKind === "member"
+      ? query.eq("author_member_id", author.memberId)
+      : query.eq("author_advisor_profile_id", author.advisorId);
+
+  const { data } = await query.maybeSingle();
   return data;
 }
 
 export async function saveMemberBlogDraft(formData: FormData) {
-  const auth = await requireAuthenticatedUser();
+  const auth = await requirePortalUser({ fallbackPath: "/portal/blogs" });
 
   if (!auth.user) {
-    redirect("/login");
+    redirect("/portal/login");
   }
 
-  const { admin, member } = await loadAuthorMember(auth.user.id);
+  const { admin, author } = await loadBlogAuthor(auth.user.id);
+  const flexibleAdmin = asFlexibleClient(admin);
 
-  if (!member) {
-    redirect("/portal/blogs?error=member-required");
+  if (!author) {
+    redirect("/portal/blogs?error=author-required");
   }
 
   const parsed = memberBlogDraftSchema.safeParse(
@@ -109,7 +173,7 @@ export async function saveMemberBlogDraft(formData: FormData) {
   }
 
   if (postId) {
-    const owned = await loadOwnedDraft(admin, member.id, postId);
+    const owned = await loadOwnedDraft(admin, author, postId);
 
     if (!owned) {
       redirect("/portal/blogs?error=draft-missing");
@@ -117,7 +181,8 @@ export async function saveMemberBlogDraft(formData: FormData) {
   }
 
   const payload = {
-    author_member_id: member.id,
+    author_advisor_profile_id: author.authorKind === "advisor" ? author.advisorId : null,
+    author_member_id: author.authorKind === "member" ? author.memberId : null,
     body,
     category: category || null,
     content_type: "blog",
@@ -135,43 +200,50 @@ export async function saveMemberBlogDraft(formData: FormData) {
   };
 
   const query = postId
-    ? admin.from("content_posts").update(payload).eq("id", postId).select("id").single()
-    : admin.from("content_posts").insert(payload).select("id").single();
+    ? flexibleAdmin.from("content_posts" as string).update(payload).eq("id", postId).select("id").single()
+    : flexibleAdmin.from("content_posts" as string).insert(payload).select("id").single();
 
   const { data, error } = await query;
+  const postIdResult =
+    data && typeof data === "object" && typeof (data as Record<string, unknown>).id === "string"
+      ? String((data as Record<string, unknown>).id)
+      : "";
 
-  if (error || !data) {
+  if (error || !postIdResult) {
     redirect("/portal/blogs?error=draft-save");
   }
 
-  await admin.from("audit_events").insert({
-    action: postId ? "member.blog_draft_updated" : "member.blog_draft_created",
+  await flexibleAdmin.from("audit_events" as string).insert({
+    action: postId
+      ? `${author.authorKind}.blog_draft_updated`
+      : `${author.authorKind}.blog_draft_created`,
     actor_user_id: auth.user.id,
-    entity_id: data.id,
+    entity_id: postIdResult,
     entity_type: "content_post",
     metadata: {
-      authorMemberId: member.id,
-      jnuitsId: member.jnuits_id,
+      authorAdvisorProfileId: author.advisorId,
+      authorMemberId: author.memberId,
+      jnuitsId: author.jnuitsId,
       slug,
     },
   });
 
   revalidatePath("/portal/blogs");
-  redirect(`/portal/blogs?message=draft-saved&edit=${data.id}`);
+  redirect(`/portal/blogs?message=draft-saved&edit=${postIdResult}`);
 }
 
 export async function submitMemberBlogDraft(formData: FormData) {
-  const auth = await requireAuthenticatedUser();
+  const auth = await requirePortalUser({ fallbackPath: "/portal/blogs" });
 
   if (!auth.user) {
-    redirect("/login");
+    redirect("/portal/login");
   }
 
-  const { admin, member } = await loadAuthorMember(auth.user.id);
+  const { admin, author } = await loadBlogAuthor(auth.user.id);
   const flexibleAdmin = asFlexibleClient(admin);
 
-  if (!member) {
-    redirect("/portal/blogs?error=member-required");
+  if (!author) {
+    redirect("/portal/blogs?error=author-required");
   }
 
   const parsed = submitDraftSchema.safeParse(pickFormFields(formData, ["postId"]));
@@ -181,15 +253,15 @@ export async function submitMemberBlogDraft(formData: FormData) {
   }
 
   const { postId } = parsed.data;
-  const owned = await loadOwnedDraft(admin, member.id, postId);
+  const owned = await loadOwnedDraft(admin, author, postId);
 
   if (!owned) {
     redirect("/portal/blogs?error=draft-missing");
   }
 
   const nowIso = new Date().toISOString();
-  const { error } = await admin
-    .from("content_posts")
+  const { error } = await flexibleAdmin
+    .from("content_posts" as string)
     .update({
       review_note: null,
       reviewed_at: null,
@@ -204,26 +276,29 @@ export async function submitMemberBlogDraft(formData: FormData) {
     redirect("/portal/blogs?error=draft-submit");
   }
 
-  await admin.from("audit_events").insert({
-    action: "member.blog_draft_pending_review",
+  await flexibleAdmin.from("audit_events" as string).insert({
+    action: `${author.authorKind}.blog_draft_pending_review`,
     actor_user_id: auth.user.id,
     entity_id: postId,
     entity_type: "content_post",
     metadata: {
-      authorMemberId: member.id,
-      jnuitsId: member.jnuits_id,
+      authorAdvisorProfileId: author.advisorId,
+      authorMemberId: author.memberId,
+      jnuitsId: author.jnuitsId,
     },
   });
 
-  await admin.from("membership_lifecycle_events").insert({
-    member_id: member.id,
-    event_type: "blog_draft_pending_review",
-    summary: "A member-authored blog draft entered editorial review.",
-    created_by_user_id: auth.user.id,
-    metadata: {
-      postId,
-    },
-  });
+  if (author.authorKind === "member") {
+    await admin.from("membership_lifecycle_events").insert({
+      member_id: author.memberId,
+      event_type: "blog_draft_pending_review",
+      summary: "A member-authored blog draft entered editorial review.",
+      created_by_user_id: auth.user.id,
+      metadata: {
+        postId,
+      },
+    });
+  }
 
   await flexibleAdmin.from("blog_review_events" as string).insert({
     action: "submitted_for_review",

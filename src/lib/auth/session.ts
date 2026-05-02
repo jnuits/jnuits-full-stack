@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 export type AuthContext = {
   user: null | {
     adminRole: null | string;
+    advisorProfileId: null | string;
     memberId: null | string;
     id: string;
     email: string | null;
@@ -40,6 +41,7 @@ const PORTAL_ROLES = new Set([
   "alumni",
   "executive",
   "alumni_ambassador",
+  "advisor",
 ]);
 
 export function resolveSafeNextPath(
@@ -176,9 +178,12 @@ export async function getAuthContext(): Promise<AuthContext> {
   const databaseSnapshot = needsDatabaseSnapshot
     ? await resolveDatabaseRoleSnapshot(supabase, userId)
     : null;
+  const advisorProfileId = await resolveDatabaseAdvisorProfileId(supabase, userId);
   const adminRole = claimSnapshot.adminRole || databaseSnapshot?.adminRole || null;
   const portalRole =
-    claimSnapshot.portalRole || databaseSnapshot?.portalRole || null;
+    claimSnapshot.portalRole ||
+    databaseSnapshot?.portalRole ||
+    (advisorProfileId ? "advisor" : null);
   const roles = Array.from(
     new Set(
       [
@@ -199,6 +204,7 @@ export async function getAuthContext(): Promise<AuthContext> {
   return {
     user: {
       adminRole,
+      advisorProfileId,
       memberId,
       id: userId,
       email,
@@ -271,6 +277,24 @@ async function resolveDatabaseMemberId(
     .maybeSingle();
 
   return typeof data?.id === "string" ? data.id : null;
+}
+
+async function resolveDatabaseAdvisorProfileId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+) {
+  const { data, error } = await asFlexibleClient(supabase)
+    .from("advisor_profiles" as string)
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    return null;
+  }
+
+  const record = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  return typeof record.id === "string" ? record.id : null;
 }
 
 export function isMutablePortalAccess(access: PortalAccessState) {

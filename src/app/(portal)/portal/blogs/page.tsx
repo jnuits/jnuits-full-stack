@@ -7,7 +7,7 @@ import { requirePortalUser } from "@/lib/auth/session";
 import { getPortalBlogAuthorSnapshot } from "@/lib/portal/blogs";
 import { BookOpen, FilePen, Info, SendHorizonal } from "lucide-react";
 
-export const metadata = { title: "Draft Blogs | JnUITS Member Portal" };
+export const metadata = { title: "Draft Blogs | JnUITS Portal" };
 
 const messageMap: Record<string, string> = {
   "draft-saved": "Draft saved. You can continue editing or submit it for operator review.",
@@ -19,7 +19,22 @@ const errorMap: Record<string, string> = {
   "draft-required": "Title, summary, and body are required before a blog draft can be saved.",
   "draft-save": "The draft could not be saved. Try again.",
   "draft-submit": "The draft could not be submitted for review.",
-  "member-required": "This account needs a linked member profile before authoring can be used.",
+  "author-required": "This account needs a linked member or advisor profile before authoring can be used.",
+  "member-required": "This account needs a linked member or advisor profile before authoring can be used.",
+};
+
+type PortalDraft = {
+  body: null | string;
+  category: null | string;
+  excerpt: null | string;
+  id: string;
+  read_time: null | string;
+  review_note: null | string;
+  slug: string;
+  status: string;
+  summary: null | string;
+  title: string;
+  updated_at: string;
 };
 
 function statusBadgeClass(status: string): string {
@@ -50,45 +65,55 @@ export default async function PortalBlogsPage({
       : null;
 
   const snapshot = await getPortalBlogAuthorSnapshot(auth.user.id);
+  const author = snapshot.member || snapshot.advisor;
+  const isAdvisor = snapshot.authorKind === "advisor";
+  const drafts = snapshot.drafts as PortalDraft[];
   const selectedDraft =
-    snapshot.drafts.find((d) => d.id === selectedDraftId) ||
-    snapshot.drafts[0] ||
+    drafts.find((d) => d.id === selectedDraftId) ||
+    drafts[0] ||
     null;
 
   return (
     <PortalShell
-      avatarUrl={snapshot.member?.avatar_secure_url ?? null}
-      memberName={snapshot.member?.full_name ?? null}
+      avatarUrl={snapshot.member?.avatar_secure_url ?? snapshot.advisor?.avatar_secure_url ?? null}
+      memberName={snapshot.member?.full_name ?? snapshot.advisor?.full_name ?? null}
       jnuitsId={snapshot.member?.jnuits_id ?? null}
-      portalRole={auth.user.portalRole}
+      portalRole={isAdvisor ? "advisor" : auth.user.portalRole}
     >
       {/* Page header */}
       <div className="portal-page-header">
         <div>
-          <p className="portal-page-header__breadcrumb">Member Services</p>
+          <p className="portal-page-header__breadcrumb">
+            {isAdvisor ? "Advisor Workspace" : "Member Services"}
+          </p>
           <h1 className="portal-page-header__title">Draft Blogs</h1>
           <p className="portal-page-header__desc">
-            Write and submit member blog posts for editorial review. Publication stays admin-controlled.
+            Write and submit {isAdvisor ? "advisor" : "member"} blog posts for editorial review. Publication stays admin-controlled.
           </p>
         </div>
         {snapshot.member && (
           <span className="portal-badge portal-badge--member">{snapshot.member.jnuits_id}</span>
         )}
+        {snapshot.advisor && (
+          <span className="portal-badge portal-badge--member">
+            {snapshot.advisor.advisor_type?.replaceAll("_", " ") || "advisor"}
+          </span>
+        )}
       </div>
 
-      {/* No member linked */}
-      {!snapshot.member ? (
+      {/* No author profile linked */}
+      {!author ? (
         <div className="portal-section">
           <div className="portal-section__header">
             <div className="portal-section__header-left">
               <div className="portal-section__icon"><Info size={14} /></div>
-              <p className="portal-section__title">Linked member required</p>
+              <p className="portal-section__title">Linked author profile required</p>
             </div>
           </div>
           <div className="portal-section__body">
             <p style={{ fontSize: "0.88rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
-              Blog authoring requires a connected member record. Claim your JNUITS ID or
-              ask an admin to link this account to a member profile.
+              Blog authoring requires a connected member or advisor record. Ask an admin
+              to link this account before writing drafts.
             </p>
           </div>
         </div>
@@ -272,7 +297,7 @@ export default async function PortalBlogsPage({
                   <div className="portal-info-row">
                     <span className="portal-info-row__label">Safe boundary</span>
                     <span className="portal-info-row__value" style={{ fontSize: "0.82rem", lineHeight: 1.6 }}>
-                      Members can only manage their own drafts. Publishing and moderation stay outside the portal.
+                      Authors can only manage their own drafts. Publishing and moderation stay outside the portal.
                     </span>
                   </div>
                   <div className="portal-info-row">
@@ -293,16 +318,16 @@ export default async function PortalBlogsPage({
                 <div className="portal-section__icon"><BookOpen size={14} /></div>
                 <p className="portal-section__title">Your drafts</p>
               </div>
-              <span className="portal-badge portal-badge--draft">{snapshot.drafts.length} total</span>
+              <span className="portal-badge portal-badge--draft">{drafts.length} total</span>
             </div>
             <div className="portal-section__body">
-              {snapshot.drafts.length === 0 ? (
+              {drafts.length === 0 ? (
                 <p style={{ fontSize: "0.86rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
-                  No drafts yet. Use the editor above to write and save your first member post.
+                  No drafts yet. Use the editor above to write and save your first {isAdvisor ? "advisor" : "member"} post.
                 </p>
               ) : (
                 <div style={{ display: "grid", gap: "0.65rem" }}>
-                  {snapshot.drafts.map((draft) => (
+                  {drafts.map((draft) => (
                     <div key={draft.id} className="portal-draft-card">
                       <div className="portal-draft-card__header">
                         <p className="portal-draft-card__title">{draft.title}</p>

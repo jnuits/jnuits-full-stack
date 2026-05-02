@@ -6,13 +6,16 @@ import {
 import { requirePortalUser } from "@/lib/auth/session";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
+import { getPortalAdvisorSnapshot } from "@/lib/portal/advisor";
 import { getMemberProjects } from "@/lib/content/projects";
 import { PortalShell } from "@/components/portal/portal-shell";
 import {
   BookOpen,
   FolderKanban,
+  GraduationCap,
   KeyRound,
   Link2,
+  MessageSquareHeart,
   PauseCircle,
   ShieldCheck,
   Trash2,
@@ -90,6 +93,91 @@ export async function PortalOverviewScreen({
 
   const snapshot = await getPortalMemberSnapshot(user.id);
   const member = snapshot.member;
+
+  if (!member && user.portalRole === "advisor") {
+    const advisorSnapshot = await getPortalAdvisorSnapshot(user.id);
+    const advisor = advisorSnapshot.advisor;
+
+    return (
+      <PortalShell
+        avatarUrl={advisor?.avatarSecureUrl ?? null}
+        memberName={advisor?.fullName ?? null}
+        portalRole="advisor"
+      >
+        <div className="portal-page-header">
+          <div>
+            <p className="portal-page-header__breadcrumb">Advisor Portal</p>
+            <h1 className="portal-page-header__title">
+              Welcome back{advisor ? `, ${advisor.fullName.split(" ")[0]}` : ""}
+            </h1>
+            <p className="portal-page-header__desc">
+              Your advisor workspace for maintaining profile context, public messages, publications, and blog drafts.
+            </p>
+          </div>
+          {advisor ? (
+            <span className="portal-badge portal-badge--member">
+              {advisor.advisorType.replaceAll("_", " ")}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="portal-stat-grid">
+          <div className="portal-stat-card" data-tone={advisor ? "success" : "danger"}>
+            <div className="portal-stat-card__icon"><GraduationCap size={15} /></div>
+            <p className="portal-stat-card__label">Advisor profile</p>
+            <p className="portal-stat-card__value">{advisor ? "Linked" : "Missing"}</p>
+            <p className="portal-stat-card__sub">
+              {advisor?.department || "Teacher advisor identity"}
+            </p>
+          </div>
+          <div className="portal-stat-card" data-tone={advisor?.isPublic ? "success" : "warning"}>
+            <div className="portal-stat-card__icon"><ShieldCheck size={15} /></div>
+            <p className="portal-stat-card__label">Public board</p>
+            <p className="portal-stat-card__value">{advisor?.isPublic ? "Visible" : "Private"}</p>
+            <p className="portal-stat-card__sub">Committee admin controlled</p>
+          </div>
+          <div className="portal-stat-card">
+            <div className="portal-stat-card__icon"><BookOpen size={15} /></div>
+            <p className="portal-stat-card__label">Publications</p>
+            <p className="portal-stat-card__value">{advisor?.publications.length || 0}</p>
+            <p className="portal-stat-card__sub">Profile highlights</p>
+          </div>
+          <div className="portal-stat-card" data-tone={advisor?.speech ? "success" : undefined}>
+            <div className="portal-stat-card__icon"><MessageSquareHeart size={15} /></div>
+            <p className="portal-stat-card__label">Advisor message</p>
+            <p className="portal-stat-card__value">{advisor?.speech ? "Set" : "Empty"}</p>
+            <p className="portal-stat-card__sub">Shown on public committee</p>
+          </div>
+        </div>
+
+        <div>
+          <p className="portal-page-header__breadcrumb" style={{ marginBottom: "0.75rem" }}>Quick actions</p>
+          <div className="portal-actions-grid">
+            <Link href="/portal/advisor/profile" className="portal-quick-action">
+              <div className="portal-quick-action__icon"><GraduationCap size={16} /></div>
+              <p className="portal-quick-action__title">Advisor Profile</p>
+              <p className="portal-quick-action__desc">Update your message, bio, work experience, publications, and public links.</p>
+              <span className="portal-quick-action__arrow">↗</span>
+            </Link>
+
+            <Link href="/portal/blogs" className="portal-quick-action">
+              <div className="portal-quick-action__icon"><BookOpen size={16} /></div>
+              <p className="portal-quick-action__title">Draft Blogs</p>
+              <p className="portal-quick-action__desc">Write and submit advisor blog posts for editorial review.</p>
+              <span className="portal-quick-action__arrow">↗</span>
+            </Link>
+
+            <Link href="/portal/profile/change-password" className="portal-quick-action">
+              <div className="portal-quick-action__icon"><KeyRound size={16} /></div>
+              <p className="portal-quick-action__title">Change Password</p>
+              <p className="portal-quick-action__desc">Update your login password from the shared portal account.</p>
+              <span className="portal-quick-action__arrow">↗</span>
+            </Link>
+          </div>
+        </div>
+      </PortalShell>
+    );
+  }
 
   const memberProjects = member
     ? await getMemberProjects(member.id).catch(() => [])

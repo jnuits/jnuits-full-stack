@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      advisor_profiles: {
+        Row: {
+          advisor_type: string
+          avatar_public_id: string | null
+          avatar_secure_url: string | null
+          bio: string | null
+          created_at: string
+          created_by_user_id: string | null
+          department: string | null
+          designation: string | null
+          email: string | null
+          facebook_url: string | null
+          full_name: string
+          id: string
+          is_current: boolean
+          is_public: boolean
+          joined_on: string | null
+          left_on: string | null
+          linkedin_url: string | null
+          phone: string | null
+          publications: Json
+          sort_order: number
+          speech: string | null
+          title: string | null
+          updated_at: string
+          user_id: string | null
+          website_url: string | null
+          work_experience: Json
+        }
+        Insert: {
+          advisor_type?: string
+          avatar_public_id?: string | null
+          avatar_secure_url?: string | null
+          bio?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          department?: string | null
+          designation?: string | null
+          email?: string | null
+          facebook_url?: string | null
+          full_name: string
+          id?: string
+          is_current?: boolean
+          is_public?: boolean
+          joined_on?: string | null
+          left_on?: string | null
+          linkedin_url?: string | null
+          phone?: string | null
+          publications?: Json
+          sort_order?: number
+          speech?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string | null
+          website_url?: string | null
+          work_experience?: Json
+        }
+        Update: {
+          advisor_type?: string
+          avatar_public_id?: string | null
+          avatar_secure_url?: string | null
+          bio?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          department?: string | null
+          designation?: string | null
+          email?: string | null
+          facebook_url?: string | null
+          full_name?: string
+          id?: string
+          is_current?: boolean
+          is_public?: boolean
+          joined_on?: string | null
+          left_on?: string | null
+          linkedin_url?: string | null
+          phone?: string | null
+          publications?: Json
+          sort_order?: number
+          speech?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string | null
+          website_url?: string | null
+          work_experience?: Json
+        }
+        Relationships: []
+      }
       audit_events: {
         Row: {
           action: string
@@ -213,10 +300,15 @@ export type Database = {
           display_name: string | null
           ends_on: string | null
           id: string
+          import_batch_id: string | null
+          is_public: boolean
           member_id: string | null
+          metadata: Json
+          public_title_override: string | null
           role_id: string
           rollover_source_assignment_id: string | null
           sort_order: number
+          source: string
           starts_on: string | null
           status: string
           term_id: string
@@ -229,10 +321,15 @@ export type Database = {
           display_name?: string | null
           ends_on?: string | null
           id?: string
+          import_batch_id?: string | null
+          is_public?: boolean
           member_id?: string | null
+          metadata?: Json
+          public_title_override?: string | null
           role_id: string
           rollover_source_assignment_id?: string | null
           sort_order?: number
+          source?: string
           starts_on?: string | null
           status?: string
           term_id: string
@@ -245,10 +342,15 @@ export type Database = {
           display_name?: string | null
           ends_on?: string | null
           id?: string
+          import_batch_id?: string | null
+          is_public?: boolean
           member_id?: string | null
+          metadata?: Json
+          public_title_override?: string | null
           role_id?: string
           rollover_source_assignment_id?: string | null
           sort_order?: number
+          source?: string
           starts_on?: string | null
           status?: string
           term_id?: string
@@ -287,33 +389,51 @@ export type Database = {
       }
       committee_roles: {
         Row: {
+          aliases: string[]
           code: string
           created_at: string
+          default_slots: number
           id: string
           is_executive: boolean
           is_public: boolean
+          max_slots: number
+          min_slots: number
+          role_group: string
           sort_order: number
           title: string
+          title_bn: string | null
           updated_at: string
         }
         Insert: {
+          aliases?: string[]
           code: string
           created_at?: string
+          default_slots?: number
           id?: string
           is_executive?: boolean
           is_public?: boolean
+          max_slots?: number
+          min_slots?: number
+          role_group?: string
           sort_order?: number
           title: string
+          title_bn?: string | null
           updated_at?: string
         }
         Update: {
+          aliases?: string[]
           code?: string
           created_at?: string
+          default_slots?: number
           id?: string
           is_executive?: boolean
           is_public?: boolean
+          max_slots?: number
+          min_slots?: number
+          role_group?: string
           sort_order?: number
           title?: string
+          title_bn?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -322,44 +442,68 @@ export type Database = {
         Row: {
           created_at: string
           created_by_user_id: string | null
+          date_confidence: string
           ends_on: string | null
+          election_date: string | null
           id: string
           is_public: boolean
+          is_current: boolean
           rollover_source_term_id: string | null
           slug: string
           starts_on: string
           status: string
           summary: string | null
+          target_executive_slots: number
+          tenure_note: string | null
+          term_kind: string
+          term_number: number | null
           title: string
           updated_at: string
+          voter_rule_note: string | null
         }
         Insert: {
           created_at?: string
           created_by_user_id?: string | null
+          date_confidence?: string
           ends_on?: string | null
+          election_date?: string | null
           id?: string
           is_public?: boolean
+          is_current?: boolean
           rollover_source_term_id?: string | null
           slug: string
           starts_on: string
           status?: string
           summary?: string | null
+          target_executive_slots?: number
+          tenure_note?: string | null
+          term_kind?: string
+          term_number?: number | null
           title: string
           updated_at?: string
+          voter_rule_note?: string | null
         }
         Update: {
           created_at?: string
           created_by_user_id?: string | null
+          date_confidence?: string
           ends_on?: string | null
+          election_date?: string | null
           id?: string
           is_public?: boolean
+          is_current?: boolean
           rollover_source_term_id?: string | null
           slug?: string
           starts_on?: string
           status?: string
           summary?: string | null
+          target_executive_slots?: number
+          tenure_note?: string | null
+          term_kind?: string
+          term_number?: number | null
           title?: string
           updated_at?: string
+          voter_rule_note?: string | null
         }
         Relationships: [
           {
@@ -412,6 +556,7 @@ export type Database = {
       }
       content_posts: {
         Row: {
+          author_advisor_profile_id: string | null
           author_member_id: string | null
           body: string | null
           category: string | null
@@ -441,6 +586,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          author_advisor_profile_id?: string | null
           author_member_id?: string | null
           body?: string | null
           category?: string | null
@@ -470,6 +616,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          author_advisor_profile_id?: string | null
           author_member_id?: string | null
           body?: string | null
           category?: string | null
@@ -499,6 +646,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "content_posts_author_advisor_profile_id_fkey"
+            columns: ["author_advisor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "advisor_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "content_posts_author_member_id_fkey"
             columns: ["author_member_id"]

@@ -1,139 +1,475 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { getPublicCommitteeDirectory } from "@/lib/committee/public";
+import {
+  CalendarDays,
+  ExternalLink,
+  GraduationCap,
+  UsersRound,
+} from "lucide-react";
 
-export default async function CommitteePage() {
-  const directory = await getPublicCommitteeDirectory();
+import { MemberAvatar } from "@/components/members/member-avatar";
+import {
+  getPublicCommitteeDirectory,
+  type PublicAdvisorProfile,
+  type PublicCommitteeAssignment,
+  type PublicCommitteeTerm,
+} from "@/lib/committee/public";
 
-  if (!directory.length) {
-    return (
-      <div className="shell py-12">
-        <div className="glass-card px-6 py-8 sm:px-8 sm:py-10">
-          <span className="eyebrow">Committee history</span>
-          <h1 className="section-title mt-4">
-            Committee terms are prepared, but no public roster is currently published.
-          </h1>
-          <p className="section-copy mt-4">
-            Once a term is marked public, committee roles and member assignments
-            will appear here with dedicated detail links.
-          </p>
-          <ul className="clean-list mt-8">
-            <li>Terms and assignments are now tracked separately.</li>
-            <li>Public visibility is explicit instead of implied.</li>
-            <li>Tenure history can now grow without redesigning the route.</li>
-          </ul>
-        </div>
-      </div>
-    );
+export const metadata: Metadata = {
+  title: "Executive Committee & Advisors | JnU IT Society",
+  description:
+    "Browse JnU IT Society executive committee rosters, advisor board, tenure history, and public committee archive.",
+  openGraph: {
+    title: "JnU IT Society Committee",
+    description:
+      "Executive committee and advisor board archive for Jagannath University IT Society.",
+    type: "website",
+  },
+};
+
+const ROLE_GROUPS = [
+  "president",
+  "vice-president",
+  "general-secretary",
+  "assistant-general-secretary",
+  "organizing-secretary",
+  "treasurer",
+  "office-secretary",
+  "workshop-secretary",
+  "it-secretary",
+  "publication-secretary",
+  "public-relations-secretary",
+  "education-research-secretary",
+  "international-secretary",
+  "executive-member",
+];
+
+const ADVISOR_LABELS: Record<PublicAdvisorProfile["advisorType"], string> = {
+  honorable_advisor: "Honorable Advisor",
+  main_advisor: "Main Advisor",
+  moderator_mentor: "Moderator / Mentor",
+};
+
+function FacebookIcon({
+  "aria-hidden": ariaHidden,
+  size = 15,
+}: {
+  "aria-hidden"?: boolean;
+  size?: number;
+}) {
+  return (
+    <svg
+      aria-hidden={ariaHidden ?? true}
+      fill="none"
+      focusable="false"
+      height={size}
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      <path
+        d="M14 8.2V6.9c0-.7.4-1.1 1.2-1.1H17V3h-2.6C11.5 3 10 4.7 10 7v1.2H8v3h2V21h3.2v-9.8h2.6l.4-3H13.2Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function LinkedinIcon({
+  "aria-hidden": ariaHidden,
+  size = 15,
+}: {
+  "aria-hidden"?: boolean;
+  size?: number;
+}) {
+  return (
+    <svg
+      aria-hidden={ariaHidden ?? true}
+      fill="none"
+      focusable="false"
+      height={size}
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      <path
+        d="M6.9 20H3.6V9.4h3.3V20ZM5.3 8a1.9 1.9 0 1 1 0-3.8 1.9 1.9 0 0 1 0 3.8ZM20.4 20h-3.3v-5.2c0-1.2 0-2.8-1.7-2.8s-2 1.3-2 2.7V20h-3.3V9.4h3.2v1.5h.1a3.5 3.5 0 0 1 3.1-1.7c3.4 0 4 2.2 4 5.1V20Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "Present";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function SocialLinks({
+  facebookUrl,
+  linkedinUrl,
+  name,
+  websiteUrl,
+}: {
+  facebookUrl?: null | string;
+  linkedinUrl?: null | string;
+  name: string;
+  websiteUrl?: null | string;
+}) {
+  const links = [
+    {
+      href: facebookUrl,
+      icon: FacebookIcon,
+      label: `View ${name}'s Facebook profile`,
+      title: "Facebook",
+    },
+    {
+      href: linkedinUrl,
+      icon: LinkedinIcon,
+      label: `View ${name}'s LinkedIn profile`,
+      title: "LinkedIn",
+    },
+    {
+      href: websiteUrl,
+      icon: ExternalLink,
+      label: `Visit ${name}'s website`,
+      title: "Website",
+    },
+  ].filter((link) => Boolean(link.href));
+
+  if (links.length === 0) {
+    return null;
   }
 
   return (
-    <div className="shell py-12">
-      <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">
-        <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
+    <div className="mt-5 flex justify-center gap-2">
+      {links.map((link) => {
+        const Icon = link.icon;
+
+        return (
+          <a
+            aria-label={link.label}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] text-[var(--muted-foreground)] transition hover:border-[var(--brand-blue)] hover:text-[var(--brand-blue)]"
+            href={link.href || "#"}
+            key={link.title}
+            rel="noopener noreferrer"
+            target="_blank"
+            title={link.title}
+          >
+            <Icon aria-hidden={true} size={15} />
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
+function CommitteeMemberCard({ member }: { member: PublicCommitteeAssignment }) {
+  return (
+    <article className="group flex h-full flex-col items-center rounded-[1.35rem] border border-[var(--border)] bg-[var(--card)] px-5 py-6 text-center shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
+      <MemberAvatar name={member.displayName} size={64} src={member.avatarUrl} />
+      <h3 className="mt-4 text-lg font-semibold leading-tight text-[var(--foreground)]">
+        {member.displayName}
+      </h3>
+      <p className="mt-2 rounded-full border border-[var(--brand-blue)]/20 bg-[var(--brand-blue)]/10 px-3 py-1 text-xs font-semibold text-[var(--brand-blue)]">
+        {member.roleTitle}
+      </p>
+      {member.roleTitleBn ? (
+        <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
+          {member.roleTitleBn}
+        </p>
+      ) : null}
+      {member.jnuitsId ? (
+        <Link
+          className="mt-3 text-sm font-semibold text-[var(--brand-blue)] underline-offset-4 hover:underline"
+          href={`/members/${encodeURIComponent(member.jnuitsId)}`}
+        >
+          {member.jnuitsId}
+        </Link>
+      ) : null}
+      {member.departmentName ? (
+        <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+          {member.departmentName}
+        </p>
+      ) : null}
+      {member.bio ? (
+        <p className="mt-3 line-clamp-3 text-sm leading-6 text-[var(--muted-foreground)]">
+          {member.bio}
+        </p>
+      ) : null}
+      <div className="mt-auto">
+        <SocialLinks
+          facebookUrl={member.facebookUrl}
+          linkedinUrl={member.linkedinUrl}
+          name={member.displayName}
+          websiteUrl={member.websiteUrl}
+        />
+      </div>
+    </article>
+  );
+}
+
+function AdvisorCard({ advisor }: { advisor: PublicAdvisorProfile }) {
+  const highlights = [...advisor.workExperience, ...advisor.publications].slice(0, 3);
+
+  return (
+    <article className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
+      <div className="flex items-start gap-4">
+        <MemberAvatar name={advisor.fullName} size={58} src={advisor.avatarUrl} />
+        <div className="min-w-0">
+          <h3 className="text-lg font-semibold leading-tight text-[var(--foreground)]">
+            {advisor.fullName}
+          </h3>
+          <p className="mt-1 text-sm font-semibold text-[var(--brand-blue)]">
+            {ADVISOR_LABELS[advisor.advisorType]}
+          </p>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            {[advisor.designation, advisor.department].filter(Boolean).join(" · ") ||
+              advisor.title ||
+              "Jagannath University"}
+          </p>
+        </div>
+      </div>
+      {advisor.speech ? (
+        <blockquote className="mt-5 border-l-2 border-[var(--brand-blue)]/30 pl-4 text-sm leading-7 text-[var(--muted-foreground)]">
+          {advisor.speech}
+        </blockquote>
+      ) : advisor.bio ? (
+        <p className="mt-5 text-sm leading-7 text-[var(--muted-foreground)]">
+          {advisor.bio}
+        </p>
+      ) : null}
+      {highlights.length > 0 ? (
+        <ul className="mt-4 grid gap-2 text-sm text-[var(--muted-foreground)]">
+          {highlights.map((highlight) => (
+            <li className="rounded-xl bg-[var(--muted)] px-3 py-2" key={highlight}>
+              {highlight}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+          {advisor.isCurrent ? "Current" : "Former"} · Joined {formatDate(advisor.joinedOn)}
+        </span>
+        <SocialLinks
+          facebookUrl={advisor.facebookUrl}
+          linkedinUrl={advisor.linkedinUrl}
+          name={advisor.fullName}
+          websiteUrl={advisor.websiteUrl}
+        />
+      </div>
+    </article>
+  );
+}
+
+function RoleSection({
+  assignments,
+  roleCode,
+}: {
+  assignments: PublicCommitteeAssignment[];
+  roleCode: string;
+}) {
+  const members = assignments.filter((assignment) => assignment.roleCode === roleCode);
+
+  if (members.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="grid gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+          {members[0]?.roleTitle}
+        </h2>
+        <span className="h-px flex-1 bg-[var(--border)]" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {members.map((member) => (
+          <CommitteeMemberCard key={member.id} member={member} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TermTimeline({ terms }: { terms: PublicCommitteeTerm[] }) {
+  return (
+    <section className="section-band">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="section-divider">Archive</p>
+          <h2 className="section-title mt-4">Executive committee history</h2>
+        </div>
+        <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
+          Historical terms are preserved as structured records. Estimated dates are
+          clearly marked until official records are verified.
+        </p>
+      </div>
+      <div className="mt-8 grid gap-3">
+        {terms.map((term) => (
+          <Link
+            className="group grid gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 transition hover:border-[var(--brand-blue)]/40 sm:grid-cols-[1fr_auto] sm:items-center"
+            href={`/committee/${term.slug}`}
+            key={term.id}
+          >
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-semibold text-[var(--foreground)]">{term.title}</h3>
+                {term.isCurrent ? (
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    Current
+                  </span>
+                ) : null}
+                {term.dateConfidence === "estimated" ? (
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                    Estimated dates
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                {formatDate(term.startsOn)} - {formatDate(term.endsOn)}
+              </p>
+            </div>
+            <span className="text-sm font-semibold text-[var(--brand-blue)]">
+              Open roster →
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export default async function CommitteePage() {
+  const directory = await getPublicCommitteeDirectory();
+  const currentTerm = directory.currentTerm;
+  const filledSeats = currentTerm?.assignments.length || 0;
+
+  return (
+    <main className="shell py-12">
+      <section className="glass-card overflow-hidden px-6 py-8 sm:px-8 lg:px-10">
+        <div className="grid gap-8 lg:grid-cols-[1fr_0.75fr] lg:items-end">
           <div>
-            <span className="eyebrow">Committee directory</span>
-            <h1 className="section-title mt-4">
-              Advisory and executive committee rosters
-            </h1>
-            <p className="section-copy mt-5">
-              Browse published committee terms with role assignments and direct
-              term pages for stable public access.
+            <h1 className="section-title">Executive Committee & Advisors</h1>
+            <p className="section-copy mt-5 max-w-2xl">
+              Public roster for JnU IT Society leadership, advisor board, and
+              committee history with member-linked identity records.
             </p>
           </div>
-
-          <div className="section-band">
-            <p className="section-divider">Imported terms</p>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {directory.map(({ assignments, term }) => (
-                <div key={term.id} className="route-tile">
-                  <h2>{term.title}</h2>
-                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-                    {term.starts_on}
-                    {term.ends_on ? ` to ${term.ends_on}` : " onward"}
-                  </p>
-                  <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-                    {assignments.length} public assignment
-                    {assignments.length === 1 ? "" : "s"}
-                  </p>
-                  <div className="mt-3">
-                    <Link className="queue-link" href={`/committee/${term.slug}`}>
-                      Open term page
-                    </Link>
-                  </div>
-                </div>
-              ))}
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            <div className="metric-card">
+              <UsersRound size={18} className="text-[var(--brand-blue)]" />
+              <p className="metric-card__value mt-2">{filledSeats}</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                Seats filled
+              </p>
+            </div>
+            <div className="metric-card">
+              <GraduationCap size={18} className="text-[var(--brand-blue)]" />
+              <p className="metric-card__value mt-2">{directory.advisors.length}</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                Advisors
+              </p>
+            </div>
+            <div className="metric-card">
+              <CalendarDays size={18} className="text-[var(--brand-blue)]" />
+              <p className="metric-card__value mt-2">{directory.terms.length}</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                Terms
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="mt-8 grid gap-8">
-        {directory.map(({ assignments, term }) => (
-          <section key={term.id} className="section-band">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <span className="eyebrow">{term.status}</span>
-                <h2 className="section-title mt-4">{term.title}</h2>
-                <p className="section-copy mt-4">
-                  {term.summary ||
-                    "Published committee roster for this term."}
-                </p>
-                <div className="mt-5">
-                  <Link className="secondary-button" href={`/committee/${term.slug}`}>
-                    Open term page
-                  </Link>
-                </div>
-              </div>
-              <div className="grid gap-2 text-sm text-[var(--muted-foreground)]">
-                <span className="detail-chip">Starts {term.starts_on}</span>
+      {currentTerm ? (
+        <section className="mt-8 section-band">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="section-divider">Current committee</p>
+              <h2 className="section-title mt-4">{currentTerm.title}</h2>
+              <p className="section-copy mt-4 max-w-3xl">
+                {currentTerm.summary || "Current public executive committee roster."}
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2 text-sm text-[var(--muted-foreground)]">
                 <span className="detail-chip">
-                  Ends {term.ends_on || "Open or not yet set"}
+                  Tenure {formatDate(currentTerm.startsOn)} - {formatDate(currentTerm.endsOn)}
+                </span>
+                {currentTerm.electionDate ? (
+                  <span className="detail-chip">
+                    Election {formatDate(currentTerm.electionDate)}
+                  </span>
+                ) : null}
+                <span className="detail-chip">
+                  {filledSeats}/{currentTerm.targetExecutiveSlots} executive seats
                 </span>
               </div>
             </div>
+            <Link className="secondary-button" href={`/committee/${currentTerm.slug}`}>
+              Open term page
+            </Link>
+          </div>
 
-            <div className="mt-6 grid gap-4 lg:grid-cols-2">
-              {assignments.length === 0 ? (
-                <div className="empty-state lg:col-span-2">
-                  This term exists, but no public assignments are attached yet.
-                </div>
-              ) : (
-                assignments.map((assignment) => (
-                  <article key={assignment.id} className="route-tile">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="font-[family-name:var(--font-heading)] text-[1.5rem] leading-[1.02] tracking-[-0.04em]">
-                        {assignment.displayName}
-                      </h3>
-                      <span className="status-pill">{assignment.roleTitle}</span>
-                    </div>
-                    <p className="mt-3 text-sm font-semibold text-[var(--brand-blue)]">
-                      {assignment.subtitle ||
-                        assignment.organization ||
-                        "Committee member"}
-                    </p>
-                    {assignment.bio ? (
-                      <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-                        {assignment.bio}
-                      </p>
-                    ) : null}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {assignment.jnuitsId ? (
-                        <span className="detail-chip">{assignment.jnuitsId}</span>
-                      ) : null}
-                      {assignment.startsOn ? (
-                        <span className="detail-chip">{assignment.startsOn}</span>
-                      ) : null}
-                      {assignment.endsOn ? (
-                        <span className="detail-chip">{assignment.endsOn}</span>
-                      ) : null}
-                    </div>
-                  </article>
-                ))
-              )}
+          {currentTerm.assignments.length > 0 ? (
+            <div className="mt-8 grid gap-8">
+              {ROLE_GROUPS.map((roleCode) => (
+                <RoleSection
+                  assignments={currentTerm.assignments}
+                  key={roleCode}
+                  roleCode={roleCode}
+                />
+              ))}
             </div>
-          </section>
-        ))}
+          ) : (
+            <div className="empty-state mt-8">
+              The current committee term is ready, but no public executive roster
+              has been imported yet.
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="mt-8 section-band">
+          <div className="empty-state">
+            Committee terms are prepared, but no public current committee is
+            currently published.
+          </div>
+        </section>
+      )}
+
+      <section className="mt-8 section-band">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="section-divider">Advisor board</p>
+            <h2 className="section-title mt-4">Advisors and mentor support</h2>
+          </div>
+          <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
+            Advisors are maintained separately from student/alumni members. Their
+            tenure is based on joining and leaving dates, not executive committee
+            terms.
+          </p>
+        </div>
+        {directory.advisors.length > 0 ? (
+          <div className="mt-8 grid gap-4 lg:grid-cols-2">
+            {directory.advisors.map((advisor) => (
+              <AdvisorCard advisor={advisor} key={advisor.id} />
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state mt-8">
+            Advisor profiles will appear here once published by committee admins.
+          </div>
+        )}
+      </section>
+
+      <div className="mt-8">
+        <TermTimeline terms={directory.terms} />
       </div>
-    </div>
+    </main>
   );
 }

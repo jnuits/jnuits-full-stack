@@ -142,6 +142,7 @@ export const portalNavigation: NavItem[] = [
   { href: "/portal", label: "Overview" },
   { href: "/portal/profile", label: "My Profile" },
   { href: "/portal/profile/edit", label: "Edit Profile" },
+  { href: "/portal/advisor/profile", label: "Advisor Profile" },
   { href: "/portal/blogs", label: "Draft Blogs" },
   { href: "/portal/tickets", label: "Tickets" },
   { href: "/portal/mentorship", label: "Mentorship" },
