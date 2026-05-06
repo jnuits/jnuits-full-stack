@@ -256,6 +256,11 @@ where term_id in (
 delete from public.committee_terms
 where slug in ('5th-committee', 'advisory-committee');
 
+update public.committee_terms
+set is_current = false
+where term_kind = 'executive'
+  and slug <> '6th-executive-committee';
+
 insert into public.committee_terms (
   slug,
   title,
@@ -274,11 +279,11 @@ insert into public.committee_terms (
   voter_rule_note
 )
 values
-  ('founding-executive-committee', 'Founding Executive Committee', 'Founding executive committee archive for JnU IT Society.', '2015-11-11', '2017-12-31', 'archived', true, 1, 'executive', null, false, 'estimated', 'End date is estimated and should be verified from official records.', 21, 'Historical voter records are retained as metadata only.'),
-  ('2nd-executive-committee', '2nd Executive Committee', 'Second executive committee archive for JnU IT Society.', '2017-01-01', '2019-09-16', 'archived', true, 2, 'executive', null, false, 'estimated', 'Start date is estimated and should be verified from official records.', 21, 'Historical voter records are retained as metadata only.'),
+  ('founding-executive-committee', 'Founding Executive Committee', 'Founding executive committee archive for JnU IT Society.', '2015-11-11', '2016-12-31', 'archived', true, 1, 'executive', null, false, 'estimated', 'Only the start date, 11 Nov 2015, is confirmed in current notes. End date is inferred to keep the estimated 2nd EC 2017 start non-overlapping and must be verified from official records.', 21, 'Historical voter records are retained as metadata only.'),
+  ('2nd-executive-committee', '2nd Executive Committee', 'Second executive committee archive for JnU IT Society.', '2017-01-01', '2019-09-16', 'archived', true, 2, 'executive', null, false, 'estimated', 'Source notes say the 2nd EC started in 2017 and ended on 16 Sep 2019. Stored start date uses 1 Jan 2017 until official handover records are verified.', 21, 'Historical voter records are retained as metadata only.'),
   ('3rd-executive-committee', '3rd Executive Committee', 'Third executive committee archive for JnU IT Society.', '2019-09-16', '2022-02-24', 'archived', true, 3, 'executive', null, false, 'verified', null, 21, 'Historical voter records are retained as metadata only.'),
   ('4th-executive-committee', '4th Executive Committee', 'Fourth executive committee archive for JnU IT Society.', '2022-02-24', '2023-07-16', 'archived', true, 4, 'executive', null, false, 'verified', null, 21, 'Historical voter records are retained as metadata only.'),
-  ('5th-executive-committee', '5th Executive Committee', 'Fifth executive committee archive for JnU IT Society. Roster will be bulk-imported after validation.', '2023-07-16', '2025-07-07', 'archived', true, 5, 'executive', '2023-07-15', false, 'estimated', 'Election date is estimated from legacy notes and should be verified.', 21, 'Previous executive and sub-executive voter data is metadata-only in this phase.'),
+  ('5th-executive-committee', '5th Executive Committee', 'Fifth executive committee archive for JnU IT Society. Roster will be bulk-imported after validation.', '2023-07-16', '2025-07-07', 'archived', true, 5, 'executive', '2023-07-15', false, 'estimated', 'Source notes mention both 15 Jul 2023 and 16 Jul 2023 around the 5th EC handover. Stored tenure starts 16 Jul 2023, with election date kept as 15 Jul 2023 until official records confirm the exact handover.', 21, 'Previous executive and sub-executive voter data is metadata-only in this phase.'),
   ('6th-executive-committee', '6th Executive Committee', 'Current executive committee of JnU IT Society.', '2025-07-07', null, 'active', true, 6, 'executive', '2025-07-07', true, 'verified', null, 21, 'Elected by the prior executive committee and eligible sub-executive members; voting module is out of scope.')
 on conflict (slug) do update
 set
@@ -296,6 +301,55 @@ set
   tenure_note = excluded.tenure_note,
   target_executive_slots = excluded.target_executive_slots,
   voter_rule_note = excluded.voter_rule_note;
+
+do $$
+declare
+  missing_terms text[];
+begin
+  select array_agg(expected.slug order by expected.term_number)
+  into missing_terms
+  from (
+    values
+      (1, 'founding-executive-committee'),
+      (2, '2nd-executive-committee'),
+      (3, '3rd-executive-committee'),
+      (4, '4th-executive-committee'),
+      (5, '5th-executive-committee'),
+      (6, '6th-executive-committee')
+  ) as expected(term_number, slug)
+  left join public.committee_terms as terms
+    on terms.slug = expected.slug
+   and terms.term_number = expected.term_number
+   and terms.term_kind = 'executive'
+  where terms.id is null;
+
+  if missing_terms is not null then
+    raise exception 'Committee tenure seed missing expected executive terms: %', missing_terms;
+  end if;
+
+  if (
+    select count(*)
+    from public.committee_terms
+    where term_kind = 'executive'
+      and is_current = true
+  ) <> 1 then
+    raise exception 'Committee tenure seed must leave exactly one current executive committee.';
+  end if;
+
+  if not exists (
+    select 1
+    from public.committee_terms
+    where slug = '6th-executive-committee'
+      and is_current = true
+      and status = 'active'
+      and starts_on = date '2025-07-07'
+      and election_date = date '2025-07-07'
+      and ends_on is null
+  ) then
+    raise exception '6th Executive Committee tenure seed is not current/open-ended as expected.';
+  end if;
+end
+$$;
 
 alter table public.advisor_profiles enable row level security;
 
