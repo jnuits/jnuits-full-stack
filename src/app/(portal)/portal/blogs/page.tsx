@@ -96,7 +96,9 @@ export default async function PortalBlogsPage({
         )}
         {snapshot.advisor && (
           <span className="portal-badge portal-badge--member">
-            {snapshot.advisor.advisor_type?.replaceAll("_", " ") || "advisor"}
+            {snapshot.advisor.advisor_jnuits_id ||
+              snapshot.advisor.advisor_type?.replaceAll("_", " ") ||
+              "advisor"}
           </span>
         )}
       </div>

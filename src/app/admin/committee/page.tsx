@@ -13,7 +13,10 @@ import {
   ADMIN_FLASH_COOKIE_NAME,
   parseAdminFlash,
 } from "@/lib/admin/flash";
-import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
+import {
+  formatAdvisorJnuitsIdForDisplay,
+  formatMembershipIdForDisplay,
+} from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
@@ -88,17 +91,21 @@ type AssignmentRecord = {
 };
 
 type AdvisorRecord = {
+  advisor_jnuits_id?: null | string;
   advisor_type: string;
   avatar_secure_url?: null | string;
   bio?: null | string;
+  date_confidence?: null | string;
   department?: null | string;
   designation?: null | string;
   email?: null | string;
   facebook_url?: null | string;
+  former_title?: null | string;
   full_name: string;
   id: string;
   is_current?: boolean | null;
   is_public?: boolean | null;
+  jnu_profile_url?: null | string;
   joined_on?: null | string;
   left_on?: null | string;
   linkedin_url?: null | string;
@@ -106,6 +113,8 @@ type AdvisorRecord = {
   publications?: unknown;
   sort_order?: number | null;
   speech?: null | string;
+  status_note?: null | string;
+  tenure_display?: null | string;
   title?: null | string;
   user_id?: null | string;
   website_url?: null | string;
@@ -206,15 +215,24 @@ async function loadAssignments(
 async function loadAdvisors(
   flexibleAdmin: ReturnType<typeof asFlexibleClient>
 ): Promise<AdvisorRecord[]> {
-  const result = await flexibleAdmin
+  const extended = await flexibleAdmin
+    .from("advisor_profiles" as string)
+    .select(
+      "id, user_id, advisor_jnuits_id, advisor_type, full_name, title, former_title, department, designation, email, phone, avatar_secure_url, speech, bio, work_experience, publications, facebook_url, linkedin_url, website_url, jnu_profile_url, joined_on, left_on, tenure_display, date_confidence, status_note, is_current, is_public, sort_order"
+    )
+    .order("sort_order", { ascending: true });
+
+  if (!extended.error) return (extended.data || []) as AdvisorRecord[];
+
+  const base = await flexibleAdmin
     .from("advisor_profiles" as string)
     .select(
       "id, user_id, advisor_type, full_name, title, department, designation, email, phone, avatar_secure_url, speech, bio, work_experience, publications, facebook_url, linkedin_url, website_url, joined_on, left_on, is_current, is_public, sort_order"
     )
     .order("sort_order", { ascending: true });
 
-  if (result.error) return [];
-  return (result.data || []) as AdvisorRecord[];
+  if (base.error) return [];
+  return (base.data || []) as AdvisorRecord[];
 }
 
 function mapTerm(term: TermRecord, assignmentCount: number): CommitteeTermClientRecord {
@@ -284,17 +302,21 @@ function mapAssignment(assignment: AssignmentRecord): CommitteeAssignmentClientR
 
 function mapAdvisor(advisor: AdvisorRecord): AdvisorProfileClientRecord {
   return {
+    advisorJnuitsId: formatAdvisorJnuitsIdForDisplay(advisor.advisor_jnuits_id) || null,
     advisorType: advisor.advisor_type,
     avatarSecureUrl: advisor.avatar_secure_url || null,
     bio: advisor.bio || null,
+    dateConfidence: advisor.date_confidence || "verified",
     department: advisor.department || null,
     designation: advisor.designation || null,
     email: advisor.email || null,
     facebookUrl: advisor.facebook_url || null,
+    formerTitle: advisor.former_title || null,
     fullName: advisor.full_name,
     id: advisor.id,
     isCurrent: advisor.is_current ?? true,
     isPublic: advisor.is_public ?? true,
+    jnuProfileUrl: advisor.jnu_profile_url || null,
     joinedOn: advisor.joined_on || null,
     leftOn: advisor.left_on || null,
     linkedinUrl: advisor.linkedin_url || null,
@@ -302,6 +324,8 @@ function mapAdvisor(advisor: AdvisorRecord): AdvisorProfileClientRecord {
     publications: asStringList(advisor.publications),
     sortOrder: advisor.sort_order || 100,
     speech: advisor.speech || null,
+    statusNote: advisor.status_note || null,
+    tenureDisplay: advisor.tenure_display || null,
     title: advisor.title || null,
     userId: advisor.user_id || null,
     websiteUrl: advisor.website_url || null,

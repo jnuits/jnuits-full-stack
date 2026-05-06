@@ -1,5 +1,6 @@
 import "server-only";
 
+import { formatAdvisorJnuitsIdForDisplay } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
@@ -12,6 +13,7 @@ type PortalBlogAuthorMember = {
 };
 
 type PortalBlogAuthorAdvisor = {
+  advisor_jnuits_id?: string | null;
   advisor_type?: string | null;
   avatar_secure_url?: string | null;
   department?: string | null;
@@ -50,12 +52,14 @@ export async function getPortalBlogAuthorSnapshot(userId: string) {
 
   const { data: advisor } = await flexibleAdmin
     .from("advisor_profiles" as string)
-    .select("id, full_name, advisor_type, department, avatar_secure_url")
+    .select("id, full_name, advisor_jnuits_id, advisor_type, department, avatar_secure_url")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (advisor && typeof advisor === "object") {
     const advisorRecord = advisor as PortalBlogAuthorAdvisor;
+    advisorRecord.advisor_jnuits_id =
+      formatAdvisorJnuitsIdForDisplay(advisorRecord.advisor_jnuits_id) || null;
     const { data: posts } = await flexibleAdmin
       .from("content_posts" as string)
       .select(

@@ -17,19 +17,23 @@ export type Database = {
       advisor_profiles: {
         Row: {
           advisor_type: string
+          advisor_jnuits_id: string | null
           avatar_public_id: string | null
           avatar_secure_url: string | null
           bio: string | null
           created_at: string
           created_by_user_id: string | null
+          date_confidence: string
           department: string | null
           designation: string | null
           email: string | null
           facebook_url: string | null
+          former_title: string | null
           full_name: string
           id: string
           is_current: boolean
           is_public: boolean
+          jnu_profile_url: string | null
           joined_on: string | null
           left_on: string | null
           linkedin_url: string | null
@@ -37,6 +41,8 @@ export type Database = {
           publications: Json
           sort_order: number
           speech: string | null
+          status_note: string | null
+          tenure_display: string | null
           title: string | null
           updated_at: string
           user_id: string | null
@@ -45,19 +51,23 @@ export type Database = {
         }
         Insert: {
           advisor_type?: string
+          advisor_jnuits_id?: string | null
           avatar_public_id?: string | null
           avatar_secure_url?: string | null
           bio?: string | null
           created_at?: string
           created_by_user_id?: string | null
+          date_confidence?: string
           department?: string | null
           designation?: string | null
           email?: string | null
           facebook_url?: string | null
+          former_title?: string | null
           full_name: string
           id?: string
           is_current?: boolean
           is_public?: boolean
+          jnu_profile_url?: string | null
           joined_on?: string | null
           left_on?: string | null
           linkedin_url?: string | null
@@ -65,6 +75,8 @@ export type Database = {
           publications?: Json
           sort_order?: number
           speech?: string | null
+          status_note?: string | null
+          tenure_display?: string | null
           title?: string | null
           updated_at?: string
           user_id?: string | null
@@ -73,19 +85,23 @@ export type Database = {
         }
         Update: {
           advisor_type?: string
+          advisor_jnuits_id?: string | null
           avatar_public_id?: string | null
           avatar_secure_url?: string | null
           bio?: string | null
           created_at?: string
           created_by_user_id?: string | null
+          date_confidence?: string
           department?: string | null
           designation?: string | null
           email?: string | null
           facebook_url?: string | null
+          former_title?: string | null
           full_name?: string
           id?: string
           is_current?: boolean
           is_public?: boolean
+          jnu_profile_url?: string | null
           joined_on?: string | null
           left_on?: string | null
           linkedin_url?: string | null
@@ -93,6 +109,8 @@ export type Database = {
           publications?: Json
           sort_order?: number
           speech?: string | null
+          status_note?: string | null
+          tenure_display?: string | null
           title?: string | null
           updated_at?: string
           user_id?: string | null

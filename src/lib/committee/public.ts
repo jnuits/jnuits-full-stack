@@ -1,7 +1,10 @@
 import { cache } from "react";
 
 import type { Tables } from "@/lib/db/types";
-import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
+import {
+  formatAdvisorJnuitsIdForDisplay,
+  formatMembershipIdForDisplay,
+} from "@/lib/members/jnuits-id";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
 
@@ -54,22 +57,28 @@ type CommitteeAssignmentRecord = Pick<
 type AdvisorProfileRecord = Pick<
   Tables<"advisor_profiles">,
   | "advisor_type"
+  | "advisor_jnuits_id"
   | "avatar_secure_url"
   | "bio"
+  | "date_confidence"
   | "department"
   | "designation"
   | "email"
   | "facebook_url"
+  | "former_title"
   | "full_name"
   | "id"
   | "is_current"
   | "is_public"
+  | "jnu_profile_url"
   | "joined_on"
   | "left_on"
   | "linkedin_url"
   | "publications"
   | "sort_order"
   | "speech"
+  | "status_note"
+  | "tenure_display"
   | "title"
   | "website_url"
   | "work_experience"
@@ -114,22 +123,28 @@ export type PublicCommitteeTerm = {
 };
 
 export type PublicAdvisorProfile = {
+  advisorJnuitsId: string | null;
   advisorType: "honorable_advisor" | "main_advisor" | "moderator_mentor";
   avatarUrl: string | null;
   bio: string | null;
+  dateConfidence: "estimated" | "verified";
   department: string | null;
   designation: string | null;
   email: string | null;
   facebookUrl: string | null;
+  formerTitle: string | null;
   fullName: string;
   id: string;
   isCurrent: boolean;
+  jnuProfileUrl: string | null;
   joinedOn: string | null;
   leftOn: string | null;
   linkedinUrl: string | null;
   publications: string[];
   sortOrder: number;
   speech: string | null;
+  statusNote: string | null;
+  tenureDisplay: string | null;
   title: string | null;
   websiteUrl: string | null;
   workExperience: string[];
@@ -302,37 +317,56 @@ async function loadAssignments(termIds: string[]) {
 async function loadAdvisors() {
   const supabase = await createClient();
   const flexible = asFlexibleClient(supabase);
-  const result = await flexible
+  const extendedSelect =
+    "id, advisor_jnuits_id, advisor_type, full_name, title, former_title, department, designation, email, avatar_secure_url, speech, bio, work_experience, publications, facebook_url, linkedin_url, website_url, jnu_profile_url, joined_on, left_on, tenure_display, date_confidence, status_note, is_current, is_public, sort_order";
+  const baseSelect =
+    "id, advisor_type, full_name, title, department, designation, email, avatar_secure_url, speech, bio, work_experience, publications, facebook_url, linkedin_url, website_url, joined_on, left_on, is_current, is_public, sort_order";
+
+  const extended = await flexible
     .from("advisor_profiles" as string)
-    .select(
-      "id, advisor_type, full_name, title, department, designation, email, avatar_secure_url, speech, bio, work_experience, publications, facebook_url, linkedin_url, website_url, joined_on, left_on, is_current, is_public, sort_order"
-    )
+    .select(extendedSelect)
     .eq("is_public", true)
     .order("sort_order", { ascending: true })
     .order("full_name", { ascending: true })
     .limit(32);
 
+  const result = !extended.error
+    ? extended
+    : await flexible
+        .from("advisor_profiles" as string)
+        .select(baseSelect)
+        .eq("is_public", true)
+        .order("sort_order", { ascending: true })
+        .order("full_name", { ascending: true })
+        .limit(32);
+
   if (result.error) {
     return [] as PublicAdvisorProfile[];
   }
 
-  return ((result.data || []) as AdvisorProfileRecord[]).map((advisor) => ({
+  return ((result.data || []) as AdvisorProfileRecord[]).map((advisor): PublicAdvisorProfile => ({
+    advisorJnuitsId: formatAdvisorJnuitsIdForDisplay(advisor.advisor_jnuits_id),
     advisorType: asAdvisorType(advisor.advisor_type),
     avatarUrl: advisor.avatar_secure_url,
     bio: advisor.bio,
+    dateConfidence: advisor.date_confidence === "estimated" ? "estimated" : "verified",
     department: advisor.department,
     designation: advisor.designation,
     email: advisor.email,
     facebookUrl: advisor.facebook_url,
+    formerTitle: advisor.former_title || null,
     fullName: advisor.full_name,
     id: advisor.id,
     isCurrent: advisor.is_current,
+    jnuProfileUrl: advisor.jnu_profile_url || null,
     joinedOn: advisor.joined_on,
     leftOn: advisor.left_on,
     linkedinUrl: advisor.linkedin_url,
     publications: asStringList(advisor.publications),
     sortOrder: advisor.sort_order,
     speech: advisor.speech,
+    statusNote: advisor.status_note || null,
+    tenureDisplay: advisor.tenure_display || null,
     title: advisor.title,
     websiteUrl: advisor.website_url,
     workExperience: asStringList(advisor.work_experience),

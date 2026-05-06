@@ -96,17 +96,21 @@ export type CommitteeMemberOption = {
 };
 
 export type AdvisorProfileClientRecord = {
+  advisorJnuitsId: null | string;
   advisorType: string;
   avatarSecureUrl: null | string;
   bio: null | string;
+  dateConfidence: string;
   department: null | string;
   designation: null | string;
   email: null | string;
   facebookUrl: null | string;
+  formerTitle: null | string;
   fullName: string;
   id: string;
   isCurrent: boolean;
   isPublic: boolean;
+  jnuProfileUrl: null | string;
   joinedOn: null | string;
   leftOn: null | string;
   linkedinUrl: null | string;
@@ -114,6 +118,8 @@ export type AdvisorProfileClientRecord = {
   publications: string[];
   sortOrder: number;
   speech: null | string;
+  statusNote: null | string;
+  tenureDisplay: null | string;
   title: null | string;
   userId: null | string;
   websiteUrl: null | string;
@@ -280,6 +286,8 @@ export function CommitteeWorkspaceClient({
   const [selectedTermId, setSelectedTermId] = useState<string | null>(terms[0]?.id ?? null);
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
   const [editingAdvisorId, setEditingAdvisorId] = useState<string | null>(null);
+  const [advisorSearch, setAdvisorSearch] = useState("");
+  const [advisorTypeFilter, setAdvisorTypeFilter] = useState("");
   const [termFormId, setTermFormId] = useState<string | null>(terms[0]?.id ?? null);
   const [showNewAssignment, setShowNewAssignment] = useState(false);
   const [showNewAdvisor, setShowNewAdvisor] = useState(false);
@@ -308,6 +316,33 @@ export function CommitteeWorkspaceClient({
 
   const selectedAssignment =
     assignments.find((assignment) => assignment.id === editingAssignmentId) || null;
+  const advisorTypeOptions = useMemo(
+    () => Array.from(new Set(advisors.map((advisor) => advisor.advisorType))).sort(),
+    [advisors]
+  );
+  const filteredAdvisors = useMemo(() => {
+    const needle = advisorSearch.trim().toLowerCase();
+    return advisors.filter((advisor) => {
+      if (advisorTypeFilter && advisor.advisorType !== advisorTypeFilter) {
+        return false;
+      }
+
+      if (!needle) {
+        return true;
+      }
+
+      return [
+        advisor.fullName,
+        advisor.advisorJnuitsId,
+        advisor.email,
+        advisor.department,
+        advisor.designation,
+        advisor.title,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle));
+    });
+  }, [advisorSearch, advisorTypeFilter, advisors]);
   const selectedAdvisor = advisors.find((advisor) => advisor.id === editingAdvisorId) || null;
   const selectedTermForForm = terms.find((term) => term.id === termFormId) || null;
   const validationMessages = validateSeatCounts(currentTerm, roles, assignments);
@@ -750,11 +785,49 @@ export function CommitteeWorkspaceClient({
           </button>
         </div>
 
+        <div className="membership-toolbar">
+          <div className="membership-toolbar__search">
+            <Search aria-hidden={true} size={14} />
+            <input
+              onChange={(event) => setAdvisorSearch(event.target.value)}
+              placeholder="Search advisor by name, ID, email, or department"
+              type="search"
+              value={advisorSearch}
+            />
+          </div>
+          <select
+            aria-label="Filter advisors by type"
+            onChange={(event) => setAdvisorTypeFilter(event.target.value)}
+            value={advisorTypeFilter}
+          >
+            <option value="">All advisor types</option>
+            {advisorTypeOptions.map((advisorType) => (
+              <option key={advisorType} value={advisorType}>
+                {humanize(advisorType)}
+              </option>
+            ))}
+          </select>
+          <button
+            className="ghost-button"
+            onClick={() => {
+              setAdvisorSearch("");
+              setAdvisorTypeFilter("");
+            }}
+            type="button"
+          >
+            Clear filters
+          </button>
+          <span className="membership-toolbar__count">
+            Showing {filteredAdvisors.length} of {advisors.length} advisors
+          </span>
+        </div>
+
         <div className="membership-table-shell">
           <table className="membership-table">
             <thead>
               <tr>
                 <th>Advisor</th>
+                <th>Advisor ID</th>
                 <th>Type</th>
                 <th>Department</th>
                 <th>Serving</th>
@@ -763,7 +836,7 @@ export function CommitteeWorkspaceClient({
               </tr>
             </thead>
             <tbody>
-              {advisors.map((advisor) => (
+              {filteredAdvisors.map((advisor) => (
                 <tr
                   className="membership-table-row"
                   data-editing={editingAdvisorId === advisor.id ? "true" : "false"}
@@ -780,10 +853,11 @@ export function CommitteeWorkspaceClient({
                       </span>
                       <div>
                         <strong>{advisor.title ? `${advisor.title} ${advisor.fullName}` : advisor.fullName}</strong>
-                        <small>{advisor.email || advisor.designation || "Teacher advisor"}</small>
+                        <small>{[advisor.advisorJnuitsId, advisor.email || advisor.designation || "Teacher advisor"].filter(Boolean).join(" · ")}</small>
                       </div>
                     </div>
                   </td>
+                  <td>{advisor.advisorJnuitsId || "Auto assigned"}</td>
                   <td>{humanize(advisor.advisorType)}</td>
                   <td>{advisor.department || "Not set"}</td>
                   <td><Badge kind="lifecycle" value={advisor.isCurrent ? "current" : "former"} /></td>
@@ -805,6 +879,11 @@ export function CommitteeWorkspaceClient({
             description="Create advisor profiles for the main advisor, moderator/mentor, and honorable advisors."
             title="No advisor profiles yet"
           />
+        ) : filteredAdvisors.length === 0 ? (
+          <EmptyPanel
+            description="Clear the advisor filters or search another advisor identity."
+            title="No advisors match this view"
+          />
         ) : null}
 
         {selectedAdvisor || showNewAdvisor ? (
@@ -821,6 +900,10 @@ export function CommitteeWorkspaceClient({
             <form action={saveAdvisorProfile}>
               <div className="membership-inline-editor__body">
                 <input name="advisorId" type="hidden" value={selectedAdvisor?.id || ""} />
+                <label>
+                  Advisor JnUITS ID
+                  <input name="advisorJnuitsId" defaultValue={selectedAdvisor?.advisorJnuitsId || ""} placeholder="Auto assigned, e.g. JNUITS-CA0001" />
+                </label>
                 <label>
                   Full name
                   <input name="fullName" defaultValue={selectedAdvisor?.fullName || ""} required />
@@ -840,6 +923,10 @@ export function CommitteeWorkspaceClient({
                 <label>
                   Title
                   <input name="title" defaultValue={selectedAdvisor?.title || ""} placeholder="Dr., Professor..." />
+                </label>
+                <label>
+                  Former title
+                  <input name="formerTitle" defaultValue={selectedAdvisor?.formerTitle || ""} placeholder="Former Chief Advisor / Main Advisor" />
                 </label>
                 <label>
                   Department
@@ -864,6 +951,17 @@ export function CommitteeWorkspaceClient({
                 <label>
                   Left on
                   <input name="leftOn" defaultValue={selectedAdvisor?.leftOn || ""} type="date" />
+                </label>
+                <label>
+                  Tenure display
+                  <input name="tenureDisplay" defaultValue={selectedAdvisor?.tenureDisplay || ""} placeholder="2015 - 2025" />
+                </label>
+                <label>
+                  Date confidence
+                  <select name="dateConfidence" defaultValue={selectedAdvisor?.dateConfidence || "verified"}>
+                    <option value="verified">Verified</option>
+                    <option value="estimated">Estimated</option>
+                  </select>
                 </label>
                 <label>
                   Current
@@ -892,6 +990,10 @@ export function CommitteeWorkspaceClient({
                   <input name="websiteUrl" defaultValue={selectedAdvisor?.websiteUrl || ""} />
                 </label>
                 <label>
+                  JnU profile URL
+                  <input name="jnuProfileUrl" defaultValue={selectedAdvisor?.jnuProfileUrl || ""} placeholder="https://profile.jnu.ac.bd/..." />
+                </label>
+                <label>
                   Avatar URL
                   <input name="avatarSecureUrl" defaultValue={selectedAdvisor?.avatarSecureUrl || ""} />
                 </label>
@@ -902,6 +1004,10 @@ export function CommitteeWorkspaceClient({
                 <label className="membership-inline-editor__wide">
                   Speech / message
                   <textarea name="speech" defaultValue={selectedAdvisor?.speech || ""} rows={4} />
+                </label>
+                <label className="membership-inline-editor__wide">
+                  Status note
+                  <textarea name="statusNote" defaultValue={selectedAdvisor?.statusNote || ""} placeholder="Resignation, acting appointment, current role, or historical note." rows={3} />
                 </label>
                 <label>
                   Bio

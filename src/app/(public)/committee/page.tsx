@@ -46,9 +46,15 @@ const ROLE_GROUPS = [
 
 const ADVISOR_LABELS: Record<PublicAdvisorProfile["advisorType"], string> = {
   honorable_advisor: "Honorable Advisor",
-  main_advisor: "Main Advisor",
+  main_advisor: "Chief Advisor / Main Advisor",
   moderator_mentor: "Moderator / Mentor",
 };
+
+const ADVISOR_ORDER: PublicAdvisorProfile["advisorType"][] = [
+  "main_advisor",
+  "moderator_mentor",
+  "honorable_advisor",
+];
 
 function FacebookIcon({
   "aria-hidden": ariaHidden,
@@ -111,11 +117,13 @@ function formatDate(value: string | null) {
 }
 
 function SocialLinks({
+  className = "mt-5 flex justify-center gap-2",
   facebookUrl,
   linkedinUrl,
   name,
   websiteUrl,
 }: {
+  className?: string;
   facebookUrl?: null | string;
   linkedinUrl?: null | string;
   name: string;
@@ -147,7 +155,7 @@ function SocialLinks({
   }
 
   return (
-    <div className="mt-5 flex justify-center gap-2">
+    <div className={className}>
       {links.map((link) => {
         const Icon = link.icon;
 
@@ -216,6 +224,12 @@ function CommitteeMemberCard({ member }: { member: PublicCommitteeAssignment }) 
 
 function AdvisorCard({ advisor }: { advisor: PublicAdvisorProfile }) {
   const highlights = [...advisor.workExperience, ...advisor.publications].slice(0, 3);
+  const displayName = [advisor.title, advisor.fullName].filter(Boolean).join(" ");
+  const advisorTitle = advisor.isCurrent
+    ? ADVISOR_LABELS[advisor.advisorType]
+    : advisor.formerTitle || `Former ${ADVISOR_LABELS[advisor.advisorType]}`;
+  const tenure = advisor.tenureDisplay ||
+    `${formatDate(advisor.joinedOn)} - ${formatDate(advisor.leftOn)}`;
 
   return (
     <article className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
@@ -223,11 +237,16 @@ function AdvisorCard({ advisor }: { advisor: PublicAdvisorProfile }) {
         <MemberAvatar name={advisor.fullName} size={58} src={advisor.avatarUrl} />
         <div className="min-w-0">
           <h3 className="text-lg font-semibold leading-tight text-[var(--foreground)]">
-            {advisor.fullName}
+            {displayName}
           </h3>
           <p className="mt-1 text-sm font-semibold text-[var(--brand-blue)]">
-            {ADVISOR_LABELS[advisor.advisorType]}
+            {advisorTitle}
           </p>
+          {advisor.advisorJnuitsId ? (
+            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+              {advisor.advisorJnuitsId}
+            </p>
+          ) : null}
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">
             {[advisor.designation, advisor.department].filter(Boolean).join(" · ") ||
               advisor.title ||
@@ -244,6 +263,11 @@ function AdvisorCard({ advisor }: { advisor: PublicAdvisorProfile }) {
           {advisor.bio}
         </p>
       ) : null}
+      {advisor.statusNote ? (
+        <p className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--muted)] px-3 py-2 text-sm leading-6 text-[var(--muted-foreground)]">
+          {advisor.statusNote}
+        </p>
+      ) : null}
       {highlights.length > 0 ? (
         <ul className="mt-4 grid gap-2 text-sm text-[var(--muted-foreground)]">
           {highlights.map((highlight) => (
@@ -255,16 +279,61 @@ function AdvisorCard({ advisor }: { advisor: PublicAdvisorProfile }) {
       ) : null}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-          {advisor.isCurrent ? "Current" : "Former"} · Joined {formatDate(advisor.joinedOn)}
+          {advisor.isCurrent ? "Current" : "Former"} · {tenure}
+          {advisor.dateConfidence === "estimated" ? " · Estimated" : ""}
         </span>
-        <SocialLinks
-          facebookUrl={advisor.facebookUrl}
-          linkedinUrl={advisor.linkedinUrl}
-          name={advisor.fullName}
-          websiteUrl={advisor.websiteUrl}
-        />
+        <div className="flex flex-wrap justify-end gap-2">
+          {advisor.jnuProfileUrl ? (
+            <a
+              aria-label={`Open ${displayName}'s JnU profile`}
+              className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] px-3 text-xs font-semibold text-[var(--muted-foreground)] transition hover:border-[var(--brand-blue)] hover:text-[var(--brand-blue)]"
+              href={advisor.jnuProfileUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+              title="JnU profile"
+            >
+              <ExternalLink aria-hidden={true} size={14} />
+              JnU Profile
+            </a>
+          ) : null}
+          <SocialLinks
+            className="flex justify-end gap-2"
+            facebookUrl={advisor.facebookUrl}
+            linkedinUrl={advisor.linkedinUrl}
+            name={displayName}
+            websiteUrl={advisor.websiteUrl}
+          />
+        </div>
       </div>
     </article>
+  );
+}
+
+function AdvisorGroup({
+  advisors,
+  title,
+}: {
+  advisors: PublicAdvisorProfile[];
+  title: string;
+}) {
+  if (advisors.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="grid gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+          {title}
+        </h3>
+        <span className="h-px flex-1 bg-[var(--border)]" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {advisors.map((advisor) => (
+          <AdvisorCard advisor={advisor} key={advisor.id} />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -350,6 +419,8 @@ export default async function CommitteePage() {
   const directory = await getPublicCommitteeDirectory();
   const currentTerm = directory.currentTerm;
   const filledSeats = currentTerm?.assignments.length || 0;
+  const currentAdvisors = directory.advisors.filter((advisor) => advisor.isCurrent);
+  const formerAdvisors = directory.advisors.filter((advisor) => !advisor.isCurrent);
 
   return (
     <main className="shell py-12">
@@ -455,9 +526,15 @@ export default async function CommitteePage() {
           </p>
         </div>
         {directory.advisors.length > 0 ? (
-          <div className="mt-8 grid gap-4 lg:grid-cols-2">
-            {directory.advisors.map((advisor) => (
-              <AdvisorCard advisor={advisor} key={advisor.id} />
+          <div className="mt-8 grid gap-8">
+            {ADVISOR_ORDER.map((advisorType) => (
+              <AdvisorGroup
+                advisors={currentAdvisors.filter(
+                  (advisor) => advisor.advisorType === advisorType
+                )}
+                key={advisorType}
+                title={ADVISOR_LABELS[advisorType]}
+              />
             ))}
           </div>
         ) : (
@@ -466,6 +543,32 @@ export default async function CommitteePage() {
           </div>
         )}
       </section>
+
+      {formerAdvisors.length > 0 ? (
+        <section className="mt-8 section-band">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="section-divider">Former advisors</p>
+              <h2 className="section-title mt-4">Advisor history</h2>
+            </div>
+            <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
+              Former Chief Advisors, Moderators/Mentors, and Honorable Advisors
+              are preserved separately from executive committee terms.
+            </p>
+          </div>
+          <div className="mt-8 grid gap-8">
+            {ADVISOR_ORDER.map((advisorType) => (
+              <AdvisorGroup
+                advisors={formerAdvisors.filter(
+                  (advisor) => advisor.advisorType === advisorType
+                )}
+                key={advisorType}
+                title={`Former ${ADVISOR_LABELS[advisorType]}`}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className="mt-8">
         <TermTimeline terms={directory.terms} />

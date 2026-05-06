@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
+import { normalizeAdvisorJnuitsId } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function asString(value: FormDataEntryValue | null) {
@@ -23,6 +24,16 @@ const committeeTermKindSchema = z.enum(["executive", "advisor_board"]).optional(
 const dateConfidenceSchema = z.enum(["verified", "estimated"]).optional().default("verified");
 const committeeAssignmentStatusSchema = z.enum(["planned", "active", "completed"]);
 const advisorTypeSchema = z.enum(["main_advisor", "moderator_mentor", "honorable_advisor"]);
+const advisorJnuitsIdSchema = z
+  .string()
+  .trim()
+  .max(20)
+  .optional()
+  .default("")
+  .refine((value) => !value || Boolean(normalizeAdvisorJnuitsId(value)), {
+    message: "Advisor ID must use JNUITS-CA0001, JNUITS-MOD0001, or JNUITS-RA0001 format.",
+  })
+  .transform((value) => normalizeAdvisorJnuitsId(value) || "");
 
 const committeeTermSchema = z.object({
   dateConfidence: dateConfidenceSchema,
@@ -65,16 +76,20 @@ const committeeAssignmentSchema = z
 
 const advisorProfileSchema = z.object({
   advisorId: z.string().trim().max(80).optional().default(""),
+  advisorJnuitsId: advisorJnuitsIdSchema,
   advisorType: advisorTypeSchema,
   avatarSecureUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
   bio: z.string().trim().max(5000).optional().default(""),
+  dateConfidence: dateConfidenceSchema,
   department: z.string().trim().max(180).optional().default(""),
   designation: z.string().trim().max(180).optional().default(""),
   email: z.string().trim().email().or(z.literal("")).optional().default(""),
   facebookUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
+  formerTitle: z.string().trim().max(180).optional().default(""),
   fullName: z.string().trim().min(1, "Advisor name is required.").max(180),
   isCurrent: booleanStringSchema,
   isPublic: booleanStringSchema,
+  jnuProfileUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
   joinedOn: z.string().trim().max(40).optional().default(""),
   leftOn: z.string().trim().max(40).optional().default(""),
   linkedinUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
@@ -82,6 +97,8 @@ const advisorProfileSchema = z.object({
   publications: z.string().trim().max(6000).optional().default(""),
   sortOrder: z.coerce.number().int().min(0).max(9999).optional().default(100),
   speech: z.string().trim().max(5000).optional().default(""),
+  statusNote: z.string().trim().max(1200).optional().default(""),
+  tenureDisplay: z.string().trim().max(180).optional().default(""),
   title: z.string().trim().max(80).optional().default(""),
   userId: z.string().trim().max(80).optional().default(""),
   websiteUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
@@ -477,16 +494,20 @@ export async function saveAdvisorProfile(formData: FormData) {
   const parsed = advisorProfileSchema.safeParse(
     pickFormFields(formData, [
       "advisorId",
+      "advisorJnuitsId",
       "advisorType",
       "avatarSecureUrl",
       "bio",
+      "dateConfidence",
       "department",
       "designation",
       "email",
       "facebookUrl",
+      "formerTitle",
       "fullName",
       "isCurrent",
       "isPublic",
+      "jnuProfileUrl",
       "joinedOn",
       "leftOn",
       "linkedinUrl",
@@ -494,6 +515,8 @@ export async function saveAdvisorProfile(formData: FormData) {
       "publications",
       "sortOrder",
       "speech",
+      "statusNote",
+      "tenureDisplay",
       "title",
       "userId",
       "websiteUrl",
@@ -512,16 +535,20 @@ export async function saveAdvisorProfile(formData: FormData) {
 
   const {
     advisorId,
+    advisorJnuitsId,
     advisorType,
     avatarSecureUrl,
     bio,
+    dateConfidence,
     department,
     designation,
     email,
     facebookUrl,
+    formerTitle,
     fullName,
     isCurrent,
     isPublic,
+    jnuProfileUrl,
     joinedOn,
     leftOn,
     linkedinUrl,
@@ -529,6 +556,8 @@ export async function saveAdvisorProfile(formData: FormData) {
     publications,
     sortOrder,
     speech,
+    statusNote,
+    tenureDisplay,
     title,
     userId,
     websiteUrl,
@@ -536,17 +565,21 @@ export async function saveAdvisorProfile(formData: FormData) {
   } = parsed.data;
 
   const payload = {
+    advisor_jnuits_id: advisorJnuitsId || null,
     advisor_type: advisorType,
     avatar_secure_url: avatarSecureUrl || null,
     bio: bio || null,
     created_by_user_id: actorUserId,
+    date_confidence: dateConfidence,
     department: department || null,
     designation: designation || null,
     email: email || null,
     facebook_url: facebookUrl || null,
+    former_title: formerTitle || null,
     full_name: fullName,
     is_current: isCurrent,
     is_public: isPublic,
+    jnu_profile_url: jnuProfileUrl || null,
     joined_on: joinedOn || null,
     left_on: leftOn || null,
     linkedin_url: linkedinUrl || null,
@@ -554,6 +587,8 @@ export async function saveAdvisorProfile(formData: FormData) {
     publications: listToJson(publications),
     sort_order: sortOrder,
     speech: speech || null,
+    status_note: statusNote || null,
+    tenure_display: tenureDisplay || null,
     title: title || null,
     user_id: userId || null,
     website_url: websiteUrl || null,
@@ -582,6 +617,7 @@ export async function saveAdvisorProfile(formData: FormData) {
     entity_id: data.id,
     metadata: {
       advisorType,
+      advisorJnuitsId: advisorJnuitsId || null,
       isCurrent,
       isPublic,
       userId: userId || null,

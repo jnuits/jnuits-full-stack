@@ -1,5 +1,6 @@
 const STANDARD_JNUITS_ID_PATTERN = /^JNUITS-([0-9]{7})$/i;
 const LEGACY_ALUMNI_ID_PATTERN = /^JNUITS-ALUMNI-([0-9]+)$/i;
+const ADVISOR_JNUITS_ID_PATTERN = /^JNUITS-(CA|MOD|RA)([0-9]{4})$/i;
 const DIGITS_ONLY_PATTERN = /^([0-9]{7})$/;
 const MEMBER_ID_PART_PATTERN = /^([0-9]{4})([0-9]{3})$/;
 
@@ -65,6 +66,26 @@ export function formatMembershipIdForDisplay(value: string | null | undefined) {
 
 export function formatJnuitsIdForDisplay(value: string | null | undefined) {
   return formatMembershipIdForDisplay(value);
+}
+
+export function normalizeAdvisorJnuitsId(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const raw = value.trim().toUpperCase();
+  const match = raw.match(ADVISOR_JNUITS_ID_PATTERN);
+
+  if (!match) {
+    return "";
+  }
+
+  return `JNUITS-${match[1]}${match[2]}`;
+}
+
+export function formatAdvisorJnuitsIdForDisplay(value: string | null | undefined) {
+  const normalized = normalizeAdvisorJnuitsId(value);
+  return normalized ? normalized.replace(/^JNUITS-/i, "JnUITS-") : value?.trim() || "";
 }
 
 export function parseMembershipIdParts(value: string | null | undefined) {

@@ -16,6 +16,12 @@ const errorMap: Record<string, string> = {
   "save-failed": "The advisor profile could not be saved.",
 };
 
+const advisorTypeLabels: Record<string, string> = {
+  honorable_advisor: "Honorable Advisor",
+  main_advisor: "Chief Advisor / Main Advisor",
+  moderator_mentor: "Moderator / Mentor",
+};
+
 export default async function AdvisorProfilePage({
   searchParams,
 }: {
@@ -48,7 +54,9 @@ export default async function AdvisorProfilePage({
         </div>
         {advisor ? (
           <span className="portal-badge portal-badge--member">
-            {advisor.advisorType.replaceAll("_", " ")}
+            {advisor.isCurrent
+              ? advisorTypeLabels[advisor.advisorType] || advisor.advisorType.replaceAll("_", " ")
+              : advisor.formerTitle || `Former ${advisorTypeLabels[advisor.advisorType] || "Advisor"}`}
           </span>
         ) : null}
       </div>
@@ -85,7 +93,13 @@ export default async function AdvisorProfilePage({
               <div className="portal-stat-card__icon"><GraduationCap size={15} /></div>
               <p className="portal-stat-card__label">Advisor state</p>
               <p className="portal-stat-card__value">{advisor.isCurrent ? "Current" : "Former"}</p>
-              <p className="portal-stat-card__sub">{advisor.department || "Department not set"}</p>
+              <p className="portal-stat-card__sub">{advisor.tenureDisplay || advisor.department || "Tenure not set"}</p>
+            </div>
+            <div className="portal-stat-card">
+              <div className="portal-stat-card__icon"><GraduationCap size={15} /></div>
+              <p className="portal-stat-card__label">Advisor ID</p>
+              <p className="portal-stat-card__value">{advisor.advisorJnuitsId || "Pending"}</p>
+              <p className="portal-stat-card__sub">{advisorTypeLabels[advisor.advisorType] || "Advisor"}</p>
             </div>
             <div className="portal-stat-card" data-tone={advisor.isPublic ? "success" : "warning"}>
               <div className="portal-stat-card__icon"><Info size={15} /></div>
@@ -149,7 +163,18 @@ export default async function AdvisorProfilePage({
                     Website URL
                     <input defaultValue={advisor.websiteUrl || ""} id="advisor-website" name="websiteUrl" />
                   </label>
+                  {advisor.jnuProfileUrl ? (
+                    <label className="input-label">
+                      JnU Profile
+                      <input disabled value={advisor.jnuProfileUrl} />
+                    </label>
+                  ) : null}
                 </div>
+                {advisor.statusNote ? (
+                  <div className="flash-panel" data-tone="info">
+                    <p style={{ fontSize: "0.84rem", lineHeight: 1.6 }}>{advisor.statusNote}</p>
+                  </div>
+                ) : null}
                 <label className="input-label" htmlFor="advisor-work-experience">
                   Work experience
                   <textarea
