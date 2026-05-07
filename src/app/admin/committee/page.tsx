@@ -123,10 +123,12 @@ type AdvisorRecord = {
 
 type AuditRecord = {
   action: string;
+  actor_user_id?: null | string;
   created_at: string;
   entity_id: null | string;
   entity_type: string;
   id: string;
+  metadata?: Record<string, unknown> | null;
 };
 
 function resolveOne<T>(relation: T | T[] | null | undefined) {
@@ -242,7 +244,7 @@ function mapTerm(term: TermRecord, assignmentCount: number): CommitteeTermClient
     electionDate: term.election_date || null,
     endsOn: term.ends_on || null,
     id: term.id,
-    isCurrent: Boolean(term.is_current) || term.status === "active",
+    isCurrent: Boolean(term.is_current),
     isPublic: Boolean(term.is_public),
     slug: term.slug,
     startsOn: term.starts_on,
@@ -343,7 +345,7 @@ export default async function AdminCommitteePage() {
     cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value
   );
 
-  const [termsRaw, rolesRaw, membersResult, advisorsRaw, historyResult] =
+  const [termsRawAll, rolesRaw, membersResult, advisorsRaw, historyResult] =
     await Promise.all([
       loadTerms(flexibleAdmin),
       loadRoles(flexibleAdmin),
@@ -356,12 +358,15 @@ export default async function AdminCommitteePage() {
       loadAdvisors(flexibleAdmin),
       flexibleAdmin
         .from("audit_events" as string)
-        .select("id, action, entity_type, entity_id, created_at")
+        .select("id, action, entity_type, entity_id, actor_user_id, metadata, created_at")
         .like("action", "committee.%")
         .order("created_at", { ascending: false })
         .limit(30),
     ]);
 
+  const termsRaw = termsRawAll.filter(
+    (term) => (term.term_kind || "executive") === "executive"
+  );
   const termIds = termsRaw.map((term) => term.id);
   const assignmentsRaw = await loadAssignments(flexibleAdmin, termIds);
   const assignmentCounts = new Map<string, number>();
@@ -370,6 +375,7 @@ export default async function AdminCommitteePage() {
     const role = resolveOne(assignment.committee_roles);
     const roleGroup = role?.role_group || (role?.is_executive ? "executive" : null);
     if (roleGroup !== "executive") continue;
+    if (role?.code === "joint-secretary") continue;
     if ((assignment.status || "") === "planned") continue;
     if (assignment.is_public === false) continue;
     assignmentCounts.set(
@@ -389,10 +395,12 @@ export default async function AdminCommitteePage() {
   const history = ((historyResult.data || []) as AuditRecord[]).map(
     (event): CommitteeHistoryRecord => ({
       action: event.action,
+      actorUserId: event.actor_user_id || null,
       createdAt: event.created_at,
       entityId: event.entity_id || null,
       entityType: event.entity_type,
       id: event.id,
+      metadata: event.metadata || {},
     })
   );
 

@@ -214,10 +214,14 @@ function isExecutiveRole(role: CommitteeRoleRecord | null) {
   }
 
   if (role.role_group) {
-    return role.role_group === "executive";
+    return role.role_group === "executive" && role.code !== "joint-secretary";
   }
 
-  return role.is_executive && role.code !== "sub-executive-member";
+  return (
+    role.is_executive &&
+    role.code !== "joint-secretary" &&
+    role.code !== "sub-executive-member"
+  );
 }
 
 function mapAssignment(assignment: CommitteeAssignmentRecord) {
@@ -260,6 +264,7 @@ async function loadTerms() {
     .from("committee_terms" as string)
     .select(extendedSelect)
     .eq("is_public", true)
+    .eq("term_kind", "executive")
     .in("status", ["active", "upcoming", "archived"])
     .order("starts_on", { ascending: false })
     .limit(24);
@@ -388,7 +393,7 @@ function mapTerm(
     electionDate: term.election_date || null,
     endsOn: term.ends_on,
     id: term.id,
-    isCurrent: Boolean(term.is_current) || term.status === "active",
+    isCurrent: Boolean(term.is_current),
     slug: term.slug,
     startsOn: term.starts_on,
     status: term.status,
@@ -422,7 +427,10 @@ export const getPublicCommitteeDirectory = cache(async () => {
     mapTerm(term, assignmentsByTerm.get(term.id) || [])
   );
   const currentTerm =
-    mappedTerms.find((term) => term.isCurrent) || mappedTerms[0] || null;
+    mappedTerms.find((term) => term.isCurrent) ||
+    mappedTerms.find((term) => term.slug === "6th-executive-committee") ||
+    mappedTerms[0] ||
+    null;
 
   return {
     advisors,

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
-  CalendarDays,
+  Archive,
   ExternalLink,
   GraduationCap,
+  ShieldCheck,
   UsersRound,
 } from "lucide-react";
 
@@ -116,6 +118,63 @@ function formatDate(value: string | null) {
   }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
+function formatAdvisorTenure(advisor: PublicAdvisorProfile) {
+  if (advisor.tenureDisplay) {
+    return advisor.tenureDisplay;
+  }
+
+  if (advisor.joinedOn || advisor.leftOn) {
+    const start = advisor.joinedOn ? formatDate(advisor.joinedOn) : "Unknown start";
+    const end = advisor.leftOn ? formatDate(advisor.leftOn) : "Present";
+    return `${start} - ${end}`;
+  }
+
+  return advisor.isCurrent ? null : "Tenure not recorded";
+}
+
+function formatAdvisorDisplayName(advisor: PublicAdvisorProfile) {
+  const fullName = advisor.fullName.trim();
+  const title = advisor.title?.trim();
+
+  if (!title) {
+    return fullName;
+  }
+
+  const normalizedName = fullName.toLowerCase();
+  const normalizedTitle = title.toLowerCase().replace(/\.$/, "");
+  const startsWithStoredTitle = normalizedName.startsWith(normalizedTitle);
+  const startsWithAcademicTitle = /^(professor|prof\.|dr\.|doctor)(\s|$)/i.test(
+    fullName
+  );
+
+  return startsWithStoredTitle || startsWithAcademicTitle
+    ? fullName
+    : `${title} ${fullName}`;
+}
+
+function EmptyStateBlock({
+  action,
+  description,
+  title,
+}: {
+  action?: ReactNode;
+  description: string;
+  title: string;
+}) {
+  return (
+    <div className="empty-state-block mt-8">
+      <span className="empty-state-block__icon">
+        <UsersRound aria-hidden="true" />
+      </span>
+      <div>
+        <h3 className="empty-state-block__title">{title}</h3>
+        <p className="empty-state-block__desc">{description}</p>
+      </div>
+      {action ? <div className="empty-state-block__actions">{action}</div> : null}
+    </div>
+  );
+}
+
 function SocialLinks({
   className = "mt-5 flex justify-center gap-2",
   facebookUrl,
@@ -224,12 +283,11 @@ function CommitteeMemberCard({ member }: { member: PublicCommitteeAssignment }) 
 
 function AdvisorCard({ advisor }: { advisor: PublicAdvisorProfile }) {
   const highlights = [...advisor.workExperience, ...advisor.publications].slice(0, 3);
-  const displayName = [advisor.title, advisor.fullName].filter(Boolean).join(" ");
+  const displayName = formatAdvisorDisplayName(advisor);
   const advisorTitle = advisor.isCurrent
     ? ADVISOR_LABELS[advisor.advisorType]
     : advisor.formerTitle || `Former ${ADVISOR_LABELS[advisor.advisorType]}`;
-  const tenure = advisor.tenureDisplay ||
-    `${formatDate(advisor.joinedOn)} - ${formatDate(advisor.leftOn)}`;
+  const tenure = formatAdvisorTenure(advisor);
 
   return (
     <article className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
@@ -279,7 +337,8 @@ function AdvisorCard({ advisor }: { advisor: PublicAdvisorProfile }) {
       ) : null}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-          {advisor.isCurrent ? "Current" : "Former"} · {tenure}
+          {advisor.isCurrent ? "Current" : "Former"}
+          {tenure ? ` · ${tenure}` : ""}
           {advisor.dateConfidence === "estimated" ? " · Estimated" : ""}
         </span>
         <div className="flex flex-wrap justify-end gap-2">
@@ -369,7 +428,7 @@ function RoleSection({
 
 function TermTimeline({ terms }: { terms: PublicCommitteeTerm[] }) {
   return (
-    <section className="section-band">
+    <section className="section-band" id="history">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="section-divider">Archive</p>
@@ -421,38 +480,75 @@ export default async function CommitteePage() {
   const filledSeats = currentTerm?.assignments.length || 0;
   const currentAdvisors = directory.advisors.filter((advisor) => advisor.isCurrent);
   const formerAdvisors = directory.advisors.filter((advisor) => !advisor.isCurrent);
+  const currentChiefAdvisors = currentAdvisors.filter(
+    (advisor) => advisor.advisorType === "main_advisor"
+  );
+  const currentModerators = currentAdvisors.filter(
+    (advisor) => advisor.advisorType === "moderator_mentor"
+  );
+  const currentHonorableAdvisors = currentAdvisors.filter(
+    (advisor) => advisor.advisorType === "honorable_advisor"
+  );
 
   return (
     <main className="shell py-12">
       <section className="glass-card overflow-hidden px-6 py-8 sm:px-8 lg:px-10">
-        <div className="grid gap-8 lg:grid-cols-[1fr_0.75fr] lg:items-end">
+        <div className="grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-end">
           <div>
             <h1 className="section-title">Executive Committee & Advisors</h1>
             <p className="section-copy mt-5 max-w-2xl">
-              Public roster for JnU IT Society leadership, advisor board, and
-              committee history with member-linked identity records.
+              Public leadership archive for JnU IT Society, separating
+              member-linked executive rosters from teacher advisor profiles.
             </p>
+            {currentTerm ? (
+              <div className="mt-6 grid gap-3">
+                <h2 className="text-xl font-semibold text-[var(--foreground)]">
+                  {currentTerm.title}
+                </h2>
+                <div className="flex flex-wrap gap-2 text-sm text-[var(--muted-foreground)]">
+                  <span className="detail-chip">
+                    Tenure {formatDate(currentTerm.startsOn)} - {formatDate(currentTerm.endsOn)}
+                  </span>
+                  {currentTerm.electionDate ? (
+                    <span className="detail-chip">
+                      Election {formatDate(currentTerm.electionDate)}
+                    </span>
+                  ) : null}
+                  <span className="detail-chip">
+                    {filledSeats}/{currentTerm.targetExecutiveSlots} executive seats
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Link className="primary-button" href={`/committee/${currentTerm.slug}`}>
+                    Open current term
+                  </Link>
+                  <Link className="ghost-button" href="#history">
+                    View archive
+                  </Link>
+                </div>
+              </div>
+            ) : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
             <div className="metric-card">
               <UsersRound size={18} className="text-[var(--brand-blue)]" />
               <p className="metric-card__value mt-2">{filledSeats}</p>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                Seats filled
+                Executive seats filled
               </p>
             </div>
             <div className="metric-card">
               <GraduationCap size={18} className="text-[var(--brand-blue)]" />
-              <p className="metric-card__value mt-2">{directory.advisors.length}</p>
+              <p className="metric-card__value mt-2">{currentAdvisors.length}</p>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                Advisors
+                Current advisors
               </p>
             </div>
             <div className="metric-card">
-              <CalendarDays size={18} className="text-[var(--brand-blue)]" />
-              <p className="metric-card__value mt-2">{directory.terms.length}</p>
+              <Archive size={18} className="text-[var(--brand-blue)]" />
+              <p className="metric-card__value mt-2">{formerAdvisors.length}</p>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                Terms
+                Former advisors
               </p>
             </div>
           </div>
@@ -498,18 +594,23 @@ export default async function CommitteePage() {
               ))}
             </div>
           ) : (
-            <div className="empty-state mt-8">
-              The current committee term is ready, but no public executive roster
-              has been imported yet.
-            </div>
+            <EmptyStateBlock
+              action={
+                <Link className="secondary-button" href={`/committee/${currentTerm.slug}`}>
+                  Open term shell
+                </Link>
+              }
+              description="The 6th Executive Committee term is configured and verified. The public roster will be published after member-linked assignments are imported and validated."
+              title="Current executive roster will be published soon"
+            />
           )}
         </section>
       ) : (
         <section className="mt-8 section-band">
-          <div className="empty-state">
-            Committee terms are prepared, but no public current committee is
-            currently published.
-          </div>
+          <EmptyStateBlock
+            description="Committee terms are prepared, but no public current executive committee is currently published."
+            title="No current committee is published"
+          />
         </section>
       )}
 
@@ -527,20 +628,24 @@ export default async function CommitteePage() {
         </div>
         {directory.advisors.length > 0 ? (
           <div className="mt-8 grid gap-8">
-            {ADVISOR_ORDER.map((advisorType) => (
-              <AdvisorGroup
-                advisors={currentAdvisors.filter(
-                  (advisor) => advisor.advisorType === advisorType
-                )}
-                key={advisorType}
-                title={ADVISOR_LABELS[advisorType]}
-              />
-            ))}
+            <AdvisorGroup
+              advisors={currentChiefAdvisors}
+              title={ADVISOR_LABELS.main_advisor}
+            />
+            <AdvisorGroup
+              advisors={currentModerators}
+              title={ADVISOR_LABELS.moderator_mentor}
+            />
+            <AdvisorGroup
+              advisors={currentHonorableAdvisors}
+              title={ADVISOR_LABELS.honorable_advisor}
+            />
           </div>
         ) : (
-          <div className="empty-state mt-8">
-            Advisor profiles will appear here once published by committee admins.
-          </div>
+          <EmptyStateBlock
+            description="Advisor profiles will appear here once published by committee admins."
+            title="Advisor board is not published yet"
+          />
         )}
       </section>
 
@@ -573,6 +678,20 @@ export default async function CommitteePage() {
       <div className="mt-8">
         <TermTimeline terms={directory.terms} />
       </div>
+
+      <section className="mt-8 grid gap-4 rounded-[1.35rem] border border-[var(--border)] bg-[var(--card)] p-5 sm:grid-cols-[auto_1fr] sm:items-center">
+        <ShieldCheck aria-hidden="true" className="text-[var(--brand-blue)]" size={28} />
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">
+            Advisor identities are separate from members
+          </h2>
+          <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
+            Teacher advisors use advisor IDs and advisor profiles. Executive
+            committee members use member-linked JnUITS IDs and remain part of the
+            members system.
+          </p>
+        </div>
+      </section>
     </main>
   );
 }
