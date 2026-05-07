@@ -5,12 +5,16 @@ import {
   Archive,
   Check,
   CheckCircle,
+  CalendarDays,
   ChevronRight,
   ClipboardList,
   Clock3,
+  ExternalLink,
   Eye,
   GraduationCap,
+  Globe2,
   History,
+  Info,
   Import,
   Loader2,
   Lock,
@@ -27,7 +31,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState, type ButtonHTMLAttributes, type MouseEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type MouseEvent, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -941,30 +945,281 @@ function Field({ children, className }: { children: ReactNode; className?: strin
   );
 }
 
-function PanelInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+function PanelInput({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+      className={cx(
+        "h-9 rounded-lg border border-border bg-background px-3 text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60",
+        className
+      )}
       {...props}
     />
   );
 }
 
-function PanelSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+function PanelSelect({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className="h-9 rounded-lg border border-border bg-background px-3 text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
+      className={cx(
+        "h-9 rounded-lg border border-border bg-background px-3 text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60",
+        className
+      )}
       {...props}
     />
   );
 }
 
-function PanelTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+function PanelTextarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
-      className="min-h-[84px] rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+      className={cx(
+        "min-h-[84px] rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15",
+        className
+      )}
       {...props}
     />
+  );
+}
+
+function MicroLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 border-t border-border pt-4">
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+        {children}
+      </span>
+    </div>
+  );
+}
+
+function formatDisplayDate(value: null | string) {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-BD", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function computeTenureDisplay(joinedOn: string, leftOn: string) {
+  if (!joinedOn && !leftOn) return "Not set";
+  return `${formatDisplayDate(joinedOn) || "Not set"} - ${formatDisplayDate(leftOn) || "Present"}`;
+}
+
+function CommitteeDateField({
+  defaultValue,
+  disabled,
+  helper,
+  name,
+  onValueChange,
+  required,
+}: {
+  defaultValue?: null | string;
+  disabled?: boolean;
+  helper?: string;
+  name: string;
+  onValueChange?: (value: string) => void;
+  required?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(defaultValue || "");
+  const [draft, setDraft] = useState(defaultValue || "");
+
+  return (
+    <div className="relative">
+      <input name={name} required={required} type="hidden" value={value} />
+      <button
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 text-left text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors hover:bg-muted/40 focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={disabled}
+        onClick={() => {
+          setDraft(value);
+          setOpen((current) => !current);
+        }}
+        type="button"
+      >
+        <span className={cx(!value && "italic text-muted-foreground")}>
+          {value ? formatDisplayDate(value) : "Pick a date"}
+        </span>
+        <CalendarDays className="size-3.5 text-muted-foreground" aria-hidden="true" />
+      </button>
+      {helper ? <p className="mt-1 text-xs normal-case tracking-normal text-muted-foreground">{helper}</p> : null}
+      {open ? (
+        <>
+          <button
+            aria-label="Close date picker"
+            className="fixed inset-0 z-40 cursor-default bg-transparent"
+            onClick={() => setOpen(false)}
+            type="button"
+          />
+          <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-64 rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-xl">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Date</p>
+            <PanelInput
+              aria-label="Date in YYYY-MM-DD format"
+              className="w-full"
+              onChange={(event) => setDraft(event.target.value)}
+              pattern="\d{4}-\d{2}-\d{2}"
+              placeholder="YYYY-MM-DD"
+              value={draft}
+            />
+            <p className="mt-2 text-xs text-muted-foreground">Use ISO format. Displayed as {draft ? formatDisplayDate(draft) : "Mar 16, 2026"}.</p>
+            <div className="mt-3 flex justify-between gap-2">
+              <GhostButton
+                className="h-8"
+                onClick={() => {
+                  setDraft("");
+                  setValue("");
+                  onValueChange?.("");
+                  setOpen(false);
+                }}
+                type="button"
+              >
+                Clear
+              </GhostButton>
+              <PrimaryButton
+                className="h-8"
+                onClick={() => {
+                  setValue(draft);
+                  onValueChange?.(draft);
+                  setOpen(false);
+                }}
+                type="button"
+              >
+                Apply
+              </PrimaryButton>
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function SwitchField({
+  checkedLabel,
+  defaultChecked,
+  falseValue = "false",
+  name,
+  offLabel,
+  onLabel,
+  trueValue = "true",
+}: {
+  checkedLabel?: string;
+  defaultChecked: boolean;
+  falseValue?: string;
+  name: string;
+  offLabel: string;
+  onLabel: string;
+  trueValue?: string;
+}) {
+  const [checked, setChecked] = useState(defaultChecked);
+
+  return (
+    <div className="w-full">
+      <input name={name} type="hidden" value={checked ? trueValue : falseValue} />
+      <button
+        aria-pressed={checked}
+        className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        onClick={() => setChecked((current) => !current)}
+        type="button"
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-medium normal-case tracking-normal text-foreground">{checked ? onLabel : offLabel}</span>
+          {checkedLabel ? <span className="block text-xs normal-case tracking-normal text-muted-foreground">{checkedLabel}</span> : null}
+        </span>
+        <span
+          className={cx(
+            "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition-colors",
+            checked ? "border-emerald-500/30 bg-emerald-500" : "border-border bg-muted"
+          )}
+        >
+          <span className={cx("size-4 rounded-full bg-background shadow transition-transform", checked && "translate-x-5")} />
+        </span>
+      </button>
+    </div>
+  );
+}
+
+function TextareaWithCount({
+  defaultValue,
+  helper,
+  label,
+  name,
+  placeholder,
+  rows = 5,
+}: {
+  defaultValue?: string;
+  helper: string;
+  label: string;
+  name: string;
+  placeholder: string;
+  rows?: number;
+}) {
+  const [value, setValue] = useState(defaultValue || "");
+  const lineCount = value.trim() ? value.trim().split(/\r?\n/).length : 0;
+
+  return (
+    <Field>
+      <span className="text-sm normal-case tracking-normal text-foreground">{label}</span>
+      <PanelTextarea
+        name={name}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        value={value}
+      />
+      <span className="flex justify-between gap-3 text-xs normal-case tracking-normal text-muted-foreground">
+        <span>{helper}</span>
+        <span>{value.length} chars · {lineCount} lines</span>
+      </span>
+    </Field>
+  );
+}
+
+function IconInput({
+  defaultValue,
+  helper,
+  label,
+  name,
+  placeholder,
+  type = "url",
+}: {
+  defaultValue?: null | string;
+  helper?: string;
+  label: string;
+  name: string;
+  placeholder?: string;
+  type?: React.HTMLInputTypeAttribute;
+}) {
+  return (
+    <Field>
+      {label}
+      <span className="relative">
+        <ExternalLink className="pointer-events-none absolute left-3 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+        <PanelInput className="w-full pl-8" defaultValue={defaultValue || ""} name={name} placeholder={placeholder} type={type} />
+      </span>
+      {helper ? <span className="text-xs normal-case tracking-normal text-muted-foreground">{helper}</span> : null}
+    </Field>
+  );
+}
+
+function inferredMemberLifecycle(member: CommitteeMemberOption) {
+  const id = (member.jnuitsId || "").toUpperCase();
+  return /^JNUITS-0{2,}/.test(id) ? "Alumni" : "Current";
+}
+
+function MemberLifecyclePill({ member }: { member: CommitteeMemberOption }) {
+  const lifecycle = inferredMemberLifecycle(member);
+
+  return (
+    <span className={cx(
+      "rounded-full px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal",
+      lifecycle === "Current"
+        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+        : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+    )}>
+      {lifecycle}
+    </span>
   );
 }
 
@@ -1355,6 +1610,48 @@ function DrawerPanel({
   title: string;
   width?: string;
 }) {
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const panelElement = panelRef.current;
+    if (!panelElement) return;
+    const panelNode: HTMLElement = panelElement;
+
+    const focusableSelector =
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const firstFocusable = panelNode.querySelector<HTMLElement>(focusableSelector);
+    firstFocusable?.focus();
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(panelNode.querySelectorAll<HTMLElement>(focusableSelector)).filter(
+        (element) => element.offsetParent !== null || element === document.activeElement
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable.at(-1);
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-50">
       <button
@@ -1369,6 +1666,7 @@ function DrawerPanel({
           "absolute inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto rounded-t-2xl border border-border bg-card shadow-2xl transition-transform lg:inset-y-0 lg:left-auto lg:right-0 lg:max-h-none lg:w-full lg:rounded-none lg:border-y-0 lg:border-r-0",
           width
         )}
+        ref={panelRef}
         role="dialog"
         tabIndex={-1}
       >
@@ -1396,17 +1694,55 @@ function TermForm({
   onCancel: () => void;
   term: CommitteeTermClientRecord | null;
 }) {
+  const isArchived = term?.status === "archived";
+  const isCurrent = term?.isCurrent ?? false;
+
   return (
-    <form action={saveCommitteeTerm}>
-      <div className="grid gap-4 p-5 md:grid-cols-2">
+    <form action={saveCommitteeTerm} className="rounded-b-xl bg-card">
+      {term ? (
+        <div className="px-5 pt-4">
+          <span className="inline-flex rounded-t-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+            Editing: {term.title}
+          </span>
+        </div>
+      ) : null}
+      <div className="border-b border-border px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="inline-flex size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-sm font-bold text-primary">
+              {term?.termNumber || "EC"}
+            </span>
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-semibold">{term?.title || "New Executive Committee Term"}</h3>
+              <p className="text-xs text-muted-foreground">{term?.slug || "Draft term"}</p>
+            </div>
+            {term ? <TermStatusBadge term={term} /> : null}
+          </div>
+          <GhostButton onClick={onCancel} type="button">
+            <X className="size-3.5" aria-hidden="true" /> Close
+          </GhostButton>
+        </div>
+      </div>
+      <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
         <input name="termId" type="hidden" value={term?.id || ""} />
-        <Field>
+        <Field className="xl:col-span-2">
           Title
           <PanelInput name="title" defaultValue={term?.title || ""} placeholder="6th Executive Committee" required />
         </Field>
         <Field>
           Slug
-          <PanelInput name="slug" defaultValue={term?.slug || ""} placeholder="6th-executive-committee" />
+          <span className="relative">
+            <PanelInput
+              className={isCurrent ? "bg-muted/40 pr-8" : "pr-8"}
+              disabled={isCurrent}
+              name="slug"
+              defaultValue={term?.slug || ""}
+              placeholder="6th-executive-committee"
+              title={isCurrent ? "Cannot change slug of the active term." : undefined}
+            />
+            <Lock className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          </span>
+          {isCurrent ? <input name="slug" type="hidden" value={term?.slug || ""} /> : null}
         </Field>
         <Field>
           Status
@@ -1416,18 +1752,6 @@ function TermForm({
             <option value="active">Active</option>
             <option value="archived">Archived</option>
           </PanelSelect>
-        </Field>
-        <Field>
-          Starts on
-          <PanelInput name="startsOn" defaultValue={term?.startsOn || ""} type="date" required />
-        </Field>
-        <Field>
-          Ends on
-          <PanelInput name="endsOn" defaultValue={term?.endsOn || ""} type="date" />
-        </Field>
-        <Field>
-          Election date
-          <PanelInput name="electionDate" defaultValue={term?.electionDate || ""} type="date" />
         </Field>
         <Field>
           Date confidence
@@ -1441,34 +1765,90 @@ function TermForm({
           <PanelInput name="targetExecutiveSlots" defaultValue={term?.targetExecutiveSlots || 21} min={1} max={60} type="number" />
         </Field>
         <Field>
-          Current
-          <PanelSelect name="isCurrent" defaultValue={String(term?.isCurrent ?? false)}>
-            <option value="false">Not current</option>
-            <option value="true">Current committee</option>
-          </PanelSelect>
+          Starts on
+          <CommitteeDateField name="startsOn" defaultValue={term?.startsOn || ""} required />
         </Field>
         <Field>
-          Public
-          <PanelSelect name="isPublic" defaultValue={String(term?.isPublic ?? true)}>
-            <option value="true">Public</option>
-            <option value="false">Internal</option>
-          </PanelSelect>
+          Ends on
+          <CommitteeDateField
+            name="endsOn"
+            defaultValue={term?.endsOn || ""}
+            disabled={isCurrent}
+            helper={isCurrent ? "Active term has no end date yet." : undefined}
+          />
         </Field>
+        <Field>
+          Election date
+          <CommitteeDateField name="electionDate" defaultValue={term?.electionDate || ""} />
+        </Field>
+        {(term?.dateConfidence || "verified") === "estimated" ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200 md:col-span-2 xl:col-span-3">
+            These dates are estimates and will be shown with a prefix on public pages.
+          </div>
+        ) : null}
+        <div className="grid gap-3 md:col-span-2 xl:col-span-3 xl:grid-cols-2">
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">Mark as current term</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Only one executive term can be current at a time.</p>
+              </div>
+              {isArchived ? (
+                <>
+                  <input name="isCurrent" type="hidden" value="false" />
+                  <span className="inline-flex h-6 w-11 items-center rounded-full border border-border bg-muted p-0.5 opacity-50">
+                    <span className="size-4 rounded-full bg-background shadow" />
+                  </span>
+                </>
+              ) : (
+                <SwitchField defaultChecked={isCurrent} name="isCurrent" offLabel="Not current" onLabel="Current" />
+              )}
+            </div>
+            {isArchived ? <p className="mt-2 text-xs text-muted-foreground">Archived terms cannot be set as current.</p> : null}
+            {!isCurrent && !isArchived ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Turning this on removes current status from the existing active term.</p> : null}
+          </div>
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">Publicly visible</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Visible on /committee and executive history.</p>
+              </div>
+              <SwitchField defaultChecked={term?.isPublic ?? true} name="isPublic" offLabel="Internal" onLabel="Public" />
+            </div>
+            {isCurrent ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">The current term should remain public.</p> : null}
+          </div>
+        </div>
         <input name="termKind" type="hidden" value="executive" />
-        <Field className="md:col-span-2">
-          Tenure note
-          <PanelTextarea name="tenureNote" defaultValue={term?.tenureNote || ""} rows={3} />
-        </Field>
-        <Field className="md:col-span-2">
-          Notes
-          <PanelTextarea name="voterRuleNote" defaultValue={term?.voterRuleNote || ""} rows={3} />
-        </Field>
-        <Field className="md:col-span-2">
-          Summary
-          <PanelTextarea name="summary" defaultValue={term?.summary || ""} rows={3} />
-        </Field>
+        <div className="rounded-lg border border-blue-200/70 bg-blue-50/40 p-3 dark:border-blue-900/60 dark:bg-blue-950/10 md:col-span-2 xl:col-span-3">
+          <Field>
+            <span className="inline-flex items-center gap-2 text-foreground"><CalendarDays className="size-3.5" aria-hidden="true" /> Tenure note</span>
+            <PanelTextarea name="tenureNote" defaultValue={term?.tenureNote || ""} placeholder="Jul 2025 - Present" rows={3} />
+            <span className="text-xs normal-case tracking-normal text-muted-foreground">Auto-formatted tenure string shown on the public page.</span>
+          </Field>
+        </div>
+        <div className="rounded-lg border border-border bg-muted/30 p-3 md:col-span-2 xl:col-span-3">
+          <Field>
+            <span className="inline-flex items-center gap-2 text-foreground"><Lock className="size-3.5" aria-hidden="true" /> Internal notes</span>
+            <PanelTextarea name="voterRuleNote" defaultValue={term?.voterRuleNote || ""} placeholder="Internal notes for admins. Not shown publicly." rows={3} />
+            <span className="text-xs normal-case tracking-normal text-muted-foreground">Admin-only. Never displayed publicly.</span>
+          </Field>
+        </div>
+        <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/40 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/10 md:col-span-2 xl:col-span-3">
+          <Field>
+            <span className="inline-flex items-center gap-2 text-foreground"><Globe2 className="size-3.5" aria-hidden="true" /> Public summary</span>
+            <PanelTextarea name="summary" defaultValue={term?.summary || ""} placeholder="Current executive committee of JnU IT Society." rows={3} />
+            <span className="text-xs normal-case tracking-normal text-muted-foreground">Shown in OpenGraph metadata and archive listings.</span>
+          </Field>
+        </div>
       </div>
       <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/20 px-5 py-4">
+        <button
+          className="text-xs font-medium text-muted-foreground hover:text-foreground"
+          onClick={() => document.getElementById("committee-roster")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          type="button"
+        >
+          {term?.assignmentCount || 0} assignments linked
+        </button>
         <div className="flex gap-2">
           <SubmitButton>Save changes</SubmitButton>
           <GhostButton onClick={onCancel} type="button">Cancel</GhostButton>
@@ -1483,87 +1863,241 @@ function AssignmentForm({
   executiveRoles,
   members,
   onCancel,
+  selectedRoleCounts,
   selectedTerm,
-  terms,
 }: {
   assignment: CommitteeAssignmentClientRecord | null;
   executiveRoles: CommitteeRoleClientRecord[];
   members: CommitteeMemberOption[];
   onCancel: () => void;
+  selectedRoleCounts: Map<string, number>;
   selectedTerm: CommitteeTermClientRecord | undefined;
-  terms: CommitteeTermClientRecord[];
 }) {
+  const [selectedMemberId, setSelectedMemberId] = useState(assignment?.memberId || "");
+  const [memberQuery, setMemberQuery] = useState("");
+  const [selectedRoleId, setSelectedRoleId] = useState(assignment?.roleId || "");
+  const [isPublic, setIsPublic] = useState(assignment?.isPublic ?? true);
+  const status = assignment?.status || "active";
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const selectedMember = members.find((member) => member.id === selectedMemberId);
+  const selectedRole = executiveRoles.find((role) => role.id === selectedRoleId);
+  const memberResults = useMemo(() => {
+    const needle = memberQuery.trim().toLowerCase();
+    if (!needle) return members.slice(0, 8);
+    return members
+      .filter((member) =>
+        [member.fullName, member.jnuitsId, member.email]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(needle))
+      )
+      .slice(0, 8);
+  }, [memberQuery, members]);
+  const roleGroups = ["Leadership", "Secretaries", "Executive Members"].map((group) => ({
+    group,
+    roles: executiveRoles.filter((role) => roleGroupTitle(role) === group),
+  }));
+  const selectedRoleCount = selectedRole ? selectedRoleCounts.get(selectedRole.id) || 0 : 0;
+  const selectedRoleAvailable = selectedRole
+    ? Math.max(0, selectedRole.maxSlots - selectedRoleCount)
+    : 0;
+
   return (
     <form action={saveCommitteeAssignment} className="flex min-h-[calc(100vh-64px)] flex-col">
-      <div className="grid flex-1 gap-4 p-5">
+      <div className="flex flex-1 flex-col gap-5 p-5">
         <input name="assignmentId" type="hidden" value={assignment?.id || ""} />
+        <MicroLabel>Member</MicroLabel>
         <Field>
           Member lookup
-          <PanelSelect name="memberId" defaultValue={assignment?.memberId || ""}>
-            <option value="">No linked member</option>
-            {members.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.fullName} - {member.jnuitsId || "No ID"}{member.email ? ` - ${member.email}` : ""}
-              </option>
-            ))}
-          </PanelSelect>
+          <input name="memberId" type="hidden" value={selectedMemberId} />
+          <div className="rounded-xl border border-border bg-background p-3">
+            <label className="relative block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <PanelInput
+                className="w-full pl-9"
+                onChange={(event) => setMemberQuery(event.target.value)}
+                placeholder="Search by name or JnUITS ID..."
+                type="search"
+                value={memberQuery}
+              />
+            </label>
+            <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-border">
+              {memberResults.length ? memberResults.map((member) => (
+                <button
+                  className={cx(
+                    "flex w-full items-center gap-3 border-b border-border px-3 py-2 text-left transition-colors last:border-0 hover:bg-muted/40",
+                    selectedMemberId === member.id && "bg-primary/5"
+                  )}
+                  key={member.id}
+                  onClick={() => {
+                    setSelectedMemberId(member.id);
+                    setMemberQuery(member.fullName);
+                  }}
+                  type="button"
+                >
+                  <AvatarToken id={member.id} name={member.fullName} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold normal-case tracking-normal text-foreground">{member.fullName}</span>
+                    <span className="block truncate text-xs normal-case tracking-normal text-muted-foreground">{member.jnuitsId || "No JnUITS ID"}</span>
+                  </span>
+                  <MemberLifecyclePill member={member} />
+                </button>
+              )) : (
+                <p className="px-3 py-4 text-sm normal-case tracking-normal text-muted-foreground">No members match this search.</p>
+              )}
+            </div>
+          </div>
+          <span className="text-xs normal-case tracking-normal text-muted-foreground">
+            Only current and alumni members can hold executive positions. Lifecycle is read-only here and managed in Membership DB.
+          </span>
         </Field>
-        <Field>
-          Display name override
-          <PanelInput name="displayName" defaultValue={assignment?.displayName || ""} placeholder="Only for unlinked historical rows" />
-        </Field>
-        <Field>
-          Term
-          <PanelSelect name="termId" defaultValue={assignment?.termId || selectedTerm?.id || ""} required>
-            {terms.map((term) => (
-              <option key={term.id} value={term.id}>{term.title}</option>
-            ))}
-          </PanelSelect>
-        </Field>
+        {selectedMember ? (
+          <div className="relative rounded-xl border border-border bg-muted/30 p-3">
+            <button
+              aria-label="Clear selected member"
+              className="absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-lg border border-border bg-background hover:bg-muted"
+              onClick={() => setSelectedMemberId("")}
+              type="button"
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+            <div className="flex items-center gap-3 pr-9">
+              <AvatarToken id={selectedMember.id} name={selectedMember.fullName} size="md" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{selectedMember.fullName}</p>
+                <p className="text-xs text-muted-foreground">{selectedMember.jnuitsId || "No JnUITS ID"} · {selectedMember.email || "No email"}</p>
+                <div className="mt-1">
+                  <MemberLifecyclePill member={selectedMember} />
+                </div>
+                <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Info className="size-3.5" aria-hidden="true" />
+                  Lifecycle is managed in Membership DB.
+                  <a className="font-medium text-primary hover:underline" href="/admin/membership" rel="noreferrer" target="_blank">View profile →</a>
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <Field>
+            Historical display name
+            <PanelInput name="displayName" defaultValue={assignment?.displayName || ""} placeholder="Used only when no member record is linked" />
+            <span className="text-xs normal-case tracking-normal text-muted-foreground">Used only for historical rosters that cannot be linked to a member record.</span>
+          </Field>
+        )}
+        {selectedMemberId ? <input name="displayName" type="hidden" value="" /> : null}
+
+        <MicroLabel>Role & Term</MicroLabel>
         <Field>
           Role
-          <PanelSelect name="roleId" defaultValue={assignment?.roleId || ""} required>
+          <PanelSelect name="roleId" onChange={(event) => setSelectedRoleId(event.target.value)} required value={selectedRoleId}>
             <option value="">Select role</option>
-            {executiveRoles.map((role) => (
-              <option key={role.id} value={role.id}>{role.title}</option>
-            ))}
+            {roleGroups.map(({ group, roles }) =>
+              roles.length ? (
+                <optgroup key={group} label={`-- ${group.toUpperCase()} --`}>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.title} · {role.minSlots === role.maxSlots ? `${role.minSlots} slot` : `${role.minSlots}-${role.maxSlots} slots`}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null
+            )}
           </PanelSelect>
         </Field>
+        {selectedRole ? (
+          <div className={cx(
+            "rounded-lg border px-3 py-2 text-sm",
+            selectedRoleAvailable > 0
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200"
+              : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200"
+          )}>
+            {selectedRoleAvailable > 0
+              ? `${selectedRoleAvailable} of ${selectedRole.maxSlots} slots available`
+              : "All slots filled - adding will exceed the limit"}
+          </div>
+        ) : null}
         <Field>
-          Status
-          <PanelSelect name="status" defaultValue={assignment?.status || "active"}>
-            <option value="planned">Planned</option>
-            <option value="active">Active</option>
-            <option value="completed">Completed</option>
-          </PanelSelect>
+          Term
+          <input name="termId" type="hidden" value={assignment?.termId || selectedTerm?.id || ""} />
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm normal-case tracking-normal text-foreground">
+            <Lock className="size-3.5 text-muted-foreground" aria-hidden="true" />
+            {selectedTerm?.title || "Select a term from the roster header"}
+          </div>
+          <span className="text-xs normal-case tracking-normal text-muted-foreground">Term is set by the roster context. Change term from the roster section header.</span>
         </Field>
-        <Field>
-          Visibility
-          <PanelSelect name="isPublic" defaultValue={String(assignment?.isPublic ?? true)}>
-            <option value="true">Public</option>
-            <option value="false">Internal only</option>
-          </PanelSelect>
-        </Field>
-        <Field>
-          Public title override
-          <PanelInput name="publicTitleOverride" defaultValue={assignment?.publicTitleOverride || ""} />
-        </Field>
-        <Field>
-          Sort order
-          <PanelInput name="sortOrder" defaultValue={assignment?.sortOrder || 100} min={0} type="number" />
-        </Field>
-        <Field>
-          Starts on
-          <PanelInput name="startsOn" defaultValue={assignment?.startsOn || ""} type="date" />
-        </Field>
-        <Field>
-          Ends on
-          <PanelInput name="endsOn" defaultValue={assignment?.endsOn || ""} type="date" />
-        </Field>
-        <Field>
-          Notes
-          <PanelTextarea name="bio" defaultValue={assignment?.bio || ""} rows={4} />
-        </Field>
+
+        <MicroLabel>Status & Visibility</MicroLabel>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SwitchField
+            defaultChecked={status === "active"}
+            falseValue="completed"
+            name="status"
+            offLabel="Inactive"
+            onLabel="Active"
+            trueValue="active"
+          />
+          <div className="w-full">
+            <input name="isPublic" type="hidden" value={String(isPublic)} />
+            <button
+              aria-pressed={isPublic}
+              className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              onClick={() => setIsPublic((current) => !current)}
+              type="button"
+            >
+              <span>
+                <span className="block text-sm font-medium">{isPublic ? "Public" : "Internal only"}</span>
+                <span className="block text-xs text-muted-foreground">{isPublic ? "Shown on public committee page" : "Stored for internal records only"}</span>
+              </span>
+              <span className={cx("inline-flex h-6 w-11 items-center rounded-full border p-0.5 transition-colors", isPublic ? "border-emerald-500/30 bg-emerald-500" : "border-border bg-muted")}>
+                <span className={cx("size-4 rounded-full bg-background shadow transition-transform", isPublic && "translate-x-5")} />
+              </span>
+            </button>
+          </div>
+        </div>
+        {isPublic ? (
+          <Field>
+            Public title override
+            <PanelInput name="publicTitleOverride" defaultValue={assignment?.publicTitleOverride || ""} placeholder="Leave blank to use default role name" />
+            <span className="text-xs normal-case tracking-normal text-muted-foreground">Overrides the displayed role label on the public committee page only.</span>
+          </Field>
+        ) : <input name="publicTitleOverride" type="hidden" value={assignment?.publicTitleOverride || ""} />}
+
+        <button
+          className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/40"
+          onClick={() => setShowAdvanced((current) => !current)}
+          type="button"
+        >
+          Advanced options
+          <ChevronRight className={cx("size-4 transition-transform", showAdvanced && "rotate-90")} aria-hidden="true" />
+        </button>
+        {showAdvanced ? (
+          <div className="grid gap-4 rounded-xl border border-border bg-muted/20 p-4 md:grid-cols-2">
+            <Field>
+              Display order
+              <PanelInput name="sortOrder" defaultValue={assignment?.sortOrder || 100} min={0} type="number" />
+              <span className="text-xs normal-case tracking-normal text-muted-foreground">Lower numbers appear first within the same role group.</span>
+            </Field>
+            <div />
+            <Field>
+              Starts on
+              <CommitteeDateField name="startsOn" defaultValue={assignment?.startsOn || ""} helper="Overrides term dates for this assignment." />
+            </Field>
+            <Field>
+              Ends on
+              <CommitteeDateField name="endsOn" defaultValue={assignment?.endsOn || ""} helper="Overrides term dates for this assignment." />
+            </Field>
+            <Field className="md:col-span-2">
+              Notes
+              <PanelTextarea name="bio" defaultValue={assignment?.bio || ""} placeholder="Internal notes for this committee assignment" rows={4} />
+            </Field>
+          </div>
+        ) : (
+          <>
+            <input name="sortOrder" type="hidden" value={assignment?.sortOrder || 100} />
+            <input name="startsOn" type="hidden" value={assignment?.startsOn || ""} />
+            <input name="endsOn" type="hidden" value={assignment?.endsOn || ""} />
+            <input name="bio" type="hidden" value={assignment?.bio || ""} />
+          </>
+        )}
       </div>
       <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-border bg-card px-5 py-4">
         <SubmitButton>Save</SubmitButton>
@@ -1580,17 +2114,111 @@ function AdvisorForm({
   advisor: AdvisorProfileClientRecord | null;
   onCancel: () => void;
 }) {
+  const [activePanel, setActivePanel] = useState<"access" | "content" | "profile">("profile");
+  const [advisorType, setAdvisorType] = useState(advisor?.advisorType || "honorable_advisor");
+  const [avatarUrl, setAvatarUrl] = useState(advisor?.avatarSecureUrl || "");
+  const [joinedOn, setJoinedOn] = useState(advisor?.joinedOn || "");
+  const [leftOn, setLeftOn] = useState(advisor?.leftOn || "");
+  const computedTenure = advisor?.tenureDisplay || computeTenureDisplay(joinedOn, leftOn);
+  const linkFormId = advisor ? `advisor-link-${advisor.id}` : "advisor-link-new";
+  const avatarToneClass =
+    advisorType === "main_advisor"
+      ? "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+      : advisorType === "moderator_mentor"
+        ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+        : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300";
+
   return (
-    <div>
-      <form action={saveAdvisorProfile}>
-        <div className="grid gap-5 p-5">
-          <div className="rounded-xl border border-border bg-muted/20 p-4">
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Profile</p>
+    <div className="flex min-h-[calc(100vh-72px)] flex-col">
+      {advisor ? (
+        <form action={linkAdvisorAuthUser} id={linkFormId}>
+          <input name="advisorId" type="hidden" value={advisor.id} />
+        </form>
+      ) : null}
+      <div className="border-b border-border bg-card px-5 py-4">
+        <div className="flex items-center gap-3">
+          {avatarUrl ? (
+            <span
+              aria-label="Advisor avatar preview"
+              className="size-10 rounded-full border border-border bg-cover bg-center"
+              role="img"
+              style={{ backgroundImage: `url("${avatarUrl}")` }}
+            />
+          ) : (
+            <span className={cx("inline-flex size-10 items-center justify-center rounded-full text-xs font-bold", avatarToneClass)}>
+              {initials(advisor?.fullName || "Advisor")}
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{advisor ? formatAdvisorDisplayName(advisor) : "New advisor profile"}</p>
+            <p className="text-xs text-muted-foreground">{advisor?.advisorJnuitsId || "Advisor ID will be allocated"}</p>
+          </div>
+        </div>
+      </div>
+      <form action={saveAdvisorProfile} className="flex min-h-0 flex-1 flex-col">
+        <div className="sticky top-[73px] z-10 flex border-b border-border bg-card/95 px-5 backdrop-blur">
+          {(["profile", "content", "access"] as const).map((tab) => (
+            <button
+              aria-selected={activePanel === tab}
+              className={cx(
+                "h-11 border-b-2 px-3 text-sm font-medium capitalize transition-colors",
+                activePanel === tab
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+              key={tab}
+              onClick={() => setActivePanel(tab)}
+              role="tab"
+              type="button"
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className={cx("flex flex-col gap-6", activePanel !== "profile" && "hidden")}>
+            <input name="advisorId" type="hidden" value={advisor?.id || ""} />
+            <div className="rounded-xl border border-border bg-muted/20 p-4">
+              <div className="flex items-center gap-4">
+                {avatarUrl ? (
+                  <span
+                    aria-label="Advisor avatar preview"
+                    className="size-16 rounded-full border border-border bg-cover bg-center"
+                    role="img"
+                    style={{ backgroundImage: `url("${avatarUrl}")` }}
+                  />
+                ) : (
+                  <span className={cx("inline-flex size-16 items-center justify-center rounded-full text-base font-bold", avatarToneClass)}>
+                    {initials(advisor?.fullName || "Advisor")}
+                  </span>
+                )}
+                <Field className="flex-1">
+                  Avatar URL
+                  <PanelInput
+                    name="avatarSecureUrl"
+                    onChange={(event) => setAvatarUrl(event.target.value)}
+                    placeholder="https://..."
+                    type="url"
+                    value={avatarUrl}
+                  />
+                </Field>
+              </div>
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <input name="advisorId" type="hidden" value={advisor?.id || ""} />
               <Field>
                 Advisor JnUITS ID
-                <PanelInput name="advisorJnuitsId" defaultValue={advisor?.advisorJnuitsId || ""} placeholder="Auto assigned, e.g. JNUITS-CA0001" />
+                <span className="relative">
+                  <PanelInput
+                    className={advisor?.advisorJnuitsId ? "bg-muted/40 pr-8" : "pr-8"}
+                    defaultValue={advisor?.advisorJnuitsId || ""}
+                    disabled={Boolean(advisor?.advisorJnuitsId)}
+                    name="advisorJnuitsId"
+                    placeholder="Auto assigned, e.g. JNUITS-CA0001"
+                    title={advisor?.advisorJnuitsId ? "ID cannot be changed after creation." : undefined}
+                  />
+                  <Lock className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                </span>
+                {advisor?.advisorJnuitsId ? <input name="advisorJnuitsId" type="hidden" value={advisor.advisorJnuitsId} /> : null}
               </Field>
               <Field>
                 Full name
@@ -1598,23 +2226,26 @@ function AdvisorForm({
               </Field>
               <Field>
                 Advisor type
-                <PanelSelect name="advisorType" defaultValue={advisor?.advisorType || "honorable_advisor"}>
-                  <option value="main_advisor">Main Advisor</option>
-                  <option value="moderator_mentor">Moderator / Mentor</option>
-                  <option value="honorable_advisor">Honorable Advisor</option>
+                <PanelSelect name="advisorType" onChange={(event) => setAdvisorType(event.target.value)} value={advisorType}>
+                  <option value="main_advisor">● Main Advisor</option>
+                  <option value="moderator_mentor">● Moderator / Mentor</option>
+                  <option value="honorable_advisor">● Honorable Advisor</option>
                 </PanelSelect>
               </Field>
               <Field>
                 Auth user ID
                 <PanelInput name="userId" defaultValue={advisor?.userId || ""} placeholder="Optional linked auth user" />
+                <span className="text-xs normal-case tracking-normal text-muted-foreground">
+                  This links to a Supabase Auth account - it is NOT a member account. Advisors do not have membership cycle records.
+                </span>
               </Field>
               <Field>
                 Title
-                <PanelInput name="title" defaultValue={advisor?.title || ""} placeholder="Dr., Professor..." />
+                <PanelInput name="title" defaultValue={advisor?.title || ""} placeholder="Professor Dr." />
               </Field>
               <Field>
                 Former title
-                <PanelInput name="formerTitle" defaultValue={advisor?.formerTitle || ""} />
+                <PanelInput name="formerTitle" defaultValue={advisor?.formerTitle || ""} placeholder="Former Chief Advisor" />
               </Field>
               <Field>
                 Department
@@ -1622,7 +2253,7 @@ function AdvisorForm({
               </Field>
               <Field>
                 Designation
-                <PanelInput name="designation" defaultValue={advisor?.designation || ""} />
+                <PanelInput name="designation" defaultValue={advisor?.designation || ""} placeholder="Vice Chancellor, Jagannath University" />
               </Field>
               <Field>
                 Email
@@ -1630,19 +2261,26 @@ function AdvisorForm({
               </Field>
               <Field>
                 Phone
-                <PanelInput name="phone" defaultValue={advisor?.phone || ""} />
+                <PanelInput name="phone" defaultValue={advisor?.phone || ""} type="tel" />
               </Field>
+            </div>
+
+            <MicroLabel>Tenure</MicroLabel>
+            <div className="grid gap-4 md:grid-cols-2">
               <Field>
                 Joined on
-                <PanelInput name="joinedOn" defaultValue={advisor?.joinedOn || ""} type="date" />
+                <CommitteeDateField name="joinedOn" defaultValue={advisor?.joinedOn || ""} onValueChange={setJoinedOn} />
               </Field>
               <Field>
                 Left on
-                <PanelInput name="leftOn" defaultValue={advisor?.leftOn || ""} type="date" />
+                <CommitteeDateField name="leftOn" defaultValue={advisor?.leftOn || ""} onValueChange={setLeftOn} />
               </Field>
               <Field>
                 Tenure display
-                <PanelInput name="tenureDisplay" defaultValue={advisor?.tenureDisplay || ""} placeholder="2015 - 2025" />
+                <input name="tenureDisplay" type="hidden" value={computedTenure === "Not set" ? "" : computedTenure} />
+                <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm font-medium normal-case tracking-normal text-foreground">
+                  {computedTenure}
+                </div>
               </Field>
               <Field>
                 Date confidence
@@ -1650,78 +2288,110 @@ function AdvisorForm({
                   <option value="verified">Verified</option>
                   <option value="estimated">Estimated</option>
                 </PanelSelect>
-              </Field>
-              <Field>
-                Current
-                <PanelSelect name="isCurrent" defaultValue={String(advisor?.isCurrent ?? true)}>
-                  <option value="true">Currently serving</option>
-                  <option value="false">Former advisor</option>
-                </PanelSelect>
-              </Field>
-              <Field>
-                Public
-                <PanelSelect name="isPublic" defaultValue={String(advisor?.isPublic ?? true)}>
-                  <option value="true">Public profile</option>
-                  <option value="false">Internal only</option>
-                </PanelSelect>
+                {(advisor?.dateConfidence || "verified") === "estimated" ? (
+                  <span className="rounded-full bg-amber-100 px-2 py-1 text-xs normal-case tracking-normal text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                    Displayed with a prefix on public profile.
+                  </span>
+                ) : null}
               </Field>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-border bg-muted/20 p-4">
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Content</p>
-            <div className="grid gap-4">
-              <Field>
-                Speech / message
-                <PanelTextarea name="speech" defaultValue={advisor?.speech || ""} rows={4} />
-              </Field>
-              <Field>
-                Bio
-                <PanelTextarea name="bio" defaultValue={advisor?.bio || ""} rows={4} />
-              </Field>
-              <Field>
-                Work experience
-                <PanelTextarea name="workExperience" defaultValue={(advisor?.workExperience || []).join("\n")} placeholder="One item per line" rows={4} />
-              </Field>
-              <Field>
-                Publications
-                <PanelTextarea name="publications" defaultValue={(advisor?.publications || []).join("\n")} placeholder="One item per line" rows={4} />
-              </Field>
-              <Field>
-                Status note
-                <PanelTextarea name="statusNote" defaultValue={advisor?.statusNote || ""} rows={3} />
-              </Field>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-border bg-muted/20 p-4">
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Links</p>
+            <MicroLabel>Status</MicroLabel>
             <div className="grid gap-4 md:grid-cols-2">
+              <SwitchField defaultChecked={advisor?.isCurrent ?? true} name="isCurrent" offLabel="Former advisor" onLabel="Currently serving" />
+              <SwitchField defaultChecked={advisor?.isPublic ?? true} name="isPublic" offLabel="Hidden from public" onLabel="Public profile" />
               <Field>
-                Facebook URL
-                <PanelInput name="facebookUrl" defaultValue={advisor?.facebookUrl || ""} />
-              </Field>
-              <Field>
-                LinkedIn URL
-                <PanelInput name="linkedinUrl" defaultValue={advisor?.linkedinUrl || ""} />
-              </Field>
-              <Field>
-                Website URL
-                <PanelInput name="websiteUrl" defaultValue={advisor?.websiteUrl || ""} />
-              </Field>
-              <Field>
-                JnU profile URL
-                <PanelInput name="jnuProfileUrl" defaultValue={advisor?.jnuProfileUrl || ""} />
-              </Field>
-              <Field>
-                Avatar URL
-                <PanelInput name="avatarSecureUrl" defaultValue={advisor?.avatarSecureUrl || ""} />
-              </Field>
-              <Field>
-                Sort order
+                Display order
                 <PanelInput name="sortOrder" defaultValue={advisor?.sortOrder || 100} min={0} type="number" />
+                <span className="text-xs normal-case tracking-normal text-muted-foreground">Lower numbers appear first.</span>
+              </Field>
+              <Field className="md:col-span-2">
+                Status note
+                <PanelTextarea
+                  name="statusNote"
+                  defaultValue={advisor?.statusNote || ""}
+                  placeholder="e.g. Current Vice Chancellor; previously a professor in the Department of Islamic Studies."
+                  rows={3}
+                />
               </Field>
             </div>
+          </div>
+
+          <div className={cx("flex flex-col gap-5", activePanel !== "content" && "hidden")}>
+            <TextareaWithCount
+              defaultValue={advisor?.speech || ""}
+              helper="Displayed as a featured quote on the public committee page."
+              label="Speech / Message"
+              name="speech"
+              placeholder="Write a short message from the advisor to members..."
+              rows={5}
+            />
+            <TextareaWithCount
+              defaultValue={advisor?.bio || ""}
+              helper="Shown in the advisor's profile card."
+              label="Bio"
+              name="bio"
+              placeholder="Current Chief Advisor by virtue of serving as Vice Chancellor of Jagannath University."
+              rows={5}
+            />
+            <TextareaWithCount
+              defaultValue={(advisor?.workExperience || []).join("\n")}
+              helper="One position per line. Shown in advisor detail view."
+              label="Work Experience"
+              name="workExperience"
+              placeholder={"Vice Chancellor, Jagannath University (2024-Present)\nProfessor, Dept. of Islamic Studies (2010-2024)"}
+              rows={5}
+            />
+            <TextareaWithCount
+              defaultValue={(advisor?.publications || []).join("\n")}
+              helper="One publication per line."
+              label="Publications"
+              name="publications"
+              placeholder={"Title of Publication (Year) - Journal/Publisher\nAnother Publication (Year)"}
+              rows={5}
+            />
+          </div>
+
+          <div className={cx("flex flex-col gap-5", activePanel !== "access" && "hidden")}>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+              Advisor accounts are separate from member accounts. Linking a portal user here grants advisor-specific portal access, not admin access.
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <IconInput name="facebookUrl" label="Facebook URL" defaultValue={advisor?.facebookUrl} placeholder="https://facebook.com/..." />
+              <IconInput name="linkedinUrl" label="LinkedIn URL" defaultValue={advisor?.linkedinUrl} placeholder="https://linkedin.com/in/..." />
+              <IconInput name="websiteUrl" label="Website URL" defaultValue={advisor?.websiteUrl} placeholder="https://..." />
+              <IconInput name="jnuProfileUrl" label="JnU Profile URL" defaultValue={advisor?.jnuProfileUrl} helper="Used on public advisor card." placeholder="https://profile.jnu.ac.bd/..." />
+            </div>
+            <MicroLabel>Portal login link</MicroLabel>
+            {advisor?.userId ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
+                <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                  <CheckCircle className="size-4" aria-hidden="true" /> Portal account linked
+                </span>
+                <GhostButton disabled type="button">Unlink</GhostButton>
+              </div>
+            ) : advisor ? (
+              <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                <Field>
+                  Advisor login email
+                  <PanelInput
+                    form={linkFormId}
+                    name="email"
+                    defaultValue={advisor.email || ""}
+                    placeholder="advisor@jnu.ac.bd"
+                    type="email"
+                  />
+                </Field>
+                <GhostSubmitButton form={linkFormId}>Link auth user</GhostSubmitButton>
+                <p className="text-xs normal-case tracking-normal text-muted-foreground md:col-span-2">
+                  Looks up an existing Supabase Auth user by email and links them to this advisor profile for portal routing.
+                </p>
+              </div>
+            ) : (
+              <p className="rounded-xl border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+                Save the advisor profile before linking a portal user.
+              </p>
+            )}
           </div>
         </div>
         <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-border bg-card px-5 py-4">
@@ -1729,22 +2399,6 @@ function AdvisorForm({
           <GhostButton onClick={onCancel} type="button">Cancel</GhostButton>
         </div>
       </form>
-      {advisor ? (
-        <form action={linkAdvisorAuthUser} className="m-5 rounded-xl border border-border bg-muted/20 p-4">
-          <input name="advisorId" type="hidden" value={advisor.id} />
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Portal account link</p>
-          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
-            <Field>
-              Advisor login email
-              <PanelInput name="email" defaultValue={advisor.email || ""} placeholder="advisor@jnu.ac.bd" type="email" />
-            </Field>
-            <GhostSubmitButton className="self-end">Link auth user</GhostSubmitButton>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            Looks up the existing Supabase Auth user by email and links it to this advisor profile for advisor portal routing.
-          </p>
-        </form>
-      ) : null}
     </div>
   );
 }
@@ -2170,10 +2824,19 @@ export function CommitteeWorkspaceClient({
                 <tbody>
                   {terms.map((term) => {
                     const percent = term.targetExecutiveSlots ? (term.assignmentCount / term.targetExecutiveSlots) * 100 : 0;
+                    const isEditingTerm = termFormId === term.id;
+                    const hasEditingTerm = Boolean(termFormId);
 
                     return (
                       <Fragment key={term.id}>
-                        <tr className={cx("h-[68px] border-b border-border transition-colors hover:bg-muted/30", termRowTone(term))}>
+                        <tr
+                          className={cx(
+                            "h-[68px] border-b border-border transition-colors hover:bg-muted/30",
+                            termRowTone(term),
+                            isEditingTerm && "bg-primary/5",
+                            hasEditingTerm && !isEditingTerm && "opacity-60"
+                          )}
+                        >
                           <td className="px-5">
                             <div className="flex items-center gap-3">
                               <span className={cx(
@@ -2217,7 +2880,7 @@ export function CommitteeWorkspaceClient({
                             </button>
                           </td>
                         </tr>
-                        {termFormId === term.id ? (
+                        {isEditingTerm ? (
                           <tr className="border-b border-border bg-muted/20">
                             <td colSpan={6}>
                               <TermForm onCancel={() => setTermFormId(null)} term={term} />
@@ -2267,8 +2930,14 @@ export function CommitteeWorkspaceClient({
             label="Executive roster"
             title="21-seat public committee assignments"
           >
-            <div className="mb-4 text-xs text-muted-foreground">
-              Sub-Executive rows remain internal and are excluded from the public committee page.
+            <div className="mb-4 flex flex-col gap-1 text-xs text-muted-foreground">
+              <p>Sub-Executive rows remain internal and are excluded from the public committee page.</p>
+              <p>
+                Executive roles require an active member record from Membership DB.{" "}
+                <a className="font-medium text-primary hover:underline" href="/admin/membership" rel="noreferrer" target="_blank">
+                  Open Membership DB →
+                </a>
+              </p>
             </div>
             <RoleSlotGrid roles={executiveRoles} selectedRoleCounts={selectedRoleCounts} />
 
@@ -2405,7 +3074,15 @@ export function CommitteeWorkspaceClient({
           </SectionShell>
 
           <SectionShell
-            actions={<PrimaryButton onClick={() => { setShowNewAdvisor(true); setEditingAdvisorId(null); }} type="button"><Plus className="size-3.5" /> Add advisor</PrimaryButton>}
+            actions={
+              <>
+                <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 text-xs text-muted-foreground">
+                  <Info className="size-3.5" aria-hidden="true" />
+                  Advisors are not members · Managed separately from Membership DB
+                </span>
+                <PrimaryButton onClick={() => { setShowNewAdvisor(true); setEditingAdvisorId(null); }} type="button"><Plus className="size-3.5" /> Add advisor</PrimaryButton>
+              </>
+            }
             id="committee-advisors"
             label="Advisors"
             title="Teacher advisor profiles"
@@ -2997,7 +3674,6 @@ export function CommitteeWorkspaceClient({
             setShowNewAssignment(false);
           }}
           title={selectedAssignment ? "Edit Assignment" : "Add Assignment"}
-          width="lg:max-w-[400px]"
         >
           <AssignmentForm
             assignment={selectedAssignment}
@@ -3007,8 +3683,8 @@ export function CommitteeWorkspaceClient({
               setEditingAssignmentId(null);
               setShowNewAssignment(false);
             }}
+            selectedRoleCounts={selectedRoleCounts}
             selectedTerm={selectedTerm}
-            terms={terms}
           />
         </DrawerPanel>
       ) : null}
