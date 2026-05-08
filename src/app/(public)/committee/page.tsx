@@ -1,14 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { AdvisorBoardSection } from "@/components/committee/AdvisorBoardSection";
-import { CommitteeArchiveSection } from "@/components/committee/CommitteeArchiveSection";
-import { CommitteeDivider } from "@/components/committee/CommitteeDivider";
-import { CommitteeHero } from "@/components/committee/CommitteeHero";
 import { CommitteePageSkeleton } from "@/components/committee/CommitteePageSkeleton";
-import { CurrentCommitteeSection } from "@/components/committee/CurrentCommitteeSection";
-import { FormerAdvisorsSection } from "@/components/committee/FormerAdvisorsSection";
-import { IdentityBoundaryNotice } from "@/components/committee/IdentityBoundaryNotice";
+import { CommitteePageClient } from "@/components/committee/CommitteePageClient";
 import { getPublicCommitteeDirectory } from "@/lib/committee/public";
 
 export const metadata: Metadata = {
@@ -38,36 +32,24 @@ async function CommitteeContent() {
   const currentTerm = directory.currentTerm;
   const currentAdvisors = directory.advisors.filter((advisor) => advisor.isCurrent);
   const formerAdvisors = directory.advisors.filter((advisor) => !advisor.isCurrent);
-  const archiveTerms = directory.terms.filter(
+  const publicExecutiveTerms = directory.terms.filter(
     (term) => !term.slug.toLowerCase().includes("advisory")
+  );
+  const executiveTerms = [...publicExecutiveTerms].sort(
+    (first, second) => (second.termNumber || 0) - (first.termNumber || 0)
+  );
+  const assignmentsByTerm = Object.fromEntries(
+    executiveTerms.map((term) => [term.slug, term.assignments])
   );
 
   return (
-    <>
-      <CommitteeHero
-        archivedTerms={archiveTerms.length}
-        currentAdvisors={currentAdvisors.length}
-        currentTerm={currentTerm}
-      />
-
-      <div className="mx-auto max-w-[1080px] px-4 sm:px-6 lg:px-8">
-        <CommitteeDivider />
-        <CurrentCommitteeSection term={currentTerm} />
-
-        <CommitteeDivider />
-        <AdvisorBoardSection advisors={directory.advisors} />
-
-        {formerAdvisors.length > 0 ? (
-          <>
-            <CommitteeDivider />
-            <FormerAdvisorsSection advisors={directory.advisors} />
-          </>
-        ) : null}
-
-        <CommitteeDivider />
-        <CommitteeArchiveSection terms={directory.terms} />
-        <IdentityBoundaryNotice />
-      </div>
-    </>
+    <CommitteePageClient
+      advisors={directory.advisors}
+      assignmentsByTerm={assignmentsByTerm}
+      currentAdvisorsCount={currentAdvisors.length}
+      currentTerm={currentTerm}
+      executiveTerms={executiveTerms}
+      formerAdvisorsCount={formerAdvisors.length}
+    />
   );
 }

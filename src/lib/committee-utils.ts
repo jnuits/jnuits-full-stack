@@ -1,4 +1,7 @@
-import type { PublicAdvisorProfile } from "@/lib/committee/public";
+import type {
+  PublicAdvisorProfile,
+  PublicCommitteeAssignment,
+} from "@/lib/committee/public";
 
 export function isInternalNote(note: null | string | undefined): boolean {
   if (!note) return false;
@@ -6,6 +9,7 @@ export function isInternalNote(note: null | string | undefined): boolean {
   const internalPhrases = [
     "migrated",
     "legacy advisory roster",
+    "legacy roster",
     "advisory roster",
     "admin note",
     "internal",
@@ -87,4 +91,59 @@ export function getInitials(name: string) {
   const second = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
 
   return `${first}${second}`.toUpperCase();
+}
+
+export function ordinalSuffix(value: number) {
+  const mod100 = value % 100;
+
+  if (mod100 >= 11 && mod100 <= 13) return "th";
+  if (value % 10 === 1) return "st";
+  if (value % 10 === 2) return "nd";
+  if (value % 10 === 3) return "rd";
+
+  return "th";
+}
+
+export type CommitteeRoleCategory =
+  | "executiveMembers"
+  | "leadership"
+  | "secretaries";
+
+const leadershipRoles = new Set([
+  "assistant-general-secretary",
+  "assistant_general_secretary",
+  "general-secretary",
+  "general_secretary",
+  "president",
+  "vice-president",
+  "vice_president",
+]);
+
+const executiveMemberRoles = new Set(["executive-member", "executive_member"]);
+
+const subExecutiveRoles = new Set([
+  "sub-executive",
+  "sub_executive",
+  "sub-executive-member",
+  "sub_executive_member",
+]);
+
+export function groupByRoleCategory(assignments: PublicCommitteeAssignment[]) {
+  const visibleAssignments = assignments.filter(
+    (assignment) => !subExecutiveRoles.has(assignment.roleCode)
+  );
+
+  return {
+    leadership: visibleAssignments.filter((assignment) =>
+      leadershipRoles.has(assignment.roleCode)
+    ),
+    secretaries: visibleAssignments.filter(
+      (assignment) =>
+        !leadershipRoles.has(assignment.roleCode) &&
+        !executiveMemberRoles.has(assignment.roleCode)
+    ),
+    executiveMembers: visibleAssignments.filter((assignment) =>
+      executiveMemberRoles.has(assignment.roleCode)
+    ),
+  } satisfies Record<CommitteeRoleCategory, PublicCommitteeAssignment[]>;
 }

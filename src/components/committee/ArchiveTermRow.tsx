@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ArrowRight, CalendarDays } from "lucide-react";
 
 import type { PublicCommitteeTerm } from "@/lib/committee/public";
@@ -10,9 +9,11 @@ function cn(...classes: Array<false | null | string | undefined>) {
 
 export function ArchiveTermRow({
   index,
+  onSelect,
   term,
 }: {
   index: number;
+  onSelect: (termSlug: string) => void;
   term: PublicCommitteeTerm;
 }) {
   const termNumber = term.termNumber || index + 1;
@@ -64,19 +65,20 @@ export function ArchiveTermRow({
         ) : null}
       </div>
 
-      <Link
+      <button
         className={cn(
           "inline-flex min-h-11 flex-shrink-0 items-center justify-center rounded-full px-3 text-xs font-semibold opacity-80 transition hover:opacity-100 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:px-4",
           term.isCurrent
             ? "bg-primary text-primary-foreground hover:bg-primary/90"
             : "border border-border bg-card text-foreground hover:border-primary/40 hover:text-primary"
         )}
-        href={`/committee/${term.slug}`}
+        onClick={() => onSelect(term.slug)}
+        type="button"
       >
-        <span className="hidden sm:inline">Open roster</span>
-        <span className="sm:hidden">Open</span>
+        <span className="hidden sm:inline">Jump to roster</span>
+        <span className="sm:hidden">Jump</span>
         <ArrowRight aria-hidden="true" className="ml-1.5" size={14} />
-      </Link>
+      </button>
     </article>
   );
 }

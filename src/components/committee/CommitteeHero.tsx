@@ -1,5 +1,6 @@
-import Link from "next/link";
-import { ArrowRight, Building2, CalendarDays, Vote } from "lucide-react";
+"use client";
+
+import { Building2, CalendarDays, ChevronDown, Vote } from "lucide-react";
 
 import type { PublicCommitteeTerm } from "@/lib/committee/public";
 import { formatCommitteeDate } from "@/lib/committee-utils";
@@ -8,14 +9,26 @@ export function CommitteeHero({
   archivedTerms,
   currentAdvisors,
   currentTerm,
+  onAdvisorHistoryClick,
 }: {
   archivedTerms: number;
   currentAdvisors: number;
   currentTerm: null | PublicCommitteeTerm;
+  onAdvisorHistoryClick: () => void;
 }) {
   const seatsFilled = currentTerm?.assignments.length || 0;
   const targetSeats = currentTerm?.targetExecutiveSlots || 21;
   const seatValue = `${seatsFilled}/${targetSeats}`;
+  const scrollToCurrentCommittee = () => {
+    document
+      .getElementById("current-committee")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const scrollToAdvisorBoard = () => {
+    document
+      .getElementById("advisor-board")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <section className="overflow-x-hidden bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,color-mix(in_oklab,var(--primary)_7%,transparent),transparent)] py-16 md:py-24 dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,color-mix(in_oklab,var(--primary)_5%,transparent),transparent)]">
@@ -67,28 +80,29 @@ export function CommitteeHero({
             </div>
           ) : null}
 
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            {currentTerm ? (
-              <Link
-                className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                href={`/committee/${currentTerm.slug}`}
-              >
-                Open current term
-              </Link>
-            ) : null}
-            <Link
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <button
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              onClick={scrollToCurrentCommittee}
+              type="button"
+            >
+              Current Committee
+            </button>
+            <button
               className="inline-flex min-h-11 items-center justify-center rounded-full border border-border bg-card px-6 text-sm font-semibold text-foreground transition hover:border-primary/40 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-              href="#advisor-board"
+              onClick={scrollToAdvisorBoard}
+              type="button"
             >
-              Advisor board
-            </Link>
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-full px-4 text-sm font-semibold text-muted-foreground transition hover:text-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-              href="#archive"
+              Advisor Board
+            </button>
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              onClick={onAdvisorHistoryClick}
+              type="button"
             >
-              View archive
-              <ArrowRight aria-hidden="true" className="ml-1" size={13} />
-            </Link>
+              Advisor History
+              <ChevronDown aria-hidden="true" size={14} />
+            </button>
           </div>
 
           <div className="mx-auto mt-14 grid max-w-2xl grid-cols-3 gap-4 border-t border-border/50 pt-10">

@@ -32,7 +32,8 @@ export function AdvisorBoardSection({
         <p className="mt-3 text-lg leading-relaxed text-muted-foreground">
           Teacher advisors are maintained separately from student and alumni
           member records. Their public service history follows advisor joining
-          and leaving dates, not executive committee terms.
+          and leaving dates, not executive committee terms. Advisors are not
+          members and hold independent advisor portal IDs.
         </p>
       </div>
 

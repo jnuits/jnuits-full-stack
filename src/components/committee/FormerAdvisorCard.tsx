@@ -1,18 +1,22 @@
+import Image from "next/image";
 import { CalendarDays, ExternalLink } from "lucide-react";
 
 import type { PublicAdvisorProfile } from "@/lib/committee/public";
 import {
   formatAdvisorDisplayName,
   formatAdvisorTenure,
+  formatCommitteeDateRange,
   getInitials,
   isInternalNote,
 } from "@/lib/committee-utils";
+
+const JNUITS_FOUNDED_ON = "2015-11-11";
 
 function cn(...classes: Array<false | null | string | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-export function FormerAdvisorCard({
+export function FormerAdvisorTimelineRow({
   advisor,
 }: {
   advisor: PublicAdvisorProfile;
@@ -24,99 +28,149 @@ export function FormerAdvisorCard({
     advisor.statusNote && !isInternalNote(advisor.statusNote)
       ? advisor.statusNote
       : null;
-  const tenure = formatAdvisorTenure(advisor);
+  const tenure = formatTimelineTenure(advisor);
+  const isChief = advisor.advisorType === "main_advisor";
 
   return (
-    <article className="rounded-2xl border border-border bg-card p-5">
-      <div className="flex items-start gap-3">
-        <AdvisorAvatar advisor={advisor} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h4 className="text-sm font-semibold text-foreground">
-              {displayName}
-            </h4>
-            {advisor.formerTitle ? (
-              <span className="whitespace-nowrap rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                {advisor.formerTitle}
-              </span>
-            ) : null}
-          </div>
-          {advisor.designation ? (
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {advisor.designation}
-            </p>
+    <article className="group relative flex gap-5 py-6">
+      <AdvisorTimelineAvatar advisor={advisor} displayName={displayName} />
+
+      <div className="min-w-0 flex-1 pb-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="text-sm font-semibold text-foreground">
+            {displayName}
+          </h4>
+          {advisor.formerTitle ? (
+            <span className="rounded-full border border-border/70 bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {advisor.formerTitle}
+            </span>
           ) : null}
-          {advisor.advisorJnuitsId ? (
-            <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/50">
-              {advisor.advisorJnuitsId}
-            </p>
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              isChief
+                ? "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400"
+                : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+            )}
+          >
+            {isChief ? "Chief Advisor" : "Moderator/Mentor"}
+          </span>
+        </div>
+
+        {advisor.designation ? (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {advisor.designation}
+          </p>
+        ) : null}
+
+        {safeBio ? (
+          <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-foreground/70">
+            {safeBio}
+          </p>
+        ) : null}
+
+        {safeNote ? (
+          <p className="mt-2 text-xs italic text-muted-foreground/80">
+            {safeNote}
+          </p>
+        ) : null}
+
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span
+            className="inline-flex items-center gap-1"
+            title={
+              tenure.corrected
+                ? "Advisory tenure starts from JnUITS founding date"
+                : undefined
+            }
+          >
+            <CalendarDays aria-hidden="true" size={11} />
+            {tenure.label}
+          </span>
+          {advisor.jnuProfileUrl ? (
+            <a
+              aria-label={`JnU profile for ${displayName} (opens in new tab)`}
+              className="inline-flex min-h-11 items-center gap-1 text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              href={advisor.jnuProfileUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <ExternalLink aria-hidden="true" size={10} />
+              JnU Profile
+            </a>
           ) : null}
         </div>
-      </div>
-
-      {safeBio ? (
-        <p className="mt-4 line-clamp-2 text-xs leading-relaxed text-foreground/70">
-          {safeBio}
-        </p>
-      ) : null}
-
-      {safeNote ? (
-        <p className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          {safeNote}
-        </p>
-      ) : null}
-
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/50 pt-4">
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <CalendarDays aria-hidden="true" size={11} />
-          {advisor.dateConfidence === "estimated"
-            ? `${tenure} - Estimated`
-            : tenure}
-        </span>
-        {advisor.jnuProfileUrl ? (
-          <a
-            aria-label={`View JnU profile for ${displayName} (opens in new tab)`}
-            className="inline-flex min-h-11 items-center gap-1 text-[10px] text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-            href={advisor.jnuProfileUrl}
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            <ExternalLink aria-hidden="true" size={10} />
-            JnU Profile
-          </a>
-        ) : null}
       </div>
     </article>
   );
 }
 
-function AdvisorAvatar({ advisor }: { advisor: PublicAdvisorProfile }) {
-  const displayName = formatAdvisorDisplayName(advisor);
-  const className =
-    "size-12 rounded-xl bg-muted text-sm font-bold text-muted-foreground [filter:grayscale(0.4)]";
-
-  if (advisor.avatarUrl) {
-    return (
-      // Public profile avatars are already optimized by the CMS/upload flow.
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        alt={displayName}
-        className={cn(className, "flex-shrink-0 object-cover")}
-        src={advisor.avatarUrl}
-      />
-    );
-  }
-
+function AdvisorTimelineAvatar({
+  advisor,
+  displayName,
+}: {
+  advisor: PublicAdvisorProfile;
+  displayName: string;
+}) {
   return (
-    <div
-      aria-label={`${displayName} advisor portrait`}
-      className={cn(
-        "flex flex-shrink-0 items-center justify-center",
-        className
+    <div className="relative z-10 mt-0.5 flex size-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-border bg-card transition-colors group-hover:border-primary/40">
+      {advisor.avatarUrl ? (
+        <Image
+          alt={displayName}
+          className="rounded-full object-cover"
+          fill
+          sizes="40px"
+          src={advisor.avatarUrl}
+        />
+      ) : (
+        <span className="text-xs font-black text-muted-foreground">
+          {getInitials(displayName)}
+        </span>
       )}
-      role="img"
-    >
-      {getInitials(displayName)}
     </div>
   );
+}
+
+function formatTimelineTenure(advisor: PublicAdvisorProfile) {
+  const displayStart = getDisplayTenureStart(advisor);
+
+  if (displayStart.corrected) {
+    const correctedTenure = formatCommitteeDateRange(
+      displayStart.value,
+      advisor.leftOn,
+      { variant: "short" }
+    );
+
+    return {
+      corrected: true,
+      label:
+        advisor.dateConfidence !== "verified"
+          ? `~ ${correctedTenure} · Estimated`
+          : correctedTenure,
+    };
+  }
+
+  const tenure = formatAdvisorTenure(advisor).replace(/^~\s*/, "");
+
+  return {
+    corrected: false,
+    label:
+      advisor.dateConfidence !== "verified"
+        ? `~ ${tenure} · Estimated`
+        : tenure,
+  };
+}
+
+function getDisplayTenureStart(advisor: PublicAdvisorProfile) {
+  const rawStart = advisor.joinedOn;
+
+  if (!rawStart) {
+    return { corrected: false, value: null };
+  }
+
+  if (rawStart < JNUITS_FOUNDED_ON) {
+    return { corrected: true, value: JNUITS_FOUNDED_ON };
+  }
+
+  return { corrected: false, value: rawStart };
 }
