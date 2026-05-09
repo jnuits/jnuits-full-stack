@@ -233,11 +233,11 @@ function OfficialContact({ googleBusinessHref, settings, socialLinks }: Official
 
   return (
     <aside
-      className="order-1 overflow-hidden rounded-2xl border border-border bg-card shadow-sm xl:order-2"
+      className="order-1 flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm xl:order-2"
       aria-labelledby="contact-info-title"
     >
       <div className="h-[3px] rounded-t-2xl bg-primary/50" aria-hidden="true" />
-      <div className="p-6">
+      <div className="flex flex-1 flex-col p-6">
         <div>
           <h2 id="contact-info-title" className="text-xl font-bold text-foreground">
             Jagannath University IT Society
@@ -488,8 +488,8 @@ export default async function ContactPage({
 
       <section className="pb-16 pt-12" aria-label="Contact details and form">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
-            <div className="order-2 xl:order-1">
+          <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2 xl:items-stretch">
+            <div className="order-2 xl:order-1 xl:h-full">
               <ContactFormCard
                 defaultCategory={defaultCategory}
                 defaultSubject={defaultSubject}

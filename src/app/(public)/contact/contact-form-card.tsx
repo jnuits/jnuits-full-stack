@@ -31,7 +31,7 @@ const labelClass = "mb-1 block text-sm font-medium text-foreground";
 const inputClass =
   "h-12 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20";
 const compactInputClass =
-  "h-10 min-w-0 grow rounded-r-lg border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20";
+  "h-full min-w-0 grow border-0 bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground/70";
 
 function cn(...classes: Array<false | null | string | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -63,6 +63,8 @@ export function ContactFormCard({
   const combinedPhoneValue = normalizedPhoneNumber
     ? `${selectedCountry.dial}${normalizedPhoneNumber}`
     : "";
+  const phonePlaceholder =
+    selectedCountry.code === "BD" ? "1721-129467" : "Phone number";
   const filteredCountries = useMemo(() => {
     const query = countrySearch.trim().toLowerCase();
 
@@ -141,10 +143,10 @@ export function ContactFormCard({
   return (
     <section
       aria-labelledby="contact-form-title"
-      className="overflow-visible rounded-2xl border border-border bg-card shadow-sm"
+      className="flex h-full flex-col overflow-visible rounded-2xl border border-border bg-card shadow-sm"
     >
       <div className="h-[3px] rounded-t-2xl bg-primary" aria-hidden="true" />
-      <div className="p-6">
+      <div className="flex flex-1 flex-col p-6">
         <h2 id="contact-form-title" className="text-2xl font-bold tracking-tight text-foreground">
           Send us a message
         </h2>
@@ -164,7 +166,7 @@ export function ContactFormCard({
         <form
           action="/api/contact/submit"
           method="post"
-          className="mt-4"
+          className="mt-4 flex flex-1 flex-col"
           id="contact-form"
           onSubmit={() => setIsSubmitting(true)}
         >
@@ -232,12 +234,16 @@ export function ContactFormCard({
                 Phone or WhatsApp number
               </label>
               <input type="hidden" name="phone_whatsapp" value={combinedPhoneValue} />
-              <div className="flex" ref={phoneFieldRef}>
+              <div
+                className="flex h-12 overflow-hidden rounded-xl border border-border bg-background transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+                ref={phoneFieldRef}
+              >
                 <button
                   type="button"
                   aria-expanded={countryPickerOpen}
                   aria-haspopup="listbox"
-                  className="flex h-10 w-[8.75rem] flex-shrink-0 cursor-pointer items-center gap-1.5 rounded-l-lg border border-r-0 border-input bg-background px-3 text-sm transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/20 sm:w-[9.75rem]"
+                  aria-label="Select country dialing code"
+                  className="flex h-full w-[7.75rem] flex-shrink-0 cursor-pointer items-center gap-1.5 border-r border-border/70 bg-muted/30 px-3 text-sm transition-colors hover:bg-muted/50 focus:outline-none sm:w-[8.75rem]"
                   onClick={() => {
                     setCountrySearch("");
                     setCountryPickerOpen((isOpen) => !isOpen);
@@ -258,7 +264,7 @@ export function ContactFormCard({
                   type="tel"
                   value={phoneNumber}
                   onChange={(event) => setPhoneNumber(event.currentTarget.value)}
-                  placeholder="1XXX-XXXXXX"
+                  placeholder={phonePlaceholder}
                 />
               </div>
 
@@ -388,7 +394,7 @@ export function ContactFormCard({
 
                 <input type="hidden" name="cf_turnstile_token" value={turnstileToken} />
 
-                <div className="min-h-[78px]">
+                <div>
                   <div
                     className={cn(
                       "overflow-hidden transition-all duration-300",
