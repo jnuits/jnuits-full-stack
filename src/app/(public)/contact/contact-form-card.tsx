@@ -141,10 +141,10 @@ export function ContactFormCard({
   return (
     <section
       aria-labelledby="contact-form-title"
-      className="flex h-full flex-col overflow-visible rounded-2xl border border-border bg-card shadow-sm"
+      className="overflow-visible rounded-2xl border border-border bg-card shadow-sm"
     >
       <div className="h-[3px] rounded-t-2xl bg-primary" aria-hidden="true" />
-      <div className="flex flex-1 flex-col p-6">
+      <div className="p-6">
         <h2 id="contact-form-title" className="text-2xl font-bold tracking-tight text-foreground">
           Send us a message
         </h2>
@@ -164,11 +164,11 @@ export function ContactFormCard({
         <form
           action="/api/contact/submit"
           method="post"
-          className="mt-4 flex flex-1 flex-col"
+          className="mt-4"
           id="contact-form"
           onSubmit={() => setIsSubmitting(true)}
         >
-          <div className="flex-1 space-y-4">
+          <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass} htmlFor="contact-name">
@@ -388,7 +388,7 @@ export function ContactFormCard({
 
                 <input type="hidden" name="cf_turnstile_token" value={turnstileToken} />
 
-                <div>
+                <div className="min-h-[78px]">
                   <div
                     className={cn(
                       "overflow-hidden transition-all duration-300",

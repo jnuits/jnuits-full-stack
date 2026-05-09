@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import {
+  ArrowRight,
+  Award,
+  Bell,
+  Calendar,
   CalendarDays,
   Clock,
   ExternalLink,
@@ -8,6 +13,7 @@ import {
   Mail,
   MapPin,
   Phone,
+  UserPlus,
 } from "lucide-react";
 
 import { getContactContent } from "@/lib/content/site-singletons";
@@ -37,6 +43,29 @@ const inquiryCategories = [
 
 const jnuitsMapEmbedSrc =
   "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3653.075248110007!2d90.40602729229096!3d23.70900673544924!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3755b9072c00d493%3A0x4c7a9385bc430a6f!2sJagannath%20University%20IT%20Society!5e0!3m2!1sen!2sbd!4v1778303281126!5m2!1sen!2sbd";
+
+const quickLinks = [
+  {
+    label: "Membership form",
+    href: "/membership-form",
+    icon: UserPlus,
+  },
+  {
+    label: "Notices & announcements",
+    href: "/notices",
+    icon: Bell,
+  },
+  {
+    label: "Upcoming events",
+    href: "/events",
+    icon: Calendar,
+  },
+  {
+    label: "Certificate verification",
+    href: "/certificates",
+    icon: Award,
+  },
+];
 
 function SocialIcon({ label }: { label: string }) {
   const normalized = label.toLowerCase();
@@ -192,14 +221,23 @@ function OfficialContact({ googleBusinessHref, settings, socialLinks }: Official
     { day: "Thursday", hours: settings.hours_thu },
     { day: "Friday", hours: settings.hours_fri },
   ];
+  const weekendHours =
+    settings.hours_fri.trim().toLowerCase() === "closed" &&
+    settings.hours_sat.trim().toLowerCase() === "closed"
+      ? "Closed"
+      : `${settings.hours_fri} / ${settings.hours_sat}`;
+  const compactOfficeHours = [
+    { day: "Sun - Thu", hours: settings.hours_sun },
+    { day: "Fri - Sat", hours: weekendHours },
+  ];
 
   return (
     <aside
-      className="order-1 flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:order-2"
+      className="order-1 overflow-hidden rounded-2xl border border-border bg-card shadow-sm xl:order-2"
       aria-labelledby="contact-info-title"
     >
       <div className="h-[3px] rounded-t-2xl bg-primary/50" aria-hidden="true" />
-      <div className="flex h-full flex-col p-6">
+      <div className="p-6">
         <div>
           <h2 id="contact-info-title" className="text-xl font-bold text-foreground">
             Jagannath University IT Society
@@ -298,11 +336,54 @@ function OfficialContact({ googleBusinessHref, settings, socialLinks }: Official
           </a>
         </div>
 
-        <div className="flex-1 min-h-4" aria-hidden="true" />
+        <div className="mt-2 hidden border-t border-border/50 pt-4 xl:block">
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Quick links
+          </p>
+          <div className="space-y-1">
+            {quickLinks.map(({ label, href, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className="group flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              >
+                <Icon
+                  aria-hidden="true"
+                  size={14}
+                  className="flex-shrink-0 text-muted-foreground/60 transition-colors group-hover:text-primary"
+                />
+                <span>{label}</span>
+                <ArrowRight
+                  aria-hidden="true"
+                  size={12}
+                  className="ml-auto text-primary opacity-0 transition-opacity group-hover:opacity-100"
+                />
+              </Link>
+            ))}
+          </div>
+        </div>
 
         <div className="mt-6 border-t border-border/50 pt-4">
           <ContactGroup icon={<Clock aria-hidden="true" size={18} />} label="Office hours">
-            <div className="mt-2 space-y-1.5">
+            <div className="mt-2 space-y-1.5 xl:hidden">
+              {compactOfficeHours.map(({ day, hours }) => {
+                const value = hours.trim();
+                const isClosed = !value || value.toLowerCase() === "closed";
+
+                return (
+                  <div key={day} className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">{day}</span>
+                    {isClosed ? (
+                      <span className="text-xs italic text-muted-foreground">Closed</span>
+                    ) : (
+                      <span className="text-xs font-medium text-foreground">{value}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-2 hidden space-y-1.5 xl:block">
               {officeHours.map(({ day, hours }) => {
                 const value = hours.trim();
                 const isClosed = !value || value.toLowerCase() === "closed";
@@ -407,8 +488,8 @@ export default async function ContactPage({
 
       <section className="pb-16 pt-12" aria-label="Contact details and form">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
-            <div className="order-2 h-full lg:order-1">
+          <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
+            <div className="order-2 xl:order-1">
               <ContactFormCard
                 defaultCategory={defaultCategory}
                 defaultSubject={defaultSubject}
