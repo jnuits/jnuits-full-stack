@@ -175,4 +175,5 @@ export const adminNavigation: NavItem[] = [
   { href: "/admin/settings/profile", label: "Profile Settings" },
   { href: "/admin/settings/security", label: "Security Settings" },
   { href: "/admin/settings/notifications", label: "Notification Settings" },
+  { href: "/admin/settings/contact", label: "Contact Settings" },
 ];

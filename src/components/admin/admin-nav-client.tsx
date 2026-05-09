@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Mail,
   Menu,
+  Phone,
   RefreshCcw,
   ScrollText,
   ShieldCheck,
@@ -138,6 +139,11 @@ function buildNavGroups(
           "/admin/settings/notifications",
           "Notification Settings",
           BellRing
+        ),
+        createNavItem(
+          "/admin/settings/contact",
+          "Contact Settings",
+          Phone
         ),
       ],
     });

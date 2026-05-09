@@ -23,22 +23,20 @@ function dispatchTurnstileEvent(name: TurnstileEventName, detail?: string) {
   window.dispatchEvent(new CustomEvent(name, { detail }));
 }
 
-if (typeof window !== "undefined") {
-  window.onTurnstileSuccess = (token: string) => {
-    dispatchTurnstileEvent("turnstile:success", token);
-  };
-  window.onTurnstileError = () => {
-    dispatchTurnstileEvent("turnstile:error");
-  };
-  window.onTurnstileExpired = () => {
-    dispatchTurnstileEvent("turnstile:expired");
-  };
-}
-
 export function TurnstileWidget({ onSuccess, onError, onExpired }: TurnstileWidgetProps) {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
   useEffect(() => {
+    window.onTurnstileSuccess = (token: string) => {
+      dispatchTurnstileEvent("turnstile:success", token);
+    };
+    window.onTurnstileError = () => {
+      dispatchTurnstileEvent("turnstile:error");
+    };
+    window.onTurnstileExpired = () => {
+      dispatchTurnstileEvent("turnstile:expired");
+    };
+
     const handleSuccess = (event: Event) => {
       onSuccess((event as CustomEvent<string>).detail);
     };
@@ -57,11 +55,14 @@ export function TurnstileWidget({ onSuccess, onError, onExpired }: TurnstileWidg
       window.removeEventListener("turnstile:success", handleSuccess);
       window.removeEventListener("turnstile:error", handleError);
       window.removeEventListener("turnstile:expired", handleExpired);
+      delete window.onTurnstileSuccess;
+      delete window.onTurnstileError;
+      delete window.onTurnstileExpired;
     };
   }, [onError, onExpired, onSuccess, siteKey]);
 
   return (
-    <div className="mt-4" suppressHydrationWarning>
+    <div className="mt-2" suppressHydrationWarning>
       <Script
         src="https://challenges.cloudflare.com/turnstile/v0/api.js"
         strategy="lazyOnload"

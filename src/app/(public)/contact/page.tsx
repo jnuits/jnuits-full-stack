@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 
 import { getContactContent } from "@/lib/content/site-singletons";
+import type { ContactSettings } from "@/lib/contact-settings";
+import { getContactSettings } from "@/lib/contact-settings";
 
 import { ContactFormCard } from "./contact-form-card";
 
@@ -33,35 +35,8 @@ const inquiryCategories = [
   { label: "Feedback & Suggestions", value: "feedback_suggestions" },
 ];
 
-const contactAddress = "9, 10 Chittaranjan Ave, Dhaka 1100, Bangladesh";
 const jnuitsMapEmbedSrc =
   "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3653.075248110007!2d90.40602729229096!3d23.70900673544924!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3755b9072c00d493%3A0x4c7a9385bc430a6f!2sJagannath%20University%20IT%20Society!5e0!3m2!1sen!2sbd!4v1778303281126!5m2!1sen!2sbd";
-
-const contactEmails = [
-  {
-    href: "mailto:info@jnuits.org.bd",
-    label: "Primary",
-    tone: "primary",
-    value: "info@jnuits.org.bd",
-  },
-  {
-    href: "mailto:itsociety@association.jnu.ac.bd",
-    label: "University",
-    tone: "outline",
-    value: "itsociety@association.jnu.ac.bd",
-  },
-  {
-    href: "mailto:jnuitsbd@gmail.com",
-    label: "Legacy",
-    tone: "muted",
-    value: "jnuitsbd@gmail.com",
-  },
-];
-
-const contactPhones = [
-  { href: "tel:+8801721129467", value: "+880 1721-129467" },
-  { href: "tel:+8801567934536", value: "+880 1567-934536" },
-];
 
 function SocialIcon({ label }: { label: string }) {
   const normalized = label.toLowerCase();
@@ -121,6 +96,12 @@ function badgeClass(tone: string) {
   return "border border-border bg-muted text-muted-foreground";
 }
 
+function contactRoleBadgeClass(tone: string) {
+  return `inline-flex flex-shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none ${badgeClass(
+    tone,
+  )}`;
+}
+
 function ContactGroup({
   children,
   icon,
@@ -135,7 +116,7 @@ function ContactGroup({
       <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/[0.12] text-primary dark:bg-primary/[0.18]">
         {icon}
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 grow">
         <p className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           {label}
         </p>
@@ -163,132 +144,182 @@ function socialHoverClass(label: string) {
   return "hover:border-black hover:bg-black hover:text-white";
 }
 
+function mailHref(value: string) {
+  return `mailto:${value}`;
+}
+
+function phoneHref(value: string) {
+  return `tel:${value.replace(/[^\d+]/g, "")}`;
+}
+
 type OfficialContactProps = {
   googleBusinessHref: string;
+  settings: ContactSettings;
   socialLinks: Array<{
     href: string;
     label: string;
   }>;
 };
 
-function OfficialContact({ googleBusinessHref, socialLinks }: OfficialContactProps) {
+function OfficialContact({ googleBusinessHref, settings, socialLinks }: OfficialContactProps) {
+  const contactEmails = [
+    {
+      href: mailHref(settings.email_primary),
+      label: "Primary",
+      tone: "primary",
+      value: settings.email_primary,
+    },
+    {
+      href: mailHref(settings.email_university),
+      label: "University",
+      tone: "outline",
+      value: settings.email_university,
+    },
+    {
+      href: mailHref(settings.email_legacy),
+      label: "Legacy",
+      tone: "muted",
+      value: settings.email_legacy,
+    },
+  ];
+  const contactPhones = [settings.phone_primary, settings.phone_secondary].filter(Boolean);
+  const officeHours = [
+    { day: "Saturday", hours: settings.hours_sat },
+    { day: "Sunday", hours: settings.hours_sun },
+    { day: "Monday", hours: settings.hours_mon },
+    { day: "Tuesday", hours: settings.hours_tue },
+    { day: "Wednesday", hours: settings.hours_wed },
+    { day: "Thursday", hours: settings.hours_thu },
+    { day: "Friday", hours: settings.hours_fri },
+  ];
+
   return (
     <aside
       className="order-1 flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:order-2"
       aria-labelledby="contact-info-title"
     >
       <div className="h-[3px] rounded-t-2xl bg-primary/50" aria-hidden="true" />
-      <div className="flex flex-1 flex-col p-5">
-        <div className="flex-1">
-          <div>
-            <h2 id="contact-info-title" className="text-xl font-bold text-foreground">
-              Jagannath University IT Society
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">Non-profit University IT Club</p>
-          </div>
+      <div className="flex h-full flex-col p-6">
+        <div>
+          <h2 id="contact-info-title" className="text-xl font-bold text-foreground">
+            Jagannath University IT Society
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">Non-profit University IT Club</p>
+        </div>
 
-          <div className="my-6 h-px bg-border" aria-hidden="true" />
+        <div className="my-6 h-px bg-border" aria-hidden="true" />
 
-          <div className="space-y-3">
-            <ContactGroup icon={<Mail aria-hidden="true" size={18} />} label="Email">
-              <div className="space-y-1.5">
-                {contactEmails.map((item) => (
-                  <div key={item.value} className="flex min-w-0 items-start gap-2">
-                    <span
-                      className={`mt-0.5 flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${badgeClass(
-                        item.tone,
-                      )}`}
-                    >
-                      {item.label}
-                    </span>
-                    <a
-                      href={item.href}
-                      aria-label={`Email ${item.label.toLowerCase()} address ${item.value}`}
-                      className={
-                        item.tone === "primary"
-                          ? "min-h-11 break-all py-1 text-sm font-medium text-foreground transition-colors hover:text-primary"
-                          : "min-h-11 break-all py-1 text-sm text-muted-foreground transition-colors hover:text-primary"
-                      }
-                    >
-                      {item.value}
-                    </a>
-                  </div>
-                ))}
-              </div>
-            </ContactGroup>
-
-            <ContactGroup icon={<Phone aria-hidden="true" size={18} />} label="Phone">
-              <div className="flex flex-col gap-1">
-                {contactPhones.map((item) => (
+        <div className="space-y-3">
+          <ContactGroup icon={<Mail aria-hidden="true" size={18} />} label="Email">
+            <div className="flex flex-col gap-2">
+              {contactEmails.map((item) => (
+                <div key={item.value} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                   <a
-                    key={item.value}
                     href={item.href}
-                    aria-label={`Call ${item.value}`}
-                    className="inline-flex min-h-11 items-center text-sm font-medium text-foreground transition-colors hover:text-primary"
+                    aria-label={`Email ${item.label.toLowerCase()} address ${item.value}`}
+                    className={
+                      item.tone === "primary"
+                        ? "break-all text-sm font-medium leading-6 text-foreground transition-colors hover:text-primary"
+                        : "break-all text-sm leading-6 text-muted-foreground transition-colors hover:text-primary"
+                    }
                   >
                     {item.value}
                   </a>
-                ))}
-              </div>
-            </ContactGroup>
-
-            <ContactGroup icon={<MapPin aria-hidden="true" size={18} />} label="Address">
-              <p className="text-sm font-medium leading-relaxed text-foreground">
-                {contactAddress}
-              </p>
-            </ContactGroup>
-
-            <ContactGroup icon={<CalendarDays aria-hidden="true" size={18} />} label="Founded">
-              <p className="text-sm font-medium text-foreground">November 11, 2015</p>
-            </ContactGroup>
-          </div>
-
-          <div className="mt-6">
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Follow us
-            </p>
-            <div
-              className="flex flex-wrap gap-2"
-              aria-label="Official Jagannath University IT Society social media"
-            >
-              {socialLinks.map((item) => (
-                <a
-                  key={item.href}
-                  className={`flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-muted/50 text-muted-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${socialHoverClass(
-                    item.label,
-                  )}`}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`${item.label} (opens in new tab)`}
-                  title={item.label}
-                >
-                  <span className="h-4 w-4">
-                    <SocialIcon label={item.label} />
-                  </span>
-                </a>
+                  <span className={contactRoleBadgeClass(item.tone)}>{item.label}</span>
+                </div>
               ))}
             </div>
+          </ContactGroup>
 
-            <a
-              href={googleBusinessHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open Google Business Listing in a new tab"
-              className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition-all hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-            >
-              <Globe aria-hidden="true" size={15} />
-              Google Business Listing
-              <ExternalLink aria-hidden="true" size={13} className="text-muted-foreground" />
-            </a>
-          </div>
+          <ContactGroup icon={<Phone aria-hidden="true" size={18} />} label="Phone">
+            <div className="flex flex-col gap-2">
+              {contactPhones.map((phone) => (
+                <div key={phone}>
+                  <a
+                    href={phoneHref(phone)}
+                    aria-label={`Call ${phone}`}
+                    className="text-sm font-medium leading-6 text-foreground transition-colors hover:text-primary"
+                  >
+                    {phone}
+                  </a>
+                </div>
+              ))}
+            </div>
+          </ContactGroup>
+
+          <ContactGroup icon={<MapPin aria-hidden="true" size={18} />} label="Address">
+            <p className="text-sm font-medium leading-relaxed text-foreground">
+              {settings.address}
+            </p>
+          </ContactGroup>
+
+          <ContactGroup icon={<CalendarDays aria-hidden="true" size={18} />} label="Founded">
+            <p className="text-sm font-medium text-foreground">{settings.founded_date}</p>
+          </ContactGroup>
         </div>
 
-        <div className="mt-3 border-t border-border pt-3">
+        <div className="mt-6">
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Follow us
+          </p>
+          <div
+            className="flex flex-wrap gap-2"
+            aria-label="Official Jagannath University IT Society social media"
+          >
+            {socialLinks.map((item) => (
+              <a
+                key={item.href}
+                className={`flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-muted/50 text-muted-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${socialHoverClass(
+                  item.label,
+                )}`}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${item.label} (opens in new tab)`}
+                title={item.label}
+              >
+                <span className="h-4 w-4">
+                  <SocialIcon label={item.label} />
+                </span>
+              </a>
+            ))}
+          </div>
+
+          <a
+            href={googleBusinessHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open Google Business Listing in a new tab"
+            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition-all hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            <Globe aria-hidden="true" size={15} />
+            Google Business Listing
+            <ExternalLink aria-hidden="true" size={13} className="text-muted-foreground" />
+          </a>
+        </div>
+
+        <div className="flex-1 min-h-4" aria-hidden="true" />
+
+        <div className="mt-6 border-t border-border/50 pt-4">
           <ContactGroup icon={<Clock aria-hidden="true" size={18} />} label="Office hours">
-            <div className="space-y-1 text-sm font-medium text-foreground">
-              <p>Monday – Friday, 10:00 AM – 5:00 PM (BST)</p>
-              <p>Saturday, 10:00 AM – 2:00 PM (BST)</p>
+            <div className="mt-2 space-y-1.5">
+              {officeHours.map(({ day, hours }) => {
+                const value = hours.trim();
+                const isClosed = !value || value.toLowerCase() === "closed";
+
+                return (
+                  <div key={day} className="flex items-center justify-between gap-2">
+                    <span className="w-24 flex-shrink-0 text-xs text-muted-foreground">
+                      {day}
+                    </span>
+                    {isClosed ? (
+                      <span className="text-xs italic text-muted-foreground">Closed</span>
+                    ) : (
+                      <span className="text-xs font-medium text-foreground">{value}</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </ContactGroup>
         </div>
@@ -352,7 +383,10 @@ export default async function ContactPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const contactContent = await getContactContent();
+  const [contactContent, contactSettings] = await Promise.all([
+    getContactContent(),
+    getContactSettings(),
+  ]);
   const resolvedSearchParams = await searchParams;
   const message =
     typeof resolvedSearchParams.message === "string" ? resolvedSearchParams.message : null;
@@ -372,20 +406,21 @@ export default async function ContactPage({
       <ContactHero />
 
       <section className="pb-16 pt-12" aria-label="Contact details and form">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 items-stretch gap-5 md:gap-8 lg:grid-cols-2 lg:gap-6">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
             <div className="order-2 h-full lg:order-1">
-            <ContactFormCard
-              defaultCategory={defaultCategory}
-              defaultSubject={defaultSubject}
-              error={error}
-              inquiryCategories={inquiryCategories}
-              message={message}
-            />
+              <ContactFormCard
+                defaultCategory={defaultCategory}
+                defaultSubject={defaultSubject}
+                error={error}
+                inquiryCategories={inquiryCategories}
+                message={message}
+              />
             </div>
 
             <OfficialContact
               googleBusinessHref={contactContent.googleBusinessHref}
+              settings={contactSettings}
               socialLinks={contactContent.socialLinks}
             />
           </div>
