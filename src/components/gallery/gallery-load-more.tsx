@@ -221,6 +221,7 @@ export function GalleryLoadMore({
                 placeholder={item.blurDataURL ? "blur" : "empty"}
                 sizes="(min-width: 1024px) 31vw, (min-width: 640px) 47vw, 100vw"
                 src={item.thumbnailUrl}
+                unoptimized
                 width={item.width}
               />
               <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/55 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white opacity-0 backdrop-blur transition duration-300 group-hover:opacity-100">

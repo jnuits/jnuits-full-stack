@@ -180,6 +180,7 @@ export default async function GalleryPage({
                     priority={index === 0}
                     sizes={index === 0 ? "(min-width: 1024px) 48vw, 100vw" : "(min-width: 1024px) 24vw, 100vw"}
                     src={album.cover.thumbnailUrl}
+                    unoptimized
                   />
                 ) : (
                   <AlbumCoverFallback title={album.title} />
@@ -261,6 +262,7 @@ export default async function GalleryPage({
                         placeholder={album.cover.blurDataURL ? "blur" : "empty"}
                         sizes="(min-width: 1280px) 30vw, (min-width: 640px) 45vw, 100vw"
                         src={album.cover.thumbnailUrl}
+                        unoptimized
                       />
                     ) : (
                       <AlbumCoverFallback title={album.title} />

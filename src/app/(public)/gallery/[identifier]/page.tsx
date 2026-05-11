@@ -119,6 +119,7 @@ export default async function GalleryDetailPage({
                 priority
                 sizes="(min-width: 1024px) 52vw, 100vw"
                 src={album.cover.fullUrl}
+                unoptimized
               />
             ) : (
               <div className="grid h-full place-items-center p-6 text-center text-[var(--muted-foreground)]">
