@@ -483,31 +483,29 @@ export default async function ContactPage({
     typeof resolvedSearchParams.subject === "string" ? resolvedSearchParams.subject : "";
 
   return (
-    <main className="bg-background text-foreground">
+    <main className="shell py-12">
       <ContactHero />
 
       <section className="pb-16 pt-12" aria-label="Contact details and form">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2 xl:items-stretch">
-            <div className="order-2 xl:order-1 xl:h-full">
-              <ContactFormCard
-                defaultCategory={defaultCategory}
-                defaultSubject={defaultSubject}
-                error={error}
-                inquiryCategories={inquiryCategories}
-                message={message}
-              />
-            </div>
-
-            <OfficialContact
-              googleBusinessHref={contactContent.googleBusinessHref}
-              settings={contactSettings}
-              socialLinks={contactContent.socialLinks}
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2 xl:items-stretch">
+          <div className="order-2 xl:order-1 xl:h-full">
+            <ContactFormCard
+              defaultCategory={defaultCategory}
+              defaultSubject={defaultSubject}
+              error={error}
+              inquiryCategories={inquiryCategories}
+              message={message}
             />
           </div>
 
-          <LocationMapCard />
+          <OfficialContact
+            googleBusinessHref={contactContent.googleBusinessHref}
+            settings={contactSettings}
+            socialLinks={contactContent.socialLinks}
+          />
         </div>
+
+        <LocationMapCard />
       </section>
     </main>
   );

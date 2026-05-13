@@ -4,8 +4,33 @@ import type { Json, Tables } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/server";
 
 export type AboutValue = {
+  icon?: string;
   title: string;
   description: string;
+};
+
+export type AboutStats = {
+  active_members: string;
+  events_organized: string;
+  years_active: string;
+  major_award: string;
+};
+
+export type AboutProgram = {
+  icon: string;
+  title: string;
+  desc: string;
+};
+
+export type AboutTimelineEntry = {
+  date: string;
+  event: string;
+};
+
+export type AboutSocialChannel = {
+  platform: string;
+  handle: string;
+  url: string;
 };
 
 export type BlogPreview = {
@@ -99,36 +124,117 @@ const fallbackNoticeHref = "/notices";
 
 export const fallbackAboutContent = {
   eyebrow: brandProfile.slogan,
-  title: brandProfile.fullName,
+  title: `About ${brandProfile.fullName}`,
   summary:
     `${brandProfile.fullName} (${brandProfile.shortName}) is the non-profit university IT club of ${brandProfile.university}, founded and registered on 11 Nov 2015 and approved by the University on 18 Nov 2015.`,
+  heroDescription:
+    `${brandProfile.fullName} (${brandProfile.shortName}) is a non-profit university IT club helping students learn, build, and lead through practical technology programs, public events, trusted digital services, and a collaborative community at ${brandProfile.university} in Dhaka.`,
   story: [
     `${brandProfile.shortName} brings together students who want to learn, build, and lead through practical work in information technology.`,
     `From ${brandProfile.address}, the society runs programs, courses, workshops, certificates, and community activities that help students move forward with confidence.`,
   ],
   missionTitle: "What JnUITS stands for",
+  missionStatement:
+    `${brandProfile.shortName} exists to develop practical technology skills through courses, workshops, seminars, and technical events, while building a collaborative community for technology-minded students at ${brandProfile.university} with trusted public communication and durable digital operations.`,
   missionPoints: [
     "Practical skill development through courses, workshops, seminars, and technical events.",
     "A collaborative community for technology-minded students at Jagannath University.",
     "Visible institutional trust through certificate verification, public communication, and durable digital operations.",
   ],
+  stats: {
+    active_members: "250+",
+    events_organized: "50+",
+    years_active: "10+",
+    major_award: "1st Place, Bangladesh IT Challenge 2023",
+  } satisfies AboutStats,
+  vision:
+    "Our vision is to build a vibrant, inclusive and globally competitive tech community at Jagannath University that leads innovation, drives social impact, and shapes the digital future of Bangladesh.",
+  programs: [
+    {
+      icon: "💻",
+      title: "Workshops & Courses",
+      desc: "Hands-on sessions on web development and modern technologies",
+    },
+    {
+      icon: "🏆",
+      title: "Coding Competitions",
+      desc: "Programming contests and challenges with prizes",
+    },
+    {
+      icon: "🎤",
+      title: "Seminars & Tech Talks",
+      desc: "Industry expert sessions bridging academia and industry",
+    },
+    {
+      icon: "🌍",
+      title: "Community Outreach",
+      desc: "Social impact and sustainability-oriented initiatives",
+    },
+  ] satisfies AboutProgram[],
   values: [
     {
-      title: "Practical learning",
+      icon: "📈",
+      title: "Growth & Excellence",
       description:
-        "Programs, workshops, and member work should produce real technical confidence and visible outcomes.",
+        "We encourage continuous learning, technical confidence, and visible progress through practical work.",
     },
     {
-      title: "Community growth",
+      icon: "💡",
+      title: "Innovation & Creativity",
       description:
-        "The society grows by bringing students together around shared curiosity, teamwork, and peer support.",
+        "We create room for original ideas, experimentation, and student-led technology initiatives.",
     },
     {
-      title: "Institutional trust",
+      icon: "🤝",
+      title: "Diversity & Inclusion",
       description:
-        "Public communication, certificates, and member records should always feel official, clear, and trustworthy.",
+        "We welcome students with different backgrounds, interests, and experience levels into one community.",
+    },
+    {
+      icon: "🌱",
+      title: "Sustainability & Social Impact",
+      description:
+        "We support technology work that benefits people, institutions, and the wider society responsibly.",
+    },
+    {
+      icon: "🌐",
+      title: "Collaboration & Community",
+      description:
+        "We grow through teamwork, peer support, shared knowledge, and strong institutional relationships.",
     },
   ] satisfies AboutValue[],
+  timeline: [
+    { date: "11 Nov 2015", event: "Founded and registered" },
+    { date: "18 Nov 2015", event: "Approved by Jagannath University" },
+    { date: "2023", event: "1st Place, Bangladesh IT Challenge" },
+  ] satisfies AboutTimelineEntry[],
+  socialChannels: [
+    {
+      platform: "Website",
+      handle: "jnuits.org.bd",
+      url: "https://jnuits.org.bd",
+    },
+    {
+      platform: "Facebook",
+      handle: "/jnuits",
+      url: "https://www.facebook.com/jnuits",
+    },
+    {
+      platform: "Facebook Group",
+      handle: "/groups/jnuits",
+      url: "https://www.facebook.com/groups/jnuits",
+    },
+    {
+      platform: "LinkedIn",
+      handle: "JnUITS",
+      url: "https://bd.linkedin.com/company/jnuits",
+    },
+    {
+      platform: "Instagram",
+      handle: "@jnuitsbd",
+      url: "https://www.instagram.com/jnuitsbd/",
+    },
+  ] satisfies AboutSocialChannel[],
   imageSrc: "/images/workshop.jpg",
 };
 
@@ -350,6 +456,7 @@ function asAboutValues(value: Json | undefined, fallback: AboutValue[]) {
       }
 
       const record = entry as Record<string, Json | undefined>;
+      const icon = asString(record.icon);
       const title = asString(record.title);
       const description = asString(record.description);
 
@@ -357,9 +464,104 @@ function asAboutValues(value: Json | undefined, fallback: AboutValue[]) {
         return null;
       }
 
-      return { title, description };
+      return icon ? { icon, title, description } : { title, description };
     })
     .filter((entry): entry is AboutValue => Boolean(entry));
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function asAboutStats(value: Json | undefined, fallback: AboutStats) {
+  const record = asObject(value);
+
+  if (!record) {
+    return fallback;
+  }
+
+  return {
+    active_members: asString(record.active_members, fallback.active_members),
+    events_organized: asString(record.events_organized, fallback.events_organized),
+    years_active: asString(record.years_active, fallback.years_active),
+    major_award: asString(record.major_award, fallback.major_award),
+  } satisfies AboutStats;
+}
+
+function asAboutPrograms(value: Json | undefined, fallback: AboutProgram[]) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, Json | undefined>;
+      const icon = asString(record.icon);
+      const title = asString(record.title);
+      const desc = asString(record.desc);
+
+      if (!icon || !title || !desc) {
+        return null;
+      }
+
+      return { icon, title, desc };
+    })
+    .filter((entry): entry is AboutProgram => Boolean(entry));
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function asAboutTimeline(value: Json | undefined, fallback: AboutTimelineEntry[]) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, Json | undefined>;
+      const date = asString(record.date);
+      const event = asString(record.event);
+
+      if (!date || !event) {
+        return null;
+      }
+
+      return { date, event };
+    })
+    .filter((entry): entry is AboutTimelineEntry => Boolean(entry));
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function asAboutSocialChannels(value: Json | undefined, fallback: AboutSocialChannel[]) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, Json | undefined>;
+      const platform = asString(record.platform);
+      const handle = asString(record.handle);
+      const url = asString(record.url);
+
+      if (!platform || !handle || !url) {
+        return null;
+      }
+
+      return { platform, handle, url };
+    })
+    .filter((entry): entry is AboutSocialChannel => Boolean(entry));
 
   return normalized.length > 0 ? normalized : fallback;
 }
@@ -450,13 +652,29 @@ export const getAboutContent = cache(async () => {
     eyebrow: data.eyebrow || fallbackAboutContent.eyebrow,
     title: data.title || fallbackAboutContent.title,
     summary: data.summary || fallbackAboutContent.summary,
+    heroDescription: asString(
+      body?.heroDescription || body?.hero_description,
+      fallbackAboutContent.heroDescription
+    ),
     story: asStringArray(body?.story, fallbackAboutContent.story),
     missionTitle: asString(body?.missionTitle, fallbackAboutContent.missionTitle),
+    missionStatement: asString(
+      body?.missionStatement || body?.mission_statement,
+      fallbackAboutContent.missionStatement
+    ),
     missionPoints: asStringArray(
       body?.missionPoints,
       fallbackAboutContent.missionPoints
     ),
+    stats: asAboutStats(body?.stats, fallbackAboutContent.stats),
+    vision: asString(body?.vision, fallbackAboutContent.vision),
+    programs: asAboutPrograms(body?.programs, fallbackAboutContent.programs),
     values: asAboutValues(body?.values, fallbackAboutContent.values),
+    timeline: asAboutTimeline(body?.timeline, fallbackAboutContent.timeline),
+    socialChannels: asAboutSocialChannels(
+      body?.socialChannels || body?.social_channels,
+      fallbackAboutContent.socialChannels
+    ),
     imageSrc: asString(body?.imageSrc, fallbackAboutContent.imageSrc),
   };
 });

@@ -917,6 +917,35 @@
   border-radius: var(--radius, 0.75rem);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .about-motion-ready [data-about-animate] {
+    opacity: 0;
+    transform: translateY(16px);
+    transition:
+      opacity 400ms ease-out,
+      transform 400ms ease-out,
+      box-shadow 180ms ease-out;
+    will-change: opacity, transform;
+  }
+
+  .about-motion-ready [data-about-animate="hero-left"] {
+    transform: translateX(-20px);
+    transition-duration: 600ms;
+  }
+
+  .about-motion-ready [data-about-animate="hero-right"] {
+    transform: translateY(20px);
+    transition-duration: 600ms;
+    transition-delay: 150ms;
+  }
+
+  .about-motion-ready [data-about-animate].about-in-view {
+    opacity: 1;
+    transform: translate(0, 0);
+    will-change: auto;
+  }
+}
+
 .eyebrow {
   display: inline-flex;
   align-items: center;
