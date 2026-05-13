@@ -48,7 +48,7 @@ export function CommitteePageClient({
         onAdvisorHistoryClick={handleAdvisorHistoryClick}
       />
 
-      <div className="mx-auto max-w-[1080px] px-4 sm:px-6 lg:px-8">
+      <div className="shell">
         <CommitteeDivider />
         <CommitteeTermSwitcher
           assignmentsByTerm={assignmentsByTerm}

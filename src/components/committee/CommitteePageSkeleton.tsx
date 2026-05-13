@@ -4,7 +4,7 @@ function SkeletonBlock({ className }: { className: string }) {
 
 export function CommitteePageSkeleton() {
   return (
-    <div className="mx-auto flex max-w-[1080px] animate-pulse flex-col gap-24 px-4 py-16 sm:px-6 lg:px-8">
+    <div className="shell flex animate-pulse flex-col gap-24 py-16">
       <div className="flex flex-col items-center gap-4 text-center">
         <SkeletonBlock className="h-7 w-48 rounded-full" />
         <SkeletonBlock className="h-16 w-3/4 rounded-2xl" />

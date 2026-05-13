@@ -1106,12 +1106,12 @@ async function seedAdvisorProfiles() {
       advisorJnuitsId: "JNUITS-RA0001",
       fullName: "Dr. Sajeeb Saha",
       advisorType: "honorable_advisor",
-      isCurrent: true,
-      status: "active",
-      formerTitle: null,
+      isCurrent: false,
+      status: "former",
+      formerTitle: "Former Honorable Advisor",
       department: null,
       isPublic: true,
-      note: "Honorable Advisor. Migrated from legacy advisory roster.",
+      note: "Former Honorable Advisor.",
     },
   ];
 
@@ -1382,9 +1382,9 @@ async function runInvariantChecks() {
       !hasColumn("advisor_profiles", "advisor_jnuits_id")
     ),
     check(
-      "JNUITS-RA0001 exists in advisor_profiles",
-      Boolean(ra0001),
-      ra0001 ? "exists" : "missing",
+      "JNUITS-RA0001 exists in advisor_profiles with is_current=false",
+      Boolean(ra0001) && !asBoolean(ra0001?.is_current),
+      ra0001 ? `is_current=${String(ra0001.is_current)}` : "missing",
       !hasColumn("advisor_profiles", "advisor_jnuits_id")
     ),
     check(

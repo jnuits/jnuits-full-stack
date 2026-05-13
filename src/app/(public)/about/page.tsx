@@ -4,6 +4,10 @@ import { getAboutContent } from "@/lib/content/public-content";
 
 export default async function AboutPage() {
   const aboutContent = await getAboutContent();
+  const isCloudinary = aboutContent.imageSrc?.includes("res.cloudinary.com");
+  const optimizedSrc = isCloudinary
+    ? aboutContent.imageSrc.replace("/upload/", "/upload/f_auto,q_auto,w_1200/")
+    : aboutContent.imageSrc;
 
   return (
     <div className="shell py-12">
@@ -30,8 +34,10 @@ export default async function AboutPage() {
               fill
               priority
               sizes="(min-width: 1024px) 48vw, 100vw"
-              src={aboutContent.imageSrc}
+              src={optimizedSrc}
+              unoptimized={isCloudinary}
             />
+            {/* TODO: tokenize overlay when CSS vars are extended */}
             <div className="absolute inset-0 bg-gradient-to-t from-[rgba(17,31,56,0.72)] via-[rgba(17,31,56,0.18)] to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-6 text-white">
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/70">
@@ -77,10 +83,7 @@ export default async function AboutPage() {
           {aboutContent.values.map((value) => (
             <div
               key={value.title}
-              className="rounded-[1.35rem] border border-[var(--line)] p-5"
-              style={{
-                background: "color-mix(in oklab, var(--card) 92%, transparent)",
-              }}
+              className="value-card rounded-[1.35rem] border border-[var(--line)] p-5"
             >
               <h3 className="font-[family-name:var(--font-heading)] text-2xl leading-tight">
                 {value.title}

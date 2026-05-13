@@ -29,7 +29,7 @@ export function FormerAdvisorTimelineRow({
       ? advisor.statusNote
       : null;
   const tenure = formatTimelineTenure(advisor);
-  const isChief = advisor.advisorType === "main_advisor";
+  const typeMeta = getAdvisorTypeMeta(advisor.advisorType);
 
   return (
     <article className="group relative flex gap-5 py-6">
@@ -48,12 +48,10 @@ export function FormerAdvisorTimelineRow({
           <span
             className={cn(
               "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-              isChief
-                ? "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400"
-                : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+              typeMeta.className
             )}
           >
-            {isChief ? "Chief Advisor" : "Moderator/Mentor"}
+            {typeMeta.label}
           </span>
         </div>
 
@@ -103,6 +101,30 @@ export function FormerAdvisorTimelineRow({
       </div>
     </article>
   );
+}
+
+function getAdvisorTypeMeta(advisorType: PublicAdvisorProfile["advisorType"]) {
+  if (advisorType === "main_advisor") {
+    return {
+      className:
+        "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400",
+      label: "Chief Advisor",
+    };
+  }
+
+  if (advisorType === "honorable_advisor") {
+    return {
+      className:
+        "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+      label: "Honorable Advisor",
+    };
+  }
+
+  return {
+    className:
+      "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400",
+    label: "Moderator/Mentor",
+  };
 }
 
 function AdvisorTimelineAvatar({

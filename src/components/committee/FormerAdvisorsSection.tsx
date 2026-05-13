@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, GraduationCap, ShieldCheck } from "lucide-react";
+import { Award, ChevronDown, GraduationCap, ShieldCheck } from "lucide-react";
 
 import { FormerAdvisorTimelineRow } from "@/components/committee/FormerAdvisorCard";
 import type { PublicAdvisorProfile } from "@/lib/committee/public";
@@ -20,6 +20,13 @@ const GROUPS = [
     text: "text-blue-600 dark:text-blue-400",
     tone: "bg-blue-100 dark:bg-blue-950/40",
     type: "moderator_mentor",
+  },
+  {
+    icon: Award,
+    label: "Former Honorable Advisor",
+    text: "text-amber-600 dark:text-amber-400",
+    tone: "bg-amber-100 dark:bg-amber-950/40",
+    type: "honorable_advisor",
   },
 ] as const;
 
@@ -48,7 +55,8 @@ export function FormerAdvisorsSection({
         (advisor) =>
           !advisor.isCurrent &&
           (advisor.advisorType === "main_advisor" ||
-            advisor.advisorType === "moderator_mentor")
+            advisor.advisorType === "moderator_mentor" ||
+            advisor.advisorType === "honorable_advisor")
       ),
     [advisors]
   );
@@ -73,7 +81,8 @@ export function FormerAdvisorsSection({
             </span>
             <span className="mt-3 block max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-base">
               Chronological history of former Chief Advisors and
-              Moderators/Mentors, preserved separately from EC terms.
+              Moderators/Mentors, and Honorable Advisors, preserved separately
+              from EC terms.
             </span>
           </span>
           <span className="mt-1 inline-flex size-10 flex-shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">

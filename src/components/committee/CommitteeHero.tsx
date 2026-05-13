@@ -32,7 +32,7 @@ export function CommitteeHero({
 
   return (
     <section className="overflow-x-hidden bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,color-mix(in_oklab,var(--primary)_7%,transparent),transparent)] py-16 md:py-24 dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,color-mix(in_oklab,var(--primary)_5%,transparent),transparent)]">
-      <div className="mx-auto max-w-[1080px] px-4 text-center sm:px-6 lg:px-8">
+      <div className="shell text-center">
         <div>
           <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary">
             <Building2 aria-hidden="true" size={12} />

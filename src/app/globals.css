@@ -909,6 +909,14 @@
   box-shadow: var(--shadow-panel);
 }
 
+.value-card {
+  background: var(
+    --value-card-bg,
+    color-mix(in oklab, var(--card) 92%, transparent)
+  );
+  border-radius: var(--radius, 0.75rem);
+}
+
 .eyebrow {
   display: inline-flex;
   align-items: center;
