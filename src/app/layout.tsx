@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import {
   Inter,
   JetBrains_Mono,
@@ -28,23 +27,6 @@ const serifFont = Lora({
   weight: ["400", "500", "600", "700"],
 });
 
-const themeInitScript = `
-(() => {
-  const storageKey = "jnuits-theme";
-  const root = document.documentElement;
-  const savedTheme = localStorage.getItem(storageKey);
-  const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const resolvedTheme = savedTheme === "dark" || savedTheme === "light"
-    ? savedTheme
-    : systemPrefersDark
-      ? "dark"
-      : "light";
-
-  root.classList.toggle("dark", resolvedTheme === "dark");
-  root.dataset.theme = resolvedTheme;
-})();
-`;
-
 export const metadata: Metadata = {
   metadataBase: new URL("https://jnuits.org.bd"),
   title: {
@@ -68,9 +50,6 @@ export default function RootLayout({
       className={`${bodyFont.variable} ${monoFont.variable} ${serifFont.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground flex flex-col">
-        <Script id="jnuits-theme-init" strategy="beforeInteractive">
-          {themeInitScript}
-        </Script>
         {children}
       </body>
     </html>

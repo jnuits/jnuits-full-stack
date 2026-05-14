@@ -33,6 +33,14 @@ export type AboutSocialChannel = {
   url: string;
 };
 
+export type AboutCommunityReachItem = {
+  platform: string;
+  stat: string;
+  label: string;
+  link: string | null;
+  icon: "facebook" | "linkedin" | "message" | "users" | "whatsapp" | "youtube";
+};
+
 export type BlogPreview = {
   slug: string;
   title: string;
@@ -198,6 +206,50 @@ export const fallbackAboutContent = {
         "Learning together, mentoring juniors, and building a supportive peer network that lasts beyond university.",
     },
   ] satisfies AboutValue[],
+  communityReach: [
+    {
+      platform: "Facebook Page",
+      stat: "16,000+",
+      label: "Followers",
+      link: "https://www.facebook.com/jnuits",
+      icon: "facebook",
+    },
+    {
+      platform: "Facebook Group",
+      stat: "6,300+",
+      label: "Members",
+      link: "https://www.facebook.com/groups/jnuits",
+      icon: "users",
+    },
+    {
+      platform: "LinkedIn",
+      stat: "899+",
+      label: "Followers",
+      link: "https://www.linkedin.com/company/jnuits",
+      icon: "linkedin",
+    },
+    {
+      platform: "WhatsApp Community",
+      stat: "726+",
+      label: "Subscribers",
+      link: "https://chat.whatsapp.com/ED7sJf7QSiD2YBY3Miz8MC",
+      icon: "whatsapp",
+    },
+    {
+      platform: "Messenger Channel",
+      stat: "441+",
+      label: "Members",
+      link: "https://www.messenger.com/channel/jnuits",
+      icon: "message",
+    },
+    {
+      platform: "YouTube",
+      stat: "298+",
+      label: "Subscribers",
+      link: "https://www.youtube.com/@jnuits",
+      icon: "youtube",
+    },
+  ] satisfies AboutCommunityReachItem[],
   timeline: [
     { date: "11 Nov 2015", event: "Founded and registered" },
     { date: "18 Nov 2015", event: "Approved by Jagannath University" },
@@ -651,6 +703,7 @@ export const getAboutContent = cache(async () => {
     vision: asString(body?.vision, fallbackAboutContent.vision),
     programs: fallbackAboutContent.programs,
     values: fallbackAboutContent.values,
+    communityReach: fallbackAboutContent.communityReach,
     timeline: fallbackAboutContent.timeline,
     socialChannels: withRequiredAboutSocialChannels(
       asAboutSocialChannels(

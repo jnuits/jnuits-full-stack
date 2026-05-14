@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SiteBrand } from "@/components/layout/site-brand";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import {
@@ -169,6 +170,7 @@ export function SiteHeader({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobilePortalReady, setMobilePortalReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
   const authHref = authenticated ? "/portal/dashboard" : "/portal/login";
   const authLabel = "Sign In";
@@ -197,8 +199,57 @@ export function SiteHeader({
     };
   }, []);
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setMobilePortalReady(true), 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileOpen]);
+
+  const mobileNavigation = (
+    <div
+      aria-hidden={mobileOpen ? undefined : true}
+      className="site-header-mobile-overlay"
+      data-open={mobileOpen ? "true" : "false"}
+      onClick={() => setMobileOpen(false)}
+    >
+      <nav
+        aria-label="Mobile navigation"
+        className="site-mobile-nav site-header-mobile-panel"
+        data-open="true"
+        id="mobile-site-navigation"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          aria-label="Close navigation menu"
+          className="site-mobile-nav__close site-header-mobile-close"
+          onClick={() => setMobileOpen(false)}
+          type="button"
+        >
+          <X aria-hidden="true" size={22} />
+        </button>
+        <PublicNav
+          onNavigate={() => setMobileOpen(false)}
+          pathname={pathname}
+        />
+      </nav>
+    </div>
+  );
+
   return (
-    <header className="site-header">
+    <header className="site-header site-header-root">
       <div className="shell py-4">
         <div className="site-header-row">
           <SiteBrand displayTitle="JnU IT Society" />
@@ -230,25 +281,9 @@ export function SiteHeader({
           </div>
         </div>
 
-        <nav
-          aria-label="Mobile navigation"
-          className="site-mobile-nav"
-          data-open={mobileOpen ? "true" : "false"}
-          id="mobile-site-navigation"
-        >
-          <button
-            aria-label="Close navigation menu"
-            className="site-mobile-nav__close"
-            onClick={() => setMobileOpen(false)}
-            type="button"
-          >
-            <X aria-hidden="true" size={22} />
-          </button>
-          <PublicNav
-            onNavigate={() => setMobileOpen(false)}
-            pathname={pathname}
-          />
-        </nav>
+        {!mobilePortalReady || typeof document === "undefined"
+          ? null
+          : createPortal(mobileNavigation, document.body)}
       </div>
     </header>
   );

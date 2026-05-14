@@ -5,7 +5,10 @@ import {
   getPublicCommitteeDirectory,
   type PublicCommitteeTerm,
 } from "@/lib/committee/public";
-import { getAboutContent } from "@/lib/content/public-content";
+import {
+  getAboutContent,
+  type AboutCommunityReachItem,
+} from "@/lib/content/public-content";
 
 function toCloudinaryOptimizedSrc(src: string) {
   return src.includes("res.cloudinary.com")
@@ -40,49 +43,12 @@ type AboutCustomStyle = CSSProperties & {
   "--about-value-accent"?: string;
 };
 
-type CommunityReachItem = {
-  icon: "facebook" | "message" | "users" | "whatsapp";
-  label: string;
-  stat: string;
-  title: string;
-  href?: string;
-};
-
 const valueAccentVars = [
   "#2563EB",
   "#7C3AED",
   "#059669",
   "#D97706",
   "#DC2626",
-];
-
-const communityReachItems: CommunityReachItem[] = [
-  {
-    icon: "facebook",
-    label: "Followers",
-    stat: "16,000+",
-    title: "Facebook Page",
-  },
-  {
-    icon: "users",
-    label: "Members",
-    stat: "6,300+",
-    title: "Facebook Group",
-  },
-  {
-    href: "https://chat.whatsapp.com/ED7sJf7QSiD2YBY3Miz8MC",
-    icon: "whatsapp",
-    label: "Subscribers",
-    stat: "726+",
-    title: "WhatsApp Community",
-  },
-  {
-    href: "https://www.messenger.com/channel/jnuits",
-    icon: "message",
-    label: "Members",
-    stat: "441+",
-    title: "Messenger Channel",
-  },
 ];
 
 const milestoneDateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -329,12 +295,23 @@ function ProgramIcon({ title }: { title: string }) {
   );
 }
 
-function CommunityReachIcon({ icon }: { icon: CommunityReachItem["icon"] }) {
+function CommunityReachIcon({ icon }: { icon: AboutCommunityReachItem["icon"] }) {
   if (icon === "facebook") {
     return (
       <svg aria-hidden="true" className="about-reach-icon" viewBox="0 0 24 24">
         <path
           d="M14.3 8.9V6.7c0-.7.5-1.3 1.3-1.3h1.4V2.1c-.7-.1-1.6-.1-2.5-.1-2.9 0-4.9 1.8-4.9 5v1.9H6.7v3.7h2.9V22h3.8v-9.4h3l.5-3.7h-3Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  if (icon === "linkedin") {
+    return (
+      <svg aria-hidden="true" className="about-reach-icon" viewBox="0 0 24 24">
+        <path
+          d="M6.7 8.8H3.1V21h3.6V8.8ZM5 3a2.1 2.1 0 1 0 0 4.2A2.1 2.1 0 0 0 5 3Zm16 11c0-3.4-1.8-5.5-4.7-5.5a4 4 0 0 0-3.4 1.8V8.8H9.4V21H13v-6.5c0-1.7.8-2.7 2.2-2.7s2.2.9 2.2 2.7V21H21v-7Z"
           fill="currentColor"
         />
       </svg>
@@ -377,6 +354,17 @@ function CommunityReachIcon({ icon }: { icon: CommunityReachItem["icon"] }) {
     );
   }
 
+  if (icon === "youtube") {
+    return (
+      <svg aria-hidden="true" className="about-reach-icon" viewBox="0 0 24 24">
+        <path
+          d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.6 4.6 12 4.6 12 4.6s-5.6 0-7.5.5a3 3 0 0 0-2.1 2.1A31.6 31.6 0 0 0 2 12a31.6 31.6 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.9.5 7.5.5 7.5.5s5.6 0 7.5-.5a3 3 0 0 0 2.1-2.1A31.6 31.6 0 0 0 22 12a31.6 31.6 0 0 0-.4-4.8ZM10 15.5v-7l6 3.5-6 3.5Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
   return (
     <svg aria-hidden="true" className="about-reach-icon" fill="none" viewBox="0 0 24 24">
       <path
@@ -395,7 +383,7 @@ function CommunityReachIcon({ icon }: { icon: CommunityReachItem["icon"] }) {
   );
 }
 
-function CommunityReachCard({ item }: { item: CommunityReachItem }) {
+function CommunityReachCard({ item }: { item: AboutCommunityReachItem }) {
   const content = (
     <>
       <span className="about-reach-card__icon">
@@ -403,16 +391,16 @@ function CommunityReachCard({ item }: { item: CommunityReachItem }) {
       </span>
       <span className="about-reach-card__stat">{item.stat}</span>
       <span className="about-reach-card__label">{item.label}</span>
-      <span className="about-reach-card__title">{item.title}</span>
+      <span className="about-reach-card__title">{item.platform}</span>
     </>
   );
 
-  if (item.href) {
+  if (item.link) {
     return (
       <a
-        aria-label={`${item.title} opens in a new tab`}
+        aria-label={`${item.platform} opens in a new tab`}
         className="about-reach-card about-reach-card--link"
-        href={item.href}
+        href={item.link}
         rel="noopener noreferrer"
         target="_blank"
       >
@@ -506,7 +494,9 @@ export default async function AboutPage() {
                     </div>
                   ))}
                 </div>
-                <p className="about-caption about-hero__stats-note">
+                <p
+                  className="about-caption about-hero__stats-note about-stat-clarification"
+                >
                   300+ active members per committee. Our broader community is much larger.
                 </p>
               </div>
@@ -622,8 +612,8 @@ export default async function AboutPage() {
             </h2>
           </div>
           <div className="about-reach-grid">
-            {communityReachItems.map((item) => (
-              <CommunityReachCard item={item} key={item.title} />
+            {aboutContent.communityReach.map((item) => (
+              <CommunityReachCard item={item} key={item.platform} />
             ))}
           </div>
           <p className="about-caption about-reach-caption">

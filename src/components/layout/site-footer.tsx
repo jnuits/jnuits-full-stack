@@ -146,6 +146,25 @@ export async function SiteFooter() {
               <span>{footerContent.phone}</span>
             </Link>
           </div>
+          <nav
+            aria-label="Official JnU IT Society social media"
+            className="site-footer-social-row"
+          >
+            {brandProfile.socialLinks.map((item) => (
+              <Link
+                aria-label={`${item.label} opens in a new tab`}
+                className="site-footer-social-link"
+                data-social={getFooterSocialKey(item.label)}
+                href={item.href}
+                key={item.href}
+                rel="noopener noreferrer"
+                target="_blank"
+                title={item.label}
+              >
+                <FooterSocialIcon label={item.label} />
+              </Link>
+            ))}
+          </nav>
         </div>
 
         <div className="site-footer__desktop-links">
@@ -242,29 +261,6 @@ export async function SiteFooter() {
             </div>
             <button type="submit">Subscribe</button>
           </form>
-          <div className="site-footer-follow">
-            <p className="site-footer-follow__label">Follow us</p>
-            <nav
-              aria-label="Official JnU IT Society social media"
-              className="site-footer-social site-footer-social--newsletter"
-            >
-              {brandProfile.socialLinks.map((item) => (
-                <Link
-                  aria-label={`${item.label} opens in a new tab`}
-                  className="site-footer-social__link"
-                  data-social={getFooterSocialKey(item.label)}
-                  href={item.href}
-                  key={item.href}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  title={item.label}
-                >
-                  <FooterSocialIcon label={item.label} />
-                  <span>{item.label}</span>
-                </Link>
-              ))}
-            </nav>
-          </div>
         </div>
       </div>
     </footer>
