@@ -13,6 +13,25 @@ import {
 function FooterSocialIcon({ label }: { label: string }) {
   const normalized = label.toLowerCase();
 
+  if (normalized.includes("group")) {
+    return (
+      <svg aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24">
+        <path
+          d="M16 19c0-2.2-1.8-4-4-4H7c-2.2 0-4 1.8-4 4"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="2"
+        />
+        <path
+          d="M14.5 5.4a3 3 0 1 1 0 5.2M9.5 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM21 19c0-1.8-1.2-3.2-2.9-3.8"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="2"
+        />
+      </svg>
+    );
+  }
+
   if (normalized.includes("facebook")) {
     return (
       <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
@@ -35,11 +54,46 @@ function FooterSocialIcon({ label }: { label: string }) {
     );
   }
 
+  if (normalized.includes("instagram")) {
+    return (
+      <svg aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24">
+        <rect
+          height="16"
+          rx="4.4"
+          stroke="currentColor"
+          strokeWidth="2"
+          width="16"
+          x="4"
+          y="4"
+        />
+        <circle cx="12" cy="12" r="3.4" stroke="currentColor" strokeWidth="2" />
+        <circle cx="16.7" cy="7.3" fill="currentColor" r="1.1" />
+      </svg>
+    );
+  }
+
   if (normalized.includes("youtube")) {
     return (
       <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
         <path
           d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.6 4.6 12 4.6 12 4.6s-5.6 0-7.5.5a3 3 0 0 0-2.1 2.1A31.6 31.6 0 0 0 2 12a31.6 31.6 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.9.5 7.5.5 7.5.5s5.6 0 7.5-.5a3 3 0 0 0 2.1-2.1A31.6 31.6 0 0 0 22 12a31.6 31.6 0 0 0-.4-4.8ZM10 15.5v-7l6 3.5-6 3.5Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  if (normalized.includes("google")) {
+    return (
+      <svg aria-hidden="true" focusable="false" fill="none" viewBox="0 0 24 24">
+        <path
+          d="M12 21s6.5-5.8 6.5-11.1A6.5 6.5 0 0 0 5.5 9.9C5.5 15.2 12 21 12 21Z"
+          stroke="currentColor"
+          strokeLinejoin="round"
+          strokeWidth="2"
+        />
+        <path
+          d="M14.7 10.1h-2.5v1.7h1.4c-.3.8-1 1.2-2 1.2a2.6 2.6 0 1 1 1.8-4.5l1.2-1.2A4.2 4.2 0 1 0 15.8 12c.1-.5.1-1 .1-1.4 0-.2 0-.4-.1-.5h-1.1Z"
           fill="currentColor"
         />
       </svg>
@@ -56,11 +110,23 @@ function FooterSocialIcon({ label }: { label: string }) {
   );
 }
 
+function getFooterSocialKey(label: string) {
+  const normalized = label.toLowerCase();
+
+  if (normalized.includes("google")) return "google";
+  if (normalized.includes("group")) return "facebook-group";
+  if (normalized.includes("facebook")) return "facebook";
+  if (normalized.includes("linkedin")) return "linkedin";
+  if (normalized.includes("instagram")) return "instagram";
+  if (normalized.includes("youtube")) return "youtube";
+  return "twitter";
+}
+
 export async function SiteFooter() {
   const footerContent = await getFooterContent();
 
   return (
-    <footer className="site-footer mt-20">
+    <footer className="site-footer">
       <div className="shell grid gap-8 py-12 lg:grid-cols-[1.2fr_0.75fr_0.85fr_0.75fr_1.15fr]">
         <div className="site-footer__brand-block">
           <SiteBrand displayTitle="JnU IT Society" inverted />
@@ -80,23 +146,6 @@ export async function SiteFooter() {
               <span>{footerContent.phone}</span>
             </Link>
           </div>
-          <nav
-            aria-label="Official JnU IT Society social media"
-            className="site-footer-social"
-          >
-            {brandProfile.socialLinks.map((item) => (
-              <Link
-                aria-label={item.label}
-                className="site-footer-social__link"
-                href={item.href}
-                key={item.href}
-                target="_blank"
-                title={item.label}
-              >
-                <FooterSocialIcon label={item.label} />
-              </Link>
-            ))}
-          </nav>
         </div>
 
         <div className="site-footer__desktop-links">
@@ -193,6 +242,29 @@ export async function SiteFooter() {
             </div>
             <button type="submit">Subscribe</button>
           </form>
+          <div className="site-footer-follow">
+            <p className="site-footer-follow__label">Follow us</p>
+            <nav
+              aria-label="Official JnU IT Society social media"
+              className="site-footer-social site-footer-social--newsletter"
+            >
+              {brandProfile.socialLinks.map((item) => (
+                <Link
+                  aria-label={`${item.label} opens in a new tab`}
+                  className="site-footer-social__link"
+                  data-social={getFooterSocialKey(item.label)}
+                  href={item.href}
+                  key={item.href}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  title={item.label}
+                >
+                  <FooterSocialIcon label={item.label} />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </nav>
+          </div>
         </div>
       </div>
     </footer>

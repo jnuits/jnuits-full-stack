@@ -171,7 +171,7 @@ export function SiteHeader({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
   const authHref = authenticated ? "/portal/dashboard" : "/portal/login";
-  const authLabel = authenticated ? "Portal" : "Sign In";
+  const authLabel = "Sign In";
 
   useEffect(() => {
     let mounted = true;
@@ -236,6 +236,14 @@ export function SiteHeader({
           data-open={mobileOpen ? "true" : "false"}
           id="mobile-site-navigation"
         >
+          <button
+            aria-label="Close navigation menu"
+            className="site-mobile-nav__close"
+            onClick={() => setMobileOpen(false)}
+            type="button"
+          >
+            <X aria-hidden="true" size={22} />
+          </button>
           <PublicNav
             onNavigate={() => setMobileOpen(false)}
             pathname={pathname}

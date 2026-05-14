@@ -67,7 +67,7 @@ export const publicResourceNavigation: NavItem[] = [
 
 export const publicFooterNavigation: NavItem[] = [
   { href: "/developers", label: "Developers" },
-  { href: "/membership-form", label: "Membership form" },
+  { href: "/membership-form", label: "Join now" },
 ];
 
 export const publicPolicyNavigation: NavItem[] = [

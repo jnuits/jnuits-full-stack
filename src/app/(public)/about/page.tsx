@@ -1,6 +1,6 @@
+import type { CSSProperties, ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import Script from "next/script";
 import {
   getPublicCommitteeDirectory,
   type PublicCommitteeTerm,
@@ -13,25 +13,77 @@ function toCloudinaryOptimizedSrc(src: string) {
     : src;
 }
 
-function parseCounter(value: string) {
-  const match = value.match(/^(\d+)(.*)$/);
-
-  if (!match) {
-    return { display: value, suffix: "", target: 0 };
-  }
-
-  return {
-    display: value,
-    suffix: match[2] || "",
-    target: Number(match[1]),
-  };
-}
-
-type TimelineMilestone = {
+type TimelineSource = {
+  dateSource?: string | null;
   date: string;
   event: string;
   href?: string;
 };
+
+type TimelineMilestoneItem = TimelineSource & {
+  dateSource: string | null;
+  isFuture: boolean;
+  isMostRecent: boolean;
+  timestamp: number | null;
+  year: string;
+};
+
+type TimelineYearGroup = {
+  isFuture: boolean;
+  isMostRecent: boolean;
+  items: TimelineMilestoneItem[];
+  timestamp: number | null;
+  year: string;
+};
+
+type AboutCustomStyle = CSSProperties & {
+  "--about-value-accent"?: string;
+};
+
+type CommunityReachItem = {
+  icon: "facebook" | "message" | "users" | "whatsapp";
+  label: string;
+  stat: string;
+  title: string;
+  href?: string;
+};
+
+const valueAccentVars = [
+  "#2563EB",
+  "#7C3AED",
+  "#059669",
+  "#D97706",
+  "#DC2626",
+];
+
+const communityReachItems: CommunityReachItem[] = [
+  {
+    icon: "facebook",
+    label: "Followers",
+    stat: "16,000+",
+    title: "Facebook Page",
+  },
+  {
+    icon: "users",
+    label: "Members",
+    stat: "6,300+",
+    title: "Facebook Group",
+  },
+  {
+    href: "https://chat.whatsapp.com/ED7sJf7QSiD2YBY3Miz8MC",
+    icon: "whatsapp",
+    label: "Subscribers",
+    stat: "726+",
+    title: "WhatsApp Community",
+  },
+  {
+    href: "https://www.messenger.com/channel/jnuits",
+    icon: "message",
+    label: "Members",
+    stat: "441+",
+    title: "Messenger Channel",
+  },
+];
 
 const milestoneDateFormatter = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
@@ -51,6 +103,26 @@ function formatMilestoneDate(value: string | null) {
   }
 
   return milestoneDateFormatter.format(date);
+}
+
+function getMilestoneTimestamp(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function getMilestoneYear(value: string | null, fallback: string) {
+  const timestamp = getMilestoneTimestamp(value);
+
+  if (timestamp !== null) {
+    return new Date(timestamp).getFullYear().toString();
+  }
+
+  const match = fallback.match(/\b(20\d{2}|19\d{2})\b/);
+  return match?.[1] || "TBD";
 }
 
 function getCommitteeMilestoneDate(term: PublicCommitteeTerm) {
@@ -76,64 +148,191 @@ function compareCommitteeTerms(
 }
 
 function formatCommitteeMilestoneEvent(term: PublicCommitteeTerm) {
+  if (term.termNumber === 1) {
+    return "Founding Committee elected";
+  }
+
   return /elected$/i.test(term.title) ? term.title : `${term.title} elected`;
 }
 
 function buildTimelineMilestones(
-  baseMilestones: TimelineMilestone[],
+  baseMilestones: TimelineSource[],
   terms: PublicCommitteeTerm[]
-) {
+): TimelineMilestoneItem[] {
   const institutionalMilestones = baseMilestones.filter(
     (item) => !/executive committee/i.test(item.event)
   );
   const committeeMilestones = [...terms]
     .sort(compareCommitteeTerms)
     .map((term) => ({
+      dateSource: getCommitteeMilestoneDate(term),
       date: formatMilestoneDate(getCommitteeMilestoneDate(term)),
       event: formatCommitteeMilestoneEvent(term),
       href: `/committee/${term.slug}`,
     }));
+  const mappedMilestones = [...institutionalMilestones, ...committeeMilestones].map(
+    (item) => {
+      const dateSource = item.dateSource || item.date || null;
+      const timestamp = getMilestoneTimestamp(dateSource);
 
-  return [...institutionalMilestones, ...committeeMilestones];
+      return {
+        ...item,
+        dateSource,
+        isFuture: timestamp !== null && timestamp > Date.now(),
+        isMostRecent: false,
+        timestamp,
+        year: getMilestoneYear(dateSource, item.date),
+      };
+    }
+  );
+  const mostRecentIndex = mappedMilestones.reduce((latestIndex, item, index) => {
+    if (item.timestamp === null) {
+      return latestIndex;
+    }
+
+    if (
+      latestIndex === -1 ||
+      item.timestamp > (mappedMilestones[latestIndex]?.timestamp || 0)
+    ) {
+      return index;
+    }
+
+    return latestIndex;
+  }, -1);
+
+  return mappedMilestones.map((item, index) => ({
+    ...item,
+    isMostRecent: index === mostRecentIndex,
+  }));
 }
 
-function getSocialIconName(platform: string) {
-  const normalized = platform.toLowerCase();
+function groupTimelineByYear(items: TimelineMilestoneItem[]) {
+  const groupsByYear = new Map<string, TimelineYearGroup>();
+  const groups: TimelineYearGroup[] = [];
 
-  if (normalized.includes("group")) {
-    return "group";
+  for (const item of items) {
+    let group = groupsByYear.get(item.year);
+
+    if (!group) {
+      group = {
+        isFuture: item.isFuture,
+        isMostRecent: false,
+        items: [],
+        timestamp: item.timestamp,
+        year: item.year,
+      };
+      groupsByYear.set(item.year, group);
+      groups.push(group);
+    }
+
+    group.items.push(item);
+    group.isFuture = group.items.every((entry) => entry.isFuture);
+
+    if (
+      item.timestamp !== null &&
+      (group.timestamp === null || item.timestamp > group.timestamp)
+    ) {
+      group.timestamp = item.timestamp;
+    }
   }
 
-  if (normalized.includes("youtube")) {
-    return "youtube";
-  }
+  const mostRecentTimestamp = groups.reduce<number | null>((latest, group) => {
+    if (group.timestamp === null) {
+      return latest;
+    }
 
-  if (normalized.includes("twitter") || normalized === "x") {
-    return "twitter";
-  }
+    return latest === null || group.timestamp > latest ? group.timestamp : latest;
+  }, null);
 
-  if (normalized.includes("facebook")) {
-    return "facebook";
-  }
-
-  if (normalized.includes("linkedin")) {
-    return "linkedin";
-  }
-
-  if (normalized.includes("instagram")) {
-    return "instagram";
-  }
-
-  return "website";
+  return groups.map((group) => ({
+    ...group,
+    isMostRecent:
+      mostRecentTimestamp !== null && group.timestamp === mostRecentTimestamp,
+  }));
 }
 
-function SocialChannelIcon({ platform }: { platform: string }) {
-  const icon = getSocialIconName(platform);
-  const className = "h-4 w-4";
+function ProgramIcon({ title }: { title: string }) {
+  const normalized = title.toLowerCase();
 
+  if (normalized.includes("competition")) {
+    return (
+      <svg aria-hidden="true" className="about-program-icon" fill="none" viewBox="0 0 24 24">
+        <path
+          d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4Z"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+        />
+        <path
+          d="M17 6h3v1a4 4 0 0 1-4 4M7 6H4v1a4 4 0 0 0 4 4"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+        />
+      </svg>
+    );
+  }
+
+  if (normalized.includes("seminar") || normalized.includes("talk")) {
+    return (
+      <svg aria-hidden="true" className="about-program-icon" fill="none" viewBox="0 0 24 24">
+        <path
+          d="M12 14a4 4 0 0 0 4-4V6a4 4 0 0 0-8 0v4a4 4 0 0 0 4 4Z"
+          stroke="currentColor"
+          strokeWidth="2"
+        />
+        <path
+          d="M6 10a6 6 0 0 0 12 0M12 20v-3M8.5 20h7"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="2"
+        />
+      </svg>
+    );
+  }
+
+  if (normalized.includes("outreach")) {
+    return (
+      <svg aria-hidden="true" className="about-program-icon" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+        <path
+          d="M3 12h18M12 3c2.2 2.4 3.4 5.4 3.4 9S14.2 18.6 12 21c-2.2-2.4-3.4-5.4-3.4-9S9.8 5.4 12 3Z"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" className="about-program-icon" fill="none" viewBox="0 0 24 24">
+      <rect
+        height="12"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="2"
+        width="18"
+        x="3"
+        y="4"
+      />
+      <path
+        d="M8 20h8M12 16v4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function CommunityReachIcon({ icon }: { icon: CommunityReachItem["icon"] }) {
   if (icon === "facebook") {
     return (
-      <svg aria-hidden="true" className={className} viewBox="0 0 24 24">
+      <svg aria-hidden="true" className="about-reach-icon" viewBox="0 0 24 24">
         <path
           d="M14.3 8.9V6.7c0-.7.5-1.3 1.3-1.3h1.4V2.1c-.7-.1-1.6-.1-2.5-.1-2.9 0-4.9 1.8-4.9 5v1.9H6.7v3.7h2.9V22h3.8v-9.4h3l.5-3.7h-3Z"
           fill="currentColor"
@@ -142,70 +341,9 @@ function SocialChannelIcon({ platform }: { platform: string }) {
     );
   }
 
-  if (icon === "linkedin") {
+  if (icon === "users") {
     return (
-      <svg aria-hidden="true" className={className} viewBox="0 0 24 24">
-        <path
-          d="M6.5 8.8H2.9V21h3.6V8.8ZM4.7 3C3.5 3 2.6 3.8 2.6 4.9c0 1.1.8 1.9 2 1.9h.1c1.2 0 2-.8 2-1.9C6.7 3.8 5.9 3 4.7 3Zm16.7 11c0-3.7-2-5.5-4.7-5.5-2.1 0-3.1 1.2-3.6 2V8.8H9.5V21h3.6v-6.8c0-.4 0-.7.1-1 .3-.7.9-1.5 2-1.5 1.4 0 2 1.1 2 2.8V21h3.6l.6-7Z"
-          fill="currentColor"
-        />
-      </svg>
-    );
-  }
-
-  if (icon === "instagram") {
-    return (
-      <svg
-        aria-hidden="true"
-        className={className}
-        fill="none"
-        viewBox="0 0 24 24"
-      >
-        <rect
-          height="16"
-          rx="4.4"
-          stroke="currentColor"
-          strokeWidth="2"
-          width="16"
-          x="4"
-          y="4"
-        />
-        <circle cx="12" cy="12" r="3.4" stroke="currentColor" strokeWidth="2" />
-        <circle cx="16.7" cy="7.3" fill="currentColor" r="1.1" />
-      </svg>
-    );
-  }
-
-  if (icon === "youtube") {
-    return (
-      <svg aria-hidden="true" className={className} viewBox="0 0 24 24">
-        <path
-          d="M22 8.2a3 3 0 0 0-2.1-2.1C18 5.6 12 5.6 12 5.6s-6 0-7.9.5A3 3 0 0 0 2 8.2 31.6 31.6 0 0 0 1.5 12c0 1.3.2 2.6.5 3.8A3 3 0 0 0 4.1 18c1.9.5 7.9.5 7.9.5s6 0 7.9-.5a3 3 0 0 0 2.1-2.1c.3-1.2.5-2.5.5-3.8 0-1.4-.2-2.7-.5-3.9ZM10 15.1V8.9l5.2 3.1-5.2 3.1Z"
-          fill="currentColor"
-        />
-      </svg>
-    );
-  }
-
-  if (icon === "twitter") {
-    return (
-      <svg aria-hidden="true" className={className} viewBox="0 0 24 24">
-        <path
-          d="M13.7 10.5 21.1 2h-1.8l-6.4 7.4L7.8 2H2l7.8 11.3L2 22h1.8l6.8-7.7 5.5 7.7H22l-8.3-11.5Zm-2.4 2.7-.8-1.1L4.2 3.3h2.7l5 7 .8 1.1 6.7 9.4h-2.7l-5.4-7.6Z"
-          fill="currentColor"
-        />
-      </svg>
-    );
-  }
-
-  if (icon === "group") {
-    return (
-      <svg
-        aria-hidden="true"
-        className={className}
-        fill="none"
-        viewBox="0 0 24 24"
-      >
+      <svg aria-hidden="true" className="about-reach-icon" fill="none" viewBox="0 0 24 24">
         <path
           d="M16 19c0-2.2-1.8-4-4-4H7c-2.2 0-4 1.8-4 4"
           stroke="currentColor"
@@ -222,22 +360,79 @@ function SocialChannelIcon({ platform }: { platform: string }) {
     );
   }
 
+  if (icon === "whatsapp") {
+    return (
+      <svg aria-hidden="true" className="about-reach-icon" fill="none" viewBox="0 0 24 24">
+        <path
+          d="M5.4 18.8 6.5 15A7.1 7.1 0 1 1 9 17.5l-3.6 1.3Z"
+          stroke="currentColor"
+          strokeLinejoin="round"
+          strokeWidth="2"
+        />
+        <path
+          d="M9.2 8.6c.2-.5.4-.5.7-.5h.5c.2 0 .4 0 .5.4l.7 1.5c.1.3.1.5-.1.7l-.5.6c.6 1.1 1.5 1.9 2.6 2.4l.6-.7c.2-.2.4-.3.7-.2l1.5.7c.3.1.4.3.4.6v.4c0 .4-.1.7-.5.9-.5.3-1.2.4-2.1.2-2.7-.6-5.2-3-5.9-5.8-.2-.5 0-1 .4-1.2Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
   return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+    <svg aria-hidden="true" className="about-reach-icon" fill="none" viewBox="0 0 24 24">
       <path
-        d="M3.5 12h17M12 3c2.3 2.5 3.5 5.5 3.5 9S14.3 18.5 12 21c-2.3-2.5-3.5-5.5-3.5-9S9.7 5.5 12 3Z"
+        d="M4 6.8A3.8 3.8 0 0 1 7.8 3h8.4A3.8 3.8 0 0 1 20 6.8v5.4a3.8 3.8 0 0 1-3.8 3.8H12l-4.6 4v-4A3.8 3.8 0 0 1 4 12.2V6.8Z"
         stroke="currentColor"
-        strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="2"
       />
+      <path
+        d="M8 9.5h8M8 12.5h5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2"
+      />
     </svg>
+  );
+}
+
+function CommunityReachCard({ item }: { item: CommunityReachItem }) {
+  const content = (
+    <>
+      <span className="about-reach-card__icon">
+        <CommunityReachIcon icon={item.icon} />
+      </span>
+      <span className="about-reach-card__stat">{item.stat}</span>
+      <span className="about-reach-card__label">{item.label}</span>
+      <span className="about-reach-card__title">{item.title}</span>
+    </>
+  );
+
+  if (item.href) {
+    return (
+      <a
+        aria-label={`${item.title} opens in a new tab`}
+        className="about-reach-card about-reach-card--link"
+        href={item.href}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return <div className="about-reach-card">{content}</div>;
+}
+
+function renderTimelineTitle(item: TimelineMilestoneItem): ReactNode {
+  if (!item.href) {
+    return item.event;
+  }
+
+  return (
+    <Link className="about-timeline__link" href={item.href}>
+      {item.event}
+    </Link>
   );
 }
 
@@ -251,407 +446,258 @@ export default async function AboutPage() {
     aboutContent.timeline,
     committeeDirectory.terms
   );
+  const timelineGroups = groupTimelineByYear(timelineItems);
   const statItems = [
     {
-      label: "Active Members",
+      label: "Members",
+      note: "300+ active members per committee. Our broader community is much larger.",
       value: aboutContent.stats.active_members,
     },
     {
-      label: "Events Organized",
+      label: "Events",
       value: aboutContent.stats.events_organized,
     },
     {
-      label: "Years Active",
+      label: "Years",
       value: aboutContent.stats.years_active,
     },
     {
-      label: "Executive Terms",
+      label: "Terms",
       value: aboutContent.stats.executive_terms,
     },
   ];
 
   return (
-    <div className="shell overflow-x-hidden py-12">
-      <section className="glass-card overflow-hidden px-5 py-6 sm:px-8 sm:py-8">
-        <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1.16fr)_minmax(0,0.84fr)] lg:items-center">
-          <div className="min-w-0" data-about-animate="hero-left">
-            <span className="eyebrow">STEP AHEAD WITH IT</span>
-            <h1 className="section-title mt-4 max-w-full break-words [overflow-wrap:anywhere]">
-              About Jagannath University IT Society
-            </h1>
-            <p className="mt-5 max-w-[70ch] text-sm font-medium leading-6 text-[var(--muted-foreground)]">
-              {aboutContent.heroDescription}
-            </p>
-            <div className="mt-8 flex flex-col flex-wrap gap-3 sm:flex-row">
-              <Link href="/membership-form" className="primary-button min-h-11 w-full sm:w-auto">
-                Membership status
-              </Link>
-              <Link href="/events" className="secondary-button min-h-11 w-full sm:w-auto">
-                Explore events
-              </Link>
-            </div>
-          </div>
-
-          <div
-            className="relative min-w-0 overflow-hidden rounded-[1.8rem] border border-[var(--line)]"
-            data-about-animate="hero-right"
-          >
-            <Image
-              alt="Jagannath University business faculty building"
-              className="aspect-[4/3] h-full w-full object-cover text-transparent"
-              height={900}
-              priority
-              sizes="(min-width: 1024px) 45vw, 100vw"
-              src={optimizedSrc}
-              unoptimized={true}
-              width={1200}
-            />
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-[linear-gradient(to_top,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.3)_60%,transparent_100%)]"
-            />
-            <div className="absolute bottom-4 left-4 right-4 z-10 rounded-[1.35rem] border border-[var(--line)] bg-[color-mix(in_oklab,var(--brand-deep)_76%,transparent)] p-5 text-white shadow-[var(--shadow-panel)] backdrop-blur-md sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[24rem]">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-white">
-                Institutional identity
+    <div className="about-page">
+      <section className="about-section about-section--hero">
+        <div className="shell">
+          <div className="about-hero">
+            <div className="about-hero__copy">
+              <span className="about-hero-badge">Step ahead with IT</span>
+              <h1 className="about-hero__title">
+                About Jagannath University IT Society
+              </h1>
+              <p className="about-body about-hero__description">
+                {aboutContent.heroDescription}
               </p>
-              <p className="mt-3 break-words text-sm leading-7 text-white">
-                JnUITS presents its mission, values, and history with a clear
-                public profile for students, alumni, and partners.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      <section
-        className="section-band mt-8 border-t border-t-[var(--color-border)]"
-        aria-label="JnUITS impact statistics"
-      >
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0">
-          {statItems.map((stat) => {
-            const counter = parseCounter(stat.value);
+              <div className="about-button-row about-hero__actions">
+                <Link className="about-button about-button--primary" href="/membership-form">
+                  Join now
+                </Link>
+                <Link className="about-button about-button--outline" href="/events">
+                  Explore events
+                </Link>
+              </div>
 
-            return (
-              <div
-                key={stat.label}
-                className="stat-item px-2 py-2 text-center lg:px-6"
-              >
-                <p
-                  aria-label={`${stat.value} ${stat.label}`}
-                  aria-live="polite"
-                  className="font-[family-name:var(--font-heading)] text-[clamp(2rem,4vw,2.75rem)] font-bold leading-none text-[var(--primary)]"
-                  data-about-counter=""
-                  data-about-counter-display={counter.display}
-                  data-about-counter-suffix={counter.suffix}
-                  data-about-counter-value={counter.target}
+              <div className="about-hero__stats-wrap">
+                <div
+                  aria-label="JnUITS impact statistics"
+                  className="about-hero__stats"
                 >
-                  {stat.value}
-                </p>
-                <p className="mt-2 text-sm font-medium text-[var(--muted-foreground)]">
-                  {stat.label}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="mt-8 grid items-stretch gap-6 lg:grid-cols-2">
-        <article
-          className="glass-card h-full p-6 sm:p-8"
-          data-about-animate="card"
-        >
-          <div className="h-full border-l-[3px] border-l-[var(--color-primary)] pl-4 sm:pl-5">
-            <p className="section-divider">Mission</p>
-            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
-              Why JnUITS exists
-            </h2>
-            <p className="mt-5 text-base leading-8 text-[var(--muted-foreground)]">
-              {aboutContent.missionStatement}
-            </p>
-          </div>
-        </article>
-
-        <article
-          className="glass-card h-full p-6 sm:p-8"
-          data-about-animate="card"
-          data-about-delay="100"
-        >
-          <div className="h-full border-l-[3px] border-l-[var(--color-primary)] pl-4 sm:pl-5">
-            <p className="section-divider">Vision</p>
-            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
-              Where we&apos;re going
-            </h2>
-            <p className="mt-5 text-base leading-8 text-[var(--muted-foreground)]">
-              {aboutContent.vision}
-            </p>
-          </div>
-        </article>
-      </section>
-
-      <section className="mt-8 section-band">
-        <div className="mx-auto mb-10 max-w-2xl text-center">
-          <p className="section-divider mx-auto !tracking-[0.12em]">What we do</p>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,3rem)] leading-none tracking-[-0.04em]">
-            Practical programs for a stronger campus tech community
-          </h2>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {aboutContent.programs.map((program, index) => (
-            <article
-              key={program.title}
-              className="glass-card value-card border border-[var(--color-border)] p-6 motion-safe:transition-all motion-safe:duration-200 motion-safe:ease-out hover:border-[var(--color-primary)] motion-safe:hover:-translate-y-[3px] motion-safe:hover:shadow-[var(--shadow-md)]"
-              data-about-animate="card"
-              data-about-delay={index * 100}
-            >
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded-[var(--radius)] bg-[color-mix(in_oklab,var(--primary)_10%,transparent)] text-2xl"
-                aria-hidden="true"
-              >
-                {program.icon}
-              </div>
-              <h3 className="mt-5 text-lg font-bold leading-tight">
-                {program.title}
-              </h3>
-              <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-                {program.desc}
-              </p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-8 section-band">
-        <p className="section-divider">Core values</p>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-          {aboutContent.values.map((value, index) => (
-            <article
-              key={value.title}
-              className={`value-card rounded-[1.35rem] border border-[var(--color-border)] p-5 motion-safe:transition-all motion-safe:duration-200 motion-safe:ease-out hover:border-[var(--color-primary)] motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[var(--shadow-md)] lg:col-span-2 ${
-                aboutContent.values.length === 5 && index === 3 ? "lg:col-start-2" : ""
-              }`}
-              data-about-animate="card"
-              data-about-delay={index * 100}
-            >
-              <div
-                className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--primary)_12%,transparent)] text-[var(--color-primary)]"
-                aria-hidden="true"
-              >
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 20 20">
-                  <path
-                    d="m5 10.4 3.1 3.1L15 6.5"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2.5"
-                  />
-                </svg>
-              </div>
-              <h3 className="mt-4 text-lg font-bold leading-tight">
-                {value.title}
-              </h3>
-              <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-                {value.description}
-              </p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-8 section-band">
-        <p className="section-divider">History timeline</p>
-        <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,3rem)] leading-none tracking-[-0.04em]">
-          Key milestones
-        </h2>
-        <div className="relative mx-auto mt-8 max-w-3xl lg:mx-0">
-          <div
-            aria-hidden="true"
-            className="absolute bottom-2 left-[7px] top-2 w-0.5 bg-[var(--color-border)]"
-          />
-          <div className="grid gap-7">
-            {timelineItems.map((item, index) => (
-              <article
-                key={`${item.date}-${item.event}`}
-                className="relative pl-10"
-                data-about-animate="card"
-                data-about-delay={index * 100}
-              >
-                <span
-                  aria-hidden="true"
-                  className="absolute left-0 top-1.5 z-10 h-4 w-4 rounded-full border-2 border-[var(--color-primary)] bg-[var(--card)]"
-                />
-                <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--color-primary)]">
-                  {item.date}
-                </p>
-                <h3 className="mt-1 text-base font-semibold leading-tight">
-                  {item.href ? (
-                    <Link
-                      className="motion-safe:transition-colors motion-safe:duration-200 hover:text-[var(--color-primary)]"
-                      href={item.href}
+                  {statItems.map((stat) => (
+                    <div
+                      className="about-stat"
+                      key={stat.label}
+                      title={stat.note}
                     >
-                      {item.event}
-                    </Link>
-                  ) : (
-                    item.event
-                  )}
-                </h3>
+                      <p className="about-stat__number">{stat.value}</p>
+                      <p className="about-stat__label">{stat.label}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="about-caption about-hero__stats-note">
+                  300+ active members per committee. Our broader community is much larger.
+                </p>
+              </div>
+            </div>
+
+            <div className="about-hero__image-frame">
+              <Image
+                alt="Jagannath University business faculty building"
+                className="about-hero__image"
+                height={900}
+                priority
+                sizes="(min-width: 1280px) 43vw, 100vw"
+                src={optimizedSrc}
+                unoptimized={true}
+                width={1200}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="about-section about-section--alt">
+        <div className="shell about-mission-grid">
+          <article className="about-feature-card about-feature-card--mission">
+            <div className="about-feature-card__inner">
+              <span className="about-eyebrow">Mission</span>
+              <h2 className="about-section-title">Why JnUITS exists</h2>
+              <p className="about-body">{aboutContent.missionStatement}</p>
+            </div>
+          </article>
+
+          <article className="about-feature-card about-feature-card--vision">
+            <div className="about-feature-card__inner">
+              <span className="about-eyebrow">Vision</span>
+              <h2 className="about-section-title">Where we&apos;re going</h2>
+              <p className="about-body">{aboutContent.vision}</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section className="about-section">
+        <div className="shell">
+          <div className="about-section-heading">
+            <span className="about-eyebrow">What we do</span>
+            <h2 className="about-section-title">
+              Practical programs for a stronger campus tech community
+            </h2>
+          </div>
+          <div className="about-program-grid">
+            {aboutContent.programs.map((program) => (
+              <article className="about-program-card" key={program.title}>
+                <div className="about-program-card__icon">
+                  <ProgramIcon title={program.title} />
+                </div>
+                <h3 className="about-card-title">{program.title}</h3>
+                <p className="about-card-text">{program.desc}</p>
               </article>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="mt-8 section-band">
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="section-divider mx-auto">Digital channels</p>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,3rem)] leading-none tracking-[-0.04em]">
-            Find JnUITS online
-          </h2>
-        </div>
-        <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-          {aboutContent.socialChannels.map((channel, index) => (
-            <a
-              key={channel.url}
-              aria-label={`${channel.platform} — opens in a new tab`}
-              className="value-card flex min-h-[100px] flex-col items-center justify-center gap-2 rounded-[1.1rem] border border-[var(--color-border)] p-4 text-center motion-safe:transition-all motion-safe:duration-200 motion-safe:ease-out hover:border-[var(--color-primary)] motion-safe:hover:-translate-y-0.5"
-              data-about-animate="card"
-              data-about-delay={index * 100}
-              href={channel.url}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <span
-                aria-hidden="true"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-primary)] text-[var(--color-primary-foreground)] shadow-sm"
-              >
-                <SocialChannelIcon platform={channel.platform} />
-              </span>
-              <span className="text-sm font-semibold text-[var(--foreground)]">
-                {channel.platform}
-              </span>
-              <span className="text-xs font-medium text-[var(--muted-foreground)]">
-                {channel.handle}
-              </span>
-            </a>
-          ))}
-        </div>
-      </section>
-
-      <section
-        className="section-band mt-8 px-6 py-[clamp(3rem,6vw,5rem)] text-center"
-        data-about-animate="card"
-      >
-        <div className="mx-auto max-w-2xl">
-          <h2 className="font-[family-name:var(--font-heading)] text-[clamp(1.75rem,3vw,2.25rem)] leading-none tracking-[-0.04em]">
-            Ready to step ahead with IT?
-          </h2>
-          <p className="section-copy mx-auto mt-4">
-            Join our community of {aboutContent.stats.active_members} tech enthusiasts at Jagannath
-            University.
-          </p>
-          <div className="mt-8 flex flex-col flex-wrap justify-center gap-4 sm:flex-row">
-            <Link href="/members/membership-form" className="primary-button min-h-11 w-full sm:w-auto">
-              Membership form
-            </Link>
-            <Link href="/events" className="secondary-button min-h-11 w-full sm:w-auto">
-              Explore events
-            </Link>
+      <section className="about-section about-section--alt">
+        <div className="shell">
+          <div className="about-section-heading">
+            <span className="about-eyebrow">Core values</span>
+            <h2 className="about-section-title">
+              Principles that shape the society
+            </h2>
+          </div>
+          <div aria-label="Core values" className="about-values">
+            <div className="about-values__row about-values__row--top">
+              {aboutContent.values.slice(0, 3).map((value, index) => (
+                <article
+                  className="about-value-card"
+                  key={value.title}
+                  style={{
+                    "--about-value-accent":
+                      valueAccentVars[index % valueAccentVars.length],
+                  } as AboutCustomStyle}
+                >
+                  <h3 className="about-card-title">{value.title}</h3>
+                  <p className="about-card-text">{value.description}</p>
+                </article>
+              ))}
+            </div>
+            <div className="about-values__row about-values__row--bottom">
+              {aboutContent.values.slice(3).map((value, index) => (
+                <article
+                  className="about-value-card"
+                  key={value.title}
+                  style={{
+                    "--about-value-accent":
+                      valueAccentVars[(index + 3) % valueAccentVars.length],
+                  } as AboutCustomStyle}
+                >
+                  <h3 className="about-card-title">{value.title}</h3>
+                  <p className="about-card-text">{value.description}</p>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <Script id="about-page-motion" strategy="afterInteractive">
-        {`
-          (() => {
-            const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-            const animated = Array.from(document.querySelectorAll("[data-about-animate]"));
-            const counters = Array.from(document.querySelectorAll("[data-about-counter]"));
+      <section className="about-section about-section--reach">
+        <div className="shell">
+          <div className="about-section-heading">
+            <span className="about-eyebrow">Community reach</span>
+            <h2 className="about-section-title">
+              Our network beyond the campus
+            </h2>
+          </div>
+          <div className="about-reach-grid">
+            {communityReachItems.map((item) => (
+              <CommunityReachCard item={item} key={item.title} />
+            ))}
+          </div>
+          <p className="about-caption about-reach-caption">
+            Apart from these, our Messenger groups, WhatsApp groups, and other social media
+            channels include additional members and followers.
+          </p>
+        </div>
+      </section>
 
-            const setCountersFinal = () => {
-              counters.forEach((counter) => {
-                counter.textContent = counter.dataset.aboutCounterDisplay || counter.textContent;
-              });
-            };
+      <section className="about-section">
+        <div className="shell">
+          <div className="about-section-heading">
+            <span className="about-eyebrow">History timeline</span>
+            <h2 className="about-section-title">Key milestones</h2>
+          </div>
+          <div className="about-timeline">
+            <div className="about-timeline__line" aria-hidden="true" />
+            {timelineGroups.map((group) => (
+              <article className="about-timeline__group" key={group.year}>
+                <p className="about-timeline__year">{group.year}</p>
+                <span
+                  aria-hidden="true"
+                  className={`about-timeline__dot ${
+                    group.isFuture ? "about-timeline__dot--future" : ""
+                  } ${group.isMostRecent ? "about-timeline__dot--current" : ""}`}
+                />
+                <ul className="about-timeline__events">
+                  {group.items.map((item) => (
+                    <li
+                      className={`about-timeline__event ${
+                        group.items.length > 1 ? "about-timeline__event--nested" : ""
+                      }`}
+                      key={`${item.date}-${item.event}`}
+                    >
+                      {group.items.length > 1 ? (
+                        <span className="about-timeline__subdot" aria-hidden="true" />
+                      ) : null}
+                      <div>
+                        <h3 className="about-timeline__event-title">
+                          {renderTimelineTitle(item)}
+                        </h3>
+                        <p className="about-timeline__date">{item.date}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
-            if (reducedMotion) {
-              animated.forEach((element) => element.classList.add("about-in-view"));
-              setCountersFinal();
-              return;
-            }
-
-            document.documentElement.classList.add("about-motion-ready");
-
-            if (!("IntersectionObserver" in window)) {
-              animated.forEach((element) => element.classList.add("about-in-view"));
-              setCountersFinal();
-              return;
-            }
-
-            animated.forEach((element) => {
-              const delay = element.getAttribute("data-about-delay");
-              if (delay) {
-                element.style.transitionDelay = delay + "ms";
-              }
-            });
-
-            const revealObserver = new IntersectionObserver((entries, observer) => {
-              entries.forEach((entry) => {
-                if (entry.isIntersecting) {
-                  entry.target.classList.add("about-in-view");
-                  observer.unobserve(entry.target);
-                }
-              });
-            }, { threshold: 0.18 });
-
-            animated.forEach((element) => revealObserver.observe(element));
-
-            const easeOutCubic = (progress) => 1 - Math.pow(1 - progress, 3);
-            const animateCounter = (counter) => {
-              if (counter.dataset.aboutCounterDone === "true") return;
-              counter.dataset.aboutCounterDone = "true";
-
-              const target = Number(counter.dataset.aboutCounterValue || "0");
-              const suffix = counter.dataset.aboutCounterSuffix || "";
-              const fallback = counter.dataset.aboutCounterDisplay || counter.textContent || "";
-
-              if (!target) {
-                counter.textContent = fallback;
-                return;
-              }
-
-              counter.textContent = "0" + suffix;
-
-              const startedAt = performance.now();
-              const duration = 1200;
-
-              const tick = (now) => {
-                const progress = Math.min((now - startedAt) / duration, 1);
-                const current = Math.round(target * easeOutCubic(progress));
-                counter.textContent = current + suffix;
-
-                if (progress < 1) {
-                  requestAnimationFrame(tick);
-                } else {
-                  counter.textContent = fallback;
-                }
-              };
-
-              requestAnimationFrame(tick);
-            };
-
-            const counterObserver = new IntersectionObserver((entries, observer) => {
-              entries.forEach((entry) => {
-                if (entry.isIntersecting) {
-                  animateCounter(entry.target);
-                  observer.unobserve(entry.target);
-                }
-              });
-            }, { threshold: 0.4 });
-
-            counters.forEach((counter) => counterObserver.observe(counter));
-          })();
-        `}
-      </Script>
+      <section className="about-section about-section--cta">
+        <div className="shell">
+          <div className="about-cta">
+            <h2 className="about-section-title">Ready to step ahead with IT?</h2>
+            <p className="about-body about-cta__copy">
+              Join our community of {aboutContent.stats.active_members} tech enthusiasts at Jagannath
+              University.
+            </p>
+            <p className="about-caption about-cta__trust">
+              Trusted by students, alumni, and industry mentors across Jagannath University.
+            </p>
+            <div className="about-button-row about-cta__actions">
+              <Link className="about-button about-button--primary" href="/membership-form">
+                Join now
+              </Link>
+              <Link className="about-button about-button--outline" href="/events">
+                Explore events
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

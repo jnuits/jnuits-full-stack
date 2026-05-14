@@ -46,7 +46,7 @@ const jnuitsMapEmbedSrc =
 
 const quickLinks = [
   {
-    label: "Membership form",
+    label: "Join now",
     href: "/membership-form",
     icon: UserPlus,
   },

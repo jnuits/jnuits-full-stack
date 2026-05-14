@@ -15,7 +15,10 @@ export const brandProfile = {
   socialLinks: [
     { href: "https://www.facebook.com/jnuits", label: "Facebook" },
     { href: "https://www.linkedin.com/company/jnuits", label: "LinkedIn" },
+    { href: "https://www.facebook.com/groups/jnuicts", label: "Facebook Group" },
+    { href: "https://www.instagram.com/jnuitsbd/", label: "Instagram" },
     { href: "https://www.youtube.com/@jnuits", label: "YouTube" },
     { href: "https://twitter.com/jnuits", label: "X / Twitter" },
+    { href: "https://share.google/zAujqRzHP9xkizOiT", label: "Google" },
   ],
 } as const;

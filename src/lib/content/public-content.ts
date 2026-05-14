@@ -128,7 +128,7 @@ export const fallbackAboutContent = {
   summary:
     `${brandProfile.fullName} (${brandProfile.shortName}) is the non-profit university IT club of ${brandProfile.university}, founded and registered on 11 Nov 2015 and approved by the University on 18 Nov 2015.`,
   heroDescription:
-    `${brandProfile.shortName} is ${brandProfile.university}'s leading technology club, empowering students with modern IT skills through workshops, competitions, and community-driven programs.`,
+    `${brandProfile.shortName} is ${brandProfile.university}'s leading technology club, empowering students with modern IT skills through workshops, competitions, and community-driven programs. ${brandProfile.shortName} has 300+ active members in each committee cycle. Beyond that, our broader community — including alumni and event participants — spans thousands across multiple platforms.`,
   story: [
     `${brandProfile.shortName} brings together students who want to learn, build, and lead through practical work in information technology.`,
     `From ${brandProfile.address}, the society runs programs, courses, workshops, certificates, and community activities that help students move forward with confidence.`,
@@ -153,22 +153,22 @@ export const fallbackAboutContent = {
     {
       icon: "💻",
       title: "Workshops & Courses",
-      desc: "Hands-on sessions on web development and modern technologies",
+      desc: "Structured hands-on sessions help students learn web, software, and digital skills by building practical projects.",
     },
     {
       icon: "🏆",
       title: "Coding Competitions",
-      desc: "Programming contests and challenges with prizes",
+      desc: "Programming contests and hackathons sharpen problem-solving under pressure while connecting students with peer teams.",
     },
     {
       icon: "🎤",
       title: "Seminars & Tech Talks",
-      desc: "Industry expert sessions bridging academia and industry",
+      desc: "Talks with faculty, alumni, and industry guests translate real technology careers into clear learning paths.",
     },
     {
       icon: "🌍",
       title: "Community Outreach",
-      desc: "Social impact and sustainability-oriented initiatives",
+      desc: "Campus and public initiatives use technology to support inclusion, sustainability, and service beyond regular club activity.",
     },
   ] satisfies AboutProgram[],
   values: [
@@ -205,24 +205,19 @@ export const fallbackAboutContent = {
   ] satisfies AboutTimelineEntry[],
   socialChannels: [
     {
-      platform: "Website",
-      handle: "jnuits.org.bd",
-      url: "https://jnuits.org.bd",
-    },
-    {
       platform: "Facebook",
       handle: "/jnuits",
       url: "https://www.facebook.com/jnuits",
     },
     {
-      platform: "Facebook Group",
-      handle: "/groups/jnuits",
-      url: "https://www.facebook.com/groups/jnuits",
-    },
-    {
       platform: "LinkedIn",
       handle: "JnUITS",
-      url: "https://bd.linkedin.com/company/jnuits",
+      url: "https://www.linkedin.com/company/jnuits",
+    },
+    {
+      platform: "Facebook Group",
+      handle: "/groups/jnuicts",
+      url: "https://www.facebook.com/groups/jnuicts",
     },
     {
       platform: "Instagram",
@@ -238,6 +233,11 @@ export const fallbackAboutContent = {
       platform: "X / Twitter",
       handle: "@jnuits",
       url: "https://twitter.com/jnuits",
+    },
+    {
+      platform: "Google",
+      handle: "Business Profile",
+      url: "https://share.google/zAujqRzHP9xkizOiT",
     },
   ] satisfies AboutSocialChannel[],
   imageSrc:
@@ -450,33 +450,6 @@ function asStringArray(value: Json | undefined, fallback: string[]) {
   return normalized.length > 0 ? normalized : fallback;
 }
 
-function asAboutPrograms(value: Json | undefined, fallback: AboutProgram[]) {
-  if (!Array.isArray(value)) {
-    return fallback;
-  }
-
-  const normalized = value
-    .map((entry) => {
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-        return null;
-      }
-
-      const record = entry as Record<string, Json | undefined>;
-      const icon = asString(record.icon);
-      const title = asString(record.title);
-      const desc = asString(record.desc);
-
-      if (!icon || !title || !desc) {
-        return null;
-      }
-
-      return { icon, title, desc };
-    })
-    .filter((entry): entry is AboutProgram => Boolean(entry));
-
-  return normalized.length > 0 ? normalized : fallback;
-}
-
 function asAboutSocialChannels(value: Json | undefined, fallback: AboutSocialChannel[]) {
   if (!Array.isArray(value)) {
     return fallback;
@@ -506,6 +479,10 @@ function asAboutSocialChannels(value: Json | undefined, fallback: AboutSocialCha
 
 function getSocialChannelKey(platform: string) {
   const normalized = platform.toLowerCase();
+
+  if (normalized.includes("google")) {
+    return "google";
+  }
 
   if (normalized.includes("youtube")) {
     return "youtube";
@@ -542,20 +519,38 @@ function getSocialChannelKey(platform: string) {
   return normalized.replace(/[^a-z0-9]+/g, "-");
 }
 
+const aboutSocialChannelOrder: string[] = [
+  "facebook",
+  "linkedin",
+  "facebook-group",
+  "instagram",
+  "youtube",
+  "twitter",
+  "google",
+];
+
 function withRequiredAboutSocialChannels(channels: AboutSocialChannel[]) {
-  const merged = [...channels];
-  const seen = new Set(merged.map((channel) => getSocialChannelKey(channel.platform)));
+  const channelsByKey = new Map<string, AboutSocialChannel>();
+
+  for (const channel of channels) {
+    const key = getSocialChannelKey(channel.platform);
+
+    if (key !== "website" && aboutSocialChannelOrder.includes(key)) {
+      channelsByKey.set(key, channel);
+    }
+  }
 
   for (const channel of fallbackAboutContent.socialChannels) {
     const key = getSocialChannelKey(channel.platform);
 
-    if (!seen.has(key)) {
-      merged.push(channel);
-      seen.add(key);
+    if (!channelsByKey.has(key)) {
+      channelsByKey.set(key, channel);
     }
   }
 
-  return merged;
+  return aboutSocialChannelOrder
+    .map((key) => channelsByKey.get(key))
+    .filter((channel): channel is AboutSocialChannel => Boolean(channel));
 }
 
 function resolveRelation<T>(value: T | T[] | null | undefined) {
@@ -654,7 +649,7 @@ export const getAboutContent = cache(async () => {
     ),
     stats: fallbackAboutContent.stats,
     vision: asString(body?.vision, fallbackAboutContent.vision),
-    programs: asAboutPrograms(body?.programs, fallbackAboutContent.programs),
+    programs: fallbackAboutContent.programs,
     values: fallbackAboutContent.values,
     timeline: fallbackAboutContent.timeline,
     socialChannels: withRequiredAboutSocialChannels(
