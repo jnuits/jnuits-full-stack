@@ -160,6 +160,8 @@ export const adminNavigation: NavItem[] = [
   { href: "/admin/membership", label: "Membership DB" },
   { href: "/admin/bulk-operations", label: "Bulk Operations" },
   { href: "/admin/content", label: "Content Hub" },
+  { href: "/admin/content/about", label: "About page" },
+  { href: "/admin/content/slider", label: "Slider images" },
   { href: "/admin/content/media", label: "Media" },
   { href: "/admin/content/blogs", label: "Blogs" },
   { href: "/admin/content/events", label: "Events" },

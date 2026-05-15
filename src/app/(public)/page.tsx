@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { HomepageSlider } from "@/components/homepage/HomepageSlider";
 import {
+  getHomepageContent,
   getPublishedEvents,
-  homepageContent,
   type EventPreview,
   type HomepageIconName,
 } from "@/lib/content/public-content";
@@ -131,16 +131,20 @@ async function UpcomingEventsSection() {
   );
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  const homepageContent = await getHomepageContent();
+
   return (
     <div className="hp-root">
       <section className="hp-section hp-hero">
-        <div className="shell hp-hero__grid">
+        <div className="shell hp-hero__inner">
           <div className="hp-hero__copy">
             <span className="hp-hero__badge">{homepageContent.hero.eyebrow}</span>
             <h1 className="hp-h1">{homepageContent.hero.heading}</h1>
-            <p className="hp-body hp-hero__body">{homepageContent.hero.body}</p>
-            <div className="hp-button-row">
+            <p className="hp-body hp-hero__body">
+              {homepageContent.hero.subheading}
+            </p>
+            <div className="hp-button-row hp-hero-buttons">
               <Link className="hp-button hp-button--primary" href={homepageContent.hero.primaryCTA.href}>
                 {homepageContent.hero.primaryCTA.label}
               </Link>
@@ -151,17 +155,26 @@ export default function HomePage() {
                 {homepageContent.hero.secondaryCTA.label}
               </Link>
             </div>
-            <div className="hp-hero-stats" aria-label="JnUITS impact statistics">
-              {homepageContent.stats.map((stat) => (
-                <div className="hp-hero-stat" key={`${stat.value}-${stat.label}`}>
-                  <p className="hp-hero-stat__number">{stat.value}</p>
-                  <p className="hp-hero-stat__label">{stat.label}</p>
-                </div>
-              ))}
-            </div>
           </div>
-          <div className="hp-hero__media">
-            <HomepageSlider images={homepageContent.sliderImages} />
+        </div>
+      </section>
+
+      <div className="shell">
+        <HomepageSlider images={homepageContent.sliderImages} />
+      </div>
+
+      <section className="hp-stats-section" aria-label="JnUITS impact statistics">
+        <div className="shell">
+          <div className="hp-hero-stats hp-stats-band">
+            {homepageContent.stats.map((stat) => (
+              <div
+                className="hp-hero-stat hp-stats-item"
+                key={`${stat.value}-${stat.label}`}
+              >
+                <p className="hp-hero-stat__number">{stat.value}</p>
+                <p className="hp-hero-stat__label">{stat.label}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -205,10 +218,9 @@ export default function HomePage() {
             <h2 className="hp-h2 hp-impact__heading">
               A decade of technology and community
             </h2>
-            <span className="hp-impact__badge">1st Place — Bangladesh IT Challenge 2023</span>
           </div>
           <div className="hp-impact-grid">
-            {homepageContent.stats.map((stat) => (
+            {homepageContent.achievementBand.stats.map((stat) => (
               <div className="hp-impact-stat" key={`${stat.value}-${stat.label}`}>
                 <p className="hp-impact-stat__number">{stat.value}</p>
                 <p className="hp-impact-stat__label">{stat.label}</p>
@@ -279,12 +291,11 @@ export default function HomePage() {
             <p>{homepageContent.universityContext.text}</p>
             <a
               className="hp-inline-link"
-              href={homepageContent.universityContext.deptLink.href}
-              rel="noopener noreferrer"
-              target="_blank"
+              href={homepageContent.universityContext.link.href}
+              rel={homepageContent.universityContext.link.external ? "noopener noreferrer" : undefined}
+              target={homepageContent.universityContext.link.external ? "_blank" : undefined}
             >
-              {homepageContent.universityContext.deptLink.label}{" "}
-              <ArrowRight aria-hidden="true" size={15} />
+              {homepageContent.universityContext.link.label}
             </a>
           </div>
         </div>

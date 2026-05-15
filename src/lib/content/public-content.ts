@@ -14,6 +14,7 @@ export type AboutStats = {
   events_organized: string;
   years_active: string;
   executive_terms: string;
+  alumni_community: string;
 };
 
 export type AboutProgram = {
@@ -49,6 +50,11 @@ export type HomepageSliderImage = {
   link: string | null;
 };
 
+export type PublicStat = {
+  value: string;
+  label: string;
+};
+
 export type HomepageIconName =
   | "bulb"
   | "heart"
@@ -61,11 +67,14 @@ export type HomepageContent = {
   hero: {
     eyebrow: string;
     heading: string;
-    body: string;
+    subheading: string;
     primaryCTA: { label: string; href: string };
     secondaryCTA: { label: string; href: string };
   };
-  stats: { value: string; label: string }[];
+  stats: PublicStat[];
+  achievementBand: {
+    stats: PublicStat[];
+  };
   sliderImages: HomepageSliderImage[];
   about: {
     eyebrow: string;
@@ -84,7 +93,7 @@ export type HomepageContent = {
   };
   universityContext: {
     text: string;
-    deptLink: { label: string; href: string };
+    link: { label: string; href: string; external: boolean };
   };
 };
 
@@ -177,22 +186,27 @@ const fallbackBlogImage = "/images/home-group.jpg";
 const fallbackEventImage = "/images/workshop.jpg";
 const fallbackNoticeHref = "/notices";
 
+export const verifiedPublicStats = [
+  { value: "300+", label: "Active members" },
+  { value: "150+", label: "Events organized" },
+  { value: "10+", label: "Years active" },
+  { value: "6+", label: "Executive terms" },
+  { value: "2000+", label: "Alumni & community" },
+] satisfies PublicStat[];
+
 export const homepageContent = {
   hero: {
     eyebrow: "Step Ahead with IT",
-    heading:
-      "Empowering Jagannath University students through technology and innovation",
-    body:
+    heading: "Jagannath University IT Society",
+    subheading:
       "JnUITS is the official student IT club of Jagannath University — offering workshops, coding competitions, tech talks, and community-driven programs that bridge academic learning with real-world IT skills.",
     primaryCTA: { label: "Join JnUITS", href: "/members/join" },
     secondaryCTA: { label: "Explore events", href: "/events" },
   },
-  stats: [
-    { value: "500+", label: "Active members" },
-    { value: "50+", label: "Events organized" },
-    { value: "1st", label: "Bangladesh IT Challenge 2023" },
-    { value: "10+", label: "Years active" },
-  ],
+  stats: verifiedPublicStats,
+  achievementBand: {
+    stats: verifiedPublicStats,
+  },
   // ADMIN: Add between 5 and 15 images to this array.
   // The homepage will display 5 randomly selected images per visit.
   sliderImages: [
@@ -221,11 +235,11 @@ export const homepageContent = {
       link: "/blogs",
     },
     {
-      id: "bangladesh-it-challenge-2023",
-      imageUrl: "/images/slider/bangladesh-it-challenge-2023.jpg",
-      title: "Bangladesh IT Challenge 2023 Victory",
+      id: "student-project-showcase",
+      imageUrl: "/images/slider/student-project-showcase.jpg",
+      title: "Student Project Showcase",
       caption:
-        "A milestone achievement that reflects JnUITS student capability nationally.",
+        "Members present practical technology projects built through JnUITS programs.",
       link: "/gallery",
     },
     {
@@ -319,10 +333,11 @@ export const homepageContent = {
   },
   universityContext: {
     text:
-      "JnUITS is based at the Department of Computer Science and Engineering, Jagannath University, Dhaka. We align with the university's mission to provide quality education and contribute to national development.",
-    deptLink: {
-      label: "Visit CSE Department",
-      href: "https://cse.jnu.ac.bd",
+      "JnUITS is an independent student organization at Jagannath University, Dhaka — open to and run by students from all departments. We align with Jagannath University's mission to support quality education and contribute to national development.",
+    link: {
+      label: "Visit Jagannath University →",
+      href: "https://jnu.ac.bd",
+      external: true,
     },
   },
 } satisfies HomepageContent;
@@ -333,7 +348,7 @@ export const fallbackAboutContent = {
   summary:
     `${brandProfile.fullName} (${brandProfile.shortName}) is the non-profit university IT club of ${brandProfile.university}, founded and registered on 11 Nov 2015 and approved by the University on 18 Nov 2015.`,
   heroDescription:
-    `${brandProfile.shortName} is ${brandProfile.university}'s leading technology club, empowering students with modern IT skills through workshops, competitions, and community-driven programs. ${brandProfile.shortName} has 300+ active members in each committee cycle. Beyond that, our broader community — including alumni and event participants — spans thousands across multiple platforms.`,
+    `${brandProfile.shortName} is ${brandProfile.university}'s leading technology club, empowering students with modern IT skills through workshops, competitions, and community-driven programs. ${brandProfile.shortName} has 300+ active members in each committee cycle. Beyond that, our broader community — including 2000+ alumni and event participants — spans thousands across multiple platforms.`,
   story: [
     `${brandProfile.shortName} brings together students who want to learn, build, and lead through practical work in information technology.`,
     `From ${brandProfile.address}, the society runs programs, courses, workshops, certificates, and community activities that help students move forward with confidence.`,
@@ -348,10 +363,12 @@ export const fallbackAboutContent = {
   ],
   stats: {
     active_members: "300+",
-    events_organized: "50+",
+    events_organized: "150+",
     years_active: "10+",
     executive_terms: "6+",
+    alumni_community: "2000+",
   } satisfies AboutStats,
+  visionTitle: "Where we're going",
   vision:
     "Our vision is to build a vibrant, inclusive and globally competitive tech community at Jagannath University that leads innovation, drives social impact, and shapes the digital future of Bangladesh.",
   programs: [
@@ -447,6 +464,8 @@ export const fallbackAboutContent = {
       icon: "youtube",
     },
   ] satisfies AboutCommunityReachItem[],
+  communityReachCaption:
+    "JnUITS has 300+ active members in each committee cycle. Our broader community — including 2000+ alumni and event participants — spans thousands across multiple platforms.",
   timeline: [
     { date: "11 Nov 2015", event: "Founded and registered" },
     { date: "18 Nov 2015", event: "Approved by Jagannath University" },
@@ -699,6 +718,172 @@ function asStringArray(value: Json | undefined, fallback: string[]) {
   return normalized.length > 0 ? normalized : fallback;
 }
 
+function asPublicStats(value: Json | undefined, fallback: PublicStat[]) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, Json | undefined>;
+      const valueText = asString(record.value);
+      const label = asString(record.label);
+
+      if (!valueText || !label) {
+        return null;
+      }
+
+      return { value: valueText, label };
+    })
+    .filter((entry): entry is PublicStat => Boolean(entry));
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function asVerifiedPublicStats(value: Json | undefined, fallback: PublicStat[]) {
+  const normalized = asPublicStats(value, fallback);
+  const labelsMatch = fallback.every(
+    (entry, index) => normalized[index]?.label === entry.label
+  );
+
+  return normalized.length === fallback.length && labelsMatch ? normalized : fallback;
+}
+
+function asHomepageSliderImages(
+  value: Json | undefined,
+  fallback: HomepageSliderImage[]
+) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, Json | undefined>;
+      const id = asString(record.id);
+      const imageUrl = asString(record.imageUrl);
+      const title = asString(record.title);
+      const caption = asString(record.caption);
+
+      if (!id || !imageUrl || !title) {
+        return null;
+      }
+
+      return {
+        id,
+        imageUrl,
+        title,
+        caption,
+        link: asString(record.link) || null,
+      };
+    })
+    .filter((entry): entry is HomepageSliderImage => Boolean(entry));
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function asAboutStats(value: Json | undefined, fallback: AboutStats) {
+  const record = asObject(value);
+
+  if (!record) {
+    return fallback;
+  }
+
+  const requiredKeys = [
+    "active_members",
+    "events_organized",
+    "years_active",
+    "executive_terms",
+    "alumni_community",
+  ] as const;
+
+  if (requiredKeys.some((key) => typeof record[key] !== "string")) {
+    return fallback;
+  }
+
+  return {
+    active_members: asString(record.active_members, fallback.active_members),
+    events_organized: asString(record.events_organized, fallback.events_organized),
+    years_active: asString(record.years_active, fallback.years_active),
+    executive_terms: asString(record.executive_terms, fallback.executive_terms),
+    alumni_community: asString(record.alumni_community, fallback.alumni_community),
+  } satisfies AboutStats;
+}
+
+function asAboutTimelineEntries(
+  value: Json | undefined,
+  fallback: AboutTimelineEntry[]
+) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, Json | undefined>;
+      const date = asString(record.date);
+      const event = asString(record.event);
+
+      if (!date || !event) {
+        return null;
+      }
+
+      return { date, event };
+    })
+    .filter((entry): entry is AboutTimelineEntry => Boolean(entry));
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function asAboutCommunityReachItems(
+  value: Json | undefined,
+  fallback: AboutCommunityReachItem[]
+) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, Json | undefined>;
+      const platform = asString(record.platform);
+      const stat = asString(record.stat);
+      const label = asString(record.label);
+      const icon = asString(record.icon) as AboutCommunityReachItem["icon"];
+
+      if (!platform || !stat || !label || !icon) {
+        return null;
+      }
+
+      return {
+        platform,
+        stat,
+        label,
+        icon,
+        link: asString(record.link) || null,
+      };
+    })
+    .filter((entry): entry is AboutCommunityReachItem => Boolean(entry));
+
+  return normalized.length > 0 ? normalized : fallback;
+}
+
 function asAboutSocialChannels(value: Json | undefined, fallback: AboutSocialChannel[]) {
   if (!Array.isArray(value)) {
     return fallback;
@@ -869,6 +1054,41 @@ export function formatDateRange(start: string, end: string) {
   return `${compactDate.format(startDate)} - ${shortDate.format(endDate)}`;
 }
 
+export const getHomepageContent = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("content_pages")
+    .select("slug, title, eyebrow, summary, body")
+    .eq("slug", "home")
+    .eq("status", "published")
+    .maybeSingle();
+
+  if (!data) {
+    return homepageContent;
+  }
+
+  const body = asObject(data.body);
+  const stats = asVerifiedPublicStats(body?.stats, homepageContent.stats);
+
+  return {
+    ...homepageContent,
+    hero: {
+      ...homepageContent.hero,
+      eyebrow: data.eyebrow || homepageContent.hero.eyebrow,
+      heading: data.title || homepageContent.hero.heading,
+      subheading: data.summary || homepageContent.hero.subheading,
+    },
+    stats,
+    achievementBand: {
+      stats: asVerifiedPublicStats(body?.achievementBandStats, stats),
+    },
+    sliderImages: asHomepageSliderImages(
+      body?.sliderImages,
+      homepageContent.sliderImages
+    ),
+  } satisfies HomepageContent;
+});
+
 export const getAboutContent = cache(async () => {
   const supabase = await createClient();
   const { data } = await supabase
@@ -888,20 +1108,34 @@ export const getAboutContent = cache(async () => {
     eyebrow: data.eyebrow || fallbackAboutContent.eyebrow,
     title: data.title || fallbackAboutContent.title,
     summary: data.summary || fallbackAboutContent.summary,
-    heroDescription: fallbackAboutContent.heroDescription,
+    heroDescription: asString(
+      body?.heroDescription,
+      data.summary || fallbackAboutContent.heroDescription
+    ),
     story: asStringArray(body?.story, fallbackAboutContent.story),
     missionTitle: asString(body?.missionTitle, fallbackAboutContent.missionTitle),
-    missionStatement: fallbackAboutContent.missionStatement,
+    missionStatement: asString(
+      body?.missionStatement,
+      fallbackAboutContent.missionStatement
+    ),
     missionPoints: asStringArray(
       body?.missionPoints,
       fallbackAboutContent.missionPoints
     ),
-    stats: fallbackAboutContent.stats,
+    stats: asAboutStats(body?.stats, fallbackAboutContent.stats),
+    visionTitle: asString(body?.visionTitle, fallbackAboutContent.visionTitle),
     vision: asString(body?.vision, fallbackAboutContent.vision),
     programs: fallbackAboutContent.programs,
     values: fallbackAboutContent.values,
-    communityReach: fallbackAboutContent.communityReach,
-    timeline: fallbackAboutContent.timeline,
+    communityReach: asAboutCommunityReachItems(
+      body?.communityReach,
+      fallbackAboutContent.communityReach
+    ),
+    communityReachCaption: asString(
+      body?.communityReachCaption,
+      fallbackAboutContent.communityReachCaption
+    ),
+    timeline: asAboutTimelineEntries(body?.timeline, fallbackAboutContent.timeline),
     socialChannels: withRequiredAboutSocialChannels(
       asAboutSocialChannels(
         body?.socialChannels || body?.social_channels,

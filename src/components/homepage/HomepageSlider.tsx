@@ -93,87 +93,91 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
   }
 
   return (
-    <div
-      aria-label="JnUITS activity gallery"
-      className="hp-slider"
-      data-reduced-motion={reducedMotion ? "true" : "false"}
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
-    >
-      <div className="hp-slider__viewport">
-        {slides.map((slide, index) => (
-          <div
-            aria-hidden={index === activeIndex ? undefined : true}
-            className="hp-slider__slide"
-            data-active={index === activeIndex ? "true" : "false"}
-            key={slide.id}
-          >
-            <Image
-              alt={slide.title}
-              className="hp-slider__image"
-              fill
-              onError={(event) => {
-                const fallback = fallbackImages[index % fallbackImages.length];
-                if (event.currentTarget.src.endsWith(fallback)) {
-                  return;
-                }
-                event.currentTarget.src = fallback;
-              }}
-              sizes="(min-width: 1280px) 38vw, 100vw"
-              src={slide.imageUrl}
-              unoptimized={true}
-            />
-            {slide.link ? (
-              <a
-                aria-label={`Open ${slide.title}`}
-                className="hp-slider__link"
-                href={slide.link}
-                tabIndex={index === activeIndex ? 0 : -1}
+    <section className="hp-slider-section">
+      <div
+        aria-label="JnUITS activity gallery"
+        className="hp-slider"
+        data-reduced-motion={reducedMotion ? "true" : "false"}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+      >
+        <div className="hp-slider__viewport">
+          {slides.map((slide, index) => (
+            <div
+              aria-hidden={index === activeIndex ? undefined : true}
+              className="hp-slider__slide"
+              data-active={index === activeIndex ? "true" : "false"}
+              key={slide.id}
+            >
+              <Image
+                alt={slide.title}
+                className="hp-slider__image"
+                fill
+                onError={(event) => {
+                  const fallback = fallbackImages[index % fallbackImages.length];
+                  if (event.currentTarget.src.endsWith(fallback)) {
+                    return;
+                  }
+                  event.currentTarget.src = fallback;
+                }}
+                sizes="(min-width: 1280px) 1220px, 94vw"
+                src={slide.imageUrl}
+                unoptimized={true}
               />
-            ) : null}
-            <div className="hp-slider__overlay">
-              <p className="hp-slider__title">{slide.title}</p>
-              <p className="hp-slider__caption">{slide.caption}</p>
+              <div className="hp-slide-overlay" />
+              <p className="hp-slide-title">{slide.title}</p>
+              <p className="hp-slide-caption">{slide.caption}</p>
+              {slide.link ? (
+                <a
+                  aria-label={`View ${slide.title}`}
+                  className="hp-slide-view"
+                  href={slide.link}
+                  tabIndex={index === activeIndex ? 0 : -1}
+                >
+                  View →
+                </a>
+              ) : null}
             </div>
-          </div>
-        ))}
+          ))}
 
-        {slides.length > 1 ? (
-          <>
-            <button
-              aria-label="Previous slide"
-              className="hp-slider__control hp-slider__control--prev"
-              onClick={() => goToSlide(activeIndex - 1)}
-              type="button"
-            >
-              <ChevronLeft aria-hidden="true" size={20} strokeWidth={2.2} />
-            </button>
-            <button
-              aria-label="Next slide"
-              className="hp-slider__control hp-slider__control--next"
-              onClick={() => goToSlide(activeIndex + 1)}
-              type="button"
-            >
-              <ChevronRight aria-hidden="true" size={20} strokeWidth={2.2} />
-            </button>
-          </>
-        ) : null}
-      </div>
+          {slides.length > 1 ? (
+            <>
+              <button
+                aria-label="Previous slide"
+                className="hp-slider__control hp-slider__control--prev"
+                onClick={() => goToSlide(activeIndex - 1)}
+                type="button"
+              >
+                <ChevronLeft aria-hidden="true" size={24} strokeWidth={2.2} />
+              </button>
+              <button
+                aria-label="Next slide"
+                className="hp-slider__control hp-slider__control--next"
+                onClick={() => goToSlide(activeIndex + 1)}
+                type="button"
+              >
+                <ChevronRight aria-hidden="true" size={24} strokeWidth={2.2} />
+              </button>
+            </>
+          ) : null}
 
-      <div className="hp-slider__dots" role="tablist" aria-label="Slider navigation">
-        {slides.map((slide, index) => (
-          <button
-            aria-label={`Slide ${index + 1} of ${slides.length}`}
-            aria-selected={index === activeIndex}
-            className="hp-slider__dot"
-            data-active={index === activeIndex ? "true" : "false"}
-            key={slide.id}
-            onClick={() => goToSlide(index)}
-            role="tab"
-            type="button"
-          />
-        ))}
+        </div>
+
+        <div className="hp-slider__dots" role="tablist" aria-label="Slider navigation">
+          {slides.map((slide, index) => (
+            <button
+              aria-label={`Slide ${index + 1} of ${slides.length}`}
+              aria-selected={index === activeIndex}
+              className="hp-slider__dot"
+              data-active={index === activeIndex ? "true" : "false"}
+              key={slide.id}
+              onClick={() => goToSlide(index)}
+              role="tab"
+              type="button"
+            />
+          ))}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

@@ -437,21 +437,26 @@ export default async function AboutPage() {
   const timelineGroups = groupTimelineByYear(timelineItems);
   const statItems = [
     {
-      label: "Members",
-      note: "300+ active members per committee. Our broader community is much larger.",
+      label: "Active members",
+      note:
+        "300+ active members per committee cycle. 2000+ alumni and event participants extend the network.",
       value: aboutContent.stats.active_members,
     },
     {
-      label: "Events",
+      label: "Events organized",
       value: aboutContent.stats.events_organized,
     },
     {
-      label: "Years",
+      label: "Years active",
       value: aboutContent.stats.years_active,
     },
     {
-      label: "Terms",
+      label: "Executive terms",
       value: aboutContent.stats.executive_terms,
+    },
+    {
+      label: "Alumni & community",
+      value: aboutContent.stats.alumni_community,
     },
   ];
 
@@ -462,9 +467,7 @@ export default async function AboutPage() {
           <div className="about-hero">
             <div className="about-hero__copy">
               <span className="about-hero-badge">Step ahead with IT</span>
-              <h1 className="about-hero__title">
-                About Jagannath University IT Society
-              </h1>
+              <h1 className="about-hero__title">{aboutContent.title}</h1>
               <p className="about-body about-hero__description">
                 {aboutContent.heroDescription}
               </p>
@@ -497,7 +500,7 @@ export default async function AboutPage() {
                 <p
                   className="about-caption about-hero__stats-note about-stat-clarification"
                 >
-                  300+ active members per committee. Our broader community is much larger.
+                  {aboutContent.communityReachCaption}
                 </p>
               </div>
             </div>
@@ -523,7 +526,9 @@ export default async function AboutPage() {
           <article className="about-feature-card about-feature-card--mission">
             <div className="about-feature-card__inner">
               <span className="about-eyebrow">Mission</span>
-              <h2 className="about-section-title">Why JnUITS exists</h2>
+              <h2 className="about-section-title">
+                {aboutContent.missionTitle}
+              </h2>
               <p className="about-body">{aboutContent.missionStatement}</p>
             </div>
           </article>
@@ -531,7 +536,7 @@ export default async function AboutPage() {
           <article className="about-feature-card about-feature-card--vision">
             <div className="about-feature-card__inner">
               <span className="about-eyebrow">Vision</span>
-              <h2 className="about-section-title">Where we&apos;re going</h2>
+              <h2 className="about-section-title">{aboutContent.visionTitle}</h2>
               <p className="about-body">{aboutContent.vision}</p>
             </div>
           </article>
@@ -617,8 +622,7 @@ export default async function AboutPage() {
             ))}
           </div>
           <p className="about-caption about-reach-caption">
-            Apart from these, our Messenger groups, WhatsApp groups, and other social media
-            channels include additional members and followers.
+            {aboutContent.communityReachCaption}
           </p>
         </div>
       </section>

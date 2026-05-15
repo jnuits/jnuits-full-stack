@@ -76,6 +76,8 @@ function buildNavGroups(
       label: "Content",
       items: [
         createNavItem("/admin/content", "Content Hub", FolderOpen),
+        createNavItem("/admin/content/about", "About page", FileText),
+        createNavItem("/admin/content/slider", "Slider images", ImageIcon),
         createNavItem("/admin/content/media", "Media", ImageIcon),
         createNavItem("/admin/content/blogs", "Blogs", FileText),
         createNavItem("/admin/content/events", "Events", BookOpen),
