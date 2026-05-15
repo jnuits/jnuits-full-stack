@@ -41,6 +41,53 @@ export type AboutCommunityReachItem = {
   icon: "facebook" | "linkedin" | "message" | "users" | "whatsapp" | "youtube";
 };
 
+export type HomepageSliderImage = {
+  id: string;
+  imageUrl: string;
+  title: string;
+  caption: string;
+  link: string | null;
+};
+
+export type HomepageIconName =
+  | "bulb"
+  | "heart"
+  | "monitor"
+  | "star"
+  | "trophy"
+  | "users";
+
+export type HomepageContent = {
+  hero: {
+    eyebrow: string;
+    heading: string;
+    body: string;
+    primaryCTA: { label: string; href: string };
+    secondaryCTA: { label: string; href: string };
+  };
+  stats: { value: string; label: string }[];
+  sliderImages: HomepageSliderImage[];
+  about: {
+    eyebrow: string;
+    body: string;
+    cta: { label: string; href: string };
+  };
+  programs: { icon: HomepageIconName; title: string; desc: string }[];
+  values: { icon: HomepageIconName; title: string; desc: string }[];
+  membership: {
+    eyebrow: string;
+    heading: string;
+    body: string;
+    bullets: string[];
+    primaryCTA: { label: string; href: string };
+    secondaryCTA: { label: string; href: string };
+  };
+  universityContext: {
+    text: string;
+    deptLink: { label: string; href: string };
+  };
+};
+
 export type BlogPreview = {
   slug: string;
   title: string;
@@ -129,6 +176,156 @@ const galleryEntrySelect =
 const fallbackBlogImage = "/images/home-group.jpg";
 const fallbackEventImage = "/images/workshop.jpg";
 const fallbackNoticeHref = "/notices";
+
+export const homepageContent = {
+  hero: {
+    eyebrow: "Step Ahead with IT",
+    heading:
+      "Empowering Jagannath University students through technology and innovation",
+    body:
+      "JnUITS is the official student IT club of Jagannath University — offering workshops, coding competitions, tech talks, and community-driven programs that bridge academic learning with real-world IT skills.",
+    primaryCTA: { label: "Join JnUITS", href: "/members/join" },
+    secondaryCTA: { label: "Explore events", href: "/events" },
+  },
+  stats: [
+    { value: "500+", label: "Active members" },
+    { value: "50+", label: "Events organized" },
+    { value: "1st", label: "Bangladesh IT Challenge 2023" },
+    { value: "10+", label: "Years active" },
+  ],
+  // ADMIN: Add between 5 and 15 images to this array.
+  // The homepage will display 5 randomly selected images per visit.
+  sliderImages: [
+    {
+      id: "web-development-workshop",
+      imageUrl: "/images/slider/web-development-workshop.jpg",
+      title: "Web Development Workshop",
+      caption:
+        "Students build practical web projects through hands-on guided sessions.",
+      link: "/events",
+    },
+    {
+      id: "coding-competition-hackathon",
+      imageUrl: "/images/slider/coding-competition-hackathon.jpg",
+      title: "Coding Competition",
+      caption:
+        "Competitive programming and hackathon teams solve problems under pressure.",
+      link: "/events",
+    },
+    {
+      id: "industry-tech-talk",
+      imageUrl: "/images/slider/industry-tech-talk.jpg",
+      title: "Industry Tech Talk",
+      caption:
+        "Guest speakers connect classroom learning with real technology careers.",
+      link: "/blogs",
+    },
+    {
+      id: "bangladesh-it-challenge-2023",
+      imageUrl: "/images/slider/bangladesh-it-challenge-2023.jpg",
+      title: "Bangladesh IT Challenge 2023 Victory",
+      caption:
+        "A milestone achievement that reflects JnUITS student capability nationally.",
+      link: "/gallery",
+    },
+    {
+      id: "community-outreach-initiative",
+      imageUrl: "/images/slider/community-outreach-initiative.jpg",
+      title: "Community Outreach Initiative",
+      caption:
+        "Members apply technology and volunteer energy to community-focused work.",
+      link: "/about",
+    },
+    {
+      id: "membership-orientation-session",
+      imageUrl: "/images/slider/membership-orientation-session.jpg",
+      title: "Membership Orientation",
+      caption:
+        "New members meet the society, its teams, and opportunities to contribute.",
+      link: "/members/join",
+    },
+    {
+      id: "national-it-fest-participation",
+      imageUrl: "/images/slider/national-it-fest-participation.jpg",
+      title: "National IT Fest Participation",
+      caption:
+        "JnUITS represents Jagannath University in wider national technology forums.",
+      link: "/events",
+    },
+  ],
+  about: {
+    eyebrow: "About JnUITS",
+    body:
+      "JnUITS is the official student IT club of Jagannath University, helping students move from academic learning into practical technology work. Through workshops, coding competitions, tech talks, mentoring, and community-driven programs, the society creates a bridge between classroom knowledge and real-world IT skills.",
+    cta: { label: "Learn more about JnUITS", href: "/about" },
+  },
+  programs: [
+    {
+      icon: "monitor",
+      title: "Workshops & Courses",
+      desc:
+        "Hands-on sessions covering programming, web development, cybersecurity, and data science.",
+    },
+    {
+      icon: "trophy",
+      title: "Competitions & Hackathons",
+      desc:
+        "Coding contests and IT challenges where students solve real problems and showcase skills nationally.",
+    },
+    {
+      icon: "users",
+      title: "Networking & Career Growth",
+      desc:
+        "Events connecting students with industry professionals, alumni, and mentors for career guidance.",
+    },
+    {
+      icon: "heart",
+      title: "Community & Social Impact",
+      desc:
+        "Initiatives applying technology to community needs and public-interest projects beyond the campus.",
+    },
+  ],
+  values: [
+    {
+      icon: "bulb",
+      title: "Innovation",
+      desc:
+        "Encouraging creativity and experimentation with new technologies.",
+    },
+    {
+      icon: "users",
+      title: "Collaboration",
+      desc: "Building a supportive community of learners and volunteers.",
+    },
+    {
+      icon: "star",
+      title: "Excellence",
+      desc:
+        "Maintaining high standards in events, projects, and communication.",
+    },
+  ],
+  membership: {
+    eyebrow: "Join the society",
+    heading: "Become a member of JnUITS",
+    body:
+      "Membership is open to all Jagannath University students interested in IT, innovation, and community.",
+    bullets: [
+      "Priority access to workshops and competitions",
+      "Opportunities to lead and organize events",
+      "Network with peers, alumni, and industry professionals",
+    ],
+    primaryCTA: { label: "Apply for membership", href: "/members/join" },
+    secondaryCTA: { label: "How membership works", href: "/about#membership" },
+  },
+  universityContext: {
+    text:
+      "JnUITS is based at the Department of Computer Science and Engineering, Jagannath University, Dhaka. We align with the university's mission to provide quality education and contribute to national development.",
+    deptLink: {
+      label: "Visit CSE Department",
+      href: "https://cse.jnu.ac.bd",
+    },
+  },
+} satisfies HomepageContent;
 
 export const fallbackAboutContent = {
   eyebrow: brandProfile.slogan,

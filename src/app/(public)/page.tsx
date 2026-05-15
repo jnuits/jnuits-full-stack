@@ -1,318 +1,292 @@
 import Link from "next/link";
-import Image from "next/image";
-import { brandProfile } from "@/lib/branding";
+import { Suspense, type ComponentType } from "react";
 import {
-  formatDisplayDate,
-  getPublishedNotices,
+  ArrowRight,
+  CalendarDays,
+  Check,
+  Heart,
+  Lightbulb,
+  Monitor,
+  Star,
+  Trophy,
+  Users,
+} from "lucide-react";
+import { HomepageSlider } from "@/components/homepage/HomepageSlider";
+import {
+  getPublishedEvents,
+  homepageContent,
+  type EventPreview,
+  type HomepageIconName,
 } from "@/lib/content/public-content";
-import { formatEventDateRange, getFeaturedPublicEvent } from "@/lib/content/events";
-import { getContactContent, getHomePageContent } from "@/lib/content/site-singletons";
 
-export default async function HomePage() {
-  const [homeContent, publicNotices, featuredEvent, contactContent] = await Promise.all([
-    getHomePageContent(),
-    getPublishedNotices(),
-    getFeaturedPublicEvent(),
-    getContactContent(),
-  ]);
-  const featuredNotice = publicNotices[0];
-  const heroSlide = homeContent.heroSlides[0];
-  const highlightedActivities = homeContent.recentActivities.slice(0, 3);
-  const highlightedAchievements = homeContent.achievements.slice(0, 3);
+const homepageIcons: Record<
+  HomepageIconName,
+  ComponentType<{ className?: string; "aria-hidden"?: boolean }>
+> = {
+  bulb: Lightbulb,
+  heart: Heart,
+  monitor: Monitor,
+  star: Star,
+  trophy: Trophy,
+  users: Users,
+};
+
+const eventDateFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "2-digit",
+  month: "short",
+});
+
+function formatEventBadgeDate(value: string) {
+  const timestamp = new Date(value).getTime();
+
+  if (Number.isNaN(timestamp)) {
+    return "TBD";
+  }
+
+  return eventDateFormatter.format(new Date(timestamp)).toUpperCase();
+}
+
+function getUpcomingEvents(events: EventPreview[]) {
+  const now = Date.now();
+
+  return events
+    .filter((event) => {
+      const timestamp = new Date(event.start).getTime();
+      return event.status === "Upcoming" && !Number.isNaN(timestamp) && timestamp >= now;
+    })
+    .sort((left, right) => {
+      return new Date(left.start).getTime() - new Date(right.start).getTime();
+    })
+    .slice(0, 3);
+}
+
+function HomepageIcon({
+  className,
+  icon,
+}: {
+  className?: string;
+  icon: HomepageIconName;
+}) {
+  const Icon = homepageIcons[icon];
+  return <Icon aria-hidden={true} className={className} />;
+}
+
+function EventSkeleton() {
+  return (
+    <section className="hp-section hp-events" aria-label="Loading upcoming events">
+      <div className="shell">
+        <div className="hp-section-head">
+          <div className="hp-skeleton hp-skeleton--eyebrow" />
+          <div className="hp-skeleton hp-skeleton--heading" />
+        </div>
+        <div className="hp-events-grid">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div className="hp-event-card hp-event-card--skeleton" key={index}>
+              <div className="hp-skeleton hp-skeleton--date" />
+              <div className="hp-skeleton hp-skeleton--title" />
+              <div className="hp-skeleton hp-skeleton--line" />
+              <div className="hp-skeleton hp-skeleton--line hp-skeleton--short" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+async function UpcomingEventsSection() {
+  const events = getUpcomingEvents(await getPublishedEvents());
+
+  if (events.length === 0) {
+    return null;
+  }
 
   return (
-    <div className="pb-16">
-      <section className="hero-plane">
-        <div className="shell hero-grid">
-          <div>
-            <span className="eyebrow">{homeContent.eyebrow}</span>
-            <p className="hero-brand mt-6">{brandProfile.slogan}</p>
-            {heroSlide?.title ? (
-              <p className="mt-3 text-sm font-semibold uppercase tracking-[0.18em] text-[var(--brand-blue)]">
-                {heroSlide.title}
+    <section className="hp-section hp-events">
+      <div className="shell">
+        <div className="hp-section-head">
+          <p className="hp-eyebrow">What&apos;s coming up</p>
+          <h2 className="hp-h2">Upcoming events</h2>
+        </div>
+        <div className="hp-events-grid">
+          {events.map((event) => (
+            <article className="hp-event-card" key={event.slug}>
+              <p className="hp-event-card__date">
+                <CalendarDays aria-hidden="true" size={14} strokeWidth={2} />
+                {formatEventBadgeDate(event.start)}
               </p>
-            ) : null}
-            <h1 className="hero-title mt-4">{homeContent.title}</h1>
-            <p className="section-copy mt-6">{homeContent.summary}</p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/events" className="primary-button">
-                Explore events
+              <h3 className="hp-event-card__title">{event.title}</h3>
+              <p className="hp-event-card__summary">{event.summary}</p>
+              <Link className="hp-event-card__link" href={`/events/${event.slug}`}>
+                View details <ArrowRight aria-hidden="true" size={14} strokeWidth={2} />
               </Link>
-              <Link href="/membership-form" className="secondary-button">
-                Membership status
-              </Link>
-              <Link href="/certificates" className="secondary-button">
-                Verify certificates
-              </Link>
-              <Link href="/contact" className="ghost-button">
-                Contact JnUITS
-              </Link>
-            </div>
-          </div>
-
-          <div className="hero-stage">
-            <article className="hero-stage-card">
-              <div className="absolute inset-0 opacity-42">
-                <Image
-                  alt={heroSlide?.title || "JnUITS public program gathering"}
-                  className="object-cover"
-                  fill
-                  priority
-                  sizes="(min-width: 980px) 42vw, 100vw"
-                  src={homeContent.heroImageSrc}
-                />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-[rgba(17,31,56,0.78)] via-[rgba(17,31,56,0.24)] to-transparent" />
-              <div className="hero-logo-wrap">
-                <Image
-                  alt="JnUITS official logo"
-                  className="h-full w-full object-contain"
-                  fill
-                  priority
-                  sizes="(min-width: 980px) 12rem, 8rem"
-                  src="/logo.svg"
-                />
-              </div>
-              <div className="hero-stage-copy">
-                <p className="hero-stage-title text-white">
-                  {homeContent.aboutSection.title}
-                </p>
-                <p className="mt-4 max-w-xl text-sm leading-7 text-white/84">
-                  {heroSlide?.description || homeContent.aboutSection.description}
-                </p>
-              </div>
             </article>
-          </div>
+          ))}
         </div>
-      </section>
+        <Link className="hp-section-link" href="/events">
+          See all events <ArrowRight aria-hidden="true" size={15} strokeWidth={2} />
+        </Link>
+      </div>
+    </section>
+  );
+}
 
-      <section className="shell mt-8">
-        <div className="section-band">
-          <p className="section-divider">Institutional profile</p>
-          <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <div>
-              <h2 className="font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,3rem)] leading-[0.96] tracking-[-0.04em]">
-                A university technology club with programs, certificates, and community work.
-              </h2>
-              <ul className="detail-list mt-6">
-                <li>
-                  <strong>Official identity</strong>
-                  {brandProfile.fullName} ({brandProfile.shortName}) is a{" "}
-                  {brandProfile.type.toLowerCase()} of {brandProfile.university}.
-                </li>
-                <li>
-                  <strong>Founded in 2015</strong>
-                  {brandProfile.foundedLabel}
-                </li>
-                <li>
-                  <strong>Institutional address</strong>
-                  {brandProfile.address}
-                </li>
-              </ul>
+export default function HomePage() {
+  return (
+    <div className="hp-root">
+      <section className="hp-section hp-hero">
+        <div className="shell hp-hero__grid">
+          <div className="hp-hero__copy">
+            <span className="hp-hero__badge">{homepageContent.hero.eyebrow}</span>
+            <h1 className="hp-h1">{homepageContent.hero.heading}</h1>
+            <p className="hp-body hp-hero__body">{homepageContent.hero.body}</p>
+            <div className="hp-button-row">
+              <Link className="hp-button hp-button--primary" href={homepageContent.hero.primaryCTA.href}>
+                {homepageContent.hero.primaryCTA.label}
+              </Link>
+              <Link
+                className="hp-button hp-button--outline"
+                href={homepageContent.hero.secondaryCTA.href}
+              >
+                {homepageContent.hero.secondaryCTA.label}
+              </Link>
             </div>
-
-            <div className="route-grid">
-              <article className="route-tile">
-                <p className="section-divider">Slogan</p>
-                <h3 className="mt-4">{brandProfile.slogan}</h3>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-                  The society centers practical learning and forward movement in IT.
-                </p>
-              </article>
-              <article className="route-tile">
-                <p className="section-divider">Located in</p>
-                <h3 className="mt-4">{contactContent.location}</h3>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-                  {contactContent.address}
-                </p>
-              </article>
-              <article className="route-tile">
-                <p className="section-divider">Contact</p>
-                <h3 className="mt-4">{contactContent.phone}</h3>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-                  {contactContent.email}
-                </p>
-              </article>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="shell mt-8">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
-          <article className="glass-card overflow-hidden px-6 py-6 sm:px-8">
-            <p className="section-divider">Society focus</p>
-            <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.96fr)_minmax(280px,0.64fr)]">
-              <div>
-                <h2 className="font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,3rem)] leading-[0.96] tracking-[-0.04em]">
-                  {homeContent.aboutSection.title}
-                </h2>
-                <p className="section-copy mt-4">
-                  {homeContent.aboutSection.description}
-                </p>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <Link href={homeContent.aboutSection.buttonLink} className="primary-button">
-                    {homeContent.aboutSection.buttonText}
-                  </Link>
-                  <Link href="/blogs" className="secondary-button">
-                    Read editorial previews
-                  </Link>
+            <div className="hp-hero-stats" aria-label="JnUITS impact statistics">
+              {homepageContent.stats.map((stat) => (
+                <div className="hp-hero-stat" key={`${stat.value}-${stat.label}`}>
+                  <p className="hp-hero-stat__number">{stat.value}</p>
+                  <p className="hp-hero-stat__label">{stat.label}</p>
                 </div>
-              </div>
-
-              <div className="grid gap-4">
-                {highlightedActivities.map((activity) => (
-                  <div key={activity.title} className="route-tile">
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--brand-blue)]">
-                      {homeContent.recentActivitiesTitle}
-                    </p>
-                    <h3 className="mt-3">{activity.title}</h3>
-                    <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-                      {activity.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </article>
-
-          <article className="section-band">
-            <p className="section-divider">Featured event</p>
-            {featuredEvent ? (
-              <>
-                <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
-                  {featuredEvent.title}
-                </h2>
-                <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
-                  {featuredEvent.summary}
-                </p>
-                <div className="mt-6 flex flex-wrap gap-2">
-                  <span className="detail-chip">{featuredEvent.lifecycleLabel}</span>
-                  <span className="detail-chip">{featuredEvent.locationLabel}</span>
-                  {featuredEvent.registrationBadgeLabel ? (
-                    <span className="detail-chip">{featuredEvent.registrationBadgeLabel}</span>
-                  ) : null}
-                </div>
-                <p className="mt-5 text-sm leading-7 text-[var(--muted-foreground)]">
-                  {formatEventDateRange(
-                    featuredEvent.startsAt,
-                    featuredEvent.endsAt,
-                    featuredEvent.timezone
-                  )}
-                </p>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Link href={`/events/${featuredEvent.slug}`} className="secondary-button">
-                    Open event
-                  </Link>
-                  <Link href="/register" className="ghost-button">
-                    Claim member profile
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <>
-                <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
-                  Latest notice
-                </h2>
-                <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
-                  {featuredNotice.summary}
-                </p>
-                <div className="mt-6 flex flex-wrap gap-2">
-                  <span className="detail-chip">{featuredNotice.category}</span>
-                  <span className="detail-chip">
-                    {formatDisplayDate(featuredNotice.publishedAt)}
-                  </span>
-                  <span className="detail-chip">{featuredNotice.delivery}</span>
-                </div>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Link href="/notices" className="secondary-button">
-                    Open notices
-                  </Link>
-                  <Link href="/gallery" className="ghost-button">
-                    View media archive
-                  </Link>
-                </div>
-              </>
-            )}
-          </article>
-        </div>
-      </section>
-
-      <section className="shell mt-8">
-        <div className="section-band">
-          <p className="section-divider">{homeContent.achievementsTitle}</p>
-          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="grid gap-4 md:grid-cols-3">
-              {highlightedAchievements.map((achievement) => (
-                <article key={achievement.title} className="route-tile">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--brand-blue)]">
-                    {achievement.icon}
-                  </p>
-                  <h3 className="mt-3">{achievement.title}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-                    {achievement.description}
-                  </p>
-                </article>
               ))}
             </div>
-            <div className="relative min-h-[260px] overflow-hidden rounded-[1.6rem] border border-[var(--line)]">
-              <Image
-                alt={homeContent.achievementsTitle}
-                className="object-cover"
-                fill
-                sizes="(min-width: 1024px) 24vw, 100vw"
-                src={homeContent.achievementsImageSrc}
-              />
-            </div>
+          </div>
+          <div className="hp-hero__media">
+            <HomepageSlider images={homepageContent.sliderImages} />
           </div>
         </div>
       </section>
 
-      <section className="shell mt-8">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)]">
-          <article className="section-band">
-            <p className="section-divider">Latest notice</p>
-            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
-              {featuredNotice.title}
+      <section className="hp-section hp-about">
+        <div className="shell">
+          <article className="hp-about-card">
+            <p className="hp-eyebrow">{homepageContent.about.eyebrow}</p>
+            <p className="hp-body">{homepageContent.about.body}</p>
+            <Link className="hp-inline-link" href={homepageContent.about.cta.href}>
+              {homepageContent.about.cta.label} <ArrowRight aria-hidden="true" size={16} />
+            </Link>
+          </article>
+        </div>
+      </section>
+
+      <section className="hp-section hp-programs">
+        <div className="shell">
+          <div className="hp-section-head">
+            <p className="hp-eyebrow">What we do</p>
+            <h2 className="hp-h2">Programs built for real skills</h2>
+          </div>
+          <div className="hp-program-grid">
+            {homepageContent.programs.map((program) => (
+              <article className="hp-program-card" key={program.title}>
+                <span className="hp-program-card__icon">
+                  <HomepageIcon className="hp-icon hp-icon--large" icon={program.icon} />
+                </span>
+                <h3 className="hp-program-card__title">{program.title}</h3>
+                <p className="hp-program-card__desc">{program.desc}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="hp-section hp-impact">
+        <div className="shell">
+          <div className="hp-impact__head">
+            <p className="hp-eyebrow hp-eyebrow--inverse">Our impact</p>
+            <h2 className="hp-h2 hp-impact__heading">
+              A decade of technology and community
             </h2>
-            <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
-              {featuredNotice.summary}
-            </p>
-            <div className="mt-6 flex flex-wrap gap-2">
-              <span className="detail-chip">{featuredNotice.category}</span>
-              <span className="detail-chip">
-                {formatDisplayDate(featuredNotice.publishedAt)}
-              </span>
-              <span className="detail-chip">{featuredNotice.delivery}</span>
-            </div>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/notices" className="secondary-button">
-                Open notices
-              </Link>
-              <Link href="/contact" className="ghost-button">
-                Get in touch
-              </Link>
-            </div>
-          </article>
+            <span className="hp-impact__badge">1st Place — Bangladesh IT Challenge 2023</span>
+          </div>
+          <div className="hp-impact-grid">
+            {homepageContent.stats.map((stat) => (
+              <div className="hp-impact-stat" key={`${stat.value}-${stat.label}`}>
+                <p className="hp-impact-stat__number">{stat.value}</p>
+                <p className="hp-impact-stat__label">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-          <article className="section-band">
-            <p className="section-divider">Connect with JnUITS</p>
-            <div className="mt-6 route-grid">
-              {contactContent.socialLinks.map((item) => (
-                <article key={item.href} className="route-tile">
-                  <h3>{item.label}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-                    Follow the society on {item.label} for public updates and announcements.
-                  </p>
-                  <div className="mt-4">
-                    <Link href={item.href} target="_blank" className="queue-link">
-                      Visit {item.label}
-                    </Link>
-                  </div>
-                </article>
+      <Suspense fallback={<EventSkeleton />}>
+        <UpcomingEventsSection />
+      </Suspense>
+
+      <section className="hp-section hp-membership">
+        <div className="shell hp-membership__grid">
+          <div className="hp-membership__copy">
+            <p className="hp-eyebrow">{homepageContent.membership.eyebrow}</p>
+            <h2 className="hp-h2">{homepageContent.membership.heading}</h2>
+            <p className="hp-body">{homepageContent.membership.body}</p>
+            <ul className="hp-membership-list">
+              {homepageContent.membership.bullets.map((bullet) => (
+                <li key={bullet}>
+                  <Check aria-hidden="true" size={18} strokeWidth={2.2} />
+                  <span>{bullet}</span>
+                </li>
               ))}
-            </div>
-          </article>
+            </ul>
+          </div>
+          <aside className="hp-membership-card">
+            <Link
+              className="hp-button hp-button--primary hp-button--full"
+              href={homepageContent.membership.primaryCTA.href}
+            >
+              {homepageContent.membership.primaryCTA.label}
+            </Link>
+            <Link
+              className="hp-membership-card__link"
+              href={homepageContent.membership.secondaryCTA.href}
+            >
+              {homepageContent.membership.secondaryCTA.label}{" "}
+              <ArrowRight aria-hidden="true" size={14} />
+            </Link>
+          </aside>
+        </div>
+      </section>
+
+      <section className="hp-section hp-values">
+        <div className="shell">
+          <div className="hp-section-head">
+            <p className="hp-eyebrow">What drives us</p>
+            <h2 className="hp-h2">Values at the core of everything we do</h2>
+          </div>
+          <div className="hp-values-grid">
+            {homepageContent.values.map((value) => (
+              <article className="hp-value-card" key={value.title}>
+                <HomepageIcon className="hp-icon hp-icon--value" icon={value.icon} />
+                <h3 className="hp-value-card__title">{value.title}</h3>
+                <p className="hp-value-card__desc">{value.desc}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="hp-section hp-university">
+        <div className="shell">
+          <div className="hp-university__inner">
+            <p>{homepageContent.universityContext.text}</p>
+            <a
+              className="hp-inline-link"
+              href={homepageContent.universityContext.deptLink.href}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {homepageContent.universityContext.deptLink.label}{" "}
+              <ArrowRight aria-hidden="true" size={15} />
+            </a>
+          </div>
         </div>
       </section>
     </div>
