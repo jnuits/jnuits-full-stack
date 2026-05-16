@@ -6,11 +6,7 @@ import { z } from "zod";
 
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminUser } from "@/lib/auth/session";
-import {
-  createCloudinarySignature,
-  getCloudinaryConfig,
-  normalizeCloudinaryFolder,
-} from "@/lib/cloudinary/config";
+import { uploadSliderImageToCloudinary } from "@/lib/cloudinary/slider";
 import { homepageContent, type HomepageSliderImage } from "@/lib/content/public-content";
 import type { Json } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -118,47 +114,6 @@ function slugify(value: string) {
     .slice(0, 80);
 }
 
-async function uploadSliderFile(file: File) {
-  const config = getCloudinaryConfig();
-  const folder = normalizeCloudinaryFolder("website/homepage-slider");
-  const timestamp = Math.floor(Date.now() / 1000);
-  const signature = createCloudinarySignature(
-    {
-      folder,
-      timestamp,
-    },
-    config.apiSecret
-  );
-  const body = new FormData();
-
-  body.append("file", file);
-  body.append("api_key", config.apiKey);
-  body.append("folder", folder);
-  body.append("signature", signature);
-  body.append("timestamp", String(timestamp));
-
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${config.cloudName}/image/upload`,
-    {
-      body,
-      method: "POST",
-    }
-  );
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || "Cloudinary upload failed.");
-  }
-
-  const uploaded = (await response.json()) as { secure_url?: string };
-
-  if (!uploaded.secure_url) {
-    throw new Error("Cloudinary did not return a secure image URL.");
-  }
-
-  return uploaded.secure_url;
-}
-
 export async function addSliderImage(formData: FormData) {
   const auth = await requireAdminUser();
   const actorUserId = auth.user?.id;
@@ -181,7 +136,9 @@ export async function addSliderImage(formData: FormData) {
 
   const parsed = newSliderImageSchema.safeParse({
     caption: asString(formData.get("caption")),
-    imageUrl: asString(formData.get("imageUrl")),
+    imageUrl:
+      asString(formData.get("existingImageUrl")) ||
+      asString(formData.get("imageUrl")),
     link: asString(formData.get("link")),
     title: asString(formData.get("title")),
   });
@@ -196,10 +153,10 @@ export async function addSliderImage(formData: FormData) {
   }
 
   try {
-    const file = formData.get("image");
+    const file = formData.get("imageUpload") || formData.get("image");
     const imageUrl =
       file instanceof File && file.size > 0
-        ? await uploadSliderFile(file)
+        ? (await uploadSliderImageToCloudinary(file)).url
         : parsed.data.imageUrl;
 
     if (!imageUrl) {
@@ -285,7 +242,7 @@ export async function saveSliderImages(formData: FormData) {
     revalidatePath("/admin/content/slider");
     await setAdminFlash({
       tone: "success",
-      title: "Slider images saved",
+      title: "Slider images saved successfully.",
       message:
         nextImages.length < 5
           ? "Saved, but add at least 5 images before relying on the public slider."
@@ -294,7 +251,7 @@ export async function saveSliderImages(formData: FormData) {
   } catch (error) {
     await setAdminFlash({
       tone: "error",
-      title: "Slider images not saved",
+      title: "Could not save slider images. Please try again.",
       message:
         error instanceof Error
           ? error.message
