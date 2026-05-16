@@ -1,4 +1,5 @@
 export const CLOUDINARY_PROJECT_ROOT_FOLDER = "jnuits/jnuits-full-stack";
+export const CLOUDINARY_SLIDER_FOLDER = `${CLOUDINARY_PROJECT_ROOT_FOLDER}/slider`;
 
 export const brandProfile = {
   address: "9, 10 Chittaranjan Ave, Dhaka 1100, Bangladesh",

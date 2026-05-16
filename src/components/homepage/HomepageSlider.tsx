@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import { transformCloudinaryUrl } from "@/lib/cloudinary/urls";
 import type { HomepageSliderImage } from "@/lib/content/public-content";
 
 type HomepageSliderProps = {
@@ -121,7 +122,7 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
                   event.currentTarget.src = fallback;
                 }}
                 sizes="(min-width: 1280px) 1220px, 94vw"
-                src={slide.imageUrl}
+                src={transformCloudinaryUrl(slide.imageUrl, "full")}
                 unoptimized={true}
               />
               <div className="hp-slide-overlay" />

@@ -19,7 +19,9 @@ function clean(value: string | undefined) {
 }
 
 export function getCloudinaryConfig(): CloudinaryConfig {
-  const cloudName = clean(process.env.CLOUDINARY_CLOUD_NAME);
+  const cloudName =
+    clean(process.env.CLOUDINARY_CLOUD_NAME) ||
+    clean(process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
   const apiKey = clean(process.env.CLOUDINARY_API_KEY);
   const apiSecret = clean(process.env.CLOUDINARY_API_SECRET);
 
@@ -39,7 +41,8 @@ export function getCloudinaryConfig(): CloudinaryConfig {
 
 export function isCloudinaryConfigured() {
   return Boolean(
-    clean(process.env.CLOUDINARY_CLOUD_NAME) &&
+    (clean(process.env.CLOUDINARY_CLOUD_NAME) ||
+      clean(process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME)) &&
       clean(process.env.CLOUDINARY_API_KEY) &&
       clean(process.env.CLOUDINARY_API_SECRET)
   );

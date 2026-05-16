@@ -3,7 +3,7 @@ import { z } from "zod";
 import { CLOUDINARY_PROJECT_ROOT_FOLDER } from "@/lib/branding";
 import {
   createCloudinarySignature,
-  getCloudinaryPublicConfig,
+  getCloudinaryConfig,
   normalizeCloudinaryFolder,
 } from "@/lib/cloudinary/config";
 import { getAuthContext, hasOperatorRole } from "@/lib/auth/session";
@@ -42,7 +42,7 @@ async function handlePost(request: NextRequest) {
   }
 
   try {
-    const config = getCloudinaryPublicConfig();
+    const config = getCloudinaryConfig();
     const folder = normalizeCloudinaryFolder(
       parsed.data.folder || CLOUDINARY_PROJECT_ROOT_FOLDER
     );
@@ -54,10 +54,7 @@ async function handlePost(request: NextRequest) {
       use_filename: true,
       unique_filename: true,
     };
-    const signature = createCloudinarySignature(
-      paramsToSign,
-      process.env.CLOUDINARY_API_SECRET || ""
-    );
+    const signature = createCloudinarySignature(paramsToSign, config.apiSecret);
 
     return NextResponse.json(
       {

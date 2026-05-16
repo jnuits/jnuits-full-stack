@@ -3,6 +3,10 @@
 import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  CLOUDINARY_PROJECT_ROOT_FOLDER,
+  CLOUDINARY_SLIDER_FOLDER,
+} from "@/lib/branding";
 
 type CloudinaryResult = {
   filename: string;
@@ -138,7 +142,7 @@ export function CloudinaryPicker({
             />
           </label>
           <p className="admin-slider-cloudinary-scope">
-            Searching in: jnuits/slider
+            Searching in: {CLOUDINARY_PROJECT_ROOT_FOLDER} and subfolders
           </p>
         </div>
 
@@ -218,7 +222,7 @@ export function CloudinaryPicker({
             </span>
             <h3>Cloudinary library is empty</h3>
             <p>Upload an image using the file input above.</p>
-            <p>It will be saved to jnuits/slider and appear here.</p>
+            <p>It will be copied to {CLOUDINARY_SLIDER_FOLDER} and appear here.</p>
           </div>
         )}
       </div>

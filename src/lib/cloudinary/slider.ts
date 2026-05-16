@@ -1,6 +1,10 @@
 import "server-only";
 
 import { createCloudinarySignature, getCloudinaryConfig } from "@/lib/cloudinary/config";
+import {
+  CLOUDINARY_PROJECT_ROOT_FOLDER,
+  CLOUDINARY_SLIDER_FOLDER,
+} from "@/lib/branding";
 
 export type SliderCloudinaryAsset = {
   filename: string;
@@ -8,7 +12,15 @@ export type SliderCloudinaryAsset = {
   url: string;
 };
 
-const SLIDER_CLOUDINARY_FOLDER = "jnuits/slider";
+const SLIDER_MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const SLIDER_ALLOWED_IMAGE_TYPES = new Set([
+  "image/avif",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+const SLIDER_ALLOWED_IMAGE_EXTENSION = /\.(avif|gif|jpe?g|png|webp)$/i;
 
 function sanitizePublicId(value: string) {
   const withoutExtension = value.replace(/\.[^/.]+$/, "");
@@ -29,12 +41,96 @@ function getBasicAuthHeader(apiKey: string, apiSecret: string) {
   return `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString("base64")}`;
 }
 
+function getRemotePublicIdBase(imageUrl: string, fallback: string) {
+  try {
+    const pathname = new URL(imageUrl).pathname;
+    const filename = decodeURIComponent(pathname.split("/").pop() || "");
+
+    return sanitizePublicId(filename) || sanitizePublicId(fallback);
+  } catch {
+    return sanitizePublicId(fallback);
+  }
+}
+
+function validateSliderImageFile(file: File) {
+  if (file.size <= 0) {
+    throw new Error("Choose a non-empty image file for the slider.");
+  }
+
+  if (file.size > SLIDER_MAX_UPLOAD_BYTES) {
+    throw new Error("Slider images must be 10 MB or smaller.");
+  }
+
+  const hasAllowedType = SLIDER_ALLOWED_IMAGE_TYPES.has(file.type);
+  const hasAllowedExtension = SLIDER_ALLOWED_IMAGE_EXTENSION.test(file.name);
+
+  if (!hasAllowedType && !hasAllowedExtension) {
+    throw new Error("Slider uploads must be JPEG, PNG, WebP, GIF, or AVIF images.");
+  }
+}
+
 export async function uploadSliderImageToCloudinary(file: File) {
+  validateSliderImageFile(file);
+
+  return uploadSliderSourceToCloudinary(
+    file,
+    sanitizePublicId(file.name) || "slider-image"
+  );
+}
+
+export async function copySliderImageToCloudinary(imageUrl: string, fallbackName: string) {
+  const sourceUrl = imageUrl.trim();
+
+  if (!/^https?:\/\//i.test(sourceUrl)) {
+    throw new Error("Provide a valid image URL to copy into the slider folder.");
+  }
+
+  return uploadSliderSourceToCloudinary(
+    sourceUrl,
+    getRemotePublicIdBase(sourceUrl, fallbackName) || "slider-image"
+  );
+}
+
+export function isSliderCloudinaryUrl(imageUrl: string) {
+  try {
+    const url = new URL(imageUrl);
+    const pathname = decodeURIComponent(url.pathname);
+
+    return (
+      url.hostname.endsWith("res.cloudinary.com") &&
+      pathname.includes(`/${CLOUDINARY_SLIDER_FOLDER}/`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function ensureSliderImageInDefaultFolder(
+  imageUrl: string,
+  fallbackName: string
+) {
+  const sourceUrl = imageUrl.trim();
+
+  if (!sourceUrl) {
+    throw new Error("Upload an image or provide an existing image URL.");
+  }
+
+  if (isSliderCloudinaryUrl(sourceUrl)) {
+    return {
+      publicId: "",
+      url: sourceUrl,
+    };
+  }
+
+  return copySliderImageToCloudinary(sourceUrl, fallbackName);
+}
+
+async function uploadSliderSourceToCloudinary(source: File | string, publicIdBase: string) {
   const config = getCloudinaryConfig();
   const timestamp = Math.floor(Date.now() / 1000);
-  const publicId = `${sanitizePublicId(file.name) || "slider-image"}-${timestamp}`;
+  const publicId = `${publicIdBase}-${timestamp}`;
   const params = {
-    folder: SLIDER_CLOUDINARY_FOLDER,
+    folder: CLOUDINARY_SLIDER_FOLDER,
     overwrite: false,
     public_id: publicId,
     timestamp,
@@ -43,8 +139,8 @@ export async function uploadSliderImageToCloudinary(file: File) {
   const body = new FormData();
 
   body.append("api_key", config.apiKey);
-  body.append("file", file);
-  body.append("folder", SLIDER_CLOUDINARY_FOLDER);
+  body.append("file", source);
+  body.append("folder", CLOUDINARY_SLIDER_FOLDER);
   body.append("overwrite", "false");
   body.append("public_id", publicId);
   body.append("signature", signature);
@@ -80,9 +176,10 @@ export async function uploadSliderImageToCloudinary(file: File) {
 export async function searchSliderCloudinaryFolder(query = "") {
   const config = getCloudinaryConfig();
   const cleanedQuery = escapeSearchTerm(query.trim());
+  const projectRootExpression = `public_id:${CLOUDINARY_PROJECT_ROOT_FOLDER}/*`;
   const expression = cleanedQuery
-    ? `folder:${SLIDER_CLOUDINARY_FOLDER} AND filename:${cleanedQuery}*`
-    : `folder:${SLIDER_CLOUDINARY_FOLDER}`;
+    ? `${projectRootExpression} AND filename:${cleanedQuery}*`
+    : projectRootExpression;
   const response = await fetch(
     `https://api.cloudinary.com/v1_1/${config.cloudName}/resources/search`,
     {

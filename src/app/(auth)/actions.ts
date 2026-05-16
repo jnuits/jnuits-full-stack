@@ -15,7 +15,10 @@ import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
 import { hashInvitationCode } from "@/lib/members/invitation-code";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
-import { verifyCaptchaToken } from "@/lib/security/captcha";
+import {
+  isCaptchaConfigured,
+  isCaptchaRequired,
+} from "@/lib/security/captcha";
 import {
   checkRateLimit,
   getRequestIp,
@@ -116,9 +119,15 @@ async function enforceAuthActionProtection(options: {
     return "Too many attempts. Try again later.";
   }
 
-  const captcha = await verifyCaptchaToken(options.captchaToken, ip);
+  if (!isCaptchaRequired() && !isCaptchaConfigured()) {
+    return null;
+  }
 
-  return captcha.ok ? null : captcha.error;
+  if (!isCaptchaConfigured()) {
+    return "CAPTCHA protection is not configured. Set TURNSTILE_SECRET_KEY and NEXT_PUBLIC_TURNSTILE_SITE_KEY.";
+  }
+
+  return options.captchaToken ? null : "Complete the verification challenge.";
 }
 
 function getEmailRedirect(pathname: string) {
@@ -248,6 +257,9 @@ async function loginForPortal(portal: LoginPortal, formData: FormData) {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
+    options: {
+      captchaToken: parsed.data.captchaToken,
+    },
     password,
   });
 
@@ -338,6 +350,7 @@ export async function requestPasswordReset(formData: FormData) {
 
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    captchaToken: parsed.data.captchaToken,
     redirectTo: getEmailRedirect("/reset-password"),
   });
 
@@ -446,6 +459,7 @@ export async function claimProfile(formData: FormData) {
     email,
     password,
     options: {
+      captchaToken: parsed.data.captchaToken,
       emailRedirectTo: getEmailRedirect("/portal/dashboard"),
       data: {
         claim_invitation_id: invitationRow.id,

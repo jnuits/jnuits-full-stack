@@ -212,7 +212,8 @@ export const homepageContent = {
   sliderImages: [
     {
       id: "web-development-workshop",
-      imageUrl: "/images/slider/web-development-workshop.jpg",
+      imageUrl:
+        "https://res.cloudinary.com/dp4fgwjik/image/upload/v1778910054/jnuits/jnuits-full-stack/slider/jagannath-university-it-society-successfully-organized-a-workshop-today-titled-odoo-erp-th-d74b7e08.jpg",
       title: "Web Development Workshop",
       caption:
         "Students build practical web projects through hands-on guided sessions.",
@@ -220,7 +221,8 @@ export const homepageContent = {
     },
     {
       id: "coding-competition-hackathon",
-      imageUrl: "/images/slider/coding-competition-hackathon.jpg",
+      imageUrl:
+        "https://res.cloudinary.com/dp4fgwjik/image/upload/v1778910056/jnuits/jnuits-full-stack/slider/4th-year-anniversary-grand-final-of-campus-typing-master-2-o-1058314097850127.jpg",
       title: "Coding Competition",
       caption:
         "Competitive programming and hackathon teams solve problems under pressure.",
@@ -228,7 +230,8 @@ export const homepageContent = {
     },
     {
       id: "industry-tech-talk",
-      imageUrl: "/images/slider/industry-tech-talk.jpg",
+      imageUrl:
+        "https://res.cloudinary.com/dp4fgwjik/image/upload/v1778910058/jnuits/jnuits-full-stack/slider/oom-ull-of-uriosity-today-s-special-seminar-on-astering-the-rt-of-igit-1256617203328933.jpg",
       title: "Industry Tech Talk",
       caption:
         "Guest speakers connect classroom learning with real technology careers.",
@@ -236,7 +239,8 @@ export const homepageContent = {
     },
     {
       id: "student-project-showcase",
-      imageUrl: "/images/slider/student-project-showcase.jpg",
+      imageUrl:
+        "https://res.cloudinary.com/dp4fgwjik/image/upload/v1778910060/jnuits/jnuits-full-stack/slider/executive-committee-planning-meeting-2018-745603642454509.jpg",
       title: "Student Project Showcase",
       caption:
         "Members present practical technology projects built through JnUITS programs.",
@@ -244,7 +248,8 @@ export const homepageContent = {
     },
     {
       id: "community-outreach-initiative",
-      imageUrl: "/images/slider/community-outreach-initiative.jpg",
+      imageUrl:
+        "https://res.cloudinary.com/dp4fgwjik/image/upload/v1778910061/jnuits/jnuits-full-stack/slider/bcc-season-8-registration-booth-update-1224303613226959.jpg",
       title: "Community Outreach Initiative",
       caption:
         "Members apply technology and volunteer energy to community-focused work.",
@@ -252,7 +257,8 @@ export const homepageContent = {
     },
     {
       id: "membership-orientation-session",
-      imageUrl: "/images/slider/membership-orientation-session.jpg",
+      imageUrl:
+        "https://res.cloudinary.com/dp4fgwjik/image/upload/v1778910063/jnuits/jnuits-full-stack/slider/member-collection-and-bcc-form-distribution-2019-841449556203250.jpg",
       title: "Membership Orientation",
       caption:
         "New members meet the society, its teams, and opportunities to contribute.",
@@ -260,7 +266,8 @@ export const homepageContent = {
     },
     {
       id: "national-it-fest-participation",
-      imageUrl: "/images/slider/national-it-fest-participation.jpg",
+      imageUrl:
+        "https://res.cloudinary.com/dp4fgwjik/image/upload/v1778910064/jnuits/jnuits-full-stack/slider/bcc-1st-batch-381646428850234.jpg",
       title: "National IT Fest Participation",
       caption:
         "JnUITS represents Jagannath University in wider national technology forums.",
@@ -509,7 +516,7 @@ export const fallbackAboutContent = {
     },
   ] satisfies AboutSocialChannel[],
   imageSrc:
-    "https://res.cloudinary.com/dp4fgwjik/image/upload/v1778729234/website/about/jagannath-university-business-faculty.jpg",
+    "https://res.cloudinary.com/dp4fgwjik/image/upload/v1778909979/jnuits/jnuits-full-stack/about/jagannath-university-business-faculty.jpg",
 };
 
 export const fallbackPublicBlogs: BlogPreview[] = [

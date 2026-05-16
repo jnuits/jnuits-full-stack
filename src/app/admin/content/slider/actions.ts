@@ -6,7 +6,10 @@ import { z } from "zod";
 
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminUser } from "@/lib/auth/session";
-import { uploadSliderImageToCloudinary } from "@/lib/cloudinary/slider";
+import {
+  ensureSliderImageInDefaultFolder,
+  uploadSliderImageToCloudinary,
+} from "@/lib/cloudinary/slider";
 import { homepageContent, type HomepageSliderImage } from "@/lib/content/public-content";
 import type { Json } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -157,7 +160,12 @@ export async function addSliderImage(formData: FormData) {
     const imageUrl =
       file instanceof File && file.size > 0
         ? (await uploadSliderImageToCloudinary(file)).url
-        : parsed.data.imageUrl;
+        : parsed.data.imageUrl
+          ? (await ensureSliderImageInDefaultFolder(
+              parsed.data.imageUrl,
+              parsed.data.title
+            )).url
+          : "";
 
     if (!imageUrl) {
       throw new Error("Upload an image or provide an existing image URL.");
@@ -223,18 +231,28 @@ export async function saveSliderImages(formData: FormData) {
     })
   );
 
-  const nextImages = parsedImages
+  const sortedImages = parsedImages
     .sort((left, right) => left.sortOrder - right.sortOrder)
-    .slice(0, 15)
-    .map((image) => ({
-      id: image.id,
-      imageUrl: image.imageUrl,
-      title: image.title,
-      caption: image.caption,
-      link: image.link || null,
-    }));
+    .slice(0, 15);
 
   try {
+    const nextImages: HomepageSliderImage[] = [];
+
+    for (const image of sortedImages) {
+      const storedImage = await ensureSliderImageInDefaultFolder(
+        image.imageUrl,
+        image.title
+      );
+
+      nextImages.push({
+        id: image.id,
+        imageUrl: storedImage.url,
+        title: image.title,
+        caption: image.caption,
+        link: image.link || null,
+      });
+    }
+
     const body = await readHomeBody();
     await saveHomeBody({ ...body, sliderImages: nextImages as unknown as Json }, actorUserId);
     revalidatePath("/");
