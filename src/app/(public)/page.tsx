@@ -291,7 +291,9 @@ export default async function HomePage() {
       <section className="hp-section hp-hero">
         <div className="shell hp-hero__inner">
           <div className="hp-hero__copy">
-            <span className="hp-hero__badge">{homepageContent.hero.eyebrow}</span>
+            <span className="slogan-pill hp-hero__badge">
+              {homepageContent.hero.eyebrow}
+            </span>
             <h1 className="hp-h1">
               <span>Jagannath University</span>
               <br className="hp-h1-break" />

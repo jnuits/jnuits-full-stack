@@ -677,7 +677,9 @@ export default async function AboutPage() {
         <div className="shell">
           <div className="about-hero">
             <div className="about-hero__copy">
-              <span className="about-hero-badge">Step ahead with IT</span>
+              <span className="slogan-pill about-hero-badge">
+                Step Ahead with IT
+              </span>
               <h1 className="about-hero__title">{aboutContent.title}</h1>
               <p className="about-body about-hero__description">
                 {aboutContent.heroDescription}
