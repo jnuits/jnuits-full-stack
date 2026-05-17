@@ -164,12 +164,12 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
 
         </div>
 
-        <div className="hp-slider__dots" role="tablist" aria-label="Slider navigation">
+        <div className="hp-slider-dots" role="tablist" aria-label="Slider navigation">
           {slides.map((slide, index) => (
             <button
               aria-label={`Slide ${index + 1} of ${slides.length}`}
               aria-selected={index === activeIndex}
-              className="hp-slider__dot"
+              className={`hp-slider-dot${index === activeIndex ? " active" : ""}`}
               data-active={index === activeIndex ? "true" : "false"}
               key={slide.id}
               onClick={() => goToSlide(index)}

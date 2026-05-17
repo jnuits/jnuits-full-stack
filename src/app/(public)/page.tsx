@@ -140,7 +140,12 @@ export default async function HomePage() {
         <div className="shell hp-hero__inner">
           <div className="hp-hero__copy">
             <span className="hp-hero__badge">{homepageContent.hero.eyebrow}</span>
-            <h1 className="hp-h1">{homepageContent.hero.heading}</h1>
+            <h1 className="hp-h1">
+              <span>Jagannath University</span>
+              <br className="hp-h1-break" />
+              {" "}
+              <span>IT Society</span>
+            </h1>
             <p className="hp-body hp-hero__body">
               {homepageContent.hero.subheading}
             </p>
@@ -149,7 +154,7 @@ export default async function HomePage() {
                 {homepageContent.hero.primaryCTA.label}
               </Link>
               <Link
-                className="hp-button hp-button--outline"
+                className="hp-button hp-btn-secondary"
                 href={homepageContent.hero.secondaryCTA.href}
               >
                 {homepageContent.hero.secondaryCTA.label}
@@ -181,11 +186,13 @@ export default async function HomePage() {
 
       <section className="hp-section hp-about">
         <div className="shell">
-          <article className="hp-about-card">
-            <p className="hp-eyebrow">{homepageContent.about.eyebrow}</p>
+          <article className="hp-about-card" aria-labelledby="homepage-about-heading">
+            <p className="hp-eyebrow" id="homepage-about-heading">
+              {homepageContent.about.eyebrow}
+            </p>
             <p className="hp-body">{homepageContent.about.body}</p>
             <Link className="hp-inline-link" href={homepageContent.about.cta.href}>
-              {homepageContent.about.cta.label} <ArrowRight aria-hidden="true" size={16} />
+              {homepageContent.about.cta.label}
             </Link>
           </article>
         </div>
@@ -211,7 +218,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="hp-section hp-impact">
+      <section className="hp-section hp-impact hp-achievement-band">
         <div className="shell">
           <div className="hp-impact__head">
             <p className="hp-eyebrow hp-eyebrow--inverse">Our impact</p>

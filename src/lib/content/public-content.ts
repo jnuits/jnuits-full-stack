@@ -275,10 +275,10 @@ export const homepageContent = {
     },
   ],
   about: {
-    eyebrow: "About JnUITS",
+    eyebrow: "ABOUT JNUITS",
     body:
       "JnUITS is the official student IT club of Jagannath University, helping students move from academic learning into practical technology work. Through workshops, coding competitions, tech talks, mentoring, and community-driven programs, the society creates a bridge between classroom knowledge and real-world IT skills.",
-    cta: { label: "Learn more about JnUITS", href: "/about" },
+    cta: { label: "Learn more about JnUITS \u2192", href: "/about" },
   },
   programs: [
     {
