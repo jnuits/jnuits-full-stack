@@ -17,9 +17,13 @@ const advisorProfileUpdateSchema = z.object({
   facebookUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
   linkedinUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
   publications: z.string().trim().max(6000).optional().default(""),
-  speech: z.string().trim().max(5000).optional().default(""),
   websiteUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
   workExperience: z.string().trim().max(6000).optional().default(""),
+});
+
+const advisorSpeechUpdateSchema = z.object({
+  advisorId: z.string().uuid(),
+  speech: z.string().trim().max(600).optional().default(""),
 });
 
 function pickFormFields(formData: FormData, fields: string[]) {
@@ -48,7 +52,6 @@ export async function updateAdvisorProfileAction(formData: FormData) {
       "facebookUrl",
       "linkedinUrl",
       "publications",
-      "speech",
       "websiteUrl",
       "workExperience",
     ])
@@ -79,7 +82,6 @@ export async function updateAdvisorProfileAction(formData: FormData) {
     facebookUrl,
     linkedinUrl,
     publications,
-    speech,
     websiteUrl,
     workExperience,
   } = parsed.data;
@@ -91,7 +93,6 @@ export async function updateAdvisorProfileAction(formData: FormData) {
       facebook_url: facebookUrl || null,
       linkedin_url: linkedinUrl || null,
       publications: listToJson(publications),
-      speech: speech || null,
       updated_at: new Date().toISOString(),
       website_url: websiteUrl || null,
       work_experience: listToJson(workExperience),
@@ -114,4 +115,75 @@ export async function updateAdvisorProfileAction(formData: FormData) {
   revalidatePath("/portal/advisor/profile");
   revalidatePath("/committee");
   redirect("/portal/advisor/profile?message=profile-saved");
+}
+
+function stripHtmlTags(value: string) {
+  return value.replace(/<[^>]*>/g, "").trim();
+}
+
+export async function saveAdvisorSpeechAction(formData: FormData) {
+  const auth = await requirePortalUser({ fallbackPath: "/portal/advisor/profile" });
+
+  if (!auth.user) {
+    redirect("/portal/login");
+  }
+
+  const parsed = advisorSpeechUpdateSchema.safeParse(
+    pickFormFields(formData, ["advisorId", "speech"])
+  );
+
+  if (!parsed.success) {
+    redirect("/portal/advisor/profile?error=invalid-speech");
+  }
+
+  const speech = stripHtmlTags(parsed.data.speech);
+
+  if (speech.length > 600) {
+    redirect("/portal/advisor/profile?error=invalid-speech");
+  }
+
+  const admin = createAdminClient();
+  const flexibleAdmin = asFlexibleClient(admin);
+  const { data: advisor } = await flexibleAdmin
+    .from("advisor_profiles" as string)
+    .select("id")
+    .eq("id", parsed.data.advisorId)
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
+  const advisorId =
+    advisor && typeof advisor === "object" && typeof (advisor as Record<string, unknown>).id === "string"
+      ? String((advisor as Record<string, unknown>).id)
+      : "";
+
+  if (!advisorId) {
+    redirect("/portal/advisor/profile?error=advisor-required");
+  }
+
+  const { error } = await flexibleAdmin
+    .from("advisor_profiles" as string)
+    .update({
+      speech: speech || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", advisorId)
+    .eq("user_id", auth.user.id);
+
+  if (error) {
+    redirect("/portal/advisor/profile?error=speech-save-failed");
+  }
+
+  await flexibleAdmin.from("audit_events" as string).insert({
+    action: "advisor.speech_updated_self",
+    actor_user_id: auth.user.id,
+    entity_id: advisorId,
+    entity_type: "advisor_profile",
+    metadata: {
+      length: speech.length,
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/about");
+  revalidatePath("/portal/advisor/profile");
+  redirect("/portal/advisor/profile?message=speech-saved");
 }

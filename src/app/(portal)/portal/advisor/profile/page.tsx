@@ -1,19 +1,28 @@
-import { updateAdvisorProfileAction } from "@/app/(portal)/portal/advisor/profile/actions";
+import {
+  saveAdvisorSpeechAction,
+  updateAdvisorProfileAction,
+} from "@/app/(portal)/portal/advisor/profile/actions";
+import { AdvisorSpeechForm } from "@/app/(portal)/portal/advisor/profile/advisor-speech-form";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { requirePortalUser } from "@/lib/auth/session";
 import { getPortalAdvisorSnapshot } from "@/lib/portal/advisor";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { BookOpen, GraduationCap, Info, MessageSquareText } from "lucide-react";
 
 export const metadata = { title: "Advisor Profile | JnUITS Portal" };
 
 const messageMap: Record<string, string> = {
   "profile-saved": "Advisor profile saved. Public committee pages will use the updated advisor information.",
+  "speech-saved": "Message updated - the website will reflect your changes immediately.",
 };
 
 const errorMap: Record<string, string> = {
   "advisor-required": "This account is not linked to an advisor profile.",
   "invalid-profile": "Check the profile fields and try again.",
+  "invalid-speech": "Keep the advisor message within 600 characters and try again.",
   "save-failed": "The advisor profile could not be saved.",
+  "speech-save-failed": "The advisor message could not be saved.",
 };
 
 const advisorTypeLabels: Record<string, string> = {
@@ -21,6 +30,42 @@ const advisorTypeLabels: Record<string, string> = {
   main_advisor: "Chief Advisor / Main Advisor",
   moderator_mentor: "Moderator / Mentor",
 };
+
+const lastUpdatedFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+function formatSpeechUpdatedAt(value: string | null) {
+  if (!value) {
+    return "Last updated: Not published yet";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Last updated: Not recorded";
+  }
+
+  return `Last updated: ${lastUpdatedFormatter.format(date)}`;
+}
+
+async function getAdvisorSpeechUpdatedAt(userId: string) {
+  const admin = createAdminClient();
+  const { data, error } = await asFlexibleClient(admin)
+    .from("advisor_profiles" as string)
+    .select("speech_updated_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data || typeof data !== "object") {
+    return null;
+  }
+
+  const value = (data as Record<string, unknown>).speech_updated_at;
+  return typeof value === "string" ? value : null;
+}
 
 export default async function AdvisorProfilePage({
   searchParams,
@@ -37,6 +82,9 @@ export default async function AdvisorProfilePage({
     typeof params.error === "string" ? errorMap[params.error] || null : null;
   const snapshot = await getPortalAdvisorSnapshot(auth.user.id);
   const advisor = snapshot.advisor;
+  const speechUpdatedAt = advisor
+    ? await getAdvisorSpeechUpdatedAt(auth.user.id)
+    : null;
 
   return (
     <PortalShell
@@ -124,22 +172,40 @@ export default async function AdvisorProfilePage({
           <div className="portal-section">
             <div className="portal-section__header">
               <div className="portal-section__header-left">
+                <div className="portal-section__icon"><MessageSquareText size={14} /></div>
+                <p className="portal-section__title">Your message to the community</p>
+              </div>
+            </div>
+            <div className="portal-section__body">
+              <p
+                className="advisor-speech-form__intro"
+                style={{
+                  color: "var(--muted-foreground)",
+                  fontSize: "0.86rem",
+                  lineHeight: 1.7,
+                }}
+              >
+                This message will appear publicly on the JnUITS About page and homepage.
+                Keep it concise - 3 to 5 sentences works best.
+              </p>
+              <AdvisorSpeechForm
+                advisorId={advisor.id}
+                initialSpeech={advisor.speech || ""}
+                lastUpdatedLabel={formatSpeechUpdatedAt(speechUpdatedAt)}
+                saveAction={saveAdvisorSpeechAction}
+              />
+            </div>
+          </div>
+
+          <div className="portal-section">
+            <div className="portal-section__header">
+              <div className="portal-section__header-left">
                 <div className="portal-section__icon"><GraduationCap size={14} /></div>
                 <p className="portal-section__title">Public advisor profile</p>
               </div>
             </div>
             <div className="portal-section__body">
               <form action={updateAdvisorProfileAction} style={{ display: "grid", gap: "0.9rem" }}>
-                <label className="input-label" htmlFor="advisor-speech">
-                  Speech / message
-                  <textarea
-                    defaultValue={advisor.speech || ""}
-                    id="advisor-speech"
-                    name="speech"
-                    placeholder="Write a short message for the public advisor board."
-                    rows={5}
-                  />
-                </label>
                 <label className="input-label" htmlFor="advisor-bio">
                   Bio
                   <textarea

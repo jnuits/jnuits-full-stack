@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 const STORAGE_KEY = "jnuits-theme";
+const THEME_CHANGE_EVENT = "jnuits-theme-change";
 
 type Theme = "light" | "dark";
 
@@ -20,6 +21,32 @@ function resolveTheme(): Theme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
+}
+
+function getServerThemeSnapshot(): Theme {
+  return "light";
+}
+
+function subscribeToTheme(callback: () => void) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+  window.addEventListener(THEME_CHANGE_EVENT, callback);
+  window.addEventListener("storage", callback);
+  mediaQuery.addEventListener("change", callback);
+
+  return () => {
+    window.removeEventListener(THEME_CHANGE_EVENT, callback);
+    window.removeEventListener("storage", callback);
+    mediaQuery.removeEventListener("change", callback);
+  };
+}
+
+function announceThemeChange() {
+  window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
 }
 
 function applyTheme(theme: Theme) {
@@ -74,28 +101,27 @@ function MoonIcon() {
 }
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof document !== "undefined") {
-      const currentTheme = document.documentElement.dataset.theme;
+  const theme = useSyncExternalStore(
+    subscribeToTheme,
+    resolveTheme,
+    getServerThemeSnapshot,
+  );
 
-      if (currentTheme === "light" || currentTheme === "dark") {
-        return currentTheme;
-      }
-    }
-
-    return resolveTheme();
-  });
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
     window.localStorage.setItem(STORAGE_KEY, nextTheme);
     applyTheme(nextTheme);
-    setTheme(nextTheme);
+    announceThemeChange();
   }
 
   return (
     <button
       aria-label="Toggle color theme"
+      aria-pressed={theme === "dark"}
       className="theme-toggle"
       onClick={toggleTheme}
       type="button"

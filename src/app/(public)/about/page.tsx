@@ -9,10 +9,24 @@ import {
   getAboutContent,
   type AboutCommunityReachItem,
 } from "@/lib/content/public-content";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { createClient } from "@/lib/supabase/server";
+
+export const revalidate = 60;
 
 function toCloudinaryOptimizedSrc(src: string) {
   return src.includes("res.cloudinary.com")
     ? src.replace("/upload/", "/upload/f_auto,q_auto,w_1200/")
+    : src;
+}
+
+function toCloudinaryAvatarSrc(src: string | null) {
+  if (!src) {
+    return null;
+  }
+
+  return src.includes("res.cloudinary.com")
+    ? src.replace("/upload/", "/upload/f_auto,q_auto,w_240/")
     : src;
 }
 
@@ -41,6 +55,18 @@ type TimelineYearGroup = {
 
 type AboutCustomStyle = CSSProperties & {
   "--about-value-accent"?: string;
+};
+
+type AdvisorMessage = {
+  advisorType: "honorable_advisor" | "main_advisor" | "moderator_mentor";
+  avatarUrl: string | null;
+  department: string | null;
+  designation: string | null;
+  fullName: string;
+  id: string;
+  speech: string;
+  speechUpdatedAt: string | null;
+  title: string | null;
 };
 
 const valueAccentVars = [
@@ -215,6 +241,190 @@ function groupTimelineByYear(items: TimelineMilestoneItem[]) {
     isMostRecent:
       mostRecentTimestamp !== null && group.timestamp === mostRecentTimestamp,
   }));
+}
+
+function advisorRolePriority(role: AdvisorMessage["advisorType"]) {
+  if (role === "moderator_mentor") {
+    return 1;
+  }
+
+  if (role === "main_advisor") {
+    return 2;
+  }
+
+  return 3;
+}
+
+function normalizeAdvisorType(value: unknown): AdvisorMessage["advisorType"] {
+  if (
+    value === "main_advisor" ||
+    value === "moderator_mentor" ||
+    value === "honorable_advisor"
+  ) {
+    return value;
+  }
+
+  return "honorable_advisor";
+}
+
+function formatAdvisorName(title: string | null, fullName: string) {
+  if (!title) {
+    return fullName;
+  }
+
+  return fullName.toLowerCase().startsWith(title.toLowerCase())
+    ? fullName
+    : `${title} ${fullName}`;
+}
+
+function formatAdvisorTitle(advisor: AdvisorMessage) {
+  return [advisor.designation, advisor.department].filter(Boolean).join(", ");
+}
+
+function getAdvisorInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+async function getAdvisorMessages(): Promise<AdvisorMessage[]> {
+  const supabase = await createClient();
+  const flexible = asFlexibleClient(supabase);
+  const runQuery = (select: string) =>
+    flexible
+      .from("advisor_profiles" as string)
+      .select(select)
+      .eq("is_current", true)
+      .eq("is_public", true)
+      .not("speech", "is", null)
+      .neq("speech", "")
+      .limit(8);
+  const extended = await runQuery(
+    "id, advisor_type, full_name, title, designation, department, avatar_secure_url, speech, speech_updated_at"
+  );
+  const { data, error } = !extended.error
+    ? extended
+    : await runQuery(
+        "id, advisor_type, full_name, title, designation, department, avatar_secure_url, speech"
+      );
+
+  if (error || !Array.isArray(data)) {
+    return [];
+  }
+
+  return data
+    .map((item) => {
+      const record = item as Record<string, unknown>;
+      const speech = typeof record.speech === "string" ? record.speech.trim() : "";
+      const fullName =
+        typeof record.full_name === "string" && record.full_name.trim()
+          ? record.full_name.trim()
+          : "Advisor";
+
+      if (!speech) {
+        return null;
+      }
+
+      return {
+        advisorType: normalizeAdvisorType(record.advisor_type),
+        avatarUrl:
+          typeof record.avatar_secure_url === "string"
+            ? toCloudinaryAvatarSrc(record.avatar_secure_url)
+            : null,
+        department:
+          typeof record.department === "string" && record.department.trim()
+            ? record.department.trim()
+            : null,
+        designation:
+          typeof record.designation === "string" && record.designation.trim()
+            ? record.designation.trim()
+            : null,
+        fullName,
+        id: typeof record.id === "string" ? record.id : fullName,
+        speech,
+        speechUpdatedAt:
+          typeof record.speech_updated_at === "string"
+            ? record.speech_updated_at
+            : null,
+        title:
+          typeof record.title === "string" && record.title.trim()
+            ? record.title.trim()
+            : null,
+      } satisfies AdvisorMessage;
+    })
+    .filter((advisor): advisor is AdvisorMessage => Boolean(advisor))
+    .sort(
+      (left, right) =>
+        advisorRolePriority(left.advisorType) - advisorRolePriority(right.advisorType)
+    );
+}
+
+function AdvisorAvatar({
+  advisor,
+  featured,
+}: {
+  advisor: AdvisorMessage;
+  featured: boolean;
+}) {
+  const label = formatAdvisorName(advisor.title, advisor.fullName);
+
+  if (advisor.avatarUrl) {
+    return (
+      <Image
+        alt={label}
+        className="about-advisor-card__photo"
+        height={featured ? 96 : 72}
+        src={advisor.avatarUrl}
+        unoptimized={true}
+        width={featured ? 96 : 72}
+      />
+    );
+  }
+
+  return (
+    <span className="about-advisor-card__photo about-advisor-card__photo--fallback">
+      {getAdvisorInitials(advisor.fullName)}
+    </span>
+  );
+}
+
+function AdvisorMessageCard({ advisor }: { advisor: AdvisorMessage }) {
+  const featured = advisor.advisorType === "moderator_mentor";
+  const roleLabel = featured
+    ? "MODERATOR / MENTOR"
+    : advisor.advisorType === "main_advisor"
+      ? "CHIEF ADVISOR"
+      : "ADVISOR";
+
+  return (
+    <article
+      className={`about-advisor-card ${
+        featured ? "about-advisor-card--featured" : "about-advisor-card--standard"
+      }`}
+    >
+      <div className="about-advisor-card__media">
+        <AdvisorAvatar advisor={advisor} featured={featured} />
+      </div>
+      <div className="about-advisor-card__body">
+        <span className="about-advisor-card__badge">{roleLabel}</span>
+        <h3 className="about-advisor-card__name">
+          {formatAdvisorName(advisor.title, advisor.fullName)}
+        </h3>
+        <p className="about-advisor-card__title">{formatAdvisorTitle(advisor)}</p>
+        <blockquote className="about-advisor-card__quote">
+          {featured ? (
+            <span aria-hidden="true" className="about-advisor-card__quote-mark">
+              &quot;
+            </span>
+          ) : null}
+          <p>{advisor.speech}</p>
+        </blockquote>
+      </div>
+    </article>
+  );
 }
 
 function ProgramIcon({ title }: { title: string }) {
@@ -425,9 +635,10 @@ function renderTimelineTitle(item: TimelineMilestoneItem): ReactNode {
 }
 
 export default async function AboutPage() {
-  const [aboutContent, committeeDirectory] = await Promise.all([
+  const [aboutContent, committeeDirectory, advisorMessages] = await Promise.all([
     getAboutContent(),
     getPublicCommitteeDirectory(),
+    getAdvisorMessages(),
   ]);
   const optimizedSrc = toCloudinaryOptimizedSrc(aboutContent.imageSrc);
   const timelineItems = buildTimelineMilestones(
@@ -542,6 +753,27 @@ export default async function AboutPage() {
           </article>
         </div>
       </section>
+
+      {advisorMessages.length > 0 ? (
+        <section
+          className="about-section about-section--advisor-messages"
+          id="advisor-messages"
+        >
+          <div className="shell">
+            <div className="about-section-heading">
+              <span className="about-eyebrow">From our advisors</span>
+              <h2 className="about-section-title">
+                Guiding voices behind JnUITS
+              </h2>
+            </div>
+            <div className="about-advisor-messages">
+              {advisorMessages.map((advisor) => (
+                <AdvisorMessageCard advisor={advisor} key={advisor.id} />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="about-section">
         <div className="shell">
