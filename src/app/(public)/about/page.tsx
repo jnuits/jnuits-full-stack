@@ -66,6 +66,7 @@ type AdvisorMessage = {
   id: string;
   speech: string;
   speechUpdatedAt: string | null;
+  sortOrder: number | null;
   title: string | null;
 };
 
@@ -244,11 +245,11 @@ function groupTimelineByYear(items: TimelineMilestoneItem[]) {
 }
 
 function advisorRolePriority(role: AdvisorMessage["advisorType"]) {
-  if (role === "moderator_mentor") {
+  if (role === "main_advisor") {
     return 1;
   }
 
-  if (role === "main_advisor") {
+  if (role === "moderator_mentor") {
     return 2;
   }
 
@@ -303,12 +304,12 @@ async function getAdvisorMessages(): Promise<AdvisorMessage[]> {
       .neq("speech", "")
       .limit(8);
   const extended = await runQuery(
-    "id, advisor_type, full_name, title, designation, department, avatar_secure_url, speech, speech_updated_at"
+    "id, advisor_type, full_name, title, designation, department, avatar_secure_url, speech, speech_updated_at, sort_order"
   );
   const { data, error } = !extended.error
     ? extended
     : await runQuery(
-        "id, advisor_type, full_name, title, designation, department, avatar_secure_url, speech"
+        "id, advisor_type, full_name, title, designation, department, avatar_secure_url, speech, sort_order"
       );
 
   if (error || !Array.isArray(data)) {
@@ -349,6 +350,7 @@ async function getAdvisorMessages(): Promise<AdvisorMessage[]> {
           typeof record.speech_updated_at === "string"
             ? record.speech_updated_at
             : null,
+        sortOrder: typeof record.sort_order === "number" ? record.sort_order : null,
         title:
           typeof record.title === "string" && record.title.trim()
             ? record.title.trim()
@@ -356,10 +358,23 @@ async function getAdvisorMessages(): Promise<AdvisorMessage[]> {
       } satisfies AdvisorMessage;
     })
     .filter((advisor): advisor is AdvisorMessage => Boolean(advisor))
-    .sort(
-      (left, right) =>
-        advisorRolePriority(left.advisorType) - advisorRolePriority(right.advisorType)
-    );
+    .sort((left, right) => {
+      const roleDifference =
+        advisorRolePriority(left.advisorType) - advisorRolePriority(right.advisorType);
+
+      if (roleDifference !== 0) {
+        return roleDifference;
+      }
+
+      const leftSort = left.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      const rightSort = right.sortOrder ?? Number.MAX_SAFE_INTEGER;
+
+      if (leftSort !== rightSort) {
+        return leftSort - rightSort;
+      }
+
+      return left.fullName.localeCompare(right.fullName);
+    });
 }
 
 function AdvisorAvatar({
@@ -392,18 +407,20 @@ function AdvisorAvatar({
 }
 
 function AdvisorMessageCard({ advisor }: { advisor: AdvisorMessage }) {
-  const featured = advisor.advisorType === "moderator_mentor";
-  const roleLabel = featured
-    ? "MODERATOR / MENTOR"
-    : advisor.advisorType === "main_advisor"
+  const featured = advisor.advisorType === "main_advisor";
+  const roleClass = `about-advisor-card--${advisor.advisorType.replaceAll("_", "-")}`;
+  const roleLabel =
+    advisor.advisorType === "main_advisor"
       ? "CHIEF ADVISOR"
-      : "ADVISOR";
+      : advisor.advisorType === "moderator_mentor"
+        ? "MODERATOR / MENTOR"
+        : "HONOURABLE ADVISOR";
 
   return (
     <article
       className={`about-advisor-card ${
         featured ? "about-advisor-card--featured" : "about-advisor-card--standard"
-      }`}
+      } ${roleClass}`}
     >
       <div className="about-advisor-card__media">
         <AdvisorAvatar advisor={advisor} featured={featured} />
@@ -756,27 +773,6 @@ export default async function AboutPage() {
         </div>
       </section>
 
-      {advisorMessages.length > 0 ? (
-        <section
-          className="about-section about-section--advisor-messages"
-          id="advisor-messages"
-        >
-          <div className="shell">
-            <div className="about-section-heading">
-              <span className="about-eyebrow">From our advisors</span>
-              <h2 className="about-section-title">
-                Guiding voices behind JnUITS
-              </h2>
-            </div>
-            <div className="about-advisor-messages">
-              {advisorMessages.map((advisor) => (
-                <AdvisorMessageCard advisor={advisor} key={advisor.id} />
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
       <section className="about-section">
         <div className="shell">
           <div className="about-section-heading">
@@ -841,6 +837,27 @@ export default async function AboutPage() {
           </div>
         </div>
       </section>
+
+      {advisorMessages.length > 0 ? (
+        <section
+          className="about-section about-section--advisor-messages"
+          id="advisor-messages"
+        >
+          <div className="shell">
+            <div className="about-section-heading">
+              <span className="about-eyebrow">From our advisors</span>
+              <h2 className="about-section-title">
+                Guiding voices behind JnUITS
+              </h2>
+            </div>
+            <div className="about-advisor-messages">
+              {advisorMessages.map((advisor) => (
+                <AdvisorMessageCard advisor={advisor} key={advisor.id} />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="about-section about-section--reach">
         <div className="shell">

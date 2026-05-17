@@ -6034,6 +6034,10 @@ ul.clean-list {
   box-shadow: 0 0 0 2px var(--color-background-primary), 0 0 0 4px #2563eb;
 }
 
+.about-advisor-card--main-advisor.about-advisor-card--featured .about-advisor-card__photo {
+  box-shadow: 0 0 0 2px var(--color-background-primary), 0 0 0 4px #7c3aed;
+}
+
 .about-advisor-card--standard .about-advisor-card__photo {
   width: 72px;
   height: 72px;
@@ -6066,6 +6070,18 @@ ul.clean-list {
 
 .about-advisor-card--featured .about-advisor-card__badge {
   background: #0d9488;
+}
+
+.about-advisor-card--main-advisor .about-advisor-card__badge {
+  background: #7c3aed;
+}
+
+.about-advisor-card--moderator-mentor .about-advisor-card__badge {
+  background: #0d9488;
+}
+
+.about-advisor-card--honorable-advisor .about-advisor-card__badge {
+  background: #d97706;
 }
 
 .about-advisor-card__name {
@@ -6112,6 +6128,18 @@ ul.clean-list {
   line-height: 1.8;
 }
 
+.about-advisor-card--main-advisor .about-advisor-card__quote {
+  border-left-color: #7c3aed;
+}
+
+.about-advisor-card--moderator-mentor .about-advisor-card__quote {
+  border-left-color: #0d9488;
+}
+
+.about-advisor-card--honorable-advisor .about-advisor-card__quote {
+  border-left-color: #d97706;
+}
+
 .about-advisor-card__quote p {
   position: relative;
   z-index: 1;
@@ -6129,6 +6157,10 @@ ul.clean-list {
   font-weight: 700;
   line-height: 1;
   opacity: 0.3;
+}
+
+.about-advisor-card--main-advisor .about-advisor-card__quote-mark {
+  color: #7c3aed;
 }
 
 .about-timeline {
