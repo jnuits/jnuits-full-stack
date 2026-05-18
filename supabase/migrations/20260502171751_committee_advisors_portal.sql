@@ -189,7 +189,7 @@ from (
     ('education-research-secretary', 'Education and Research Secretary', 'শিক্ষা ও গবেষণা সম্পাদক', array['Edu & Research Secretary']::text[], 'executive', 1, 1, 1, 120),
     ('international-secretary', 'International Secretary', 'আন্তর্জাতিক সম্পাদক', array['International Affairs Secretary']::text[], 'executive', 1, 1, 1, 130),
     ('executive-member', 'Executive Member', 'কার্যনির্বাহী সদস্য', array['Executive']::text[], 'executive', 4, 6, 4, 140),
-    ('chief-advisor', 'Main Advisor', 'প্রধান উপদেষ্টা', array['Chief Advisor']::text[], 'advisor', 1, 1, 1, 10),
+    ('chief-advisor', 'Chief Advisor', 'প্রধান উপদেষ্টা', array['Chief Advisor']::text[], 'advisor', 1, 1, 1, 10),
     ('mentor-moderator', 'Moderator / Mentor', 'মডারেটর / মেন্টর', array['Mentor / Moderator']::text[], 'advisor', 1, 1, 1, 20),
     ('respected-advisor', 'Honorable Advisor', 'সম্মানিত উপদেষ্টা', array['Respected Advisor']::text[], 'advisor', 0, 10, 3, 30),
     ('sub-executive-member', 'Sub-Executive Member', 'উপ-কার্যনির্বাহী সদস্য', array['Sub-Executive']::text[], 'sub_executive', 0, 99, 12, 900)
@@ -237,7 +237,7 @@ from (
     ('education-research-secretary', 'Education and Research Secretary', 'শিক্ষা ও গবেষণা সম্পাদক', array['Edu & Research Secretary']::text[], 'executive', 1, 1, 1, 120),
     ('international-secretary', 'International Secretary', 'আন্তর্জাতিক সম্পাদক', array['International Affairs Secretary']::text[], 'executive', 1, 1, 1, 130),
     ('executive-member', 'Executive Member', 'কার্যনির্বাহী সদস্য', array['Executive']::text[], 'executive', 4, 6, 4, 140),
-    ('chief-advisor', 'Main Advisor', 'প্রধান উপদেষ্টা', array['Chief Advisor']::text[], 'advisor', 1, 1, 1, 10),
+    ('chief-advisor', 'Chief Advisor', 'প্রধান উপদেষ্টা', array['Chief Advisor']::text[], 'advisor', 1, 1, 1, 10),
     ('mentor-moderator', 'Moderator / Mentor', 'মডারেটর / মেন্টর', array['Mentor / Moderator']::text[], 'advisor', 1, 1, 1, 20),
     ('respected-advisor', 'Honorable Advisor', 'সম্মানিত উপদেষ্টা', array['Respected Advisor']::text[], 'advisor', 0, 10, 3, 30),
     ('sub-executive-member', 'Sub-Executive Member', 'উপ-কার্যনির্বাহী সদস্য', array['Sub-Executive']::text[], 'sub_executive', 0, 99, 12, 900)

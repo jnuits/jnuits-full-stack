@@ -9,7 +9,7 @@ import type { PublicAdvisorProfile } from "@/lib/committee/public";
 const GROUPS = [
   {
     icon: GraduationCap,
-    label: "Former Chief Advisor / Main Advisor",
+    label: "Chief Advisor",
     text: "text-purple-600 dark:text-purple-400",
     tone: "bg-purple-100 dark:bg-purple-950/40",
     type: "main_advisor",

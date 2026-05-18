@@ -27,7 +27,7 @@ const errorMap: Record<string, string> = {
 
 const advisorTypeLabels: Record<string, string> = {
   honorable_advisor: "Honorable Advisor",
-  main_advisor: "Chief Advisor / Main Advisor",
+  main_advisor: "Chief Advisor",
   moderator_mentor: "Moderator / Mentor",
 };
 

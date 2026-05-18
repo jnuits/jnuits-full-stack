@@ -6024,13 +6024,12 @@ ul.clean-list {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  flex-shrink: 0;
+  border-radius: 50%;
   object-fit: cover;
 }
 
 .about-advisor-card--featured .about-advisor-card__photo {
-  width: 96px;
-  height: 96px;
   box-shadow: 0 0 0 2px var(--color-background-primary), 0 0 0 4px #2563eb;
 }
 
@@ -6038,15 +6037,9 @@ ul.clean-list {
   box-shadow: 0 0 0 2px var(--color-background-primary), 0 0 0 4px #7c3aed;
 }
 
-.about-advisor-card--standard .about-advisor-card__photo {
-  width: 72px;
-  height: 72px;
-}
-
 .about-advisor-card__photo--fallback {
   background: var(--color-background-secondary);
   color: var(--color-text-primary);
-  font-size: 18px;
   font-weight: 700;
 }
 
@@ -6469,11 +6462,6 @@ ul.clean-list {
   .about-advisor-card--standard {
     width: 100%;
     padding: 22px;
-  }
-
-  .about-advisor-card--featured .about-advisor-card__photo {
-    width: 82px;
-    height: 82px;
   }
 
   .about-advisor-card__quote,
@@ -11268,4 +11256,18 @@ footer {
   .admin-slider-flash-auto {
     animation: none;
   }
+}
+
+/* === ABOUT PAGE: ADVISOR AVATAR SIZE OVERRIDES === */
+.about-advisor-card--main-advisor .about-advisor-card__photo,
+.about-advisor-card--moderator-mentor .about-advisor-card__photo {
+  width: clamp(56px, 6vw, 80px);
+  height: clamp(56px, 6vw, 80px);
+  font-size: clamp(16px, 1.8vw, 24px);
+}
+
+.about-advisor-card--honorable-advisor .about-advisor-card__photo {
+  width: clamp(40px, 4.5vw, 56px);
+  height: clamp(40px, 4.5vw, 56px);
+  font-size: clamp(12px, 1.3vw, 16px);
 }

@@ -360,7 +360,7 @@ export const fallbackAboutContent = {
     `${brandProfile.shortName} brings together students who want to learn, build, and lead through practical work in information technology.`,
     `From ${brandProfile.address}, the society runs programs, courses, workshops, certificates, and community activities that help students move forward with confidence.`,
   ],
-  missionTitle: "What JnUITS stands for",
+  missionTitle: "Why JnUITS exists",
   missionStatement:
     `${brandProfile.shortName} exists to empower ${brandProfile.university} students with cutting-edge IT skills, a culture of innovation, and a supportive learning community — connecting learners, mentors, and industry.`,
   missionPoints: [

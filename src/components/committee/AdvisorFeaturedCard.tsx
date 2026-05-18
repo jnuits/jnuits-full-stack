@@ -21,7 +21,7 @@ const TONE = {
     decoration: "bg-purple-400/5",
     line: "bg-purple-400",
     link: "text-purple-600 dark:text-purple-400",
-    label: "Chief Advisor / Main Advisor",
+    label: "Chief Advisor",
   },
   moderator: {
     accent: "text-blue-600 dark:text-blue-400",

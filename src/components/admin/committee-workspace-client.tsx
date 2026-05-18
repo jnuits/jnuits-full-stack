@@ -2227,7 +2227,7 @@ function AdvisorForm({
               <Field>
                 Advisor type
                 <PanelSelect name="advisorType" onChange={(event) => setAdvisorType(event.target.value)} value={advisorType}>
-                  <option value="main_advisor">● Main Advisor</option>
+                  <option value="main_advisor">● Chief Advisor</option>
                   <option value="moderator_mentor">● Moderator / Mentor</option>
                   <option value="honorable_advisor">● Honorable Advisor</option>
                 </PanelSelect>
@@ -3134,7 +3134,7 @@ export function CommitteeWorkspaceClient({
               {advisors.length === 0 ? (
                 <EmptyPanel
                   action={<PrimaryButton onClick={() => setShowNewAdvisor(true)} type="button"><Plus className="size-3.5" /> Add advisor</PrimaryButton>}
-                  description="Create advisor profiles for the main advisor, moderator/mentor, and honorable advisors."
+                  description="Create advisor profiles for the chief advisor, moderator/mentor, and honorable advisors."
                   icon={GraduationCap}
                   title="No advisor profiles yet"
                 />
