@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import {
   Bold,
+  Code,
+  EyeOff,
   Heading2,
   Italic,
   Link as LinkIcon,
@@ -17,12 +19,21 @@ type NoticeMarkdownEditorProps = {
   placeholder?: string;
 };
 
-type MarkdownAction = "bold" | "heading" | "italic" | "link" | "list" | "quote";
+type MarkdownAction =
+  | "bold"
+  | "code"
+  | "heading"
+  | "italic"
+  | "link"
+  | "list"
+  | "quote";
 
 function applyMarkdownAction(action: MarkdownAction) {
   switch (action) {
     case "bold":
       return { prefix: "**", suffix: "**", fallback: "important text" };
+    case "code":
+      return { prefix: "`", suffix: "`", fallback: "inline code" };
     case "heading":
       return { prefix: "## ", suffix: "", fallback: "Section heading" };
     case "italic":
@@ -75,6 +86,7 @@ export function NoticeMarkdownEditor({
         <button
           aria-label="Heading"
           onClick={() => insertMarkdown("heading")}
+          title="Heading 2"
           type="button"
         >
           <Heading2 aria-hidden="true" size={16} />
@@ -82,6 +94,7 @@ export function NoticeMarkdownEditor({
         <button
           aria-label="Bold"
           onClick={() => insertMarkdown("bold")}
+          title="Bold"
           type="button"
         >
           <Bold aria-hidden="true" size={16} />
@@ -89,6 +102,7 @@ export function NoticeMarkdownEditor({
         <button
           aria-label="Italic"
           onClick={() => insertMarkdown("italic")}
+          title="Italic"
           type="button"
         >
           <Italic aria-hidden="true" size={16} />
@@ -96,6 +110,7 @@ export function NoticeMarkdownEditor({
         <button
           aria-label="Bulleted list"
           onClick={() => insertMarkdown("list")}
+          title="Bullet list"
           type="button"
         >
           <List aria-hidden="true" size={16} />
@@ -103,13 +118,23 @@ export function NoticeMarkdownEditor({
         <button
           aria-label="Quote"
           onClick={() => insertMarkdown("quote")}
+          title="Quote"
           type="button"
         >
           <Quote aria-hidden="true" size={16} />
         </button>
         <button
+          aria-label="Inline code"
+          onClick={() => insertMarkdown("code")}
+          title="Inline code"
+          type="button"
+        >
+          <Code aria-hidden="true" size={16} />
+        </button>
+        <button
           aria-label="Link"
           onClick={() => insertMarkdown("link")}
+          title="Insert link"
           type="button"
         >
           <LinkIcon aria-hidden="true" size={16} />
@@ -137,12 +162,14 @@ export function NoticeMarkdownEditor({
             <span className="status-pill">Markdown</span>
           </div>
           <div className="notice-markdown-preview-surface">
-            <NoticeMarkdown
-              source={
-                value.trim() ||
-                "No public notice body yet. Add Markdown content for the detail page."
-              }
-            />
+            {value.trim() ? (
+              <NoticeMarkdown source={value} />
+            ) : (
+              <div className="notice-markdown-empty-state">
+                <EyeOff aria-hidden="true" size={28} />
+                <p>Start writing to see preview</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

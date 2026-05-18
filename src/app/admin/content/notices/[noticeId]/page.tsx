@@ -36,7 +36,7 @@ export default async function NoticeEditorPage({
           <p className="mt-1 text-sm leading-7">{flash.message}</p>
         </section>
       ) : null}
-      <NoticeEditorForm notice={notice} />
+      <NoticeEditorForm initialSaved={flash?.tone === "success"} notice={notice} />
     </div>
   );
 }

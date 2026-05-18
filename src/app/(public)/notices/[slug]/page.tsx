@@ -4,11 +4,11 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarDays,
-  Copy,
   ExternalLink,
   FileText,
   Folder,
   LinkIcon,
+  Paperclip,
 } from "lucide-react";
 import {
   formatDisplayDate,
@@ -16,6 +16,7 @@ import {
   getPublishedNotices,
 } from "@/lib/content/public-content";
 import { NoticeMarkdown } from "@/components/notices/notice-markdown";
+import { NoticePermalinkCopy } from "@/components/notices/notice-permalink-copy";
 import { NoticeShareActions } from "@/components/notices/notice-share-actions";
 
 export const revalidate = 60;
@@ -59,16 +60,23 @@ export default async function NoticeDetailPage({
     currentIndex >= 0 ? archive.items[currentIndex + 1] || null : null;
   const nextNotice =
     currentIndex > 0 ? archive.items[currentIndex - 1] || null : null;
-  const bodySource =
-    notice.body && notice.body.trim() !== notice.summary.trim()
-      ? notice.body
-      : notice.summary;
+  const hasExtendedBody = Boolean(
+    notice.body?.trim() && notice.body.trim() !== notice.summary.trim()
+  );
+  const bodySource = hasExtendedBody
+    ? notice.body?.trim() || ""
+    : notice.summary.trim();
   const tone = categoryTone(notice.category);
   const permalink = `/notices/${notice.slug}`;
 
   return (
     <main className="notices-page">
       <div className="shell notices-detail-shell">
+        <Link className="notice-detail__back" href="/notices">
+          <ArrowLeft aria-hidden="true" size={15} />
+          Back to notices
+        </Link>
+
         <article className="notice-detail glass-card">
           <div className="notice-detail__meta">
             <span className={`notices-category-badge notices-category-badge--${tone}`}>
@@ -95,33 +103,28 @@ export default async function NoticeDetailPage({
               Stable route
             </span>
           </div>
-          <Link className="secondary-button notice-detail__back" href="/notices">
-            <ArrowLeft aria-hidden="true" size={15} />
-            Back to notices
-          </Link>
         </article>
 
         <div className="notice-detail-layout">
           <section className="notice-detail-body section-band">
             <p className="section-divider">Notice details</p>
-            <div className="notice-detail-body__content">
-              <NoticeMarkdown source={bodySource} />
-            </div>
             {notice.ctaHref ? (
               <Link
-                className="primary-button notice-detail-body__attachment"
+                className="notice-detail-body__attachment"
                 href={notice.ctaHref}
-                rel={
-                  notice.ctaHref.startsWith("/") ? undefined : "noopener noreferrer"
-                }
-                target={notice.ctaHref.startsWith("/") ? undefined : "_blank"}
+                rel="noopener noreferrer"
+                target="_blank"
               >
+                <Paperclip aria-hidden="true" size={16} />
                 {notice.ctaHref.toLowerCase().includes(".pdf")
                   ? "View PDF notice"
                   : "View attachment"}
                 <ExternalLink aria-hidden="true" size={15} />
               </Link>
             ) : null}
+            <div className="notice-detail-body__content">
+              <NoticeMarkdown source={bodySource} />
+            </div>
           </section>
 
           <aside className="notice-detail-sidebar" aria-label="Notice metadata">
@@ -141,10 +144,7 @@ export default async function NoticeDetailPage({
                   <dd>JnUITS Official</dd>
                 </div>
               </dl>
-              <Link className="notice-permalink" href={permalink}>
-                <Copy aria-hidden="true" size={14} />
-                {permalink}
-              </Link>
+              <NoticePermalinkCopy permalink={permalink} />
             </section>
 
             <section className="notice-sidebar-card">
@@ -170,23 +170,29 @@ export default async function NoticeDetailPage({
 
         <nav aria-label="Adjacent notices" className="notice-detail-nav">
           {previousNotice ? (
-            <Link className="secondary-button" href={`/notices/${previousNotice.slug}`}>
+            <Link
+              className="notice-detail-nav__button notice-detail-nav__button--previous"
+              href={`/notices/${previousNotice.slug}`}
+            >
               <ArrowLeft aria-hidden="true" size={15} />
               Previous notice
             </Link>
           ) : (
-            <span className="secondary-button pointer-events-none opacity-50">
+            <span className="notice-detail-nav__button notice-detail-nav__button--previous notice-detail-nav__button--disabled">
               <ArrowLeft aria-hidden="true" size={15} />
               Previous notice
             </span>
           )}
           {nextNotice ? (
-            <Link className="secondary-button" href={`/notices/${nextNotice.slug}`}>
+            <Link
+              className="notice-detail-nav__button notice-detail-nav__button--next"
+              href={`/notices/${nextNotice.slug}`}
+            >
               Next notice
               <ArrowRight aria-hidden="true" size={15} />
             </Link>
           ) : (
-            <span className="secondary-button pointer-events-none opacity-50">
+            <span className="notice-detail-nav__button notice-detail-nav__button--next notice-detail-nav__button--disabled">
               Next notice
               <ArrowRight aria-hidden="true" size={15} />
             </span>

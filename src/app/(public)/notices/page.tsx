@@ -132,7 +132,10 @@ export default async function NoticesPage({
     : 0;
   const lastVisibleItem = Math.min(notices.page * 12, notices.totalItems);
   const statusChips = [
-    { label: "Published", value: notices.totalItems },
+    {
+      label: notices.totalItems === 1 ? "Published notice" : "Published notices",
+      value: notices.totalItems,
+    },
     { label: "Drafts", value: 0 },
     { label: "Archived", value: 0 },
   ];
@@ -152,7 +155,12 @@ export default async function NoticesPage({
 
           <div aria-label="Notice status summary" className="notices-stat-chips">
             {statusChips.map((item) => (
-              <span className="notices-stat-chip" key={item.label}>
+              <span
+                className={`notices-stat-chip${
+                  item.value === 0 ? " notices-stat-chip--zero" : ""
+                }`}
+                key={item.label}
+              >
                 <strong>{item.value}</strong> {item.label}
               </span>
             ))}

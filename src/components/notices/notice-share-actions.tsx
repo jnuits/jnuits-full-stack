@@ -1,7 +1,8 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, MessageCircle, Send, Share2 } from "lucide-react";
+import { Check, MessageCircle, Send, Share2 } from "lucide-react";
 
 type NoticeShareActionsProps = {
   title: string;
@@ -61,14 +62,30 @@ export function NoticeShareActions({ title }: NoticeShareActionsProps) {
     }
   }
 
+  function preventEmptyShareUrl(event: MouseEvent<HTMLAnchorElement>) {
+    if (!shareUrl) {
+      event.preventDefault();
+    }
+  }
+
   return (
     <div className="notice-share-actions" aria-label="Share this notice">
-      <button disabled={!shareUrl} onClick={nativeShare} type="button">
-        <Share2 aria-hidden="true" size={15} />
-        Share
+      <button
+        data-share-action="native"
+        onClick={nativeShare}
+        type="button"
+      >
+        {copied ? (
+          <Check aria-hidden="true" size={15} />
+        ) : (
+          <Share2 aria-hidden="true" size={15} />
+        )}
+        {copied ? "Copied" : "Share"}
       </button>
       <a
+        data-share-action="whatsapp"
         href={shareUrl ? `https://wa.me/?text=${encodedText}` : "#"}
+        onClick={preventEmptyShareUrl}
         rel="noreferrer"
         target="_blank"
       >
@@ -76,20 +93,14 @@ export function NoticeShareActions({ title }: NoticeShareActionsProps) {
         WhatsApp
       </a>
       <a
+        data-share-action="messenger"
         href={shareUrl ? `fb-messenger://share/?link=${encodedUrl}` : "#"}
+        onClick={preventEmptyShareUrl}
         rel="noreferrer"
       >
         <Send aria-hidden="true" size={15} />
         Messenger
       </a>
-      <button disabled={!shareUrl} onClick={copyLink} type="button">
-        {copied ? (
-          <Check aria-hidden="true" size={15} />
-        ) : (
-          <Copy aria-hidden="true" size={15} />
-        )}
-        {copied ? "Copied" : "Copy link"}
-      </button>
     </div>
   );
 }

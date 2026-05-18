@@ -22,7 +22,7 @@ export default async function NewNoticePage() {
           <p className="mt-1 text-sm leading-7">{flash.message}</p>
         </section>
       ) : null}
-      <NoticeEditorForm notice={null} />
+      <NoticeEditorForm initialSaved={flash?.tone === "success"} notice={null} />
     </div>
   );
 }

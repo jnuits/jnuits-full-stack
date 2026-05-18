@@ -128,7 +128,7 @@ function AdminNoticeListRow({ notice }: { notice: AdminNoticeListItem }) {
 
       <div className="admin-notice-row__actions">
         <Link
-          className="admin-btn admin-btn--ghost"
+          className="admin-btn admin-btn--ghost admin-notice-row__editor"
           href={`/admin/content/notices/${notice.id}`}
         >
           Open editor
@@ -327,7 +327,7 @@ export default async function NoticesAdminPage({
         </div>
       </form>
 
-      <section className="grid gap-3">
+      <section className="notice-admin-queue grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="admin-section-label">Notice queue</p>
           <span className="text-sm text-[var(--muted-foreground)]">

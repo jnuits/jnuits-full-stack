@@ -1,10 +1,14 @@
 import Link from "next/link";
-import { CalendarDays, LinkIcon, Lock, Paperclip, Save } from "lucide-react";
+import { CalendarDays, LinkIcon, Lock, Save } from "lucide-react";
+import { NoticeEditorSaveIndicator } from "@/components/admin/notice-editor-save-indicator";
 import { NoticeMarkdownEditor } from "@/components/admin/notice-markdown-editor";
+import { NoticePdfUploadField } from "@/components/admin/notice-pdf-upload-field";
+import { NoticeSummaryField } from "@/components/admin/notice-summary-field";
 import { saveNotice } from "./actions";
 import type { AdminNoticeListItem } from "@/lib/content/notices";
 
 type NoticeEditorFormProps = {
+  initialSaved?: boolean;
   notice: AdminNoticeListItem | null;
 };
 
@@ -24,15 +28,28 @@ function toDateTimeLocal(value: string | null) {
   return date.toISOString().slice(0, 16);
 }
 
-export function NoticeEditorForm({ notice }: NoticeEditorFormProps) {
+function normalizeNoticeStatus(status: string | null | undefined) {
+  const normalized = String(status || "").trim().toLowerCase();
+
+  if (normalized === "published" || normalized === "archived") {
+    return normalized;
+  }
+
+  return "draft";
+}
+
+export function NoticeEditorForm({
+  initialSaved = false,
+  notice,
+}: NoticeEditorFormProps) {
   const categoryOptions = Array.from(
     new Set([
       ...baseCategoryOptions,
       ...(notice?.category ? [notice.category] : []),
     ])
   );
-  const summaryLength = notice?.summary?.length || 0;
   const isAutoSlug = !notice?.slug;
+  const statusValue = normalizeNoticeStatus(notice?.status);
 
   return (
     <form action={saveNotice} className="notice-editor">
@@ -97,8 +114,9 @@ export function NoticeEditorForm({ notice }: NoticeEditorFormProps) {
           <label className="notice-editor-field">
             <span>Status</span>
             <select
-              className="notice-admin-field"
-              defaultValue={notice?.status || "draft"}
+              className="notice-admin-field notice-editor-status-select"
+              defaultValue={statusValue}
+              key={`${notice?.id || "new"}-${statusValue}`}
               name="status"
             >
               <option value="published">● Published</option>
@@ -158,14 +176,7 @@ export function NoticeEditorForm({ notice }: NoticeEditorFormProps) {
 
         <label className="notice-editor-field">
           <span>PDF notice attachment</span>
-          <div className="notice-editor-input-with-icon notice-editor-file-input">
-            <Paperclip aria-hidden="true" size={15} />
-            <input
-              accept="application/pdf,.pdf"
-              name="noticeAttachment"
-              type="file"
-            />
-          </div>
+          <NoticePdfUploadField />
           <small>
             Uploads to Cloudinary folder jnuits/jnuits-full-stack/notices. A
             new PDF replaces the related link field on save.
@@ -175,18 +186,7 @@ export function NoticeEditorForm({ notice }: NoticeEditorFormProps) {
 
       <section className="notice-editor-card">
         <p className="notice-editor-card__eyebrow">Content</p>
-        <label className="notice-editor-field">
-          <span>Summary *</span>
-          <textarea
-            className="notice-admin-field min-h-28"
-            defaultValue={notice?.summary || ""}
-            maxLength={1000}
-            name="summary"
-            placeholder="Write the short public summary shown on the notices list."
-            required
-          />
-          <small className="notice-editor-counter">{summaryLength} / 1000</small>
-        </label>
+        <NoticeSummaryField defaultValue={notice?.summary || ""} />
 
         <label className="notice-editor-field">
           <span>Notice body</span>
@@ -199,13 +199,16 @@ export function NoticeEditorForm({ notice }: NoticeEditorFormProps) {
       </section>
 
       <div className="notice-editor__footer">
-        <Link className="admin-btn admin-btn--ghost" href="/admin/content/notices">
-          Cancel
-        </Link>
-        <button className="admin-btn admin-btn--primary" type="submit">
-          <Save aria-hidden="true" size={15} />
-          Save notice
-        </button>
+        <NoticeEditorSaveIndicator initialSaved={initialSaved} />
+        <div className="notice-editor__footer-actions">
+          <Link className="admin-btn admin-btn--ghost" href="/admin/content/notices">
+            Cancel
+          </Link>
+          <button className="admin-btn admin-btn--primary" type="submit">
+            <Save aria-hidden="true" size={15} />
+            Save notice
+          </button>
+        </div>
       </div>
     </form>
   );
