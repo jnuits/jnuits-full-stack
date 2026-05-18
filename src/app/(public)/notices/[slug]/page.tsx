@@ -35,6 +35,20 @@ function categoryTone(category: string) {
   return "notice";
 }
 
+function isCloudinaryAttachment(href: string | null | undefined) {
+  if (!href) {
+    return false;
+  }
+
+  try {
+    const url = new URL(href);
+
+    return url.protocol === "https:" && url.hostname === "res.cloudinary.com";
+  } catch {
+    return false;
+  }
+}
+
 export default async function NoticeDetailPage({
   params,
 }: {
@@ -68,6 +82,15 @@ export default async function NoticeDetailPage({
     : notice.summary.trim();
   const tone = categoryTone(notice.category);
   const permalink = `/notices/${notice.slug}`;
+  const attachmentHref = notice.ctaHref
+    ? isCloudinaryAttachment(notice.ctaHref)
+      ? `/notices/${notice.slug}/attachment`
+      : notice.ctaHref
+    : null;
+  const attachmentIsPdf = Boolean(
+    notice.ctaHref?.toLowerCase().includes(".pdf") ||
+      attachmentHref?.toLowerCase().includes(".pdf")
+  );
 
   return (
     <main className="notices-page">
@@ -108,17 +131,15 @@ export default async function NoticeDetailPage({
         <div className="notice-detail-layout">
           <section className="notice-detail-body section-band">
             <p className="section-divider">Notice details</p>
-            {notice.ctaHref ? (
+            {attachmentHref ? (
               <Link
                 className="notice-detail-body__attachment"
-                href={notice.ctaHref}
+                href={attachmentHref}
                 rel="noopener noreferrer"
                 target="_blank"
               >
                 <Paperclip aria-hidden="true" size={16} />
-                {notice.ctaHref.toLowerCase().includes(".pdf")
-                  ? "View PDF notice"
-                  : "View attachment"}
+                {attachmentIsPdf ? "View PDF notice" : "View attachment"}
                 <ExternalLink aria-hidden="true" size={15} />
               </Link>
             ) : null}

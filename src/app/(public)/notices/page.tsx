@@ -7,9 +7,8 @@ import {
   FileText,
   FolderArchive,
   LinkIcon,
-  RotateCcw,
-  Search,
 } from "lucide-react";
+import { NoticePublicFilters } from "@/components/notices/notice-public-filters";
 import {
   formatDisplayDate,
   getPublishedNotices,
@@ -112,6 +111,32 @@ function noticeDetailHref(notice: NoticePreview) {
   return notice.href || `/notices/${notice.slug}`;
 }
 
+function isCloudinaryAttachment(href: string | null | undefined) {
+  if (!href) {
+    return false;
+  }
+
+  try {
+    const url = new URL(href);
+
+    return url.protocol === "https:" && url.hostname === "res.cloudinary.com";
+  } catch {
+    return false;
+  }
+}
+
+function noticeAttachmentHref(notice: NoticePreview) {
+  if (!notice.ctaHref) {
+    return null;
+  }
+
+  if (notice.slug && isCloudinaryAttachment(notice.ctaHref)) {
+    return `/notices/${notice.slug}/attachment`;
+  }
+
+  return notice.ctaHref;
+}
+
 export default async function NoticesPage({
   searchParams,
 }: {
@@ -202,50 +227,21 @@ export default async function NoticesPage({
           </p>
         </div>
 
-        <form action="/notices" className="notices-filter" role="search">
-          <label className="notices-filter__field notices-filter__field--search">
-            <span>Search notices</span>
-            <div className="notices-filter__input-wrap">
-              <Search aria-hidden="true" size={18} />
-              <input
-                defaultValue={query}
-                name="q"
-                placeholder="Search by title, category, or summary..."
-                type="search"
-              />
-            </div>
-          </label>
-
-          <label className="notices-filter__field">
-            <span>Category</span>
-            <select defaultValue={category} name="category">
-              <option value="">All categories</option>
-              {notices.categories.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="notices-filter__actions">
-            <button className="primary-button" type="submit">
-              <Search aria-hidden="true" size={16} />
-              Search
-            </button>
-            {query || category ? (
-              <Link className="secondary-button" href="/notices">
-                <RotateCcw aria-hidden="true" size={15} />
-                Clear
-              </Link>
-            ) : null}
-          </div>
-        </form>
+        <NoticePublicFilters
+          categories={notices.categories}
+          category={category}
+          query={query}
+        />
 
         {notices.items.length ? (
           <div className="notices-list">
             {notices.items.map((notice) => {
               const tone = categoryTone(notice.category);
+              const attachmentHref = noticeAttachmentHref(notice);
+              const attachmentIsPdf = Boolean(
+                notice.ctaHref?.toLowerCase().includes(".pdf") ||
+                  attachmentHref?.toLowerCase().includes(".pdf")
+              );
 
               return (
                 <article
@@ -279,20 +275,18 @@ export default async function NoticesPage({
                       Read notice
                       <ArrowRight aria-hidden="true" size={15} />
                     </Link>
-                    {notice.ctaHref ? (
+                    {attachmentHref ? (
                       <Link
                         className="secondary-button"
-                        href={notice.ctaHref}
+                        href={attachmentHref}
                         rel={
-                          notice.ctaHref.startsWith("/")
+                          attachmentHref.startsWith("/")
                             ? undefined
                             : "noopener noreferrer"
                         }
-                        target={notice.ctaHref.startsWith("/") ? undefined : "_blank"}
+                        target={attachmentHref.startsWith("/") ? "_blank" : "_blank"}
                       >
-                        {notice.ctaHref.toLowerCase().includes(".pdf")
-                          ? "Open PDF"
-                          : "Related link"}
+                        {attachmentIsPdf ? "Open PDF" : "Related link"}
                         <ExternalLink aria-hidden="true" size={15} />
                       </Link>
                     ) : null}

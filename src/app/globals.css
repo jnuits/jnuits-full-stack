@@ -13975,3 +13975,324 @@ textarea.notice-admin-field[name="body"] {
     gap: 24px;
   }
 }
+
+/* === NOTICES ADMIN BEHAVIOR AND BUTTON COLOR PASS === */
+.notices-page,
+.notice-editor,
+.notice-admin-filters,
+.notice-admin-queue {
+  --notice-action-bg: #9bbcff;
+  --notice-action-bg-hover: #87aaff;
+  --notice-action-text: #07102d;
+}
+
+.notice-admin-filters {
+  grid-template-columns: 1fr;
+}
+
+.notice-admin-filter-actions {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.notice-admin-filter-status {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.notice-admin-filter-status::before {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.45rem;
+  border-radius: 999px;
+  background: var(--brand-green);
+  content: "";
+}
+
+.notice-admin-filter-reset {
+  display: inline-flex;
+  min-height: 2.4rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--foreground);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0 0.9rem;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.notice-admin-filter-reset:hover,
+.notice-admin-filter-reset:focus-visible {
+  border-color: color-mix(in oklab, var(--brand-blue) 38%, var(--line));
+  background: color-mix(in oklab, var(--brand-blue) 9%, var(--card));
+  color: var(--brand-blue);
+}
+
+.admin-notice-row .admin-actions-menu[open] {
+  z-index: 90;
+}
+
+.admin-notice-row .admin-actions-menu__panel {
+  z-index: 90;
+}
+
+.notices-page .primary-button,
+.notices-page .secondary-button,
+.notice-detail__back,
+.notice-detail-body__attachment,
+.notice-detail-nav__button--previous:not(.notice-detail-nav__button--disabled),
+.notice-detail-nav__button--next:not(.notice-detail-nav__button--disabled),
+.notice-share-actions [data-share-action="native"],
+a[href="/admin/content/notices/new"].admin-btn--primary,
+.admin-notice-row__editor,
+.notice-editor .admin-btn--primary,
+.notice-editor .admin-btn--ghost {
+  border-color: var(--notice-action-bg);
+  background: var(--notice-action-bg);
+  color: var(--notice-action-text);
+}
+
+.notices-page .primary-button:hover,
+.notices-page .primary-button:focus-visible,
+.notices-page .secondary-button:hover,
+.notices-page .secondary-button:focus-visible,
+.notice-detail__back:hover,
+.notice-detail__back:focus-visible,
+.notice-detail-body__attachment:hover,
+.notice-detail-body__attachment:focus-visible,
+.notice-detail-nav__button--previous:not(.notice-detail-nav__button--disabled):hover,
+.notice-detail-nav__button--previous:not(.notice-detail-nav__button--disabled):focus-visible,
+.notice-detail-nav__button--next:not(.notice-detail-nav__button--disabled):hover,
+.notice-detail-nav__button--next:not(.notice-detail-nav__button--disabled):focus-visible,
+.notice-share-actions [data-share-action="native"]:hover,
+.notice-share-actions [data-share-action="native"]:focus-visible,
+a[href="/admin/content/notices/new"].admin-btn--primary:hover,
+a[href="/admin/content/notices/new"].admin-btn--primary:focus-visible,
+.admin-notice-row__editor:hover,
+.admin-notice-row__editor:focus-visible,
+.notice-editor .admin-btn--primary:hover,
+.notice-editor .admin-btn--primary:focus-visible,
+.notice-editor .admin-btn--ghost:hover,
+.notice-editor .admin-btn--ghost:focus-visible {
+  border-color: var(--notice-action-bg-hover);
+  background: var(--notice-action-bg-hover);
+  color: var(--notice-action-text);
+}
+
+.admin-notice-row__editor {
+  border-width: 1.5px;
+}
+
+@media (min-width: 960px) {
+  .notice-admin-filters {
+    grid-template-columns:
+      minmax(18rem, 1fr)
+      minmax(10rem, 0.22fr)
+      minmax(10rem, 0.22fr)
+      auto;
+    align-items: end;
+  }
+}
+
+/* === NOTICES ABOUT-MATCHED BUTTONS AND FILTER POLISH === */
+.notices-filter__actions {
+  min-height: 44px;
+  align-items: center;
+}
+
+.notices-filter-status {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--color-text-tertiary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.notices-filter-status::before {
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.45rem;
+  border-radius: 999px;
+  background: var(--brand-green);
+  content: "";
+}
+
+.notices-filter-reset {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid var(--about-primary);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--about-primary);
+  font-size: 0.83rem;
+  font-weight: 700;
+  padding: 0 1rem;
+  transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.notices-filter-reset:hover,
+.notices-filter-reset:focus-visible {
+  border-color: var(--about-accent);
+  color: var(--about-accent);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.admin-notice-row,
+.notice-admin-queue,
+.notice-admin-queue > div {
+  overflow: visible;
+}
+
+.admin-actions-menu[open] .admin-actions-menu__trigger::after {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.admin-notice-row--published {
+  border-left-color: #16a34a;
+}
+
+.admin-notice-row--draft {
+  border-left-color: #ca8a04;
+}
+
+.admin-notice-row--archived {
+  border-left-color: #6b7280;
+}
+
+.notices-page .primary-button,
+.notice-detail-body__attachment,
+.notice-detail-nav__button--next:not(.notice-detail-nav__button--disabled),
+a[href="/admin/content/notices/new"].admin-btn--primary,
+.notice-editor .admin-btn--primary {
+  border: 1px solid #1b2d6b;
+  border-radius: 999px;
+  background: #1b2d6b;
+  color: #ffffff;
+  box-shadow: var(--shadow-sm);
+}
+
+.notices-page .primary-button:hover,
+.notices-page .primary-button:focus-visible,
+.notice-detail-body__attachment:hover,
+.notice-detail-body__attachment:focus-visible,
+.notice-detail-nav__button--next:not(.notice-detail-nav__button--disabled):hover,
+.notice-detail-nav__button--next:not(.notice-detail-nav__button--disabled):focus-visible,
+a[href="/admin/content/notices/new"].admin-btn--primary:hover,
+a[href="/admin/content/notices/new"].admin-btn--primary:focus-visible,
+.notice-editor .admin-btn--primary:hover,
+.notice-editor .admin-btn--primary:focus-visible {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.notices-page .secondary-button,
+.notice-detail__back,
+.notice-detail-nav__button--previous:not(.notice-detail-nav__button--disabled),
+.notice-share-actions [data-share-action="native"],
+.admin-notice-row__editor,
+.notice-editor .admin-btn--ghost {
+  border: 1px solid var(--about-primary);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--about-primary);
+  box-shadow: none;
+}
+
+.notices-page .secondary-button:hover,
+.notices-page .secondary-button:focus-visible,
+.notice-detail__back:hover,
+.notice-detail__back:focus-visible,
+.notice-detail-nav__button--previous:not(.notice-detail-nav__button--disabled):hover,
+.notice-detail-nav__button--previous:not(.notice-detail-nav__button--disabled):focus-visible,
+.notice-share-actions [data-share-action="native"]:hover,
+.notice-share-actions [data-share-action="native"]:focus-visible,
+.admin-notice-row__editor:hover,
+.admin-notice-row__editor:focus-visible,
+.notice-editor .admin-btn--ghost:hover,
+.notice-editor .admin-btn--ghost:focus-visible {
+  border-color: var(--about-accent);
+  background: transparent;
+  color: var(--about-accent);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.dark .notices-page .primary-button,
+.dark .notice-detail-body__attachment,
+.dark .notice-detail-nav__button--next:not(.notice-detail-nav__button--disabled),
+.dark a[href="/admin/content/notices/new"].admin-btn--primary,
+.dark .notice-editor .admin-btn--primary {
+  border-color: #7f9cf5;
+  background: #7f9cf5;
+  color: #050814;
+  box-shadow: 0 14px 34px rgba(127, 156, 245, 0.18);
+}
+
+.dark .notices-page .primary-button:hover,
+.dark .notices-page .primary-button:focus-visible,
+.dark .notice-detail-body__attachment:hover,
+.dark .notice-detail-body__attachment:focus-visible,
+.dark .notice-detail-nav__button--next:not(.notice-detail-nav__button--disabled):hover,
+.dark .notice-detail-nav__button--next:not(.notice-detail-nav__button--disabled):focus-visible,
+.dark a[href="/admin/content/notices/new"].admin-btn--primary:hover,
+.dark a[href="/admin/content/notices/new"].admin-btn--primary:focus-visible,
+.dark .notice-editor .admin-btn--primary:hover,
+.dark .notice-editor .admin-btn--primary:focus-visible {
+  border-color: #92b0ff;
+  background: #92b0ff;
+  color: #050814;
+}
+
+.dark .notices-page .secondary-button,
+.dark .notice-detail__back,
+.dark .notice-detail-nav__button--previous:not(.notice-detail-nav__button--disabled),
+.dark .notice-share-actions [data-share-action="native"],
+.dark .admin-notice-row__editor,
+.dark .notice-editor .admin-btn--ghost {
+  border-color: var(--about-primary);
+  background: transparent;
+  color: var(--about-primary);
+}
+
+.dark .notices-page .secondary-button:hover,
+.dark .notices-page .secondary-button:focus-visible,
+.dark .notice-detail__back:hover,
+.dark .notice-detail__back:focus-visible,
+.dark .notice-detail-nav__button--previous:not(.notice-detail-nav__button--disabled):hover,
+.dark .notice-detail-nav__button--previous:not(.notice-detail-nav__button--disabled):focus-visible,
+.dark .notice-share-actions [data-share-action="native"]:hover,
+.dark .notice-share-actions [data-share-action="native"]:focus-visible,
+.dark .admin-notice-row__editor:hover,
+.dark .admin-notice-row__editor:focus-visible,
+.dark .notice-editor .admin-btn--ghost:hover,
+.dark .notice-editor .admin-btn--ghost:focus-visible {
+  border-color: var(--about-accent);
+  background: transparent;
+  color: var(--about-accent);
+}
+
+@media (min-width: 768px) {
+  .notices-filter {
+    grid-template-columns: minmax(16rem, 1fr) minmax(12rem, 0.35fr) auto;
+    align-items: end;
+  }
+}

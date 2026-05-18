@@ -4,6 +4,7 @@ import { NoticeEditorSaveIndicator } from "@/components/admin/notice-editor-save
 import { NoticeMarkdownEditor } from "@/components/admin/notice-markdown-editor";
 import { NoticePdfUploadField } from "@/components/admin/notice-pdf-upload-field";
 import { NoticeSummaryField } from "@/components/admin/notice-summary-field";
+import { NOTICE_CATEGORY_OPTIONS } from "@/lib/content/notice-categories";
 import { saveNotice } from "./actions";
 import type { AdminNoticeListItem } from "@/lib/content/notices";
 
@@ -11,8 +12,6 @@ type NoticeEditorFormProps = {
   initialSaved?: boolean;
   notice: AdminNoticeListItem | null;
 };
-
-const baseCategoryOptions = ["Notice", "Announcement", "Decision", "Membership", "Event"];
 
 function toDateTimeLocal(value: string | null) {
   if (!value) {
@@ -44,7 +43,7 @@ export function NoticeEditorForm({
 }: NoticeEditorFormProps) {
   const categoryOptions = Array.from(
     new Set([
-      ...baseCategoryOptions,
+      ...NOTICE_CATEGORY_OPTIONS,
       ...(notice?.category ? [notice.category] : []),
     ])
   );

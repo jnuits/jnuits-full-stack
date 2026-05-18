@@ -9,14 +9,15 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
-  Search,
   Trash2,
 } from "lucide-react";
+import { NoticeAdminFilters } from "@/components/admin/notice-admin-filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   ADMIN_FLASH_COOKIE_NAME,
   parseAdminFlash,
 } from "@/lib/admin/flash";
+import { NOTICE_CATEGORY_OPTIONS } from "@/lib/content/notice-categories";
 import {
   formatNoticeAdminDate,
   getAdminNoticesDashboard,
@@ -133,7 +134,7 @@ function AdminNoticeListRow({ notice }: { notice: AdminNoticeListItem }) {
         >
           Open editor
         </Link>
-        <details className="admin-actions-menu">
+        <details className="admin-actions-menu" name="admin-notice-actions">
           <summary
             aria-label={`More actions for ${notice.title}`}
             className="admin-actions-menu__trigger"
@@ -218,6 +219,9 @@ export default async function NoticesAdminPage({
     ? (dashboard.page - 1) * 12 + 1
     : 0;
   const lastVisibleItem = Math.min(dashboard.page * 12, dashboard.totalItems);
+  const categoryOptions = Array.from(
+    new Set([...NOTICE_CATEGORY_OPTIONS, ...dashboard.categories])
+  );
 
   return (
     <div className="grid gap-7">
@@ -282,50 +286,12 @@ export default async function NoticesAdminPage({
         </article>
       </section>
 
-      <form action="/admin/content/notices" className="notice-admin-filters">
-        <label className="notice-admin-filter-field notice-admin-filter-field--search">
-          <span>Search</span>
-          <div className="notice-admin-filter-field__input">
-            <Search aria-hidden="true" size={15} />
-            <input
-              defaultValue={query}
-              name="q"
-              placeholder="Search title, slug, category, or summary"
-              type="search"
-            />
-          </div>
-        </label>
-        <label className="notice-admin-filter-field">
-          <span>Status</span>
-          <select defaultValue={status} name="status">
-            <option value="">All statuses</option>
-            <option value="draft">Draft</option>
-            <option value="published">Published</option>
-            <option value="archived">Archived</option>
-          </select>
-        </label>
-        <label className="notice-admin-filter-field">
-          <span>Category</span>
-          <select defaultValue={category} name="category">
-            <option value="">All categories</option>
-            {dashboard.categories.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="notice-admin-filter-actions">
-          <button className="admin-btn admin-btn--primary" type="submit">
-            Filter notices
-          </button>
-          {query || status || category ? (
-            <Link className="admin-btn admin-btn--ghost" href="/admin/content/notices">
-              Reset
-            </Link>
-          ) : null}
-        </div>
-      </form>
+      <NoticeAdminFilters
+        categories={categoryOptions}
+        category={category}
+        query={query}
+        status={status}
+      />
 
       <section className="notice-admin-queue grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
