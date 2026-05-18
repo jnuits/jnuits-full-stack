@@ -36,6 +36,10 @@ function getAdminPermissionForPath(pathname: string) {
     return "cms.blogs.review";
   }
 
+  if (pathname.startsWith("/admin/content/notices")) {
+    return "cms.notices.manage";
+  }
+
   if (pathname.startsWith("/admin/content/events")) {
     return "cms.events.manage";
   }

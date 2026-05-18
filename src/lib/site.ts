@@ -164,6 +164,7 @@ export const adminNavigation: NavItem[] = [
   { href: "/admin/content/slider", label: "Slider images" },
   { href: "/admin/content/media", label: "Media" },
   { href: "/admin/content/blogs", label: "Blogs" },
+  { href: "/admin/content/notices", label: "Notices" },
   { href: "/admin/content/events", label: "Events" },
   { href: "/admin/content/gallery", label: "Gallery" },
   { href: "/admin/content/projects", label: "Projects" },

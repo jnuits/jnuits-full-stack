@@ -121,12 +121,36 @@ export type EventPreview = {
 };
 
 export type NoticePreview = {
+  id?: string;
+  slug?: string;
   title: string;
   category: string;
   publishedAt: string;
   summary: string;
   delivery: "File link pending" | "Read route ready" | "External action";
   href?: string;
+  ctaHref?: null | string;
+};
+
+export type NoticeDetail = NoticePreview & {
+  body: null | string;
+  ctaHref: null | string;
+  id: string;
+  slug: string;
+};
+
+export type NoticeArchiveFilters = {
+  category?: string;
+  page?: number;
+  query?: string;
+};
+
+export type NoticeArchiveResult = {
+  categories: string[];
+  items: NoticePreview[];
+  page: number;
+  totalItems: number;
+  totalPages: number;
 };
 
 export type GalleryPreview = {
@@ -184,7 +208,6 @@ const galleryEntrySelect =
 
 const fallbackBlogImage = "/images/home-group.jpg";
 const fallbackEventImage = "/images/workshop.jpg";
-const fallbackNoticeHref = "/notices";
 
 export const verifiedPublicStats = [
   { value: "300+", label: "Active members" },
@@ -1247,21 +1270,32 @@ export const getPublishedEvents = cache(async () => {
   });
 });
 
-export const getPublishedNotices = cache(async () => {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("content_posts")
-    .select("title, category, summary, published_at, cta_href")
-    .eq("content_type", "notice")
-    .eq("status", "published")
-    .order("published_at", { ascending: false })
-    .limit(24);
+const NOTICES_PER_PAGE = 12;
 
-  if (!data || data.length === 0) {
-    return fallbackPublicNotices;
-  }
+function normalizeSearchText(value: string | null | undefined) {
+  return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
 
-  return data.map((record, index) => ({
+function buildNoticeSearchText(record: Pick<ContentPostRecord, "body" | "category" | "excerpt" | "slug" | "summary" | "title">) {
+  return [
+    record.slug,
+    record.title,
+    record.category,
+    record.summary,
+    record.excerpt,
+    record.body,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function mapNoticePreview(record: Pick<ContentPostRecord, "body" | "category" | "cta_href" | "id" | "published_at" | "slug" | "summary" | "title">, index = 0) {
+  const slug = record.slug || slugifyValue(record.title);
+
+  return {
+    id: record.id,
+    slug,
     title: record.title,
     category: record.category || "Notice",
     publishedAt:
@@ -1270,8 +1304,112 @@ export const getPublishedNotices = cache(async () => {
       new Date().toISOString(),
     summary: record.summary || "Public notice entry.",
     delivery: record.cta_href ? "External action" : "Read route ready",
-    href: record.cta_href || fallbackPublicNotices[index]?.href || fallbackNoticeHref,
-  })) satisfies NoticePreview[];
+    href: `/notices/${slug}`,
+    ctaHref: record.cta_href || null,
+  } satisfies NoticePreview;
+}
+
+function mapNoticeDetail(record: ContentPostRecord) {
+  return {
+    ...mapNoticePreview(record),
+    body: record.body || record.excerpt || null,
+    ctaHref: record.cta_href || null,
+    id: record.id,
+    slug: record.slug,
+  } satisfies NoticeDetail;
+}
+
+function buildPagedNoticeSlice<T>(items: T[], page: number) {
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / NOTICES_PER_PAGE));
+  const normalizedPage = Math.min(Math.max(page, 1), totalPages);
+  const start = (normalizedPage - 1) * NOTICES_PER_PAGE;
+
+  return {
+    items: items.slice(start, start + NOTICES_PER_PAGE),
+    page: normalizedPage,
+    totalItems,
+    totalPages,
+  };
+}
+
+function mapFallbackNotice(notice: NoticePreview, index: number) {
+  const slug = notice.slug || slugifyValue(notice.title) || `notice-${index + 1}`;
+  const relatedHref =
+    notice.href && !notice.href.startsWith("/notices") ? notice.href : notice.ctaHref || null;
+
+  return {
+    ...notice,
+    slug,
+    href: `/notices/${slug}`,
+    ctaHref: relatedHref,
+  } satisfies NoticePreview;
+}
+
+export const getPublishedNotices = cache(async (
+  filters: NoticeArchiveFilters = {}
+): Promise<NoticeArchiveResult> => {
+  const page = Number.isInteger(filters.page) && (filters.page || 0) > 0
+    ? Number(filters.page)
+    : 1;
+  const query = normalizeSearchText(filters.query);
+  const category = normalizeIdentifier(filters.category || "");
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("content_posts")
+    .select("id, slug, title, category, summary, excerpt, body, published_at, cta_href")
+    .eq("content_type", "notice")
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+    .limit(100);
+
+  if (!data || data.length === 0) {
+    const fallbackRows = fallbackPublicNotices.map(mapFallbackNotice);
+    const filteredFallbackRows = fallbackRows.filter((notice) => {
+      if (category && normalizeIdentifier(notice.category) !== category) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      return normalizeSearchText(
+        `${notice.slug || ""} ${notice.title} ${notice.category} ${notice.summary}`
+      ).includes(query);
+    });
+    const pagedFallbackRows = buildPagedNoticeSlice(filteredFallbackRows, page);
+
+    return {
+      categories: Array.from(new Set(fallbackRows.map((notice) => notice.category))).sort(),
+      items: pagedFallbackRows.items,
+      page: pagedFallbackRows.page,
+      totalItems: pagedFallbackRows.totalItems,
+      totalPages: pagedFallbackRows.totalPages,
+    };
+  }
+
+  const rows = data as Array<Pick<ContentPostRecord, "body" | "category" | "cta_href" | "excerpt" | "id" | "published_at" | "slug" | "summary" | "title">>;
+  const filteredRows = rows.filter((record) => {
+    if (category && normalizeIdentifier(record.category || "Notice") !== category) {
+      return false;
+    }
+
+    if (!query) {
+      return true;
+    }
+
+    return buildNoticeSearchText(record).includes(query);
+  });
+  const pagedRows = buildPagedNoticeSlice(filteredRows, page);
+
+  return {
+    categories: Array.from(new Set(rows.map((record) => record.category || "Notice"))).sort(),
+    items: pagedRows.items.map((record, index) => mapNoticePreview(record, index)),
+    page: pagedRows.page,
+    totalItems: pagedRows.totalItems,
+    totalPages: pagedRows.totalPages,
+  };
 });
 
 export const getPublishedGallery = cache(async () => {
@@ -1404,7 +1542,7 @@ function mapGalleryDetail(
 }
 
 async function getPublishedPostByIdentifier(
-  contentType: "blog" | "event",
+  contentType: "blog" | "event" | "notice",
   identifier: string
 ) {
   const normalizedIdentifier = normalizeIdentifier(identifier);
@@ -1456,6 +1594,31 @@ export const getPublishedBlogByIdentifier = cache(async (identifier: string) => 
 export const getPublishedEventByIdentifier = cache(async (identifier: string) => {
   const record = await getPublishedPostByIdentifier("event", identifier);
   return record ? mapEventDetail(record) : null;
+});
+
+export const getPublishedNoticeByIdentifier = cache(async (identifier: string) => {
+  const record = await getPublishedPostByIdentifier("notice", identifier);
+
+  if (record) {
+    return mapNoticeDetail(record);
+  }
+
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+  const fallback = fallbackPublicNotices
+    .map(mapFallbackNotice)
+    .find((notice) => normalizeIdentifier(notice.slug || "") === normalizedIdentifier);
+
+  if (!fallback?.slug) {
+    return null;
+  }
+
+  return {
+    ...fallback,
+    body: fallback.summary,
+    ctaHref: fallback.ctaHref || null,
+    id: fallback.slug,
+    slug: fallback.slug,
+  } satisfies NoticeDetail;
 });
 
 export const getPublishedGalleryByIdentifier = cache(async (identifier: string) => {

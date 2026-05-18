@@ -26,11 +26,15 @@ export default async function ContentHubPage() {
       admin.from("projects").select("*", { count: "exact", head: true }),
     ]);
 
-  const [blogCount, eventCount, submittedCount] = await Promise.all([
+  const [blogCount, noticeCount, eventCount, submittedCount] = await Promise.all([
     admin
       .from("content_posts")
       .select("*", { count: "exact", head: true })
       .eq("content_type", "blog"),
+    admin
+      .from("content_posts")
+      .select("*", { count: "exact", head: true })
+      .eq("content_type", "notice"),
     admin
       .from("content_posts")
       .select("*", { count: "exact", head: true })
@@ -57,6 +61,13 @@ export default async function ContentHubPage() {
       label: "Blogs",
       desc: `${submittedCount.count || 0} member submission${(submittedCount.count || 0) !== 1 ? "s" : ""} pending review`,
       badge: (submittedCount.count || 0) > 0 ? submittedCount.count : null,
+    },
+    {
+      href: "/admin/content/notices",
+      icon: <FileText size={20} />,
+      count: noticeCount.count || 0,
+      label: "Notices",
+      desc: "Publish official announcements and stable notice routes",
     },
     {
       href: "/admin/content/events",

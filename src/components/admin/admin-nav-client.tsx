@@ -80,6 +80,7 @@ function buildNavGroups(
         createNavItem("/admin/content/slider", "Slider images", ImageIcon),
         createNavItem("/admin/content/media", "Media", ImageIcon),
         createNavItem("/admin/content/blogs", "Blogs", FileText),
+        createNavItem("/admin/content/notices", "Notices", ScrollText),
         createNavItem("/admin/content/events", "Events", BookOpen),
         createNavItem("/admin/content/gallery", "Gallery", ImageIcon),
         createNavItem("/admin/content/projects", "Projects", FileCode2),
