@@ -6016,6 +6016,15 @@ ul.clean-list {
   padding: 24px;
 }
 
+.about-advisor-card--moderator-mentor.about-advisor-card--standard {
+  width: 100%;
+  border-color: var(--color-border-secondary);
+  border-radius: 16px;
+  background: var(--color-background-secondary);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  padding: 32px;
+}
+
 .about-advisor-card__media {
   flex: 0 0 auto;
 }
