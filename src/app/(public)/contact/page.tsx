@@ -328,7 +328,7 @@ function OfficialContact({ googleBusinessHref, settings, socialLinks }: Official
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Open Google Business Listing in a new tab"
-            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition-all hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="secondary-button contact-business-button mt-4"
           >
             <Globe aria-hidden="true" size={15} />
             Google Business Listing
@@ -411,20 +411,16 @@ function OfficialContact({ googleBusinessHref, settings, socialLinks }: Official
 
 function ContactHero() {
   return (
-    <section className="px-6 py-12 text-center" aria-labelledby="contact-page-title">
+    <section className="contact-hero px-6 py-12 text-center" aria-labelledby="contact-page-title">
       <div className="mx-auto max-w-[600px]">
-        <div className="mb-5 flex items-center justify-center gap-3 text-primary">
-          <span className="h-px w-8 bg-primary/50" aria-hidden="true" />
-          <p className="text-[10px] font-bold uppercase tracking-widest">Get in touch</p>
-          <span className="h-px w-8 bg-primary/50" aria-hidden="true" />
-        </div>
+        <p className="slogan-pill contact-hero__eyebrow">Get in touch</p>
         <h1
           id="contact-page-title"
-          className="text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-5xl"
+          className="contact-hero__title text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-5xl"
         >
           We&apos;d love to hear from you.
         </h1>
-        <p className="mx-auto mt-4 max-w-[480px] text-base leading-relaxed text-muted-foreground">
+        <p className="contact-hero__summary mx-auto mt-4 max-w-[480px] text-base leading-relaxed text-muted-foreground">
           Send us a message using the form or reach us directly using the contact details
           below.
         </p>
@@ -483,7 +479,7 @@ export default async function ContactPage({
     typeof resolvedSearchParams.subject === "string" ? resolvedSearchParams.subject : "";
 
   return (
-    <main className="shell py-12">
+    <main className="contact-public-page shell py-12">
       <ContactHero />
 
       <section className="pb-16 pt-12" aria-label="Contact details and form">

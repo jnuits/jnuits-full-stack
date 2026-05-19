@@ -15,7 +15,7 @@ export default async function PublicLayout({
   return (
     <>
       <SiteHeader authenticated={Boolean(user)} />
-      <main className="flex-1">{children}</main>
+      <main className="public-site flex-1">{children}</main>
       <SiteFooter />
     </>
   );

@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function CommitteePage() {
   return (
-    <main className="overflow-x-hidden bg-background text-foreground">
+    <main className="committee-page overflow-x-hidden bg-background text-foreground">
       <Suspense fallback={<CommitteePageSkeleton />}>
         <CommitteeContent />
       </Suspense>

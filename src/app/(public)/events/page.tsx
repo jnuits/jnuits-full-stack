@@ -96,7 +96,7 @@ export default async function EventsPage({
   const pageNumbers = buildPageNumbers(archive.page, archive.totalPages);
 
   return (
-    <div className="shell py-12">
+    <div className="event-archive-page shell py-12">
       <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">
         <div className="event-hero-grid">
           <div className="grid gap-5">

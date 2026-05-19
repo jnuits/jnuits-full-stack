@@ -319,10 +319,8 @@ export default async function GalleryPage({
                     aria-current={
                       pageNumber === currentPage ? "page" : undefined
                     }
-                    className={`inline-flex h-11 min-w-11 items-center justify-center rounded-full border px-4 text-sm font-semibold transition ${
-                      pageNumber === currentPage
-                        ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
-                        : "border-[var(--line)] bg-[var(--card)] text-[var(--foreground)] hover:border-[var(--primary)]"
+                    className={`gallery-page-number ${
+                      pageNumber === currentPage ? "primary-button" : "secondary-button"
                     }`}
                     href={buildGalleryPageHref({
                       category,

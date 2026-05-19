@@ -447,7 +447,7 @@ export function ContactFormCard({
           </div>
 
           <button
-            className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="primary-button contact-submit-button mt-4 w-full disabled:cursor-not-allowed disabled:opacity-60"
             type="submit"
             disabled={submitDisabled}
             suppressHydrationWarning

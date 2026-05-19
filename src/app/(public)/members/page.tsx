@@ -115,13 +115,13 @@ export default async function MembersPage({
 
           <div className="flex flex-wrap gap-2">
             <Link
-              className="inline-flex h-9 items-center rounded-full bg-[var(--brand-blue)] px-4 text-sm font-semibold text-white shadow-[var(--shadow-xs)] transition hover:opacity-90"
+              className="primary-button"
               href="/portal/profile/edit"
             >
               Verify in member portal
             </Link>
             <Link
-              className="inline-flex h-9 items-center rounded-full border border-[var(--line)] bg-transparent px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--brand-blue)] hover:text-[var(--brand-blue)]"
+              className="secondary-button"
               href="/membership-form"
             >
               Check application status
