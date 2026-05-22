@@ -2,17 +2,38 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { EventRichTextFormat } from "@/lib/content/events-shared";
 
 type EventMarkdownProps = {
-  markdown?: string;
-  source?: string;
+  format?: EventRichTextFormat;
+  markdown?: string | null;
+  source?: string | null;
 };
 
-export function EventMarkdown({ markdown, source }: EventMarkdownProps) {
-  const content = source ?? markdown ?? "";
+function hasHtmlMarkup(value: string) {
+  return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+export function EventMarkdown({
+  format = "markdown",
+  markdown,
+  source,
+}: EventMarkdownProps) {
+  const content = (source ?? markdown ?? "").trim();
+  const className =
+    "event-markdown prose dark:prose-invert max-w-none prose-slate lg:prose-lg prose-headings:font-[family-name:var(--font-heading)] prose-headings:tracking-[-0.03em] prose-p:leading-8 prose-li:leading-8 prose-strong:text-[var(--color-text-primary)] prose-a:font-semibold prose-a:no-underline hover:prose-a:text-[var(--foreground)] hover:prose-a:underline prose-a:underline-offset-[0.18em] prose-img:max-w-full prose-img:rounded-xl prose-img:border prose-img:border-[var(--color-border-tertiary)] prose-code:before:content-none prose-code:after:content-none";
+
+  if (format === "html" || (format !== "plain" && hasHtmlMarkup(content))) {
+    return (
+      <div
+        className={className}
+        dangerouslySetInnerHTML={{ __html: content }}
+      />
+    );
+  }
 
   return (
-    <div className="event-markdown prose prose-slate max-w-none lg:prose-lg dark:prose-invert prose-headings:font-[family-name:var(--font-heading)] prose-headings:tracking-[-0.03em] prose-p:leading-8 prose-li:leading-8 prose-a:font-semibold prose-a:no-underline hover:prose-a:text-[var(--foreground)] hover:prose-a:underline prose-a:underline-offset-[0.18em] prose-code:before:content-none prose-code:after:content-none">
+    <div className={className}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

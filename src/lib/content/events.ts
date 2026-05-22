@@ -10,9 +10,12 @@ import {
   EVENT_REGISTRATION_MODES,
   EVENTS_PER_PAGE,
   EVENT_STATUSES,
+  stripEventMetadataTrailer,
+  formatTag,
   toEventCategoryLabel,
   toEventDeliveryModeLabel,
   type EventArchiveView,
+  type EventRichTextFormat,
 } from "@/lib/content/events-shared";
 import type { Tables } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -26,10 +29,12 @@ export {
   EVENT_REGISTRATION_MODES,
   EVENTS_PER_PAGE,
   EVENT_STATUSES,
+  stripEventMetadataTrailer,
+  formatTag,
   toEventCategoryLabel,
   toEventDeliveryModeLabel,
 };
-export type { EventArchiveView };
+export type { EventArchiveView, EventRichTextFormat };
 
 type EventRow = Pick<
   Tables<"events">,
@@ -131,6 +136,7 @@ export type EventListItem = {
 };
 
 export type EventDetail = EventListItem & {
+  bodyFormat: EventRichTextFormat;
   bodyMarkdown: string | null;
   capacity: number | null;
   coverAltTextOverride: string | null;
@@ -156,6 +162,10 @@ export type EventArchiveFilters = {
 
 export type EventArchiveResult = {
   categories: string[];
+  categoryCounts: Array<{
+    category: string;
+    count: number;
+  }>;
   featuredEvent: EventListItem | null;
   items: EventListItem[];
   page: number;
@@ -524,6 +534,7 @@ function mapEventDetail(
 
   return {
     ...base,
+    bodyFormat: "markdown",
     bodyMarkdown: row.body_markdown,
     capacity: row.capacity,
     coverAltTextOverride: row.cover_alt_text_override,
@@ -607,6 +618,19 @@ export async function getPublicEventsPage(
       return true;
     })
     .sort(view === "past" ? sortByStartsAtDescending : sortByStartsAtAscending);
+  // UX-FIX: Category filter counts
+  const categoryCounts = rows
+    .filter((row) => {
+      const lifecycle = getLifecycleState(row);
+
+      return view === "upcoming"
+        ? lifecycle !== "completed"
+        : lifecycle === "completed";
+    })
+    .reduce((counts, row) => {
+      counts.set(row.category, (counts.get(row.category) || 0) + 1);
+      return counts;
+    }, new Map<string, number>());
   const paged = buildPagedSlice(filteredRows, page);
   const registrationRows = paged.items.slice();
 
@@ -621,6 +645,9 @@ export async function getPublicEventsPage(
 
   return {
     categories: Array.from(new Set(rows.map((row) => row.category))).sort(),
+    categoryCounts: Array.from(categoryCounts.entries())
+      .map(([category, count]) => ({ category, count }))
+      .sort((left, right) => left.category.localeCompare(right.category)),
     featuredEvent: featuredRow ? mapEventRow(featuredRow, counts.get(featuredRow.id) || 0) : null,
     items: paged.items.map((row) => mapEventRow(row, counts.get(row.id) || 0)),
     page: paged.page,

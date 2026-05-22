@@ -9,6 +9,10 @@ import {
 
 type EventArchiveFiltersProps = {
   categories: string[];
+  categoryCounts?: Array<{
+    category: string;
+    count: number;
+  }>;
   category: string;
   query: string;
   view: EventArchiveView;
@@ -35,6 +39,7 @@ function updateParams(
 
 export function EventArchiveFilters({
   categories,
+  categoryCounts = [],
   category,
   query,
   view,
@@ -86,13 +91,18 @@ export function EventArchiveFilters({
     };
   }, []);
 
+  const countsByCategory = new Map(
+    categoryCounts.map((option) => [option.category, option.count])
+  );
+
   return (
-    <section className="gallery-filter-panel">
+    <section className="gallery-filter-panel event-filter-panel">
       <span aria-live="polite" className="sr-only">
         {isPending ? "Updating events." : ""}
       </span>
-      <div className="gallery-filter-panel__grid">
-        <div className="grid gap-2">
+      {/* UX-FIX: Filter bar fragmentation */}
+      <div className="gallery-filter-panel__grid event-filter-panel__grid">
+        <div className="event-filter-panel__view">
           <span className="input-label">Archive view</span>
           <div className="flex flex-wrap gap-2">
             {(["upcoming", "past"] as const).map((option) => (
@@ -108,30 +118,33 @@ export function EventArchiveFilters({
             ))}
           </div>
         </div>
-        <label className="input-label">
-          Search events
-          <input
-            name="q"
-            onChange={(event) => updateQuery(event.target.value)}
-            placeholder="Search by title, venue, summary, or category"
-            value={queryValue}
-          />
-        </label>
-        <label className="input-label">
-          Category
-          <select
-            name="category"
-            onChange={(event) => updateFilter("category", event.target.value)}
-            value={category}
-          >
-            <option value="">All categories</option>
-            {categories.map((option) => (
-              <option key={option} value={option}>
-                {toEventCategoryLabel(option)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="event-filter-panel__controls">
+          <label className="input-label">
+            Search events
+            <input
+              name="q"
+              onChange={(event) => updateQuery(event.target.value)}
+              placeholder="Search by title, venue, summary, or category"
+              value={queryValue}
+            />
+          </label>
+          <label className="input-label">
+            Category
+            <select
+              name="category"
+              onChange={(event) => updateFilter("category", event.target.value)}
+              value={category}
+            >
+              <option value="">All categories</option>
+              {/* UX-FIX: Category filter counts */}
+              {categories.map((option) => (
+                <option key={option} value={option}>
+                  {toEventCategoryLabel(option)} ({countsByCategory.get(option) || 0})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
     </section>
   );
