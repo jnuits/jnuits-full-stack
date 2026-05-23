@@ -29,6 +29,8 @@ type CsvRow = Record<string, string | undefined>;
 
 const BATCH_STATUSES = ["draft", "active", "closed", "archived"] as const;
 const BATCH_SOURCES = ["manual", "csv_onboarding", "reconciliation", "renewal"] as const;
+const MEMBER_INVITATION_SELECT =
+  "id, full_name, email, jnuits_id, member_type, lifecycle_status, portal_access_status, is_profile_claimed";
 
 const optionalPositiveInt = (fallback: number, max: number) =>
   z.preprocess(
@@ -37,11 +39,14 @@ const optionalPositiveInt = (fallback: number, max: number) =>
   );
 
 const directInviteSchema = z.object({
+  email: z.string().trim().max(180).optional().default(""),
   expiresInDays: optionalPositiveInt(14, 365),
+  fullName: z.string().trim().max(180).optional().default(""),
   invitationType: z.enum(["member_claim", "alumni_direct"]).default("member_claim"),
+  jnuitsId: z.string().trim().max(80).optional().default(""),
   maxUses: optionalPositiveInt(1, 1000),
   note: z.string().trim().max(1000).optional().default(""),
-  target: z.string().trim().min(1, "Member ID or email is required.").max(180),
+  target: z.string().trim().max(180).optional().default(""),
 });
 
 const createBatchSchema = z.object({
@@ -99,6 +104,60 @@ function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+type InvitationIdentity = {
+  email: string;
+  fullName: string;
+  jnuitsId: string;
+};
+
+function normalizeInvitationIdentity(input: {
+  email?: string;
+  fullName?: string;
+  jnuitsId?: string;
+  target?: string;
+}) {
+  const rawJnuitsId = input.jnuitsId || input.target || "";
+  const identity = {
+    email: normalizeEmail(input.email || ""),
+    fullName: clean(input.fullName),
+    jnuitsId: normalizeJnuitsIdForCreation(rawJnuitsId),
+  };
+
+  if (!identity.jnuitsId) {
+    return { error: "A valid JnUITS ID is required." };
+  }
+
+  if (!identity.email) {
+    return { error: "A valid email address is required." };
+  }
+
+  if (!identity.fullName) {
+    return { error: "Full name is required." };
+  }
+
+  return { identity };
+}
+
+function csvJnuitsId(row: CsvRow) {
+  return clean(row.jnuits_id || row.jnuitsId || row.member_id || row.memberId);
+}
+
+function csvEmail(row: CsvRow) {
+  return clean(row.email || row.email_id || row.emailId);
+}
+
+function csvDisplayName(row: CsvRow) {
+  return clean(row.full_name || row.fullName || row.name);
+}
+
+function csvInvitationIdentity(row: CsvRow) {
+  return normalizeInvitationIdentity({
+    email: csvEmail(row),
+    fullName: csvDisplayName(row),
+    jnuitsId: csvJnuitsId(row),
+  });
+}
+
 function parseCsvRows(csvContent: string) {
   return parse(csvContent, {
     bom: true,
@@ -112,43 +171,6 @@ async function requireInvitationAdmin() {
   return requireAdminPermission("admin.membership.manage", {
     fallbackPath: "/admin/invitations",
   });
-}
-
-async function resolveMemberByTarget(target: string) {
-  const admin = createAdminClient();
-  const flexibleAdmin = asFlexibleClient(admin);
-  const normalizedId = normalizeJnuitsIdForCreation(target);
-  const normalizedEmail = normalizeEmail(target);
-
-  if (normalizedId) {
-    const { data, error } = await flexibleAdmin
-      .from("members" as string)
-      .select("id, full_name, email, jnuits_id, member_type, lifecycle_status, is_profile_claimed")
-      .eq("jnuits_id", normalizedId)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return (data || null) as InvitationMember | null;
-  }
-
-  if (normalizedEmail) {
-    const { data, error } = await flexibleAdmin
-      .from("members" as string)
-      .select("id, full_name, email, jnuits_id, member_type, lifecycle_status, is_profile_claimed")
-      .eq("email", normalizedEmail)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return (data || null) as InvitationMember | null;
-  }
-
-  return null;
 }
 
 async function hasActiveInvitation(memberId: string, batchId?: null | string) {
@@ -178,55 +200,123 @@ function isEligibleForAlumniInvite(member: InvitationMember) {
   );
 }
 
-function csvDisplayName(row: CsvRow) {
-  return clean(row.full_name || row.fullName || row.name);
+async function findInvitationMember(
+  admin: ReturnType<typeof createAdminClient>,
+  column: "email" | "jnuits_id",
+  value: string
+) {
+  const { data, error } = await asFlexibleClient(admin)
+    .from("members" as string)
+    .select(MEMBER_INVITATION_SELECT)
+    .eq(column, value)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data || null) as InvitationMember | null;
 }
 
-async function createLegacyAlumniMemberFromCsv(
+async function createInvitationMember(
   admin: ReturnType<typeof createAdminClient>,
-  row: CsvRow
+  identity: InvitationIdentity,
+  invitationType: InvitationType
 ) {
-  const flexibleAdmin = asFlexibleClient(admin);
-  const email = normalizeEmail(row.email || "");
-  const fullName = csvDisplayName(row);
-
-  if (!email || !fullName) {
-    throw new Error("Missing alumni name or email.");
-  }
-
-  const providedId = normalizeJnuitsIdForCreation(
-    clean(row.jnuits_id || row.jnuitsId || row.member_id)
-  );
-  const { data: allocatedId, error: allocationError } = providedId
-    ? { data: providedId, error: null }
-    : await flexibleAdmin.rpc("allocate_membership_id" as string, { year_block: "0000" });
-
-  if (allocationError || !allocatedId) {
-    throw new Error(allocationError?.message || "Unable to allocate legacy alumni ID.");
-  }
-
-  const { data: member, error } = await flexibleAdmin
+  const isAlumniInvite = invitationType === "alumni_direct";
+  const { data, error } = await asFlexibleClient(admin)
     .from("members" as string)
     .insert({
-      batch_no: row.batch_no || row.batchNo ? Number(row.batch_no || row.batchNo) || null : null,
-      department_code: clean(row.department_code || row.departmentCode) || null,
-      email,
-      full_name: fullName,
-      jnuits_id: allocatedId,
-      lifecycle_status: "alumni",
-      member_type: "alumni",
-      phone: clean(row.phone) || null,
+      email: identity.email,
+      full_name: identity.fullName,
+      jnuits_id: identity.jnuitsId,
+      lifecycle_status: isAlumniInvite ? "alumni" : "current",
+      member_type: isAlumniInvite ? "alumni" : "current",
       portal_access_status: "active",
       professional_visibility: "members-only",
     })
-    .select("id, full_name, email, jnuits_id, member_type, lifecycle_status, is_profile_claimed")
+    .select(MEMBER_INVITATION_SELECT)
     .single();
 
-  if (error || !member?.id) {
-    throw new Error(error?.message || "Unable to create legacy alumni record.");
+  if (error || !data?.id) {
+    throw new Error(error?.message || "Unable to create member record.");
   }
 
-  return member as InvitationMember;
+  return data as InvitationMember;
+}
+
+async function resolveInvitationMember(
+  admin: ReturnType<typeof createAdminClient>,
+  identity: InvitationIdentity,
+  invitationType: InvitationType
+) {
+  const byId = await findInvitationMember(admin, "jnuits_id", identity.jnuitsId);
+  const byEmail = await findInvitationMember(admin, "email", identity.email);
+
+  if (byId && byEmail && byId.id !== byEmail.id) {
+    throw new Error("The JnUITS ID and email belong to different member records.");
+  }
+
+  const member = byId || byEmail;
+
+  if (!member) {
+    return { created: true, member: await createInvitationMember(admin, identity, invitationType) };
+  }
+
+  const existingEmail = member.email?.trim().toLowerCase() || "";
+
+  if (member.jnuits_id && member.jnuits_id !== identity.jnuitsId) {
+    throw new Error("This email is already linked to a different JnUITS ID.");
+  }
+
+  if (existingEmail && existingEmail !== identity.email) {
+    throw new Error("This JnUITS ID is already linked to a different email.");
+  }
+
+  if (member.is_profile_claimed) {
+    return { created: false, member };
+  }
+
+  const updates: Record<string, string> = {};
+
+  if (!existingEmail) {
+    updates.email = identity.email;
+  }
+
+  if ((member.full_name || "").trim() !== identity.fullName) {
+    updates.full_name = identity.fullName;
+  }
+
+  if (invitationType === "alumni_direct" && isEligibleForAlumniInvite(member)) {
+    if (member.member_type !== "alumni") {
+      updates.member_type = "alumni";
+    }
+
+    if (member.lifecycle_status !== "alumni") {
+      updates.lifecycle_status = "alumni";
+    }
+
+    if (member.portal_access_status !== "active") {
+      updates.portal_access_status = "active";
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return { created: false, member };
+  }
+
+  const { data, error } = await asFlexibleClient(admin)
+    .from("members" as string)
+    .update(updates)
+    .eq("id", member.id)
+    .select(MEMBER_INVITATION_SELECT)
+    .single();
+
+  if (error || !data?.id) {
+    throw new Error(error?.message || "Unable to update member record.");
+  }
+
+  return { created: false, member: data as InvitationMember };
 }
 
 export async function issueDirectInvitationAction(input: unknown): Promise<ActionResult> {
@@ -240,10 +330,20 @@ export async function issueDirectInvitationAction(input: unknown): Promise<Actio
     }
 
     const admin = createAdminClient();
-    const member = await resolveMemberByTarget(parsed.target);
+    const identityResult = normalizeInvitationIdentity(parsed);
 
-    if (!member) {
-      return { ok: false, message: "No matching member record was found." };
+    if (identityResult.error || !identityResult.identity) {
+      return { ok: false, message: identityResult.error || "Invalid invitation identity." };
+    }
+
+    const { created, member } = await resolveInvitationMember(
+      admin,
+      identityResult.identity,
+      parsed.invitationType
+    );
+
+    if (member.is_profile_claimed) {
+      return { ok: false, message: "This member profile is already claimed." };
     }
 
     if (parsed.invitationType === "alumni_direct" && !isEligibleForAlumniInvite(member)) {
@@ -277,7 +377,10 @@ export async function issueDirectInvitationAction(input: unknown): Promise<Actio
       entity_type: "member_invitation",
       metadata: {
         deliveryStatus: result.deliveryStatus,
+        email: identityResult.identity.email,
+        fullName: identityResult.identity.fullName,
         invitationType: parsed.invitationType,
+        memberCreated: created,
         memberId: member.id,
       },
     });
@@ -675,32 +778,53 @@ export async function previewCsvInvitationsAction(input: unknown): Promise<Actio
     await requireInvitationAdmin();
     const parsed = csvSchema.parse(input);
     const rows = parseCsvRows(parsed.csvContent).slice(0, 500);
+    const admin = createAdminClient();
     const preview = [];
 
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
-      const target = row.jnuits_id || row.jnuitsId || row.member_id || row.email || "";
-      const member = target ? await resolveMemberByTarget(target) : null;
-      const canCreateLegacyAlumni =
-        parsed.invitationType === "alumni_direct" &&
-        !member &&
-        Boolean(normalizeEmail(row.email || "")) &&
-        Boolean(csvDisplayName(row));
-      const eligible = member
-        ? parsed.invitationType !== "alumni_direct" || isEligibleForAlumniInvite(member)
-        : canCreateLegacyAlumni;
+      const identityResult = csvInvitationIdentity(row);
+      const byId = identityResult.identity
+        ? await findInvitationMember(admin, "jnuits_id", identityResult.identity.jnuitsId)
+        : null;
+      const byEmail = identityResult.identity
+        ? await findInvitationMember(admin, "email", identityResult.identity.email)
+        : null;
+      const hasConflict = Boolean(
+        (byId && byEmail && byId.id !== byEmail.id) ||
+          (byEmail?.jnuits_id &&
+            identityResult.identity?.jnuitsId &&
+            byEmail.jnuits_id !== identityResult.identity.jnuitsId) ||
+          (byId?.email &&
+            identityResult.identity?.email &&
+            byId.email.trim().toLowerCase() !== identityResult.identity.email)
+      );
+      const member = byId || byEmail;
+      const hasActive = member ? await hasActiveInvitation(member.id) : false;
+      const eligible =
+        Boolean(identityResult.identity) &&
+        !hasConflict &&
+        !member?.is_profile_claimed &&
+        !hasActive &&
+        (!member || parsed.invitationType !== "alumni_direct" || isEligibleForAlumniInvite(member));
 
       preview.push({
-        email: row.email || member?.email || "",
-        jnuitsId: row.jnuits_id || row.jnuitsId || member?.jnuits_id || "",
-        message: member
-          ? eligible
-            ? "Ready"
-            : "Not eligible for alumni invite"
-          : canCreateLegacyAlumni
-            ? "Ready - will create legacy alumni record"
-            : "No matching member",
-        name: csvDisplayName(row) || member?.full_name || "",
+        email: identityResult.identity?.email || "",
+        jnuitsId: identityResult.identity?.jnuitsId || csvJnuitsId(row),
+        message: identityResult.error
+          ? identityResult.error
+          : hasConflict
+            ? "JnUITS ID and email do not match the same member"
+            : member?.is_profile_claimed
+              ? "Already claimed"
+              : hasActive
+                ? "Active invitation already exists"
+                : member
+                  ? eligible
+                    ? "Ready"
+                    : "Not eligible for alumni invite"
+                  : "Ready - will create member record",
+        name: identityResult.identity?.fullName || "",
         row: index + 1,
         status: eligible ? "ready" : "blocked",
       });
@@ -740,30 +864,31 @@ export async function commitCsvInvitationsAction(input: unknown): Promise<Action
     let skipped = 0;
 
     for (const row of rows) {
-      const target = row.jnuits_id || row.jnuitsId || row.member_id || row.email || "";
-      let member = target ? await resolveMemberByTarget(target) : null;
+      const identityResult = csvInvitationIdentity(row);
 
-      if (!member && parsed.invitationType === "alumni_direct") {
-        try {
-          member = await createLegacyAlumniMemberFromCsv(admin, row);
-          await persistInvitationAudit(admin, {
-            action: "membership.legacy_alumni_created_for_invite",
-            actor_user_id: actorUserId,
-            entity_id: member.id,
-            entity_type: "member",
-            metadata: {
-              email: member.email,
-              jnuitsId: member.jnuits_id,
-            },
-          });
-        } catch {
-          skipped += 1;
-          continue;
-        }
+      if (identityResult.error || !identityResult.identity) {
+        skipped += 1;
+        continue;
+      }
+
+      let member: InvitationMember;
+      let created = false;
+
+      try {
+        const resolved = await resolveInvitationMember(
+          admin,
+          identityResult.identity,
+          parsed.invitationType as InvitationType
+        );
+        member = resolved.member;
+        created = resolved.created;
+      } catch {
+        skipped += 1;
+        continue;
       }
 
       if (
-        !member ||
+        member.is_profile_claimed ||
         (parsed.invitationType === "alumni_direct" && !isEligibleForAlumniInvite(member)) ||
         (await hasActiveInvitation(member.id))
       ) {
@@ -780,6 +905,20 @@ export async function commitCsvInvitationsAction(input: unknown): Promise<Action
         member,
         note: parsed.note || "CSV invitation import",
       });
+
+      if (created) {
+        await persistInvitationAudit(admin, {
+          action: "membership.member_created_for_invite",
+          actor_user_id: actorUserId,
+          entity_id: member.id,
+          entity_type: "member",
+          metadata: {
+            email: member.email,
+            invitationType: parsed.invitationType,
+            jnuitsId: member.jnuits_id,
+          },
+        });
+      }
 
       issued += 1;
       if (result.deliveryStatus === "failed") {

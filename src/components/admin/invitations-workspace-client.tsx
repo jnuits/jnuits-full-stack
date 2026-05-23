@@ -357,7 +357,9 @@ export function InvitationsWorkspaceClient({
     top: number;
   } | null>(null);
   const [bulkConfirming, setBulkConfirming] = useState(false);
-  const [directTarget, setDirectTarget] = useState("");
+  const [directJnuitsId, setDirectJnuitsId] = useState("");
+  const [directEmail, setDirectEmail] = useState("");
+  const [directFullName, setDirectFullName] = useState("");
   const [directType, setDirectType] = useState<"alumni_direct" | "member_claim">("member_claim");
   const [directNote, setDirectNote] = useState("");
   const [batchLabel, setBatchLabel] = useState("");
@@ -872,8 +874,10 @@ export function InvitationsWorkspaceClient({
                 invitationType: directType,
                 maxUses: 1,
                 expiresInDays: 14,
+                email: directEmail,
+                fullName: directFullName,
+                jnuitsId: directJnuitsId,
                 note: directNote,
-                target: directTarget,
               })
             );
           }}
@@ -881,20 +885,41 @@ export function InvitationsWorkspaceClient({
           <div>
             <span className="eyebrow">Direct issue</span>
             <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-              Invite existing member or alumni
+              Invite member or alumni
             </h2>
           </div>
-          <label className="input-label" htmlFor="direct-invite-target">
-            JnUITS ID or email
-            <input
-              id="direct-invite-target"
-              onChange={(event) => setDirectTarget(event.target.value)}
-              placeholder="JnUITS-2026001 or member@example.com"
-              required
-              value={directTarget}
-            />
-          </label>
           <div className="portal-form-grid">
+            <label className="input-label" htmlFor="direct-invite-jnuits-id">
+              JnUITS ID
+              <input
+                id="direct-invite-jnuits-id"
+                onChange={(event) => setDirectJnuitsId(event.target.value)}
+                placeholder="JnUITS-2026001"
+                required
+                value={directJnuitsId}
+              />
+            </label>
+            <label className="input-label" htmlFor="direct-invite-email">
+              Email ID
+              <input
+                id="direct-invite-email"
+                onChange={(event) => setDirectEmail(event.target.value)}
+                placeholder="member@example.com"
+                required
+                type="email"
+                value={directEmail}
+              />
+            </label>
+            <label className="input-label" htmlFor="direct-invite-full-name">
+              Full name
+              <input
+                id="direct-invite-full-name"
+                onChange={(event) => setDirectFullName(event.target.value)}
+                placeholder="Member full name"
+                required
+                value={directFullName}
+              />
+            </label>
             <label className="input-label" htmlFor="direct-invite-type">
               Invite type
               <select
@@ -906,6 +931,8 @@ export function InvitationsWorkspaceClient({
                 <option value="alumni_direct">Alumni direct</option>
               </select>
             </label>
+          </div>
+          <div className="portal-form-grid">
             <label className="input-label" htmlFor="direct-invite-note">
               Operator note
               <input
@@ -939,14 +966,17 @@ export function InvitationsWorkspaceClient({
           <div>
             <span className="eyebrow">CSV preview and commit</span>
             <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-              Bulk invite existing records
+              Bulk invite records
             </h2>
           </div>
           <label className="input-label" htmlFor="csv-invite-type">
             Invite type
             <select
               id="csv-invite-type"
-              onChange={(event) => setCsvType(event.target.value as "alumni_direct" | "member_claim")}
+              onChange={(event) => {
+                setCsvType(event.target.value as "alumni_direct" | "member_claim");
+                setCsvPreview(null);
+              }}
               value={csvType}
             >
               <option value="member_claim">Member claim</option>
@@ -957,8 +987,11 @@ export function InvitationsWorkspaceClient({
             CSV content
             <textarea
               id="csv-content"
-              onChange={(event) => setCsvContent(event.target.value)}
-              placeholder="jnuits_id,email&#10;JNUITS-2026001,member@example.com"
+              onChange={(event) => {
+                setCsvContent(event.target.value);
+                setCsvPreview(null);
+              }}
+              placeholder="jnuits_id,email,full_name&#10;JNUITS-2026001,member@example.com,Member full name"
               rows={7}
               value={csvContent}
             />

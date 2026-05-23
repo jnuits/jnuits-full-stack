@@ -178,7 +178,7 @@ export function buildMembershipApprovedEmail(props: MembershipApprovedEmailProps
       `This code expires on <strong style="color:${TEXT};">${esc(expiryDate)}</strong>. Use it to sign up at the link below.`,
       "font-size:13px;"
     ),
-    button("Claim your member account", "https://jnuits.org.bd/claim"),
+    button("Claim your member account", "https://jnuits.org.bd/register"),
     hr(),
     p(
       `Having trouble? Reply to this email or ${link("contact us", "https://jnuits.org.bd/contact")}.`,
@@ -215,7 +215,7 @@ export function buildMemberInvitationEmail(props: MemberInvitationEmailProps): s
     ]),
     p("Use this claim code to create your portal account. Keep it private."),
     codeBlock(invitationCode),
-    button("Claim member account", "https://jnuits.org.bd/claim"),
+    button("Claim member account", "https://jnuits.org.bd/register"),
     hr(),
     p(
       `If this invitation looks unexpected, please ${link("contact JnUITS", "https://jnuits.org.bd/contact")}.`,
@@ -251,7 +251,7 @@ export function buildAlumniInvitationEmail(props: AlumniInvitationEmailProps): s
     ]),
     p("Use this claim code to activate alumni portal access."),
     codeBlock(invitationCode),
-    button("Join alumni portal", "https://jnuits.org.bd/claim"),
+    button("Join alumni portal", "https://jnuits.org.bd/register"),
     hr(),
     p(
       `Need help? ${link("Contact JnUITS", "https://jnuits.org.bd/contact")}.`,

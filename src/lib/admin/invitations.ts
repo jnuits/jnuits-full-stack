@@ -31,6 +31,7 @@ export type InvitationMember = {
   jnuits_id: null | string;
   lifecycle_status?: null | string;
   member_type?: null | string;
+  portal_access_status?: null | string;
 };
 
 export type InvitationIssueResult = {
