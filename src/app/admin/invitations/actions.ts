@@ -19,10 +19,13 @@ import {
 
 type ActionResult = {
   code?: string;
+  deliveryError?: string;
+  deliveryStatus?: "failed" | "sent" | "skipped";
   details?: Record<string, unknown>;
   jnuitsId?: string;
   message: string;
   ok: boolean;
+  recipientEmail?: string;
 };
 
 type CsvRow = Record<string, string | undefined>;
@@ -388,12 +391,17 @@ export async function issueDirectInvitationAction(input: unknown): Promise<Actio
     revalidatePath("/admin/invitations");
     return {
       code: result.code,
+      deliveryError: result.deliveryError,
+      deliveryStatus: result.deliveryStatus,
       jnuitsId: member.jnuits_id || undefined,
       message:
         result.deliveryStatus === "failed"
-          ? `Invitation created, but email delivery failed: ${result.deliveryError || "unknown error"}`
-          : "Invitation issued. The raw code is shown once.",
+          ? `Invitation created, but email delivery failed for ${member.email}: ${result.deliveryError || "unknown error"}`
+          : result.deliveryStatus === "sent"
+            ? `Invitation email sent to ${member.email}. The raw code is shown once.`
+            : "Invitation created, but no recipient email was available.",
       ok: true,
+      recipientEmail: member.email || undefined,
     };
   } catch (error) {
     return {
@@ -717,12 +725,17 @@ export async function reissueInvitationAction(input: unknown): Promise<ActionRes
     revalidatePath("/admin/invitations");
     return {
       code: result.code,
+      deliveryError: result.deliveryError,
+      deliveryStatus: result.deliveryStatus,
       jnuitsId: member.jnuits_id || undefined,
       message:
         result.deliveryStatus === "failed"
-          ? `Replacement created, but email delivery failed: ${result.deliveryError || "unknown error"}`
-          : "Replacement issued. The raw code is shown once.",
+          ? `Replacement created, but email delivery failed for ${member.email}: ${result.deliveryError || "unknown error"}`
+          : result.deliveryStatus === "sent"
+            ? `Replacement email sent to ${member.email}. The raw code is shown once.`
+            : "Replacement created, but no recipient email was available.",
       ok: true,
+      recipientEmail: member.email || undefined,
     };
   } catch (error) {
     return {

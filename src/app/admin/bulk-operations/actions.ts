@@ -13,6 +13,7 @@ import {
   getInvitationExpiryIso,
   hashInvitationCode,
 } from "@/lib/members/invitation-code";
+import { buildClaimProfileUrl } from "@/lib/members/claim-url";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import {
   buildAlumniConversionDecisionEmail,
@@ -227,19 +228,29 @@ function sendBulkInvitationEmail(options: {
     return;
   }
 
+  const claimUrl = buildClaimProfileUrl({
+    email,
+    invitationCode: options.invitationCode,
+    jnuitsId,
+  });
+
   void sendEmail({
     html:
       options.type === "alumni"
         ? buildAlumniInvitationEmail({
             alumniName: name,
+            alumniEmail: email,
+            claimUrl,
             invitationCode: options.invitationCode,
             invitationExpiresAt: options.invitationExpiresAt,
             jnuitsId,
           })
         : buildMemberInvitationEmail({
+            claimUrl,
             invitationCode: options.invitationCode,
             invitationExpiresAt: options.invitationExpiresAt,
             jnuitsId,
+            memberEmail: email,
             memberName: name,
           }),
     subject:

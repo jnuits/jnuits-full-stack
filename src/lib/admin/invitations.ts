@@ -7,6 +7,7 @@ import {
   getInvitationExpiryIso,
   hashInvitationCode,
 } from "@/lib/members/invitation-code";
+import { buildClaimProfileUrl } from "@/lib/members/claim-url";
 import {
   buildAlumniInvitationEmail,
   buildMemberInvitationEmail,
@@ -152,19 +153,28 @@ export async function issueInvitationForMember(options: {
 
   if (email) {
     sendAttempts = 1;
+    const claimUrl = buildClaimProfileUrl({
+      email,
+      invitationCode: invitation.code,
+      jnuitsId,
+    });
     const emailResult = await sendEmail({
       html:
         options.invitationType === "alumni_direct"
           ? buildAlumniInvitationEmail({
               alumniName: memberName,
+              alumniEmail: email,
+              claimUrl,
               invitationCode: invitation.code,
               invitationExpiresAt: expiresAt,
               jnuitsId,
             })
           : buildMemberInvitationEmail({
+              claimUrl,
               invitationCode: invitation.code,
               invitationExpiresAt: expiresAt,
               jnuitsId,
+              memberEmail: email,
               memberName,
             }),
       subject:

@@ -3086,6 +3086,52 @@
   font-weight: 700;
 }
 
+.invitation-action-feedback {
+  display: grid;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--color-border-info);
+  border-radius: 0.85rem;
+  padding: 0.9rem 1rem;
+  background: color-mix(in oklab, var(--card) 92%, transparent);
+  color: var(--foreground);
+}
+
+.invitation-action-feedback[data-tone="success"] {
+  border-left-color: var(--brand-green);
+  background: var(--color-background-success);
+}
+
+.invitation-action-feedback[data-tone="warning"] {
+  border-left-color: var(--color-border-warning);
+  background: var(--color-background-warning);
+}
+
+.invitation-action-feedback[data-tone="error"] {
+  border-left-color: var(--brand-rust);
+  background: color-mix(in oklab, var(--brand-rust) 8%, var(--card));
+}
+
+.invitation-action-feedback strong {
+  font-family: var(--font-heading), var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.invitation-action-feedback__message,
+.invitation-action-feedback small {
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.invitation-action-feedback small {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .membership-table-toolbar {
   display: flex;
   align-items: center;
@@ -4485,6 +4531,11 @@
   color: color-mix(in oklab, var(--accent-foreground) 86%, var(--foreground));
 }
 
+.status-pill--danger {
+  background: color-mix(in oklab, var(--brand-rust) 18%, transparent);
+  color: color-mix(in oklab, var(--brand-rust) 86%, var(--foreground));
+}
+
 .membership-pending-count {
   background: var(--color-background-secondary);
   color: var(--color-text-secondary);
@@ -4546,6 +4597,11 @@
 .flash-panel[data-tone="error"] {
   border-color: color-mix(in oklab, var(--brand-rust) 28%, transparent);
   background: color-mix(in oklab, var(--brand-rust) 8%, var(--card));
+}
+
+.flash-panel[data-tone="warning"] {
+  border-color: color-mix(in oklab, var(--brand-gold) 34%, transparent);
+  background: var(--color-background-warning);
 }
 
 .metric-card {

@@ -9,12 +9,19 @@
 
 // ── Shared design tokens ───────────────────────────────────────────────────
 
-const BG = "#050506";
-const SURFACE = "#0A0A0B";
-const BORDER = "#1E1E22";
-const TEXT = "#F2F2F3";
-const MUTED = "#8A8A95";
-const BLUE = "#005BFF";
+const BG = "#F5F7FB";
+const SURFACE = "#FFFFFF";
+const SOFT = "#F8FAFF";
+const BORDER = "#D9E1F2";
+const TEXT = "#111735";
+const MUTED = "#5F6B85";
+const BLUE = "#2F55D4";
+const DARK_BG = "#06070A";
+const DARK_SURFACE = "#11131A";
+const DARK_SOFT = "#171A24";
+const DARK_BORDER = "#2B3142";
+const DARK_TEXT = "#F4F7FF";
+const DARK_MUTED = "#A7B0C2";
 const FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
@@ -33,15 +40,26 @@ function wrap(preview: string, content: string): string {
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="color-scheme" content="dark" />
+<meta name="color-scheme" content="light dark" />
+<meta name="supported-color-schemes" content="light dark" />
 <title>${esc(preview)}</title>
+<style>
+  @media (prefers-color-scheme: dark) {
+    .email-bg { background:${DARK_BG} !important; }
+    .email-shell { background:${DARK_SURFACE} !important; border-color:${DARK_BORDER} !important; }
+    .email-soft { background:${DARK_SOFT} !important; border-color:${DARK_BORDER} !important; }
+    .email-heading, .email-value, .email-code { color:${DARK_TEXT} !important; }
+    .email-copy, .email-label, .email-footer { color:${DARK_MUTED} !important; }
+    .email-footer-cell { background:${DARK_BG} !important; border-color:${DARK_BORDER} !important; }
+  }
+</style>
 </head>
-<body style="margin:0;padding:0;background:${BG};font-family:${FONT};">
+<body class="email-bg" style="margin:0;padding:0;background:${BG};font-family:${FONT};">
 <span style="display:none;max-height:0;overflow:hidden;">${esc(preview)}</span>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BG};">
+<table class="email-bg" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BG};">
   <tr>
     <td align="center" style="padding:40px 16px;">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:${SURFACE};border:1px solid ${BORDER};border-radius:16px;overflow:hidden;">
+      <table class="email-shell" role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:${SURFACE};border:1px solid ${BORDER};border-radius:16px;overflow:hidden;">
         <!-- Header -->
         <tr>
           <td style="padding:28px 32px 0;border-bottom:1px solid ${BORDER};">
@@ -56,8 +74,8 @@ function wrap(preview: string, content: string): string {
         </tr>
         <!-- Footer -->
         <tr>
-          <td style="padding:20px 32px;border-top:1px solid ${BORDER};background:${BG};">
-            <p style="margin:0;font-size:11px;color:${MUTED};line-height:1.6;">
+          <td class="email-footer-cell" style="padding:20px 32px;border-top:1px solid ${BORDER};background:${BG};">
+            <p class="email-footer" style="margin:0;font-size:11px;color:${MUTED};line-height:1.6;">
               Jagannath University IT Society &bull; Jagannath University, Dhaka &bull; Bangladesh<br/>
               <a href="https://jnuits.org.bd" style="color:${BLUE};text-decoration:none;">jnuits.org.bd</a>
             </p>
@@ -72,11 +90,11 @@ function wrap(preview: string, content: string): string {
 }
 
 function h1(text: string): string {
-  return `<h1 style="margin:0 0 16px;font-size:26px;font-weight:700;color:${TEXT};line-height:1.3;">${esc(text)}</h1>`;
+  return `<h1 class="email-heading" style="margin:0 0 16px;font-size:26px;font-weight:700;color:${TEXT};line-height:1.3;">${esc(text)}</h1>`;
 }
 
 function p(text: string, extra = ""): string {
-  return `<p style="margin:0 0 16px;font-size:15px;color:${MUTED};line-height:1.7;${extra}">${text}</p>`;
+  return `<p class="email-copy" style="margin:0 0 16px;font-size:15px;color:${MUTED};line-height:1.7;${extra}">${text}</p>`;
 }
 
 function card(rows: Array<[string, string]>): string {
@@ -85,20 +103,25 @@ function card(rows: Array<[string, string]>): string {
       ([label, value]) =>
         `<tr>
           <td style="padding:6px 0;">
-            <p style="margin:0 0 2px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">${esc(label)}</p>
-            <p style="margin:0;font-size:15px;color:${TEXT};">${esc(value)}</p>
+            <p class="email-label" style="margin:0 0 2px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">${esc(label)}</p>
+            <p class="email-value" style="margin:0;font-size:15px;color:${TEXT};">${esc(value)}</p>
           </td>
         </tr>`
     )
     .join("");
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BG};border:1px solid ${BORDER};border-radius:12px;margin:0 0 20px;padding:0;">
+  return `<table class="email-soft" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${SOFT};border:1px solid ${BORDER};border-radius:12px;margin:0 0 20px;padding:0;">
     <tr><td style="padding:16px 20px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${inner}</table></td></tr>
   </table>`;
 }
 
-function codeBlock(value: string): string {
-  return `<div style="background:${BG};border:1px solid ${BORDER};border-radius:12px;padding:14px 20px;margin:8px 0 20px;text-align:center;">
-    <code style="font-size:22px;font-weight:700;letter-spacing:.25em;color:${BLUE};font-family:monospace;">${esc(value)}</code>
+function codeBlock(value: string, actionUrl?: string): string {
+  const code = `<code class="email-code" style="font-size:22px;font-weight:700;letter-spacing:.25em;color:${BLUE};font-family:monospace;">${esc(value)}</code>`;
+  return `<div class="email-soft" style="background:${SOFT};border:1px solid ${BORDER};border-radius:12px;padding:14px 20px;margin:8px 0 20px;text-align:center;">
+    ${
+      actionUrl
+        ? `<a href="${esc(actionUrl)}" style="display:block;text-decoration:none;">${code}</a>`
+        : code
+    }
   </div>`;
 }
 
@@ -153,13 +176,22 @@ export function buildMembershipReceivedEmail(props: MembershipReceivedEmailProps
 
 export interface MembershipApprovedEmailProps {
   applicantName: string;
+  applicantEmail?: string;
+  claimUrl?: string;
   jnuitsId: string;
   invitationCode: string;
   invitationExpiresAt: string;
 }
 
 export function buildMembershipApprovedEmail(props: MembershipApprovedEmailProps): string {
-  const { applicantName, jnuitsId, invitationCode, invitationExpiresAt } = props;
+  const {
+    applicantEmail,
+    applicantName,
+    claimUrl = "https://jnuits.org.bd/register",
+    jnuitsId,
+    invitationCode,
+    invitationExpiresAt,
+  } = props;
   const expiryDate = new Date(invitationExpiresAt).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
@@ -168,17 +200,23 @@ export function buildMembershipApprovedEmail(props: MembershipApprovedEmailProps
   const content = [
     h1("🎉 Membership approved"),
     p(
-      `Congratulations, ${esc(applicantName)}! Your membership application has been reviewed and <strong style="color:${TEXT};">approved</strong>. You are now registered as a JnUITS member.`
+      `Congratulations, ${esc(applicantName)}! Your membership application has been reviewed and <strong class="email-value" style="color:${TEXT};">approved</strong>. You are now registered as a JnUITS member.`
     ),
-    card([["Your JnUITS ID", jnuitsId]]),
-    p("Use the claim code below to create your member portal account. This code is unique to you &mdash; don&rsquo;t share it."),
-    `<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">Your claim code</p>`,
-    codeBlock(invitationCode),
+    card(
+      [
+        ["Your JnUITS ID", jnuitsId],
+        applicantEmail ? ["Email", applicantEmail] : null,
+        ["Invite expires", expiryDate],
+      ].filter((row): row is [string, string] => Boolean(row))
+    ),
+    p("Use the claim code below to create your member portal account. The button opens the claim form with your JnUITS ID and code already filled in."),
+    `<p class="email-label" style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">Your claim code</p>`,
+    codeBlock(invitationCode, claimUrl),
     p(
-      `This code expires on <strong style="color:${TEXT};">${esc(expiryDate)}</strong>. Use it to sign up at the link below.`,
+      "If you need to enter it manually, select the code and copy it exactly as shown.",
       "font-size:13px;"
     ),
-    button("Claim your member account", "https://jnuits.org.bd/register"),
+    button("Open pre-filled claim form", claimUrl),
     hr(),
     p(
       `Having trouble? Reply to this email or ${link("contact us", "https://jnuits.org.bd/contact")}.`,
@@ -191,14 +229,23 @@ export function buildMembershipApprovedEmail(props: MembershipApprovedEmailProps
 // ──────────────────────────────────────────────────────────────────────────
 
 export interface MemberInvitationEmailProps {
+  claimUrl?: string;
   invitationCode: string;
   invitationExpiresAt: string;
   jnuitsId: string;
+  memberEmail?: string;
   memberName: string;
 }
 
 export function buildMemberInvitationEmail(props: MemberInvitationEmailProps): string {
-  const { invitationCode, invitationExpiresAt, jnuitsId, memberName } = props;
+  const {
+    claimUrl = "https://jnuits.org.bd/register",
+    invitationCode,
+    invitationExpiresAt,
+    jnuitsId,
+    memberEmail,
+    memberName,
+  } = props;
   const expiryDate = new Date(invitationExpiresAt).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
@@ -209,13 +256,18 @@ export function buildMemberInvitationEmail(props: MemberInvitationEmailProps): s
     p(
       `Hi ${esc(memberName)}, an admin has invited you to claim your JnUITS member portal account. Your member ID will stay fixed for current and future alumni access.`
     ),
-    card([
-      ["JnUITS ID", jnuitsId],
-      ["Invite expires", expiryDate],
-    ]),
-    p("Use this claim code to create your portal account. Keep it private."),
-    codeBlock(invitationCode),
-    button("Claim member account", "https://jnuits.org.bd/register"),
+    card(
+      [
+        ["JnUITS ID", jnuitsId],
+        memberEmail ? ["Email", memberEmail] : null,
+        ["Invite expires", expiryDate],
+      ].filter((row): row is [string, string] => Boolean(row))
+    ),
+    p("Use this claim code to create your portal account. The button opens the claim form with your details already filled in."),
+    `<p class="email-label" style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">Claim code</p>`,
+    codeBlock(invitationCode, claimUrl),
+    p("If you need to enter it manually, select the code and copy it exactly as shown.", "font-size:13px;"),
+    button("Open pre-filled claim form", claimUrl),
     hr(),
     p(
       `If this invitation looks unexpected, please ${link("contact JnUITS", "https://jnuits.org.bd/contact")}.`,
@@ -228,13 +280,22 @@ export function buildMemberInvitationEmail(props: MemberInvitationEmailProps): s
 
 export interface AlumniInvitationEmailProps {
   alumniName: string;
+  alumniEmail?: string;
+  claimUrl?: string;
   invitationCode: string;
   invitationExpiresAt: string;
   jnuitsId: string;
 }
 
 export function buildAlumniInvitationEmail(props: AlumniInvitationEmailProps): string {
-  const { alumniName, invitationCode, invitationExpiresAt, jnuitsId } = props;
+  const {
+    alumniEmail,
+    alumniName,
+    claimUrl = "https://jnuits.org.bd/register",
+    invitationCode,
+    invitationExpiresAt,
+    jnuitsId,
+  } = props;
   const expiryDate = new Date(invitationExpiresAt).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
@@ -243,15 +304,20 @@ export function buildAlumniInvitationEmail(props: AlumniInvitationEmailProps): s
   const content = [
     h1("Join the JnUITS alumni portal"),
     p(
-      `Hi ${esc(alumniName)}, you have been invited to join the JnUITS alumni portal directly. Your permanent member ID remains <strong style="color:${TEXT};">${esc(jnuitsId)}</strong>.`
+      `Hi ${esc(alumniName)}, you have been invited to join the JnUITS alumni portal directly. Your permanent member ID remains <strong class="email-value" style="color:${TEXT};">${esc(jnuitsId)}</strong>.`
     ),
-    card([
-      ["JnUITS ID", jnuitsId],
-      ["Invite expires", expiryDate],
-    ]),
-    p("Use this claim code to activate alumni portal access."),
-    codeBlock(invitationCode),
-    button("Join alumni portal", "https://jnuits.org.bd/register"),
+    card(
+      [
+        ["JnUITS ID", jnuitsId],
+        alumniEmail ? ["Email", alumniEmail] : null,
+        ["Invite expires", expiryDate],
+      ].filter((row): row is [string, string] => Boolean(row))
+    ),
+    p("Use this claim code to activate alumni portal access. The button opens the claim form with your details already filled in."),
+    `<p class="email-label" style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">Claim code</p>`,
+    codeBlock(invitationCode, claimUrl),
+    p("If you need to enter it manually, select the code and copy it exactly as shown.", "font-size:13px;"),
+    button("Open pre-filled alumni claim form", claimUrl),
     hr(),
     p(
       `Need help? ${link("Contact JnUITS", "https://jnuits.org.bd/contact")}.`,

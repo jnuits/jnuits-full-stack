@@ -51,6 +51,15 @@ const passwordResetSchema = z.object({
   captchaToken: z.string().trim().optional().default(""),
 });
 
+const resendConfirmationSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email address.")
+    .transform((value) => value.toLowerCase()),
+  captchaToken: z.string().trim().optional().default(""),
+});
+
 const updatePasswordSchema = z
   .object({
     confirmPassword: z.string().min(1, "Confirm your new password."),
@@ -361,6 +370,51 @@ export async function requestPasswordReset(formData: FormData) {
   redirect("/verify-email?message=Password recovery email sent.");
 }
 
+export async function resendSignupConfirmation(formData: FormData) {
+  const parsed = resendConfirmationSchema.safeParse(
+    pickFormFields(formData, ["email", "captchaToken"])
+  );
+
+  if (!parsed.success) {
+    redirect(
+      `/verify-email?error=${encodeMessage(parsed.error.issues[0]?.message || "Email is required.")}`
+    );
+  }
+
+  const protectionError = await enforceAuthActionProtection({
+    captchaToken: parsed.data.captchaToken,
+    email: parsed.data.email,
+    rateLimit: RATE_LIMITS.authPasswordReset,
+    rateLimitPrefix: "auth-resend-signup-confirmation",
+  });
+
+  if (protectionError) {
+    redirect(
+      `/verify-email?error=${encodeMessage(protectionError)}&email=${encodeMessage(parsed.data.email)}`
+    );
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resend({
+    email: parsed.data.email,
+    options: {
+      captchaToken: parsed.data.captchaToken,
+      emailRedirectTo: getEmailRedirect("/portal/dashboard"),
+    },
+    type: "signup",
+  });
+
+  if (error) {
+    redirect(
+      `/verify-email?error=${encodeMessage(error.message)}&email=${encodeMessage(parsed.data.email)}`
+    );
+  }
+
+  redirect(
+    `/verify-email?message=${encodeMessage("Confirmation email requested. Check your inbox for the newest link.")}&email=${encodeMessage(parsed.data.email)}`
+  );
+}
+
 export async function updatePassword(formData: FormData) {
   const parsed = updatePasswordSchema.safeParse(
     pickFormFields(formData, ["password", "confirmPassword"])
@@ -486,6 +540,6 @@ export async function claimProfile(formData: FormData) {
   });
 
   redirect(
-    "/verify-email?message=Account created. Check your email for the confirmation link."
+    `/verify-email?message=${encodeMessage("Account created. Open the confirmation email to finish claiming your JnUITS profile.")}&email=${encodeMessage(email)}`
   );
 }

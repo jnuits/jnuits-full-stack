@@ -21,6 +21,7 @@ import {
   extractBatchNumber,
   normalizeJnuitsIdForCreation,
 } from "@/lib/members/jnuits-id";
+import { buildClaimProfileUrl } from "@/lib/members/claim-url";
 import {
   getWorkplacePayloadEntries,
   parseWorkplaceUpdatePayload,
@@ -420,6 +421,12 @@ export async function approveMembershipApplication(formData: FormData) {
       subject: "Your JnUITS membership application has been approved",
       html: buildMembershipApprovedEmail({
         applicantName: application.name,
+        applicantEmail: application.email,
+        claimUrl: buildClaimProfileUrl({
+          email: application.email,
+          invitationCode: invitation.code,
+          jnuitsId: member.jnuits_id,
+        }),
         jnuitsId: member.jnuits_id,
         invitationCode: invitation.code,
         invitationExpiresAt: invitation.expiresAt,
@@ -802,9 +809,15 @@ export async function reissueMemberInvitation(formData: FormData) {
     if (member.email) {
       void sendEmail({
         html: buildMemberInvitationEmail({
+          claimUrl: buildClaimProfileUrl({
+            email: member.email,
+            invitationCode: replacement.code,
+            jnuitsId: member.jnuits_id,
+          }),
           invitationCode: replacement.code,
           invitationExpiresAt: replacement.expiresAt,
           jnuitsId: member.jnuits_id,
+          memberEmail: member.email,
           memberName: member.full_name,
         }),
         subject: "Your replacement JnUITS claim code",

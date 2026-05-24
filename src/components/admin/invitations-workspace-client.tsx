@@ -43,10 +43,13 @@ type AdminFlash = {
 
 type ActionResult = {
   code?: string;
+  deliveryError?: string;
+  deliveryStatus?: "failed" | "sent" | "skipped";
   details?: Record<string, unknown>;
   jnuitsId?: string;
   message: string;
   ok: boolean;
+  recipientEmail?: string;
 };
 
 export type InvitationWorkspaceInvitation = {
@@ -185,6 +188,51 @@ function initials(name: string) {
 function avatarTone(id: string) {
   const tail = id.replace(/[^a-fA-F0-9]/g, "").slice(-2) || "0";
   return String(Number.parseInt(tail, 16) % 4);
+}
+
+function detailNumber(result: ActionResult, key: string) {
+  const value = result.details?.[key];
+  return typeof value === "number" ? value : 0;
+}
+
+function actionTone(result: ActionResult) {
+  if (!result.ok) return "error";
+  if (result.deliveryStatus === "failed" || result.deliveryStatus === "skipped") {
+    return "warning";
+  }
+  if (detailNumber(result, "failed") > 0 || detailNumber(result, "skipped") > 0) {
+    return "warning";
+  }
+  return "success";
+}
+
+function actionTitle(result: ActionResult) {
+  if (!result.ok) return "Action failed";
+  if (result.deliveryStatus === "sent") return "Email sent";
+  if (result.deliveryStatus === "failed") return "Email delivery failed";
+  if (result.deliveryStatus === "skipped") return "Email not sent";
+  if (detailNumber(result, "failed") > 0) return "Some emails failed";
+  if (detailNumber(result, "issued") > 0) return "Invitations committed";
+  return "Action completed";
+}
+
+function ActionFeedback({ result }: { result: ActionResult }) {
+  return (
+    <div className="invitation-action-feedback" data-tone={actionTone(result)} role="status">
+      <strong>{actionTitle(result)}</strong>
+      <span className="invitation-action-feedback__message">{result.message}</span>
+      {result.recipientEmail ? <small>Recipient: {result.recipientEmail}</small> : null}
+      {result.deliveryError ? <small>Provider response: {result.deliveryError}</small> : null}
+      {result.code ? (
+        <div className="invitation-code-reveal">
+          <span>
+            {result.jnuitsId ? `${result.jnuitsId} · ` : ""}
+            {result.code}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function MetricCard({
@@ -348,6 +396,7 @@ export function InvitationsWorkspaceClient({
         }
       : null
   );
+  const [feedbackKey, setFeedbackKey] = useState("");
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -374,6 +423,8 @@ export function InvitationsWorkspaceClient({
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const selectedInvitation = invitations.find((invitation) => invitation.id === editingId) || null;
+  const directFeedback = feedbackKey === "direct-invite" ? feedback : null;
+  const csvCommitFeedback = feedbackKey === "csv-commit" ? feedback : null;
 
   const filteredInvitations = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -414,6 +465,7 @@ export function InvitationsWorkspaceClient({
     startTransition(() => {
       void action()
         .then((result) => {
+          setFeedbackKey(key);
           setFeedback(result);
           if (result.ok) {
             router.refresh();
@@ -446,6 +498,7 @@ export function InvitationsWorkspaceClient({
 
   function copyText(value: string) {
     void navigator.clipboard.writeText(value);
+    setFeedbackKey("copy");
     setFeedback({ ok: true, message: "Copied." });
   }
 
@@ -465,12 +518,22 @@ export function InvitationsWorkspaceClient({
       </div>
 
       {feedback ? (
-        <section className="flash-panel" data-tone={feedback.ok ? "success" : "error"}>
+        <section className="flash-panel" data-tone={actionTone(feedback)}>
           <p className="admin-section-label">Invitation feedback</p>
           <h2 className="mt-2 font-[family-name:var(--font-heading)] text-2xl font-semibold">
-            {feedback.ok ? "Action completed" : "Action failed"}
+            {actionTitle(feedback)}
           </h2>
           <p className="mt-1 text-sm leading-7">{feedback.message}</p>
+          {feedback.recipientEmail ? (
+            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-text-secondary)]">
+              Recipient: {feedback.recipientEmail}
+            </p>
+          ) : null}
+          {feedback.deliveryError ? (
+            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--brand-rust)]">
+              Provider response: {feedback.deliveryError}
+            </p>
+          ) : null}
           {feedback.code ? (
             <div className="invitation-code-reveal">
               <span>
@@ -894,8 +957,10 @@ export function InvitationsWorkspaceClient({
               <input
                 id="direct-invite-jnuits-id"
                 onChange={(event) => setDirectJnuitsId(event.target.value)}
+                pattern="[Jj][Nn][Uu][Ii][Tt][Ss]-[0-9]{7}|[0-9]{7}"
                 placeholder="JnUITS-2026001"
                 required
+                title="Use JnUITS-2026001 or 2026001."
                 value={directJnuitsId}
               />
             </label>
@@ -946,6 +1011,7 @@ export function InvitationsWorkspaceClient({
           <button className="primary-button" disabled={busyKey === "direct-invite"} type="submit">
             {busyKey === "direct-invite" ? <span className="membership-spinner" /> : "Issue direct invitation"}
           </button>
+          {directFeedback ? <ActionFeedback result={directFeedback} /> : null}
         </form>
 
         <form
@@ -1024,6 +1090,7 @@ export function InvitationsWorkspaceClient({
               Ready {String(csvPreview.ready || 0)} · Blocked {String(csvPreview.blocked || 0)}
             </p>
           ) : null}
+          {csvCommitFeedback ? <ActionFeedback result={csvCommitFeedback} /> : null}
         </form>
       </section>
 

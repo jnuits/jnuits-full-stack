@@ -14,6 +14,32 @@ interface SendEmailResult {
   error?: string;
 }
 
+function summarizeResendError(status: number, body: unknown) {
+  if (!body || typeof body !== "object") {
+    return `Resend error ${status}`;
+  }
+
+  const payload = body as {
+    error?: { message?: unknown; name?: unknown };
+    message?: unknown;
+    name?: unknown;
+  };
+  const message =
+    typeof payload.message === "string"
+      ? payload.message
+      : typeof payload.error?.message === "string"
+        ? payload.error.message
+        : "";
+  const name =
+    typeof payload.name === "string"
+      ? payload.name
+      : typeof payload.error?.name === "string"
+        ? payload.error.name
+        : "";
+
+  return [name || `Resend error ${status}`, message].filter(Boolean).join(": ");
+}
+
 /**
  * Sends a transactional email via Resend.
  * NEVER throws — returns { success: false } so notification failures never
@@ -24,6 +50,7 @@ export async function sendEmail(
 ): Promise<SendEmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
+  const replyTo = process.env.RESEND_REPLY_TO || from;
 
   if (!apiKey || !from) {
     logServerError("sendEmail: Resend is not configured", {
@@ -43,7 +70,7 @@ export async function sendEmail(
       body: JSON.stringify({
         from,
         to: [options.to],
-        reply_to: options.replyTo ?? from,
+        reply_to: options.replyTo ?? replyTo,
         subject: options.subject,
         html: options.html,
       }),
@@ -57,7 +84,7 @@ export async function sendEmail(
         to: options.to,
         subject: options.subject,
       });
-      return { success: false, error: `Resend error ${res.status}` };
+      return { success: false, error: summarizeResendError(res.status, errorBody) };
     }
 
     const body = await res.json().catch(() => null);
