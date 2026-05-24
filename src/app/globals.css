@@ -15800,6 +15800,8 @@ a[href="/admin/content/notices/new"].admin-btn--primary:focus-visible,
   color: var(--brand-blue);
   text-decoration: underline;
   text-underline-offset: 0.18em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .event-facts-list {

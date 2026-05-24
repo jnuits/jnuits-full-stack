@@ -1,5 +1,6 @@
 "use client";
 
+import { Children, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { EventRichTextFormat } from "@/lib/content/events-shared";
@@ -12,6 +13,31 @@ type EventMarkdownProps = {
 
 function hasHtmlMarkup(value: string) {
   return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function getReadableLinkLabel(href: string | undefined, children: ReactNode) {
+  const childText = Children.toArray(children).join("").trim();
+
+  if (!href || !/^https?:\/\//i.test(href) || childText !== href) {
+    return children;
+  }
+
+  try {
+    const url = new URL(href);
+    const hostname = url.hostname.replace(/^www\./, "");
+
+    if (hostname === "docs.google.com") {
+      return "Open Google document";
+    }
+
+    if (hostname === "meet.google.com") {
+      return "Open Google Meet";
+    }
+
+    return `Open ${hostname}`;
+  } catch {
+    return "Open link";
+  }
 }
 
 export function EventMarkdown({
@@ -37,13 +63,16 @@ export function EventMarkdown({
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ ...props }) => (
+          a: ({ children, href, ...props }) => (
             <a
               {...props}
+              href={href}
               className="transition-colors"
               rel="noreferrer"
               target="_blank"
-            />
+            >
+              {getReadableLinkLabel(href, children)}
+            </a>
           ),
         }}
       >
