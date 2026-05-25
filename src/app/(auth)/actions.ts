@@ -1,5 +1,6 @@
 "use server";
 
+import type { User } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -13,6 +14,7 @@ import {
 import { checkAdminMFA } from "@/lib/auth/mfa";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
+import { logServerError } from "@/lib/errors/api-error";
 import { hashInvitationCode } from "@/lib/members/invitation-code";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import {
@@ -25,6 +27,7 @@ import {
   RATE_LIMITS,
 } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
 
 function asString(value: FormDataEntryValue | null) {
@@ -143,14 +146,159 @@ function getEmailRedirect(pathname: string) {
   return `${getAppBaseUrl()}/auth/confirm?next=${encodeURIComponent(pathname)}`;
 }
 
+type AdminClient = ReturnType<typeof createAdminClient>;
+type ClaimMemberLookup = Pick<
+  Database["public"]["Tables"]["members"]["Row"],
+  "email" | "full_name" | "id" | "jnuits_id" | "member_type" | "user_id"
+>;
+
 type InvitationLookup = Database["public"]["Tables"]["member_invitations"]["Row"] & {
-  members:
-    | Pick<Database["public"]["Tables"]["members"]["Row"], "id" | "user_id">
-    | Pick<Database["public"]["Tables"]["members"]["Row"], "id" | "user_id">[]
-    | null;
+  recipient_email_snapshot?: string | null;
+  members: ClaimMemberLookup | ClaimMemberLookup[] | null;
 };
 
 type LoginPortal = "admin" | "portal";
+
+const CLAIM_GENERIC_ERROR =
+  "We could not complete your profile claim. Please check your invitation details and try again.";
+
+class SafeProfileClaimError extends Error {
+  constructor(readonly safeMessage: string) {
+    super(safeMessage);
+    this.name = "SafeProfileClaimError";
+  }
+}
+
+function redirectToRegisterError(message: string): never {
+  redirect(`/register?error=${encodeMessage(message)}`);
+}
+
+function normalizeEmail(value: null | string | undefined) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function asMetadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? { ...(value as Record<string, unknown>) }
+    : {};
+}
+
+async function findAuthUserByEmail(admin: AdminClient, email: string) {
+  const targetEmail = normalizeEmail(email);
+  const perPage = 200;
+
+  if (!targetEmail) return null;
+
+  for (let page = 1; page <= 25; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+
+    if (error) throw error;
+
+    const match = data.users.find((user) => normalizeEmail(user.email) === targetEmail);
+    if (match) return match;
+
+    if (data.users.length < perPage) break;
+  }
+
+  return null;
+}
+
+async function findMemberByAuthUserId(admin: AdminClient, userId: string) {
+  const { data, error } = await asFlexibleClient(admin)
+    .from("members")
+    .select("id, jnuits_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return (data || null) as { id: string; jnuits_id?: null | string } | null;
+}
+
+async function provisionInvitationAuthUser(options: {
+  admin: AdminClient;
+  email: string;
+  invitationId: string;
+  member: ClaimMemberLookup;
+  password: string;
+}) {
+  const existingUser = await findAuthUserByEmail(options.admin, options.email);
+
+  if (existingUser) {
+    const linkedMember = await findMemberByAuthUserId(options.admin, existingUser.id);
+
+    if (linkedMember && linkedMember.id !== options.member.id) {
+      throw new SafeProfileClaimError(
+        "This email address is already linked to another JnUITS profile."
+      );
+    }
+  }
+
+  const appMetadata = {
+    ...asMetadataRecord(existingUser?.app_metadata),
+    claim_invitation_id: options.invitationId,
+    claim_member_id: options.member.id,
+    claim_source: "member_invitation",
+    jnuits_id: options.member.jnuits_id,
+  };
+  const userMetadata = {
+    ...asMetadataRecord(existingUser?.user_metadata),
+    full_name: options.member.full_name,
+    jnuits_id: options.member.jnuits_id,
+  };
+
+  if (existingUser) {
+    const { data, error } = await options.admin.auth.admin.updateUserById(
+      existingUser.id,
+      {
+        app_metadata: appMetadata,
+        email_confirm: true,
+        password: options.password,
+        user_metadata: userMetadata,
+      }
+    );
+
+    if (error || !data.user) {
+      throw error || new Error("Supabase Auth user update failed.");
+    }
+
+    return data.user;
+  }
+
+  const { data, error } = await options.admin.auth.admin.createUser({
+    app_metadata: appMetadata,
+    email: options.email,
+    email_confirm: true,
+    password: options.password,
+    user_metadata: userMetadata,
+  });
+
+  if (error || !data.user) {
+    throw error || new Error("Supabase Auth user creation failed.");
+  }
+
+  return data.user;
+}
+
+async function finalizeInvitationClaim(options: {
+  admin: AdminClient;
+  authUser: User;
+  email: string;
+  invitationId: string;
+  memberId: string;
+}) {
+  const { error } = await asFlexibleClient(options.admin).rpc(
+    "finalize_member_invitation_claim",
+    {
+      target_email: options.email,
+      target_invitation_id: options.invitationId,
+      target_member_id: options.memberId,
+      target_user_id: options.authUser.id,
+    }
+  );
+
+  if (error) throw error;
+}
 
 const ADMIN_LOGIN_PREFIXES = ["/admin"];
 const PORTAL_LOGIN_PREFIXES = ["/portal", "/profile"];
@@ -405,8 +553,9 @@ export async function resendSignupConfirmation(formData: FormData) {
   });
 
   if (error) {
+    logServerError("resendSignupConfirmation", error);
     redirect(
-      `/verify-email?error=${encodeMessage(error.message)}&email=${encodeMessage(parsed.data.email)}`
+      `/verify-email?error=${encodeMessage("Unable to request a confirmation email. Try again or contact JnUITS support.")}&email=${encodeMessage(parsed.data.email)}`
     );
   }
 
@@ -450,8 +599,8 @@ export async function claimProfile(formData: FormData) {
   );
 
   if (!parsed.success) {
-    redirect(
-      `/register?error=${encodeMessage(parsed.error.issues[0]?.message || "All claim fields are required.")}`
+    redirectToRegisterError(
+      parsed.error.issues[0]?.message || "All claim fields are required."
     );
   }
 
@@ -464,14 +613,16 @@ export async function claimProfile(formData: FormData) {
   });
 
   if (protectionError) {
-    redirect(`/register?error=${encodeMessage(protectionError)}`);
+    redirectToRegisterError(protectionError);
   }
 
   const admin = createAdminClient();
 
-  const invitationResult = await admin
+  const invitationResult = await asFlexibleClient(admin)
     .from("member_invitations")
-    .select("id, member_id, max_uses, used_count, expires_at, is_active, members!inner(id, jnuits_id, user_id)")
+    .select(
+      "id, member_id, max_uses, used_count, expires_at, is_active, recipient_email_snapshot, members!inner(id, jnuits_id, user_id, email, full_name, member_type)"
+    )
     .eq("code_hash", hashInvitationCode(invitationCode))
     .eq("members.jnuits_id", jnuitsId)
     .is("revoked_at", null)
@@ -481,19 +632,19 @@ export async function claimProfile(formData: FormData) {
   const invitationError = invitationResult.error;
 
   if (invitationError || !invitationRow) {
-    redirect("/register?error=Invitation code or JnUITS ID is invalid.");
+    redirectToRegisterError("Invitation code or JnUITS ID is invalid.");
   }
 
   if (!invitationRow.is_active) {
-    redirect("/register?error=This invitation has been deactivated.");
+    redirectToRegisterError("This invitation has been deactivated.");
   }
 
   if (invitationRow.used_count >= invitationRow.max_uses) {
-    redirect("/register?error=This invitation has already been used.");
+    redirectToRegisterError("This invitation has already been used.");
   }
 
   if (new Date(invitationRow.expires_at).getTime() < Date.now()) {
-    redirect("/register?error=This invitation has expired.");
+    redirectToRegisterError("This invitation has expired.");
   }
 
   const linkedMember = Array.isArray(invitationRow.members)
@@ -501,36 +652,62 @@ export async function claimProfile(formData: FormData) {
     : invitationRow.members;
 
   if (!linkedMember) {
-    redirect("/register?error=Invitation is missing its linked member.");
+    redirectToRegisterError("Invitation is missing its linked member.");
   }
 
   if (linkedMember.user_id) {
-    redirect("/register?error=This member profile is already claimed.");
+    redirect(
+      `/portal/login?message=${encodeMessage("This member profile is already claimed. Sign in to continue.")}`
+    );
   }
 
-  const supabase = await createClient();
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      captchaToken: parsed.data.captchaToken,
-      emailRedirectTo: getEmailRedirect("/portal/dashboard"),
-      data: {
-        claim_invitation_id: invitationRow.id,
-        claim_member_id: linkedMember.id,
-        claim_source: "member_invitation",
-        jnuits_id: jnuitsId,
-      },
-    },
-  });
+  const expectedEmail = normalizeEmail(
+    invitationRow.recipient_email_snapshot || linkedMember.email
+  );
 
-  if (signUpError || !signUpData.user) {
-    redirect(`/register?error=${encodeMessage(signUpError?.message || "Unable to create account.")}`);
+  if (!expectedEmail) {
+    redirectToRegisterError(
+      "This invitation is missing a recipient email. Ask JnUITS support to reissue it."
+    );
   }
 
-  await admin.from("audit_events").insert({
-    actor_user_id: signUpData.user.id,
-    action: "member.profile_claim_pending",
+  if (expectedEmail !== email) {
+    redirectToRegisterError("Use the email address that received this invitation.");
+  }
+
+  let authUser: User;
+
+  try {
+    authUser = await provisionInvitationAuthUser({
+      admin,
+      email,
+      invitationId: invitationRow.id,
+      member: linkedMember,
+      password,
+    });
+  } catch (error) {
+    logServerError("claimProfile.provisionAuthUser", error);
+    redirectToRegisterError(
+      error instanceof SafeProfileClaimError ? error.safeMessage : CLAIM_GENERIC_ERROR
+    );
+  }
+
+  try {
+    await finalizeInvitationClaim({
+      admin,
+      authUser,
+      email,
+      invitationId: invitationRow.id,
+      memberId: linkedMember.id,
+    });
+  } catch (error) {
+    logServerError("claimProfile.finalizeInvitationClaim", error);
+    redirectToRegisterError(CLAIM_GENERIC_ERROR);
+  }
+
+  const { error: auditError } = await admin.from("audit_events").insert({
+    actor_user_id: authUser.id,
+    action: "member.profile_claim_finalized",
     entity_type: "member",
     entity_id: linkedMember.id,
     metadata: {
@@ -539,7 +716,30 @@ export async function claimProfile(formData: FormData) {
     },
   });
 
-  redirect(
-    `/verify-email?message=${encodeMessage("Account created. Open the confirmation email to finish claiming your JnUITS profile.")}&email=${encodeMessage(email)}`
-  );
+  if (auditError) {
+    logServerError("claimProfile.audit", auditError);
+  }
+
+  const supabase = await createClient();
+  const { data: signInData, error: signInError } =
+    await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: {
+        captchaToken: parsed.data.captchaToken,
+      },
+    });
+
+  if (signInError || !signInData.user) {
+    logServerError("claimProfile.signIn", signInError);
+    redirect(
+      `/portal/login?message=${encodeMessage("Profile claimed. Sign in with the password you just created.")}`
+    );
+  }
+
+  await supabase.auth.refreshSession();
+  await supabase.auth.getClaims();
+
+  revalidatePath("/", "layout");
+  redirect("/portal/dashboard?claimed=1");
 }

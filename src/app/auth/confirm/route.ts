@@ -1,5 +1,6 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { logServerError } from "@/lib/errors/api-error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
         data: { user },
       } = await supabase.auth.getUser();
 
-      const metadata = user?.user_metadata ?? {};
+      const metadata = user?.app_metadata ?? {};
       const claimSource = asString(metadata.claim_source);
       const claimMemberId = asString(metadata.claim_member_id);
       const claimInvitationId = asString(metadata.claim_invitation_id);
@@ -61,11 +62,11 @@ export async function GET(request: NextRequest) {
         });
 
         if (finalizeError) {
+          logServerError("authConfirm.finalizeMemberInvitationClaim", finalizeError);
           const fallback = request.nextUrl.clone();
           fallback.pathname = "/verify-email";
           fallback.search = `?error=${encodeURIComponent(
-            finalizeError.message ||
-              "Email verified, but the member claim could not be completed."
+            "Email verified, but the member claim could not be completed. Please contact JnUITS support."
           )}`;
           return NextResponse.redirect(fallback);
         }
