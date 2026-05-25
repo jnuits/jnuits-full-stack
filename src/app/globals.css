@@ -10196,7 +10196,7 @@ footer {
 
 .hp-about-card .hp-body {
   margin-top: 14px;
-  text-align: left;
+  text-align: center;
 }
 
 .hp-about-card .hp-inline-link {
@@ -10214,6 +10214,8 @@ footer {
 .hp-section-head {
   max-width: 720px;
   margin-bottom: var(--hp-space-inner);
+  margin-inline: auto;
+  text-align: center;
 }
 
 .hp-program-grid {
@@ -10227,6 +10229,7 @@ footer {
   border-radius: var(--border-radius-lg, 16px);
   background: var(--color-background-primary);
   padding: 24px;
+  text-align: center;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -10247,6 +10250,7 @@ footer {
   height: 56px;
   align-items: center;
   justify-content: center;
+  margin-inline: auto;
   border-radius: 999px;
   background: var(--color-background-secondary);
 }
@@ -10327,10 +10331,12 @@ footer {
   display: grid;
   min-height: 210px;
   align-content: start;
+  justify-items: center;
   border: 0.5px solid var(--color-border-tertiary);
   border-radius: 12px;
   background: var(--color-background-primary);
   padding: 20px;
+  text-align: center;
 }
 
 .hp-event-card__date {
@@ -10368,7 +10374,7 @@ footer {
 }
 
 .hp-event-card__link {
-  justify-self: end;
+  justify-self: center;
   align-self: end;
   margin-top: 24px;
   color: var(--hp-accent);
@@ -10376,6 +10382,8 @@ footer {
 }
 
 .hp-section-link {
+  display: flex;
+  justify-content: center;
   margin-top: 22px;
 }
 
@@ -10446,13 +10454,15 @@ footer {
 
 .hp-membership__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
   gap: clamp(28px, 5vw, 56px);
   align-items: center;
 }
 
 .hp-membership__copy {
   max-width: 700px;
+  text-align: center;
+  margin-inline: auto;
 }
 
 .hp-membership__copy .hp-body {
@@ -10465,15 +10475,17 @@ footer {
   margin: 22px 0 0;
   padding: 0;
   list-style: none;
+  justify-items: center;
 }
 
 .hp-membership-list li {
-  display: flex;
+  display: inline-flex;
   align-items: flex-start;
   gap: 10px;
   color: var(--color-text-secondary);
   font-size: 14px;
   line-height: 1.55;
+  text-align: left;
 }
 
 .hp-membership-list svg {
@@ -10488,6 +10500,7 @@ footer {
   background: var(--color-background-primary);
   padding: 32px;
   box-shadow: 0 16px 42px rgba(27, 45, 107, 0.08);
+  text-align: center;
 }
 
 .dark .hp-membership-card {
@@ -10515,10 +10528,12 @@ footer {
 .hp-value-card {
   display: grid;
   gap: 12px;
+  justify-items: center;
   border: 0.5px solid var(--color-border-tertiary);
   border-radius: var(--border-radius-lg, 16px);
   background: var(--color-background-secondary);
   padding: 24px 20px;
+  text-align: center;
 }
 
 .hp-value-card__title {
@@ -10551,10 +10566,12 @@ footer {
   border-radius: var(--border-radius-lg, 16px);
   background: var(--color-background-secondary);
   padding: 32px 40px;
+  text-align: center;
 }
 
 .hp-advisor-quote__profile {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 14px;
   min-width: 220px;
@@ -10617,6 +10634,7 @@ footer {
   display: inline-flex;
   width: fit-content;
   align-items: center;
+  justify-self: center;
   gap: 6px;
   color: var(--hp-accent);
   font-size: 13px;
@@ -10643,6 +10661,12 @@ footer {
 .hp-university__inner .hp-inline-link {
   margin-top: 14px;
   color: var(--hp-accent);
+}
+
+@media (max-width: 860px) {
+  .hp-membership__grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
@@ -10674,22 +10698,20 @@ footer {
     padding-bottom: 24px;
   }
 
-  .hp-membership__grid {
-    grid-template-columns: 1fr;
-  }
-
   .hp-hero__copy {
     max-width: none;
   }
 
   .hp-hero-buttons {
     flex-direction: column;
+    align-items: center;
     width: 100%;
   }
 
   .hp-hero-buttons a,
   .hp-hero-buttons button {
-    width: 100%;
+    width: auto;
+    min-width: 200px;
     justify-content: center;
     text-align: center;
   }
@@ -10758,20 +10780,22 @@ footer {
   }
 
   .hp-slider__control {
+    width: 36px;
+    height: 36px;
     opacity: 1;
   }
 
   .hp-slider__control--prev {
-    left: 12px;
+    left: 8px;
   }
 
   .hp-slider__control--next {
-    right: 12px;
+    right: 8px;
   }
 
   .hp-slide-title {
     bottom: 18px;
-    left: 18px;
+    left: 52px;
     max-width: calc(100% - 120px);
     font-size: 15px;
   }
@@ -10861,7 +10885,7 @@ footer {
   .hp-advisor-quote__profile {
     min-width: 0;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
   }
 
   .hp-advisor-quote__content blockquote {
@@ -10907,10 +10931,55 @@ footer {
   }
 }
 
+@media (max-width: 640px) {
+  .hp-program-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 480px) {
   .hp-h1 {
-    font-size: 21px;
-    white-space: nowrap;
+    font-size: clamp(1.18rem, 5.8vw, 21px);
+    text-wrap: balance;
+  }
+
+  .hp-about-card {
+    padding: 20px 16px;
+  }
+
+  .hp-stats-band {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .hp-hero-stat:nth-child(1),
+  .hp-hero-stat:nth-child(2),
+  .hp-hero-stat:nth-child(3),
+  .hp-hero-stat:nth-child(4),
+  .hp-hero-stat:nth-child(5) {
+    grid-column: auto;
+  }
+
+  .hp-hero-stat:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .hp-slide-title {
+    left: 14px;
+    max-width: calc(100% - 96px);
+    font-size: 13px;
+  }
+
+  .hp-slider__control {
+    width: 32px;
+    height: 32px;
+  }
+
+  .hp-slider__control--prev {
+    left: 6px;
+  }
+
+  .hp-slider__control--next {
+    right: 6px;
   }
 }
 
@@ -10928,6 +10997,99 @@ footer {
   .hp-skeleton::after {
     animation: none;
   }
+}
+
+/* ── Mobile header overlay ────────────────────────────────────────────────── */
+
+.site-header-mobile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+  background: color-mix(in oklab, var(--foreground) 28%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.site-header-mobile-overlay[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (min-width: 1280px) {
+  .site-header-mobile-overlay {
+    display: none !important;
+  }
+}
+
+/* ── Footer social row & link (missing definitions) ───────────────────────── */
+
+.site-footer-social-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.site-footer-social-link {
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in oklab, white 16%, transparent);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: color-mix(in oklab, white 84%, transparent);
+  transition:
+    color 200ms ease,
+    border-color 200ms ease,
+    transform 200ms ease;
+}
+
+.site-footer-social-link svg {
+  width: 18px;
+  height: 18px;
+}
+
+.site-footer-social-link:hover,
+.site-footer-social-link:focus-visible {
+  transform: translateY(-1px);
+  border-color: currentColor;
+  outline: none;
+}
+
+.site-footer-social-link[data-social="facebook"]:hover,
+.site-footer-social-link[data-social="facebook"]:focus-visible,
+.site-footer-social-link[data-social="facebook-group"]:hover,
+.site-footer-social-link[data-social="facebook-group"]:focus-visible {
+  color: var(--about-social-facebook);
+}
+
+.site-footer-social-link[data-social="linkedin"]:hover,
+.site-footer-social-link[data-social="linkedin"]:focus-visible {
+  color: var(--about-social-linkedin);
+}
+
+.site-footer-social-link[data-social="instagram"]:hover,
+.site-footer-social-link[data-social="instagram"]:focus-visible {
+  color: var(--about-social-instagram);
+}
+
+.site-footer-social-link[data-social="youtube"]:hover,
+.site-footer-social-link[data-social="youtube"]:focus-visible {
+  color: var(--about-social-youtube);
+}
+
+.site-footer-social-link[data-social="twitter"]:hover,
+.site-footer-social-link[data-social="twitter"]:focus-visible {
+  color: var(--about-social-twitter);
+}
+
+.site-footer-social-link[data-social="google"]:hover,
+.site-footer-social-link[data-social="google"]:focus-visible {
+  color: var(--about-social-google);
 }
 
 /* === ADMIN SLIDER IMAGE MANAGER === */

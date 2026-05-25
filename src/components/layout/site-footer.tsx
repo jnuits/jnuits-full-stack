@@ -127,8 +127,8 @@ export async function SiteFooter() {
 
   return (
     <footer className="site-footer">
-      <div className="shell grid gap-8 py-12 lg:grid-cols-[1.2fr_0.75fr_0.85fr_0.75fr_1.15fr]">
-        <div className="site-footer__brand-block">
+      <div className="shell grid gap-8 py-12 sm:grid-cols-2 lg:grid-cols-[1.2fr_0.75fr_0.85fr_0.75fr_1.15fr]">
+        <div className="site-footer__brand-block sm:col-span-2 lg:col-span-1">
           <SiteBrand displayTitle="JnU IT Society" inverted />
           <div className="site-footer-contact">
             <Link
