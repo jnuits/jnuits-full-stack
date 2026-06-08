@@ -3,8 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import {
+  SafeAdminActionError,
+  getSafeAdminActionErrorMessage,
+} from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
-import { requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPermission } from "@/lib/auth/session";
 import {
   EVENT_CATEGORIES,
   EVENT_DELIVERY_MODES,
@@ -83,6 +87,13 @@ function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function safeEventError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `content.events.${context}`,
+    fallback,
+  });
+}
+
 function pickFormFields(formData: FormData, fields: string[]) {
   return Object.fromEntries(fields.map((field) => [field, asString(formData.get(field))]));
 }
@@ -108,7 +119,7 @@ function parseOptionalUrl(value: string, fieldName: string) {
   try {
     return new URL(value).toString();
   } catch {
-    throw new Error(`${fieldName} must be a valid URL or internal path.`);
+    throw new SafeAdminActionError(`${fieldName} must be a valid URL or internal path.`);
   }
 }
 
@@ -120,7 +131,7 @@ function parseExternalUrl(value: string, fieldName: string) {
   try {
     return new URL(value).toString();
   } catch {
-    throw new Error(`${fieldName} must be a valid URL.`);
+    throw new SafeAdminActionError(`${fieldName} must be a valid URL.`);
   }
 }
 
@@ -176,7 +187,7 @@ function buildZonedIso(
     Number.isNaN(hour) ||
     Number.isNaN(minute)
   ) {
-    throw new Error("Event date and time must be valid.");
+    throw new SafeAdminActionError("Event date and time must be valid.");
   }
 
   const desired = Date.UTC(year, month - 1, day, hour, minute, 0);
@@ -230,7 +241,9 @@ function revalidateEventPaths(eventId?: string, slug?: string) {
 }
 
 export async function saveEvent(formData: FormData) {
-  const auth = await requireAdminUser({ fallbackPath: "/admin/content/events" });
+  const auth = await requireAdminPermission("cms.events.manage", {
+    fallbackPath: "/admin/content/events",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -303,7 +316,7 @@ export async function saveEvent(formData: FormData) {
       : { data: null, error: null };
 
     if (existing.error) {
-      throw new Error(existing.error.message);
+      throw existing.error;
     }
 
     const startsAt = buildZonedIso(
@@ -330,11 +343,11 @@ export async function saveEvent(formData: FormData) {
       : null;
 
     if (!startsAt) {
-      throw new Error("Event start date and time are required.");
+      throw new SafeAdminActionError("Event start date and time are required.");
     }
 
     if (endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
-      throw new Error("Event end date/time must be after the start date/time.");
+      throw new SafeAdminActionError("Event end date/time must be after the start date/time.");
     }
 
     const onlineUrl = parseExternalUrl(data.onlineUrl, "Online link");
@@ -345,15 +358,17 @@ export async function saveEvent(formData: FormData) {
     const ctaUrl = parseOptionalUrl(data.ctaUrl, "CTA link");
 
     if (data.registrationMode === "external" && !registrationUrl) {
-      throw new Error("External registration requires a valid registration URL.");
+      throw new SafeAdminActionError("External registration requires a valid registration URL.");
     }
 
     if (data.locationMode === "online" && !onlineUrl) {
-      throw new Error("Online events require a valid meeting URL.");
+      throw new SafeAdminActionError("Online events require a valid meeting URL.");
     }
 
     if (data.locationMode === "venue" && !data.venueName && !data.locationLabel) {
-      throw new Error("Venue-based events require a venue name or location label.");
+      throw new SafeAdminActionError(
+        "Venue-based events require a venue name or location label."
+      );
     }
 
     const payload = {
@@ -407,12 +422,16 @@ export async function saveEvent(formData: FormData) {
 
     const { data: saved, error } = await query;
 
-    if (error || !saved) {
-      throw new Error(
-        error?.code === "23505"
-          ? "An event with this slug already exists."
-          : error?.message || "The event could not be saved."
-      );
+    if (error) {
+      if (error.code === "23505") {
+        throw new SafeAdminActionError("An event with this slug already exists.");
+      }
+
+      throw error;
+    }
+
+    if (!saved) {
+      throw new SafeAdminActionError("The event could not be saved.");
     }
 
     await audit({
@@ -439,10 +458,7 @@ export async function saveEvent(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Event not saved",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The event could not be saved.",
+      message: safeEventError(error, "save", "The event could not be saved."),
     });
     redirect(eventId ? `/admin/content/events/${eventId}` : "/admin/content/events/new");
   }
@@ -452,7 +468,9 @@ export async function updateEventLifecycle(
   boundIntentOrFormData: "archive" | "delete" | "publish" | FormData,
   maybeFormData?: FormData
 ) {
-  const auth = await requireAdminUser({ fallbackPath: "/admin/content/events" });
+  const auth = await requireAdminPermission("cms.events.manage", {
+    fallbackPath: "/admin/content/events",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -503,7 +521,9 @@ export async function updateEventLifecycle(
     await setAdminFlash({
       tone: "error",
       title: "Event action failed",
-      message: existingError?.message || "The event was not found.",
+      message: existingError
+        ? safeEventError(existingError, "loadLifecycle", "The event could not be loaded.")
+        : "The event was not found.",
     });
     redirect("/admin/content/events");
   }
@@ -513,7 +533,7 @@ export async function updateEventLifecycle(
       const { error } = await admin.from("events").delete().eq("id", eventId);
 
       if (error) {
-        throw new Error(error.message);
+        throw error;
       }
 
       await audit({
@@ -546,7 +566,7 @@ export async function updateEventLifecycle(
       .eq("id", eventId);
 
     if (error) {
-      throw new Error(error.message);
+      throw error;
     }
 
     await audit({
@@ -568,10 +588,7 @@ export async function updateEventLifecycle(
     await setAdminFlash({
       tone: "error",
       title: "Event action failed",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The event could not be updated.",
+      message: safeEventError(error, "lifecycle", "The event could not be updated."),
     });
     redirect("/admin/content/events");
   }

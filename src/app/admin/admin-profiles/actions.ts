@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { recordSecurityEvent } from "@/lib/security/security-events";
@@ -37,6 +38,13 @@ async function isTargetSuperAdmin(
   );
 
   return data === true;
+}
+
+function safeAdminProfileError(error: unknown, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: "adminProfiles.update",
+    fallback,
+  });
 }
 
 export async function updateAdminProfileAction(formData: FormData) {
@@ -79,7 +87,9 @@ export async function updateAdminProfileAction(formData: FormData) {
       {
         tone: "error",
         title: "Admin profile update failed",
-        message: profileError?.message || "Admin profile was not found.",
+        message: profileError
+          ? safeAdminProfileError(profileError, "Admin profile could not be loaded.")
+          : "Admin profile was not found.",
       },
       "/admin"
     );
@@ -113,7 +123,7 @@ export async function updateAdminProfileAction(formData: FormData) {
       {
         tone: "error",
         title: "Admin profile update failed",
-        message: error.message,
+        message: safeAdminProfileError(error, "Admin profile could not be updated."),
       },
       "/admin"
     );

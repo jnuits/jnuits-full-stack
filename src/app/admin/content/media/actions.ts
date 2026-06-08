@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import {
+  SafeAdminActionError,
+  getSafeAdminActionErrorMessage,
+} from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
-import { requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPermission } from "@/lib/auth/session";
 import {
   moveMediaAssetToCloudinaryTrash,
   restoreMediaAssetFromCloudinaryTrash,
@@ -22,6 +26,13 @@ function pickFormFields(formData: FormData) {
   };
 }
 
+function safeMediaError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `content.media.${context}`,
+    fallback,
+  });
+}
+
 async function loadMediaAsset(assetId: string) {
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -30,8 +41,12 @@ async function loadMediaAsset(assetId: string) {
     .eq("id", assetId)
     .maybeSingle();
 
-  if (error || !data) {
-    throw new Error(error?.message || "Media asset was not found.");
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new SafeAdminActionError("Media asset was not found.");
   }
 
   return { admin, asset: data };
@@ -41,7 +56,9 @@ async function handleMediaLifecycleAction(
   formData: FormData,
   intent: "restore" | "trash"
 ) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.media.manage", {
+    fallbackPath: "/admin/content/media",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -86,10 +103,11 @@ async function handleMediaLifecycleAction(
     await setAdminFlash({
       tone: "error",
       title: intent === "trash" ? "Media was not moved" : "Media was not restored",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The media lifecycle action could not be completed safely.",
+      message: safeMediaError(
+        error,
+        intent,
+        "The media lifecycle action could not be completed safely."
+      ),
     });
   }
 

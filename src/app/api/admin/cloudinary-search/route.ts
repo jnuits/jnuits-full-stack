@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAuthContext, hasOperatorRole } from "@/lib/auth/session";
+import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { searchSliderCloudinaryFolder } from "@/lib/cloudinary/slider";
+import { apiError } from "@/lib/errors/api-error";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 
 const querySchema = z.object({
@@ -10,20 +11,13 @@ const querySchema = z.object({
 });
 
 async function handleGet(request: NextRequest) {
-  const auth = await getAuthContext();
+  const permission = await requireAdminApiPermission("cms.media.manage", {
+    forbiddenMessage: "Only media managers can search Cloudinary assets.",
+    unauthenticatedMessage: "Sign in before searching Cloudinary.",
+  });
 
-  if (!auth.user) {
-    return NextResponse.json(
-      { message: "Sign in before searching Cloudinary." },
-      { status: 401 }
-    );
-  }
-
-  if (!hasOperatorRole(auth.roles)) {
-    return NextResponse.json(
-      { message: "Only operators can search Cloudinary assets." },
-      { status: 403 }
-    );
+  if (permission.response) {
+    return permission.response;
   }
 
   const parsed = querySchema.safeParse({
@@ -42,17 +36,10 @@ async function handleGet(request: NextRequest) {
 
     return NextResponse.json(results);
   } catch (error) {
-    console.error("[admin/cloudinary-search] Cloudinary search failed", error);
-
-    return NextResponse.json(
-      {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Cloudinary search failed.",
-      },
-      { status: 500 }
-    );
+    return apiError(error, {
+      context: "admin.cloudinarySearch",
+      fallback: "Cloudinary search failed. Please try again.",
+    });
   }
 }
 

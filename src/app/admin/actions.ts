@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import type { Database } from "@/lib/db/types";
-import { requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPermission } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { isActiveDepartmentCode } from "@/lib/departments.server";
 import { getAppBaseUrl } from "@/lib/env";
@@ -282,7 +282,9 @@ async function issueFreshInvitation(
 }
 
 export async function approveMembershipApplication(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/dashboard",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -447,7 +449,9 @@ export async function approveMembershipApplication(formData: FormData) {
 }
 
 export async function rejectMembershipApplication(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/dashboard",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -545,7 +549,9 @@ export async function rejectMembershipApplication(formData: FormData) {
 }
 
 export async function revokeMemberInvitation(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/dashboard",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -655,7 +661,9 @@ export async function revokeMemberInvitation(formData: FormData) {
 }
 
 export async function reissueMemberInvitation(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/dashboard",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -839,7 +847,9 @@ export async function reissueMemberInvitation(formData: FormData) {
 }
 
 export async function approveWorkplaceUpdateRequest(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/dashboard",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -1002,7 +1012,9 @@ export async function approveWorkplaceUpdateRequest(formData: FormData) {
 }
 
 export async function rejectWorkplaceUpdateRequest(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/dashboard",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -1102,7 +1114,9 @@ export async function rejectWorkplaceUpdateRequest(formData: FormData) {
 }
 
 export async function approveProfileChangeRequest(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/dashboard",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -1582,7 +1596,9 @@ export async function approveProfileChangeRequest(formData: FormData) {
 }
 
 export async function rejectProfileChangeRequest(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/dashboard",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {

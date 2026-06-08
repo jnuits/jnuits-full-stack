@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
-import { requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPermission } from "@/lib/auth/session";
 import {
   ensureSliderImageInDefaultFolder,
   uploadSliderImageToCloudinary,
@@ -32,6 +33,13 @@ const newSliderImageSchema = z.object({
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function safeSliderError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `content.slider.${context}`,
+    fallback,
+  });
 }
 
 function asRecord(value: Json | null | undefined) {
@@ -105,7 +113,7 @@ async function saveHomeBody(body: Record<string, Json | undefined>, actorUserId:
   );
 
   if (error) {
-    throw new Error(error.message);
+    throw error;
   }
 }
 
@@ -118,7 +126,9 @@ function slugify(value: string) {
 }
 
 export async function addSliderImage(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.pages.manage", {
+    fallbackPath: "/admin/content/slider",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -195,10 +205,7 @@ export async function addSliderImage(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Slider image not added",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The slider image could not be added.",
+      message: safeSliderError(error, "add", "The slider image could not be added."),
     });
   }
 
@@ -206,7 +213,9 @@ export async function addSliderImage(formData: FormData) {
 }
 
 export async function saveSliderImages(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.pages.manage", {
+    fallbackPath: "/admin/content/slider",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -270,10 +279,7 @@ export async function saveSliderImages(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Could not save slider images. Please try again.",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The homepage slider images could not be saved.",
+      message: safeSliderError(error, "save", "The homepage slider images could not be saved."),
     });
   }
 
@@ -281,7 +287,9 @@ export async function saveSliderImages(formData: FormData) {
 }
 
 export async function deleteSliderImage(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.pages.manage", {
+    fallbackPath: "/admin/content/slider",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -311,10 +319,7 @@ export async function deleteSliderImage(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Slider image not removed",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The homepage slider image could not be removed.",
+      message: safeSliderError(error, "delete", "The homepage slider image could not be removed."),
     });
   }
 

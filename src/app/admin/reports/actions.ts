@@ -4,7 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 import { redirect } from "next/navigation";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { buildOperationalSnapshot } from "@/lib/admin/reports";
-import { requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 async function persistReport(options: {
@@ -17,7 +17,9 @@ async function persistReport(options: {
   summary: string;
   title: string;
 }) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.reports.read", {
+    fallbackPath: "/admin/reports",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -102,7 +104,9 @@ export async function generateReconciliationSnapshot() {
 }
 
 export async function triggerSentryVerificationReport() {
-  const auth = await requireAdminUser({ fallbackPath: "/admin/reports" });
+  const auth = await requireAdminPermission("admin.reports.read", {
+    fallbackPath: "/admin/reports",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {

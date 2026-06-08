@@ -80,17 +80,6 @@ export default async function AdminSliderImagesPage() {
   const count = images.length;
   const atMaximum = count >= 15;
 
-  if (process.env.NODE_ENV !== "production") {
-    console.log(
-      "[admin/content/slider] rendered imageUrl values",
-      images.map((image) => ({
-        id: image.id,
-        imageUrl: image.imageUrl,
-        title: image.title,
-      }))
-    );
-  }
-
   return (
     <div className="grid gap-8">
       <div className="admin-page-header">

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getAuthContext, hasOperatorRole } from "@/lib/auth/session";
+import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import {
   insertAuditEvent,
   upsertCloudinaryMediaAsset,
 } from "@/lib/content/media-assets";
 import { getCloudinaryBlurUrl } from "@/lib/cloudinary/urls";
 import type { Json } from "@/lib/db/types";
+import { apiError } from "@/lib/errors/api-error";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -53,21 +54,18 @@ async function handlePost(
   request: NextRequest,
   context: { params: Promise<{ albumId: string }> }
 ) {
-  const [{ albumId }, auth] = await Promise.all([context.params, getAuthContext()]);
+  const [{ albumId }, permission] = await Promise.all([
+    context.params,
+    requireAdminApiPermission("cms.gallery.manage", {
+      forbiddenMessage: "Only gallery managers can register gallery uploads.",
+      unauthenticatedMessage: "Sign in before registering gallery uploads.",
+    }),
+  ]);
 
-  if (!auth.user) {
-    return NextResponse.json(
-      { message: "Sign in before registering gallery uploads." },
-      { status: 401 }
-    );
+  if (permission.response) {
+    return permission.response;
   }
-
-  if (!hasOperatorRole(auth.roles)) {
-    return NextResponse.json(
-      { message: "Only operators can register gallery uploads." },
-      { status: 403 }
-    );
-  }
+  const auth = permission.auth;
 
   const body = await request.json().catch(() => null);
   const parsed = requestSchema.safeParse(body);
@@ -87,10 +85,18 @@ async function handlePost(
     .maybeSingle();
 
   if (albumError || !album) {
-    return NextResponse.json(
-      { message: albumError?.message || "Gallery album was not found." },
-      { status: 404 }
-    );
+    if (!album) {
+      return NextResponse.json(
+        { message: "Gallery album was not found." },
+        { status: 404 }
+      );
+    }
+
+    return apiError(albumError, {
+      context: "admin.galleryAlbumUpload.albumLookup",
+      fallback: "Gallery album could not be loaded.",
+      status: 500,
+    });
   }
 
   const { data: lastItem } = await admin
@@ -151,10 +157,10 @@ async function handlePost(
       .single();
 
     if (itemError || !item) {
-      return NextResponse.json(
-        { message: itemError?.message || "Gallery image could not be attached." },
-        { status: 500 }
-      );
+      return apiError(itemError, {
+        context: "admin.galleryAlbumUpload.attachItem",
+        fallback: "Gallery image could not be attached.",
+      });
     }
 
     attachedIds.push(item.id);

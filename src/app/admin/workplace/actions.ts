@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { requireAdminPermission } from "@/lib/auth/session";
 import {
   bulkReviewWorkplaceRequests,
@@ -60,6 +61,13 @@ function revalidateWorkplacePaths() {
   revalidatePath("/portal/profile/edit");
 }
 
+function safeWorkplaceError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `workplace.${context}`,
+    fallback,
+  });
+}
+
 export async function reviewWorkplaceRequestAction(
   input: unknown
 ): Promise<ActionResult> {
@@ -91,8 +99,11 @@ export async function reviewWorkplaceRequestAction(
   } catch (error) {
     return {
       ok: false,
-      message:
-        error instanceof Error ? error.message : "Unable to review workplace request.",
+      message: safeWorkplaceError(
+        error,
+        "reviewRequest",
+        "Unable to review workplace request."
+      ),
     };
   }
 }
@@ -125,8 +136,11 @@ export async function bulkReviewWorkplaceRequestsAction(
   } catch (error) {
     return {
       ok: false,
-      message:
-        error instanceof Error ? error.message : "Unable to bulk review workplace requests.",
+      message: safeWorkplaceError(
+        error,
+        "bulkReview",
+        "Unable to bulk review workplace requests."
+      ),
     };
   }
 }
@@ -159,8 +173,11 @@ export async function updateMemberWorkplaceAction(
   } catch (error) {
     return {
       ok: false,
-      message:
-        error instanceof Error ? error.message : "Unable to update member workplace profile.",
+      message: safeWorkplaceError(
+        error,
+        "updateMemberWorkplace",
+        "Unable to update member workplace profile."
+      ),
     };
   }
 }

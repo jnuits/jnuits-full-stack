@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
-import { requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPermission } from "@/lib/auth/session";
 import { insertAuditEvent } from "@/lib/content/media-assets";
 import type { Json } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -70,6 +71,13 @@ function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function safeGalleryError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `content.gallery.${context}`,
+    fallback,
+  });
+}
+
 function pickFormFields(formData: FormData, fields: string[]) {
   return Object.fromEntries(fields.map((field) => [field, asString(formData.get(field))]));
 }
@@ -92,7 +100,9 @@ function restorableUntil() {
 }
 
 async function getActorUserId() {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.gallery.manage", {
+    fallbackPath: "/admin/content/gallery",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -229,7 +239,9 @@ export async function saveGalleryAlbum(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Album not saved",
-      message: error?.message || "The gallery album could not be saved.",
+      message: error
+        ? safeGalleryError(error, "saveAlbum", "The gallery album could not be saved.")
+        : "The gallery album could not be saved.",
     });
     redirect("/admin/content/gallery");
   }
@@ -294,7 +306,9 @@ export async function updateGalleryAlbumLifecycle(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Album action failed",
-      message: error?.message || "The gallery album could not be updated.",
+      message: error
+        ? safeGalleryError(error, "albumLifecycle", "The gallery album could not be updated.")
+        : "The gallery album could not be updated.",
     });
     redirect("/admin/content/gallery");
   }
@@ -358,9 +372,13 @@ export async function saveGalleryAlbumItem(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Image not saved",
-      message:
-        itemRecord.error?.message ||
-        "This image record was not found in the selected album.",
+      message: itemRecord.error
+        ? safeGalleryError(
+            itemRecord.error,
+            "loadItem",
+            "This image record was not found in the selected album."
+          )
+        : "This image record was not found in the selected album.",
     });
     redirect(`/admin/content/gallery/${albumId}`);
   }
@@ -377,7 +395,7 @@ export async function saveGalleryAlbumItem(formData: FormData) {
       await setAdminFlash({
         tone: "error",
         title: "Image not saved",
-        message: resetCoverError.message,
+        message: safeGalleryError(resetCoverError, "resetCover", "Gallery cover could not be reset."),
       });
       redirect(`/admin/content/gallery/${albumId}`);
     }
@@ -402,7 +420,9 @@ export async function saveGalleryAlbumItem(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Image not saved",
-      message: error?.message || "The image record could not be updated.",
+      message: error
+        ? safeGalleryError(error, "saveItem", "The image record could not be updated.")
+        : "The image record could not be updated.",
     });
     redirect(`/admin/content/gallery/${albumId}`);
   }
@@ -417,7 +437,7 @@ export async function saveGalleryAlbumItem(formData: FormData) {
       await setAdminFlash({
         tone: "error",
         title: "Image saved, cover not updated",
-        message: coverError.message,
+        message: safeGalleryError(coverError, "setCover", "Gallery cover could not be updated."),
       });
       redirect(`/admin/content/gallery/${albumId}`);
     }
@@ -431,7 +451,7 @@ export async function saveGalleryAlbumItem(formData: FormData) {
       await setAdminFlash({
         tone: "error",
         title: "Image saved, cover not updated",
-        message: clearCoverError.message,
+        message: safeGalleryError(clearCoverError, "clearCover", "Gallery cover could not be cleared."),
       });
       redirect(`/admin/content/gallery/${albumId}`);
     }
@@ -503,7 +523,7 @@ export async function bulkUpdateGalleryAlbumItems(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Bulk action failed",
-      message: error.message,
+      message: safeGalleryError(error, "bulkUpdateItems", "Gallery images could not be updated."),
     });
     redirect(`/admin/content/gallery/${albumId}`);
   }
@@ -563,7 +583,7 @@ export async function reorderGalleryAlbumItems(formData: FormData) {
       await setAdminFlash({
         tone: "error",
         title: "Reorder failed",
-        message: error.message,
+        message: safeGalleryError(error, "reorderItems", "Gallery image order could not be saved."),
       });
       redirect(`/admin/content/gallery/${albumId}`);
     }

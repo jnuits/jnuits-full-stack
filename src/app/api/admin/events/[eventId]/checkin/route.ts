@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { resolveEventForAdminMutation } from "@/lib/content/events";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
@@ -17,6 +18,15 @@ function getEventIdentifier(request: Request) {
 
 export const POST = withApiGuard(
   async (request) => {
+    const permission = await requireAdminApiPermission("cms.events.manage", {
+      forbiddenMessage: "Only event managers can check in event registrations.",
+      unauthenticatedMessage: "Sign in before checking in event registrations.",
+    });
+
+    if (permission.response) {
+      return permission.response;
+    }
+
     const eventIdentifier = getEventIdentifier(request);
 
     if (!eventIdentifier) {

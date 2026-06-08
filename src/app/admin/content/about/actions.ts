@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
-import { requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPermission } from "@/lib/auth/session";
 import {
   fallbackAboutContent,
   homepageContent,
@@ -24,6 +25,13 @@ const aboutContentSchema = z.object({
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function safeAboutError(error: unknown, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: "content.about.save",
+    fallback,
+  });
 }
 
 function asRecord(value: Json | null | undefined) {
@@ -116,7 +124,9 @@ function buildCommunityReach(formData: FormData) {
 }
 
 export async function saveAboutPageContent(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.pages.manage", {
+    fallbackPath: "/admin/content/about",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -174,7 +184,7 @@ export async function saveAboutPageContent(formData: FormData) {
     );
 
     if (error) {
-      throw new Error(error.message);
+      throw error;
     }
 
     const publicStats = buildPublicStats(stats);
@@ -197,7 +207,7 @@ export async function saveAboutPageContent(formData: FormData) {
     );
 
     if (homeError) {
-      throw new Error(homeError.message);
+      throw homeError;
     }
 
     revalidatePath("/");
@@ -213,10 +223,7 @@ export async function saveAboutPageContent(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "About page not saved",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The About page content could not be saved.",
+      message: safeAboutError(error, "The About page content could not be saved."),
     });
   }
 

@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import {
+  SafeAdminActionError,
+  getSafeAdminActionErrorMessage,
+} from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { uploadNoticeAttachmentToCloudinary } from "@/lib/cloudinary/notices";
@@ -13,6 +17,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function safeNoticeError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `content.notices.${context}`,
+    fallback,
+  });
 }
 
 function pickFormFields(formData: FormData, fields: string[]) {
@@ -69,7 +80,7 @@ function normalizeOptionalUrl(value: string) {
   try {
     return new URL(value).toString();
   } catch {
-    throw new Error("Related link must be a valid URL or internal path.");
+    throw new SafeAdminActionError("Related link must be a valid URL or internal path.");
   }
 }
 
@@ -193,10 +204,7 @@ export async function saveNotice(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Notice not saved",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The related link could not be validated.",
+      message: safeNoticeError(error, "validateLink", "The related link could not be validated."),
     });
     redirect(noticeId ? `/admin/content/notices/${noticeId}` : "/admin/content/notices/new");
   }
@@ -237,8 +245,12 @@ export async function saveNotice(formData: FormData) {
       : admin.from("content_posts").insert(payload).select("id").single();
     const { data, error } = await query;
 
-    if (error || !data) {
-      throw new Error(error?.message || "Unable to save the notice.");
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      throw new SafeAdminActionError("Unable to save the notice.");
     }
 
     savedNoticeId = data.id;
@@ -271,10 +283,7 @@ export async function saveNotice(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Notice not saved",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The notice could not be saved.",
+      message: safeNoticeError(error, "save", "The notice could not be saved."),
     });
     redirect(noticeId ? `/admin/content/notices/${noticeId}` : "/admin/content/notices/new");
   }
@@ -324,7 +333,7 @@ export async function updateNoticeLifecycle(formData: FormData) {
         .eq("content_type", "notice");
 
       if (error) {
-        throw new Error(error.message);
+        throw error;
       }
 
       await recordNoticeAudit({
@@ -357,7 +366,7 @@ export async function updateNoticeLifecycle(formData: FormData) {
         .eq("content_type", "notice");
 
       if (error) {
-        throw new Error(error.message);
+        throw error;
       }
 
       await recordNoticeAudit({
@@ -392,10 +401,7 @@ export async function updateNoticeLifecycle(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Notice action failed",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The notice action could not be completed.",
+      message: safeNoticeError(error, "lifecycle", "The notice action could not be completed."),
     });
   }
 

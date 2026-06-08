@@ -5,6 +5,10 @@ import { parse } from "csv-parse/sync";
 import { z } from "zod";
 
 import { requireAdminPermission } from "@/lib/auth/session";
+import {
+  SafeAdminActionError,
+  getSafeAdminActionErrorMessage,
+} from "@/lib/admin/action-error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
@@ -170,6 +174,13 @@ function parseCsvRows(csvContent: string) {
   }) as CsvRow[];
 }
 
+function safeInvitationError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `invitations.${context}`,
+    fallback,
+  });
+}
+
 async function requireInvitationAdmin() {
   return requireAdminPermission("admin.membership.manage", {
     fallbackPath: "/admin/invitations",
@@ -215,7 +226,7 @@ async function findInvitationMember(
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw error;
   }
 
   return (data || null) as InvitationMember | null;
@@ -241,8 +252,12 @@ async function createInvitationMember(
     .select(MEMBER_INVITATION_SELECT)
     .single();
 
-  if (error || !data?.id) {
-    throw new Error(error?.message || "Unable to create member record.");
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.id) {
+    throw new SafeAdminActionError("Unable to create member record.");
   }
 
   return data as InvitationMember;
@@ -257,7 +272,7 @@ async function resolveInvitationMember(
   const byEmail = await findInvitationMember(admin, "email", identity.email);
 
   if (byId && byEmail && byId.id !== byEmail.id) {
-    throw new Error("The JnUITS ID and email belong to different member records.");
+    throw new SafeAdminActionError("The JnUITS ID and email belong to different member records.");
   }
 
   const member = byId || byEmail;
@@ -269,11 +284,11 @@ async function resolveInvitationMember(
   const existingEmail = member.email?.trim().toLowerCase() || "";
 
   if (member.jnuits_id && member.jnuits_id !== identity.jnuitsId) {
-    throw new Error("This email is already linked to a different JnUITS ID.");
+    throw new SafeAdminActionError("This email is already linked to a different JnUITS ID.");
   }
 
   if (existingEmail && existingEmail !== identity.email) {
-    throw new Error("This JnUITS ID is already linked to a different email.");
+    throw new SafeAdminActionError("This JnUITS ID is already linked to a different email.");
   }
 
   if (member.is_profile_claimed) {
@@ -315,8 +330,12 @@ async function resolveInvitationMember(
     .select(MEMBER_INVITATION_SELECT)
     .single();
 
-  if (error || !data?.id) {
-    throw new Error(error?.message || "Unable to update member record.");
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.id) {
+    throw new SafeAdminActionError("Unable to update member record.");
   }
 
   return { created: false, member: data as InvitationMember };
@@ -406,7 +425,7 @@ export async function issueDirectInvitationAction(input: unknown): Promise<Actio
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Unable to issue invitation.",
+      message: safeInvitationError(error, "issueDirect", "Unable to issue invitation."),
     };
   }
 }
@@ -435,8 +454,12 @@ export async function createInvitationBatchAction(input: unknown): Promise<Actio
       .select("id")
       .single();
 
-    if (error || !data?.id) {
-      throw new Error(error?.message || "Unable to create invitation batch.");
+    if (error) {
+      throw error;
+    }
+
+    if (!data?.id) {
+      throw new SafeAdminActionError("Unable to create invitation batch.");
     }
 
     await persistInvitationAudit(admin, {
@@ -453,7 +476,7 @@ export async function createInvitationBatchAction(input: unknown): Promise<Actio
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Unable to create invitation batch.",
+      message: safeInvitationError(error, "createBatch", "Unable to create invitation batch."),
     };
   }
 }
@@ -476,8 +499,12 @@ export async function issueInvitationsFromBatchAction(input: unknown): Promise<A
       .eq("id", parsed.batchId)
       .maybeSingle();
 
-    if (batchError || !batch) {
-      throw new Error(batchError?.message || "Invitation batch could not be loaded.");
+    if (batchError) {
+      throw batchError;
+    }
+
+    if (!batch) {
+      throw new SafeAdminActionError("Invitation batch could not be loaded.");
     }
 
     if (!batch.cycle_id) {
@@ -498,7 +525,7 @@ export async function issueInvitationsFromBatchAction(input: unknown): Promise<A
     const { data: rows, error: queueError } = await queue.limit(500);
 
     if (queueError) {
-      throw new Error(queueError.message);
+      throw queueError;
     }
 
     let failed = 0;
@@ -563,7 +590,7 @@ export async function issueInvitationsFromBatchAction(input: unknown): Promise<A
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Unable to issue invitations.",
+      message: safeInvitationError(error, "issueFromBatch", "Unable to issue invitations."),
     };
   }
 }
@@ -589,7 +616,7 @@ export async function syncInvitationBatchMetricsAction(input: unknown): Promise<
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Unable to sync batch metrics.",
+      message: safeInvitationError(error, "syncBatchMetrics", "Unable to sync batch metrics."),
     };
   }
 }
@@ -605,7 +632,7 @@ export async function updateInvitationBatchStatusAction(input: unknown): Promise
       .eq("id", parsed.batchId);
 
     if (error) {
-      throw new Error(error.message);
+      throw error;
     }
 
     await persistInvitationAudit(admin, {
@@ -622,7 +649,7 @@ export async function updateInvitationBatchStatusAction(input: unknown): Promise
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Unable to update batch status.",
+      message: safeInvitationError(error, "updateBatchStatus", "Unable to update batch status."),
     };
   }
 }
@@ -658,7 +685,7 @@ export async function revokeInvitationAction(input: unknown): Promise<ActionResu
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Unable to revoke invitation.",
+      message: safeInvitationError(error, "revoke", "Unable to revoke invitation."),
     };
   }
 }
@@ -681,8 +708,12 @@ export async function reissueInvitationAction(input: unknown): Promise<ActionRes
       .eq("id", parsed.invitationId)
       .maybeSingle();
 
-    if (error || !invitation) {
-      throw new Error(error?.message || "Invitation could not be loaded.");
+    if (error) {
+      throw error;
+    }
+
+    if (!invitation) {
+      throw new SafeAdminActionError("Invitation could not be loaded.");
     }
 
     const member = Array.isArray(invitation.members)
@@ -740,7 +771,7 @@ export async function reissueInvitationAction(input: unknown): Promise<ActionRes
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Unable to reissue invitation.",
+      message: safeInvitationError(error, "reissue", "Unable to reissue invitation."),
     };
   }
 }
@@ -781,7 +812,7 @@ export async function bulkRevokeInvitationsAction(input: unknown): Promise<Actio
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Unable to bulk revoke invitations.",
+      message: safeInvitationError(error, "bulkRevoke", "Unable to bulk revoke invitations."),
     };
   }
 }
@@ -855,7 +886,7 @@ export async function previewCsvInvitationsAction(input: unknown): Promise<Actio
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Unable to preview CSV.",
+      message: safeInvitationError(error, "previewCsv", "Unable to preview CSV."),
     };
   }
 }
@@ -956,7 +987,7 @@ export async function commitCsvInvitationsAction(input: unknown): Promise<Action
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Unable to commit CSV invitations.",
+      message: safeInvitationError(error, "commitCsv", "Unable to commit CSV invitations."),
     };
   }
 }

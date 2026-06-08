@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getAuthContext, hasOperatorRole } from "@/lib/auth/session";
+import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { EVENT_MEDIA_PICKER_PAGE_SIZE } from "@/lib/content/events";
+import { apiError } from "@/lib/errors/api-error";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -11,20 +12,13 @@ function parsePage(value: string | null) {
 }
 
 async function handleGet(request: NextRequest) {
-  const auth = await getAuthContext();
+  const permission = await requireAdminApiPermission("cms.events.manage", {
+    forbiddenMessage: "Only event managers can browse event media assets.",
+    unauthenticatedMessage: "Sign in before browsing media assets.",
+  });
 
-  if (!auth.user) {
-    return NextResponse.json(
-      { message: "Sign in before browsing media assets." },
-      { status: 401 }
-    );
-  }
-
-  if (!hasOperatorRole(auth.roles)) {
-    return NextResponse.json(
-      { message: "Only operators can browse event media assets." },
-      { status: 403 }
-    );
+  if (permission.response) {
+    return permission.response;
   }
 
   const url = new URL(request.url);
@@ -56,7 +50,10 @@ async function handleGet(request: NextRequest) {
   const { data, count, error } = await builder.range(from, to);
 
   if (error) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+    return apiError(error, {
+      context: "admin.eventsMediaAssets",
+      fallback: "Event media assets could not be loaded.",
+    });
   }
 
   return NextResponse.json({

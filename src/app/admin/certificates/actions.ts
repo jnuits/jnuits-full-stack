@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { requireAdminUser } from "@/lib/auth/session";
+import {
+  getSafeAdminActionErrorMessage,
+  isUniqueConstraintError,
+} from "@/lib/admin/action-error";
+import { requireAdminPermission } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -59,10 +63,19 @@ function isoDate(raw: string): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
+function safeCertificateError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `certificates.${context}`,
+    fallback,
+  });
+}
+
 // ── Add / Update single certificate ─────────────────────────────────────────
 
 export async function upsertCertificateAction(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.certificates.manage", {
+    fallbackPath: "/admin/certificates",
+  });
   if (!auth.user) redirect("/admin");
 
   const parsed = upsertCertificateSchema.safeParse(
@@ -130,7 +143,11 @@ export async function upsertCertificateAction(formData: FormData) {
     // Update
     const { error } = await admin.from("certificates").update(payload).eq("id", id);
     if (error) {
-      await setAdminFlash({ tone: "error", title: "Update failed", message: error.message });
+      await setAdminFlash({
+        tone: "error",
+        title: "Update failed",
+        message: safeCertificateError(error, "upsert.update", "Certificate could not be updated."),
+      });
     } else {
       await setAdminFlash({ tone: "success", title: "Certificate updated", message: `${certificateId} has been updated.` });
     }
@@ -144,7 +161,9 @@ export async function upsertCertificateAction(formData: FormData) {
       await setAdminFlash({
         tone: "error",
         title: "Insert failed",
-        message: error.message.includes("unique") ? `Certificate ID "${certificateId}" already exists.` : error.message,
+        message: isUniqueConstraintError(error)
+          ? `Certificate ID "${certificateId}" already exists.`
+          : safeCertificateError(error, "upsert.insert", "Certificate could not be created."),
       });
     } else {
       await setAdminFlash({ tone: "success", title: "Certificate added", message: `${certificateId} was created successfully.` });
@@ -158,7 +177,9 @@ export async function upsertCertificateAction(formData: FormData) {
 // ── Delete certificate ────────────────────────────────────────────────────────
 
 export async function deleteCertificateAction(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.certificates.manage", {
+    fallbackPath: "/admin/certificates",
+  });
   if (!auth.user) redirect("/admin");
 
   const parsed = deleteCertificateSchema.safeParse(pickFormFields(formData, ["id"]));
@@ -178,7 +199,11 @@ export async function deleteCertificateAction(formData: FormData) {
   const { error } = await admin.from("certificates").delete().eq("id", id);
 
   if (error) {
-    await setAdminFlash({ tone: "error", title: "Delete failed", message: error.message });
+    await setAdminFlash({
+      tone: "error",
+      title: "Delete failed",
+      message: safeCertificateError(error, "delete", "Certificate could not be deleted."),
+    });
   } else {
     await setAdminFlash({
       tone: "success",
@@ -194,7 +219,9 @@ export async function deleteCertificateAction(formData: FormData) {
 // ── Fix exam_or_event value on a cert ─────────────────────────────────────────
 
 export async function fixCertTypeAction(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.certificates.manage", {
+    fallbackPath: "/admin/certificates",
+  });
   if (!auth.user) redirect("/admin");
 
   const parsed = fixCertTypeSchema.safeParse(
@@ -214,7 +241,11 @@ export async function fixCertTypeAction(formData: FormData) {
     .eq("id", id);
 
   if (error) {
-    await setAdminFlash({ tone: "error", title: "Fix failed", message: error.message });
+    await setAdminFlash({
+      tone: "error",
+      title: "Fix failed",
+      message: safeCertificateError(error, "fixType", "Certificate type could not be updated."),
+    });
   } else {
     await setAdminFlash({ tone: "success", title: "Type corrected", message: `Certificate type updated to "${examOrEvent}".` });
   }
@@ -226,7 +257,9 @@ export async function fixCertTypeAction(formData: FormData) {
 // ── Bulk CSV import (paste rows: certId,firstName,lastName,type,eventName,issueDate,assetUrl) ───
 
 export async function bulkImportCertificatesAction(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("admin.certificates.manage", {
+    fallbackPath: "/admin/certificates",
+  });
   if (!auth.user) redirect("/admin");
 
   const parsed = bulkImportSchema.safeParse(
@@ -320,7 +353,16 @@ export async function bulkImportCertificatesAction(formData: FormData) {
 
       if (existing) {
         const { error } = await admin.from("certificates").update(payload).eq("id", existing.id);
-        if (error) { rejected++; errors.push(`Row ${lineIdx + 2}: update failed — ${error.message}`); }
+        if (error) {
+          rejected++;
+          errors.push(
+            `Row ${lineIdx + 2}: update failed - ${safeCertificateError(
+              error,
+              "bulkImport.update",
+              "certificate could not be updated"
+            )}`
+          );
+        }
         else updated++;
         continue;
       }
@@ -328,12 +370,18 @@ export async function bulkImportCertificatesAction(formData: FormData) {
 
     const { error } = await admin.from("certificates").insert(payload);
     if (error) {
-      if (error.message.includes("unique")) {
+      if (isUniqueConstraintError(error)) {
         // Skip duplicate
         errors.push(`Row ${lineIdx + 2}: skipped (${certId} already exists)`);
       } else {
         rejected++;
-        errors.push(`Row ${lineIdx + 2}: insert failed — ${error.message}`);
+        errors.push(
+          `Row ${lineIdx + 2}: insert failed - ${safeCertificateError(
+            error,
+            "bulkImport.insert",
+            "certificate could not be inserted"
+          )}`
+        );
       }
     } else {
       inserted++;

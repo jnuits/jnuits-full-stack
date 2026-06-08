@@ -1,8 +1,9 @@
 import { revalidatePath } from "next/cache";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getAuthContext, hasOperatorRole } from "@/lib/auth/session";
+import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { insertAuditEvent } from "@/lib/content/media-assets";
+import { apiError } from "@/lib/errors/api-error";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -35,21 +36,15 @@ function nullableDate(value: string) {
 }
 
 async function handlePost(request: NextRequest) {
-  const auth = await getAuthContext();
+  const permission = await requireAdminApiPermission("cms.gallery.manage", {
+    forbiddenMessage: "Only gallery managers can create gallery albums.",
+    unauthenticatedMessage: "Sign in before creating gallery albums.",
+  });
 
-  if (!auth.user) {
-    return NextResponse.json(
-      { message: "Sign in before creating gallery albums." },
-      { status: 401 }
-    );
+  if (permission.response) {
+    return permission.response;
   }
-
-  if (!hasOperatorRole(auth.roles)) {
-    return NextResponse.json(
-      { message: "Only operators can create gallery albums." },
-      { status: 403 }
-    );
-  }
+  const auth = permission.auth;
 
   const body = await request.json().catch(() => null);
   const parsed = albumCreateSchema.safeParse(body);
@@ -101,15 +96,17 @@ async function handlePost(request: NextRequest) {
     .single();
 
   if (error || !saved) {
-    return NextResponse.json(
-      {
-        message:
-          error?.code === "23505"
-            ? "An album with this slug already exists. Choose a unique slug."
-            : error?.message || "Gallery album could not be created.",
-      },
-      { status: error?.code === "23505" ? 409 : 500 }
-    );
+    if (error?.code === "23505") {
+      return NextResponse.json(
+        { message: "An album with this slug already exists. Choose a unique slug." },
+        { status: 409 }
+      );
+    }
+
+    return apiError(error, {
+      context: "admin.galleryAlbumsCreate",
+      fallback: "Gallery album could not be created.",
+    });
   }
 
   await insertAuditEvent(admin, {

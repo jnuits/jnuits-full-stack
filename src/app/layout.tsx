@@ -49,7 +49,10 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${bodyFont.variable} ${monoFont.variable} ${serifFont.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-background text-foreground flex flex-col">
+      <body
+        suppressHydrationWarning
+        className="min-h-full bg-background text-foreground flex flex-col"
+      >
         {children}
       </body>
     </html>

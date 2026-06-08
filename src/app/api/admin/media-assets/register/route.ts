@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getAuthContext, hasOperatorRole } from "@/lib/auth/session";
+import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { upsertCloudinaryMediaAsset } from "@/lib/content/media-assets";
 import type { Json } from "@/lib/db/types";
+import { apiError } from "@/lib/errors/api-error";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -25,21 +26,15 @@ const mediaAssetSchema = z.object({
 });
 
 async function handlePost(request: NextRequest) {
-  const auth = await getAuthContext();
+  const permission = await requireAdminApiPermission("cms.media.manage", {
+    forbiddenMessage: "Only media managers can register media assets.",
+    unauthenticatedMessage: "Sign in before registering media assets.",
+  });
 
-  if (!auth.user) {
-    return NextResponse.json(
-      { message: "Sign in before registering media assets." },
-      { status: 401 }
-    );
+  if (permission.response) {
+    return permission.response;
   }
-
-  if (!hasOperatorRole(auth.roles)) {
-    return NextResponse.json(
-      { message: "Only operators can register media assets." },
-      { status: 403 }
-    );
-  }
+  const auth = permission.auth;
 
   const body = await request.json().catch(() => null);
   const parsed = mediaAssetSchema.safeParse(body);
@@ -78,15 +73,10 @@ async function handlePost(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    return NextResponse.json(
-      {
-        message:
-          error instanceof Error
-            ? error.message
-            : "The Cloudinary asset could not be registered.",
-      },
-      { status: 500 }
-    );
+    return apiError(error, {
+      context: "admin.mediaAssetsRegister",
+      fallback: "The Cloudinary asset could not be registered.",
+    });
   }
 }
 

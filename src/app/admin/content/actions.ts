@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { setAdminFlash } from "@/lib/admin/flash";
 import {
-  requireAdminPermission,
-  requireAdminUser,
-} from "@/lib/auth/session";
+  SafeAdminActionError,
+  getSafeAdminActionErrorMessage,
+} from "@/lib/admin/action-error";
+import { setAdminFlash } from "@/lib/admin/flash";
+import { requireAdminPermission } from "@/lib/auth/session";
 import {
   insertAuditEvent as recordAuditEvent,
   upsertCloudinaryMediaAsset,
@@ -19,6 +20,13 @@ import { asFlexibleClient } from "@/lib/supabase/flexible";
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function safeContentError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `content.${context}`,
+    fallback,
+  });
 }
 
 const booleanStringSchema = z
@@ -188,8 +196,26 @@ async function insertAuditEvent(options: {
   await recordAuditEvent(admin, options);
 }
 
+function permissionForContentPost(contentType: string) {
+  if (contentType === "blog") {
+    return "cms.blogs.review" as const;
+  }
+
+  if (contentType === "event") {
+    return "cms.events.manage" as const;
+  }
+
+  if (contentType === "notice") {
+    return "cms.notices.manage" as const;
+  }
+
+  return "cms.pages.manage" as const;
+}
+
 export async function saveMediaAsset(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.media.manage", {
+    fallbackPath: "/admin/content/media",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -280,10 +306,11 @@ export async function saveMediaAsset(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Media asset not saved",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The Cloudinary media asset could not be registered.",
+      message: safeContentError(
+        error,
+        "saveMediaAsset",
+        "The Cloudinary media asset could not be registered."
+      ),
     });
   }
 
@@ -291,7 +318,9 @@ export async function saveMediaAsset(formData: FormData) {
 }
 
 export async function saveContentPage(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.pages.manage", {
+    fallbackPath: "/admin/content/pages",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -332,8 +361,12 @@ export async function saveContentPage(formData: FormData) {
       .select("id")
       .single();
 
-    if (error || !data) {
-      throw new Error(error?.message || "Unable to save the content page.");
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      throw new SafeAdminActionError("Unable to save the content page.");
     }
 
     await insertAuditEvent({
@@ -360,10 +393,7 @@ export async function saveContentPage(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Content page not saved",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The content page could not be saved.",
+      message: safeContentError(error, "saveContentPage", "The content page could not be saved."),
     });
   }
 
@@ -371,14 +401,6 @@ export async function saveContentPage(formData: FormData) {
 }
 
 export async function saveContentPost(formData: FormData) {
-  const auth = await requireAdminUser();
-  const actorUserId = auth.user?.id;
-
-  if (!actorUserId) {
-    redirect("/login");
-  }
-
-  const admin = createAdminClient();
   const parsed = contentPostFormSchema.safeParse(
     pickFormFields(formData, [
       "category",
@@ -411,6 +433,19 @@ export async function saveContentPost(formData: FormData) {
     redirect("/admin/content");
   }
 
+  const auth = await requireAdminPermission(
+    permissionForContentPost(parsed.data.contentType),
+    {
+      fallbackPath: "/admin/content",
+    }
+  );
+  const actorUserId = auth.user?.id;
+
+  if (!actorUserId) {
+    redirect("/login");
+  }
+
+  const admin = createAdminClient();
   const {
     body,
     category,
@@ -465,8 +500,12 @@ export async function saveContentPost(formData: FormData) {
 
     const { data, error } = await query;
 
-    if (error || !data) {
-      throw new Error(error?.message || "Unable to save the content post.");
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      throw new SafeAdminActionError("Unable to save the content post.");
     }
 
     await insertAuditEvent({
@@ -500,10 +539,11 @@ export async function saveContentPost(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Content post not saved",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The public content entry could not be saved.",
+      message: safeContentError(
+        error,
+        "saveContentPost",
+        "The public content entry could not be saved."
+      ),
     });
   }
 
@@ -591,7 +631,7 @@ export async function publishMemberBlogSubmission(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Blog review failed",
-      message: error.message,
+      message: safeContentError(error, "approveBlog", "Blog review could not be saved."),
     });
     redirect("/admin/content");
   }
@@ -694,7 +734,7 @@ export async function returnMemberBlogSubmission(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Blog review failed",
-      message: error.message,
+      message: safeContentError(error, "rejectBlog", "Blog review could not be saved."),
     });
     redirect("/admin/content");
   }
@@ -741,7 +781,9 @@ export async function returnMemberBlogSubmission(formData: FormData) {
 }
 
 export async function saveGalleryEntry(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.gallery.manage", {
+    fallbackPath: "/admin/content/gallery",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -789,8 +831,12 @@ export async function saveGalleryEntry(formData: FormData) {
 
     const { data, error } = await query;
 
-    if (error || !data) {
-      throw new Error(error?.message || "Unable to save the gallery entry.");
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      throw new SafeAdminActionError("Unable to save the gallery entry.");
     }
 
     await insertAuditEvent({
@@ -815,10 +861,7 @@ export async function saveGalleryEntry(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Gallery entry not saved",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The gallery entry could not be saved.",
+      message: safeContentError(error, "saveGalleryEntry", "The gallery entry could not be saved."),
     });
   }
 
@@ -826,7 +869,9 @@ export async function saveGalleryEntry(formData: FormData) {
 }
 
 export async function saveDeveloperProfile(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.projects.manage", {
+    fallbackPath: "/admin/content/projects",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -895,8 +940,12 @@ export async function saveDeveloperProfile(formData: FormData) {
 
     const { data, error } = await query;
 
-    if (error || !data) {
-      throw new Error(error?.message || "Unable to save the developer profile.");
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      throw new SafeAdminActionError("Unable to save the developer profile.");
     }
 
     await insertAuditEvent({
@@ -923,10 +972,11 @@ export async function saveDeveloperProfile(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Developer profile not saved",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The developer profile could not be saved.",
+      message: safeContentError(
+        error,
+        "saveDeveloperProfile",
+        "The developer profile could not be saved."
+      ),
     });
   }
 
@@ -942,7 +992,9 @@ function parseDate(value: string) {
 }
 
 export async function createProject(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.projects.manage", {
+    fallbackPath: "/admin/content/projects",
+  });
   const actorUserId = auth.user?.id;
   if (!actorUserId) redirect("/login");
 
@@ -1023,7 +1075,13 @@ export async function createProject(formData: FormData) {
       .select("id")
       .single();
 
-    if (error || !data) throw new Error(error?.message || "Unable to create project.");
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      throw new SafeAdminActionError("Unable to create project.");
+    }
 
     await insertAuditEvent({
       action: "content.project_created",
@@ -1040,7 +1098,7 @@ export async function createProject(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Project not saved",
-      message: err instanceof Error ? err.message : "The project could not be created.",
+      message: safeContentError(err, "createProject", "The project could not be created."),
     });
   }
 
@@ -1048,7 +1106,9 @@ export async function createProject(formData: FormData) {
 }
 
 export async function updateProject(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.projects.manage", {
+    fallbackPath: "/admin/content/projects",
+  });
   const actorUserId = auth.user?.id;
   if (!actorUserId) redirect("/login");
 
@@ -1124,7 +1184,7 @@ export async function updateProject(formData: FormData) {
       })
       .eq("id", projectId);
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     await insertAuditEvent({
       action: "content.project_updated",
@@ -1141,7 +1201,7 @@ export async function updateProject(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Project not updated",
-      message: err instanceof Error ? err.message : "The project could not be updated.",
+      message: safeContentError(err, "updateProject", "The project could not be updated."),
     });
   }
 
@@ -1149,7 +1209,9 @@ export async function updateProject(formData: FormData) {
 }
 
 export async function deleteProject(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.projects.manage", {
+    fallbackPath: "/admin/content/projects",
+  });
   const actorUserId = auth.user?.id;
   if (!actorUserId) redirect("/login");
 
@@ -1171,7 +1233,7 @@ export async function deleteProject(formData: FormData) {
 
   try {
     const { error } = await admin.from("projects").delete().eq("id", projectId);
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     await insertAuditEvent({
       action: "content.project_deleted",
@@ -1188,7 +1250,7 @@ export async function deleteProject(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Delete failed",
-      message: err instanceof Error ? err.message : "The project could not be deleted.",
+      message: safeContentError(err, "deleteProject", "The project could not be deleted."),
     });
   }
 
@@ -1196,7 +1258,9 @@ export async function deleteProject(formData: FormData) {
 }
 
 export async function addProjectContributor(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.projects.manage", {
+    fallbackPath: "/admin/content/projects",
+  });
   const actorUserId = auth.user?.id;
   if (!actorUserId) redirect("/login");
 
@@ -1226,7 +1290,11 @@ export async function addProjectContributor(formData: FormData) {
       .eq("jnuits_id", jnuitsId)
       .maybeSingle();
 
-    if (memberError || !member) {
+    if (memberError) {
+      throw memberError;
+    }
+
+    if (!member) {
       await setAdminFlash({ tone: "error", title: "Contributor not added", message: `No member found with JnUITS ID: ${jnuitsId}.` });
       redirect("/admin/content");
     }
@@ -1238,7 +1306,7 @@ export async function addProjectContributor(formData: FormData) {
       role,
     });
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     revalidatePath("/admin/content");
     revalidatePath("/projects");
@@ -1247,7 +1315,11 @@ export async function addProjectContributor(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Contributor not added",
-      message: err instanceof Error ? err.message : "The contributor could not be added.",
+      message: safeContentError(
+        err,
+        "addProjectContributor",
+        "The contributor could not be added."
+      ),
     });
   }
 
@@ -1255,7 +1327,9 @@ export async function addProjectContributor(formData: FormData) {
 }
 
 export async function removeProjectContributor(formData: FormData) {
-  const auth = await requireAdminUser();
+  const auth = await requireAdminPermission("cms.projects.manage", {
+    fallbackPath: "/admin/content/projects",
+  });
   const actorUserId = auth.user?.id;
   if (!actorUserId) redirect("/login");
 
@@ -1279,7 +1353,7 @@ export async function removeProjectContributor(formData: FormData) {
 
   try {
     const { error } = await admin.from("project_contributors").delete().eq("id", contributorId);
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     revalidatePath("/admin/content");
     revalidatePath("/projects");
@@ -1288,7 +1362,11 @@ export async function removeProjectContributor(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Remove failed",
-      message: err instanceof Error ? err.message : "The contributor could not be removed.",
+      message: safeContentError(
+        err,
+        "removeProjectContributor",
+        "The contributor could not be removed."
+      ),
     });
   }
 

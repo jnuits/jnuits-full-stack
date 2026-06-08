@@ -1,3 +1,5 @@
+import { getAdminNavigationLinks } from "@/lib/admin/access";
+
 export type NavItem = {
   href: string;
   label: string;
@@ -151,32 +153,4 @@ export const portalNavigation: NavItem[] = [
   { href: "/portal/profile/change-password", label: "Password" },
 ];
 
-export const adminNavigation: NavItem[] = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/applications", label: "Applications" },
-  { href: "/admin/invitations", label: "Invitations" },
-  { href: "/admin/workplace", label: "Workplace" },
-  { href: "/admin/profile-changes", label: "Profile Changes" },
-  { href: "/admin/membership", label: "Membership DB" },
-  { href: "/admin/bulk-operations", label: "Bulk Operations" },
-  { href: "/admin/content", label: "Content Hub" },
-  { href: "/admin/content/about", label: "About page" },
-  { href: "/admin/content/slider", label: "Slider images" },
-  { href: "/admin/content/media", label: "Media" },
-  { href: "/admin/content/blogs", label: "Blogs" },
-  { href: "/admin/content/notices", label: "Notices" },
-  { href: "/admin/content/events", label: "Events" },
-  { href: "/admin/content/gallery", label: "Gallery" },
-  { href: "/admin/content/projects", label: "Projects" },
-  { href: "/admin/content/pages", label: "Page Singletons" },
-  { href: "/admin/committee", label: "Committee" },
-  { href: "/admin/reports", label: "Reports" },
-  { href: "/admin/reconcile", label: "Reconcile" },
-  { href: "/admin/certificates", label: "Certificates" },
-  { href: "/admin/decisions", label: "Decisions Log" },
-  { href: "/admin/admin-profiles", label: "Admin Profiles" },
-  { href: "/admin/settings/profile", label: "Profile Settings" },
-  { href: "/admin/settings/security", label: "Security Settings" },
-  { href: "/admin/settings/notifications", label: "Notification Settings" },
-  { href: "/admin/settings/contact", label: "Contact Settings" },
-];
+export const adminNavigation: NavItem[] = getAdminNavigationLinks();

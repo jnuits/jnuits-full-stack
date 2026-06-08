@@ -139,6 +139,24 @@ function link(label: string, href: string): string {
   return `<a href="${esc(href)}" style="color:${BLUE};text-decoration:none;">${esc(label)}</a>`;
 }
 
+function fallbackLink(href: string): string {
+  return p(
+    `If the button does not open, copy and paste this link into your browser:<br/><a href="${esc(href)}" style="color:${BLUE};text-decoration:none;word-break:break-all;">${esc(href)}</a>`,
+    "font-size:13px;margin:0 0 16px;"
+  );
+}
+
+function orderedSteps(items: string[]): string {
+  const listItems = items
+    .map(
+      (item) =>
+        `<li style="margin:0 0 8px;padding:0;color:${MUTED};font-size:14px;line-height:1.6;">${item}</li>`
+    )
+    .join("");
+
+  return `<ol class="email-copy" style="margin:0 0 18px;padding:0 0 0 20px;color:${MUTED};">${listItems}</ol>`;
+}
+
 function hr(): string {
   return `<hr style="border:none;border-top:1px solid ${BORDER};margin:20px 0;" />`;
 }
@@ -209,17 +227,26 @@ export function buildMembershipApprovedEmail(props: MembershipApprovedEmailProps
         ["Invite expires", expiryDate],
       ].filter((row): row is [string, string] => Boolean(row))
     ),
-    p("Use the claim code below to create your member portal account. The claim form will ask for the JnUITS ID, email address, and claim code exactly as shown in this email."),
+    p("Open the registration page and enter the invitation details manually. For security, the form will not prefill fields from this email."),
     `<p class="email-label" style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">Your claim code</p>`,
     codeBlock(invitationCode),
+    orderedSteps([
+      `Enter your JnUITS ID: <strong class="email-value" style="color:${TEXT};">${esc(jnuitsId)}</strong>.`,
+      applicantEmail
+        ? `Enter this email address: <strong class="email-value" style="color:${TEXT};">${esc(applicantEmail)}</strong>.`
+        : "Enter the email address used for your approved application.",
+      "Enter the claim code above and choose a password of at least 8 characters.",
+      "Submit the form. If the claim succeeds, your portal account is created immediately; you do not need to wait for a second confirmation email.",
+    ]),
     p(
       "Keep this email open while completing the form. The code is valid only until the expiry date above.",
       "font-size:13px;"
     ),
-    button("Open claim form", claimUrl),
+    button("Claim member profile", claimUrl),
+    fallbackLink(claimUrl),
     hr(),
     p(
-      `Having trouble? Reply to this email or ${link("contact us", "https://jnuits.org.bd/contact")}.`,
+      `Having trouble? ${link("Contact JnUITS support", "https://jnuits.org.bd/contact")} and include your JnUITS ID.`,
       "font-size:13px;margin:0;"
     ),
   ].join("");
@@ -263,14 +290,23 @@ export function buildMemberInvitationEmail(props: MemberInvitationEmailProps): s
         ["Invite expires", expiryDate],
       ].filter((row): row is [string, string] => Boolean(row))
     ),
-    p("Use this claim code to create your portal account. The claim form will ask for the JnUITS ID, email address, and claim code exactly as shown in this email."),
+    p("Open the registration page and enter the invitation details manually. For security, the form will not prefill fields from this email."),
     `<p class="email-label" style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">Claim code</p>`,
     codeBlock(invitationCode),
+    orderedSteps([
+      `Enter your JnUITS ID: <strong class="email-value" style="color:${TEXT};">${esc(jnuitsId)}</strong>.`,
+      memberEmail
+        ? `Enter this email address: <strong class="email-value" style="color:${TEXT};">${esc(memberEmail)}</strong>.`
+        : "Enter the email address that received this invitation.",
+      "Enter the claim code above and choose a password of at least 8 characters.",
+      "Submit the form. If the claim succeeds, your portal account is created immediately; you do not need to wait for a second confirmation email.",
+    ]),
     p("Keep this email open while completing the form. The code is valid only until the expiry date above.", "font-size:13px;"),
-    button("Open claim form", claimUrl),
+    button("Claim member profile", claimUrl),
+    fallbackLink(claimUrl),
     hr(),
     p(
-      `If this invitation looks unexpected, please ${link("contact JnUITS", "https://jnuits.org.bd/contact")}.`,
+      `If this invitation looks unexpected or you need help, ${link("contact JnUITS support", "https://jnuits.org.bd/contact")} and include your JnUITS ID.`,
       "font-size:13px;margin:0;"
     ),
   ].join("");
@@ -313,14 +349,23 @@ export function buildAlumniInvitationEmail(props: AlumniInvitationEmailProps): s
         ["Invite expires", expiryDate],
       ].filter((row): row is [string, string] => Boolean(row))
     ),
-    p("Use this claim code to activate alumni portal access. The claim form will ask for the JnUITS ID, email address, and claim code exactly as shown in this email."),
+    p("Open the registration page and enter the invitation details manually. For security, the form will not prefill fields from this email."),
     `<p class="email-label" style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">Claim code</p>`,
     codeBlock(invitationCode),
+    orderedSteps([
+      `Enter your JnUITS ID: <strong class="email-value" style="color:${TEXT};">${esc(jnuitsId)}</strong>.`,
+      alumniEmail
+        ? `Enter this email address: <strong class="email-value" style="color:${TEXT};">${esc(alumniEmail)}</strong>.`
+        : "Enter the email address that received this invitation.",
+      "Enter the claim code above and choose a password of at least 8 characters.",
+      "Submit the form. If the claim succeeds, your alumni portal account is created immediately; you do not need to wait for a second confirmation email.",
+    ]),
     p("Keep this email open while completing the form. The code is valid only until the expiry date above.", "font-size:13px;"),
-    button("Open alumni claim form", claimUrl),
+    button("Claim alumni profile", claimUrl),
+    fallbackLink(claimUrl),
     hr(),
     p(
-      `Need help? ${link("Contact JnUITS", "https://jnuits.org.bd/contact")}.`,
+      `Need help? ${link("Contact JnUITS support", "https://jnuits.org.bd/contact")} and include your JnUITS ID.`,
       "font-size:13px;margin:0;"
     ),
   ].join("");

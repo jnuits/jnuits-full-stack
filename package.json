@@ -12,6 +12,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "audit:admin-access": "node scripts/check-admin-access-map.cjs",
     "migration:check": "node scripts/check-migration-parity.cjs",
     "certificates:import": "node scripts/import-certificates.mjs",
     "certificates:verify": "node scripts/verify-certificates.mjs",

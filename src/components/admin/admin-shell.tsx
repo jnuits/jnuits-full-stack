@@ -2,6 +2,12 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import {
+  adminAccessItems,
+  getAdminNavPermissionCodes,
+  type AdminAccessItem,
+} from "@/lib/admin/access";
+import { hasPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminNavClient } from "./admin-nav-client";
 
@@ -17,36 +23,83 @@ export type AdminBadgeCounts = {
   pendingProfile: number;
 };
 
+export type AdminShellNavigationItem = Pick<
+  AdminAccessItem,
+  "badgeKey" | "group" | "href" | "iconKey" | "label"
+>;
+
+async function getAllowedNavigationItems(): Promise<AdminShellNavigationItem[]> {
+  const permissionCodes = getAdminNavPermissionCodes();
+  const permissionResults = await Promise.all(
+    permissionCodes.map(async (permission) => [
+      permission,
+      await hasPermission(permission),
+    ] as const)
+  );
+  const allowedPermissions = new Set(
+    permissionResults
+      .filter(([, allowed]) => allowed)
+      .map(([permission]) => permission)
+  );
+
+  return adminAccessItems
+    .filter(
+      (item) =>
+        !item.requiredPermission || allowedPermissions.has(item.requiredPermission)
+    )
+    .map(({ badgeKey, group, href, iconKey, label }) => ({
+      badgeKey,
+      group,
+      href,
+      iconKey,
+      label,
+    }));
+}
+
 // ── Server component ──────────────────────────────────────────────────────────
 
 export async function AdminShell({
-  adminRole = null,
   children,
 }: {
-  adminRole?: null | string;
   children: React.ReactNode;
 }) {
-  // Fetch badge counts — only plain numbers cross the RSC boundary
+  const navigationItems = await getAllowedNavigationItems();
+  const showPendingApps = navigationItems.some(
+    (item) => item.badgeKey === "pendingApps"
+  );
+  const showPendingWorkplace = navigationItems.some(
+    (item) => item.badgeKey === "pendingWorkplace"
+  );
+  const showPendingProfile = navigationItems.some(
+    (item) => item.badgeKey === "pendingProfile"
+  );
+
   const admin = createAdminClient();
   const [
     { count: pendingApps },
     { count: pendingWorkplace },
     { count: pendingProfile },
   ] = await Promise.all([
-    admin
-      .from("membership_applications")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending"),
-    admin
-      .from("profile_update_requests")
-      .select("*", { count: "exact", head: true })
-      .eq("request_type", "workplace_update")
-      .eq("status", "pending"),
-    admin
-      .from("profile_update_requests")
-      .select("*", { count: "exact", head: true })
-      .eq("request_type", "profile_change")
-      .eq("status", "pending"),
+    showPendingApps
+      ? admin
+          .from("membership_applications")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "pending")
+      : Promise.resolve({ count: 0 }),
+    showPendingWorkplace
+      ? admin
+          .from("profile_update_requests")
+          .select("*", { count: "exact", head: true })
+          .eq("request_type", "workplace_update")
+          .eq("status", "pending")
+      : Promise.resolve({ count: 0 }),
+    showPendingProfile
+      ? admin
+          .from("profile_update_requests")
+          .select("*", { count: "exact", head: true })
+          .eq("request_type", "profile_change")
+          .eq("status", "pending")
+      : Promise.resolve({ count: 0 }),
   ]);
 
   const badgeCounts: AdminBadgeCounts = {
@@ -58,7 +111,10 @@ export async function AdminShell({
   return (
     <div className="admin-layout">
       {/* Client component renders sidebar (with icons defined client-side) */}
-      <AdminNavClient adminRole={adminRole} badgeCounts={badgeCounts} />
+      <AdminNavClient
+        badgeCounts={badgeCounts}
+        navigationItems={navigationItems}
+      />
 
       {/* Right-side page wrapper */}
       <div className="admin-page-wrap">

@@ -3041,21 +3041,28 @@
 }
 
 .invitation-workspace .membership-table-toolbar {
-  display: grid;
-  grid-template-columns: minmax(18rem, 1.5fr) repeat(3, minmax(9.5rem, 0.7fr)) auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  max-width: 72rem;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+
+.invitation-workspace .membership-table-toolbar .membership-table-search {
+  flex: 1 1 20rem;
+  min-width: min(100%, 16rem);
 }
 
 .invitation-workspace .membership-table-toolbar select,
 .invitation-workspace .membership-table-toolbar .ghost-button {
-  width: 100%;
+  flex: 0 1 10.5rem;
+  min-width: 0;
 }
 
 .invitation-workspace .membership-table-toolbar .membership-table-count {
-  grid-column: 1 / -1;
-  justify-self: end;
+  flex: 1 0 100%;
   margin-left: 0;
+  text-align: right;
 }
 
 .invitation-workspace .section-band form .primary-button,
@@ -3280,12 +3287,11 @@
   }
 
   .invitation-workspace .membership-table-toolbar {
-    grid-template-columns: 1fr;
     max-width: 100%;
   }
 
   .invitation-workspace .membership-table-toolbar .membership-table-count {
-    justify-self: start;
+    text-align: left;
   }
 
   .membership-table-search,

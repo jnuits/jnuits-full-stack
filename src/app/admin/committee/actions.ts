@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
 import {
@@ -14,6 +15,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function safeCommitteeError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `committee.${context}`,
+    fallback,
+  });
 }
 
 const booleanStringSchema = z
@@ -453,7 +461,9 @@ export async function saveCommitteeTerm(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Committee term not saved",
-      message: error?.message || "Unable to save the committee term.",
+      message: error
+        ? safeCommitteeError(error, "saveTerm", "Unable to save the committee term.")
+        : "Unable to save the committee term.",
     });
     redirect("/admin/committee");
   }
@@ -519,7 +529,7 @@ export async function setCommitteeTermCurrent(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Current committee not changed",
-      message: error.message,
+      message: safeCommitteeError(error, "setCurrentTerm", "Current committee could not be changed."),
     });
     redirect("/admin/committee");
   }
@@ -669,7 +679,9 @@ export async function saveCommitteeAssignment(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Committee assignment not saved",
-      message: error?.message || "Unable to save the committee assignment.",
+      message: error
+        ? safeCommitteeError(error, "saveAssignment", "Unable to save the committee assignment.")
+        : "Unable to save the committee assignment.",
     });
     redirect("/admin/committee");
   }
@@ -718,7 +730,11 @@ export async function removeCommitteeAssignment(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Committee assignment not removed",
-      message: error.message,
+      message: safeCommitteeError(
+        error,
+        "removeAssignment",
+        "Committee assignment could not be removed."
+      ),
     });
     redirect("/admin/committee");
   }
@@ -780,7 +796,7 @@ export async function bulkUpdateCommitteeAssignments(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Bulk roster update failed",
-      message: error.message,
+      message: safeCommitteeError(error, "bulkRoster", "Bulk roster update could not be saved."),
     });
     redirect("/admin/committee");
   }
@@ -928,7 +944,9 @@ export async function saveAdvisorProfile(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Advisor profile not saved",
-      message: error?.message || "Unable to save advisor profile.",
+      message: error
+        ? safeCommitteeError(error, "saveAdvisorProfile", "Unable to save advisor profile.")
+        : "Unable to save advisor profile.",
     });
     redirect("/admin/committee");
   }
@@ -1024,10 +1042,11 @@ export async function linkAdvisorAuthUser(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Advisor portal user not linked",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Supabase Auth lookup failed while linking the advisor.",
+      message: safeCommitteeError(
+        error,
+        "linkAdvisorPortalUser.authLookup",
+        "Supabase Auth lookup failed while linking the advisor."
+      ),
     });
     redirect("/admin/committee");
   }
@@ -1050,7 +1069,11 @@ export async function linkAdvisorAuthUser(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Advisor portal user not linked",
-      message: error.message,
+      message: safeCommitteeError(
+        error,
+        "linkAdvisorPortalUser",
+        "Advisor portal user could not be linked."
+      ),
     });
     redirect("/admin/committee");
   }
@@ -1374,7 +1397,11 @@ async function commitAssignmentImport(
       await setAdminFlash({
         tone: "error",
         title: "Committee import partially blocked",
-        message: error.message,
+        message: safeCommitteeError(
+          error,
+          "importCommitteeRoster",
+          "Committee import could not finish safely."
+        ),
       });
       redirect("/admin/committee");
     }
@@ -1487,7 +1514,13 @@ async function commitAdvisorProfileImport(
       : await admin.from("advisor_profiles").insert(payload);
 
     if (error) {
-      errors.push(`Row ${rowNumber}: ${error.message}`);
+      errors.push(
+        `Row ${rowNumber}: ${safeCommitteeError(
+          error,
+          "commitAdvisorImport.row",
+          "Unable to save advisor profile."
+        )}`
+      );
       continue;
     }
 
@@ -1634,7 +1667,9 @@ export async function rolloverCommitteeTerm(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Committee rollover failed",
-      message: insertError?.message || "Unable to create the rollover term.",
+      message: insertError
+        ? safeCommitteeError(insertError, "rollover.createTerm", "Unable to create the rollover term.")
+        : "Unable to create the rollover term.",
     });
     redirect("/admin/committee");
   }
@@ -1655,7 +1690,11 @@ export async function rolloverCommitteeTerm(formData: FormData) {
       await setAdminFlash({
         tone: "error",
         title: "Committee rollover failed",
-        message: assignmentLoadError.message,
+        message: safeCommitteeError(
+          assignmentLoadError,
+          "rollover.loadAssignments",
+          "Unable to load source committee assignments."
+        ),
       });
       redirect("/admin/committee");
     }
@@ -1686,7 +1725,11 @@ export async function rolloverCommitteeTerm(formData: FormData) {
         await setAdminFlash({
           tone: "error",
           title: "Committee rollover failed",
-          message: assignmentInsertError.message,
+          message: safeCommitteeError(
+            assignmentInsertError,
+            "rollover.cloneAssignments",
+            "Unable to clone source committee assignments."
+          ),
         });
         redirect("/admin/committee");
       }

@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import {
+  SafeAdminActionError,
+  getSafeAdminActionErrorMessage,
+} from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
-import { requireAdminPermission, requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPermission } from "@/lib/auth/session";
 import type { TablesInsert } from "@/lib/db/types";
 import {
   buildAlumniConversionDecisionEmail,
@@ -130,6 +134,13 @@ function redirectMembership(): never {
   redirect("/admin/membership");
 }
 
+function safeMembershipError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `membership.${context}`,
+    fallback,
+  });
+}
+
 async function assignPortalRole(options: {
   actorUserId: string;
   admin: AdminClient;
@@ -146,8 +157,18 @@ async function assignPortalRole(options: {
     .eq("is_assignable", true)
     .maybeSingle();
 
-  if (roleError || !role?.id) {
-    throw new Error(roleError?.message || "The selected portal role is not assignable.");
+  if (roleError) {
+    throw new Error(
+      safeMembershipError(
+        roleError,
+        "assignPortalRole.loadRole",
+        "Unable to load the selected portal role."
+      )
+    );
+  }
+
+  if (!role?.id) {
+    throw new SafeAdminActionError("The selected portal role is not assignable.");
   }
 
   await flexibleAdmin
@@ -171,7 +192,13 @@ async function assignPortalRole(options: {
     });
 
   if (insertError) {
-    throw new Error(insertError.message);
+    throw new Error(
+      safeMembershipError(
+        insertError,
+        "assignPortalRole",
+        "Portal role could not be assigned."
+      )
+    );
   }
 }
 
@@ -198,7 +225,9 @@ export async function updateMemberLifecycle(
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message || "Invalid lifecycle update.");
+    throw new SafeAdminActionError(
+      parsed.error.issues[0]?.message || "Invalid lifecycle update."
+    );
   }
 
   const admin = createAdminClient();
@@ -213,7 +242,13 @@ export async function updateMemberLifecycle(
   );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      safeMembershipError(
+        error,
+        "updateLifecycle.rpc",
+        "Member lifecycle could not be updated."
+      )
+    );
   }
 
   revalidatePath("/admin/membership");
@@ -255,10 +290,11 @@ export async function updateMemberLifecycleAction(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Lifecycle update failed",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Member lifecycle could not be updated.",
+      message: safeMembershipError(
+        error,
+        "updateLifecycle",
+        "Member lifecycle could not be updated."
+      ),
     });
     redirectMembership();
   }
@@ -292,7 +328,9 @@ export async function updateMemberPortalRole(
   });
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message || "Invalid portal role update.");
+    throw new SafeAdminActionError(
+      parsed.error.issues[0]?.message || "Invalid portal role update."
+    );
   }
 
   const admin = createAdminClient();
@@ -302,10 +340,18 @@ export async function updateMemberPortalRole(
     .eq("id", parsed.data.memberId)
     .maybeSingle();
 
-  if (memberError || !member?.user_id) {
+  if (memberError) {
     throw new Error(
-      memberError?.message || "This member does not have a linked portal account."
+      safeMembershipError(
+        memberError,
+        "updatePortalRole.loadMember",
+        "Unable to load the member account."
+      )
     );
+  }
+
+  if (!member?.user_id) {
+    throw new SafeAdminActionError("This member does not have a linked portal account.");
   }
 
   await assignPortalRole({
@@ -373,7 +419,7 @@ export async function updateMemberPortalRoleAction(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Portal role update failed",
-      message: error instanceof Error ? error.message : "Unable to update portal role.",
+      message: safeMembershipError(error, "updatePortalRole", "Unable to update portal role."),
     });
     redirectMembership();
   }
@@ -389,44 +435,50 @@ export async function updateMemberPortalRoleAction(formData: FormData) {
 export async function saveMemberOperationsAction(
   input: unknown
 ): Promise<MembershipActionResult> {
-  const parsed = memberOperationsSaveSchema.safeParse(input);
+  try {
+    const parsed = memberOperationsSaveSchema.safeParse(input);
 
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message || "Invalid member update.");
-  }
+    if (!parsed.success) {
+      throw parsed.error;
+    }
 
-  const updates: string[] = [];
+    const updates: string[] = [];
 
-  if (parsed.data.updateLifecycle) {
-    await updateMemberLifecycle(
-      parsed.data.memberId,
-      parsed.data.nextLifecycleStatus,
-      parsed.data.nextPortalAccessStatus,
-      parsed.data.lifecycleNote
-    );
-    updates.push("lifecycle");
-  }
+    if (parsed.data.updateLifecycle) {
+      await updateMemberLifecycle(
+        parsed.data.memberId,
+        parsed.data.nextLifecycleStatus,
+        parsed.data.nextPortalAccessStatus,
+        parsed.data.lifecycleNote
+      );
+      updates.push("lifecycle");
+    }
 
-  if (parsed.data.updatePortalRole) {
-    await updateMemberPortalRole(
-      parsed.data.memberId,
-      parsed.data.nextPortalRole,
-      parsed.data.roleNote
-    );
-    updates.push("portal role");
-  }
+    if (parsed.data.updatePortalRole) {
+      await updateMemberPortalRole(
+        parsed.data.memberId,
+        parsed.data.nextPortalRole,
+        parsed.data.roleNote
+      );
+      updates.push("portal role");
+    }
 
-  if (updates.length === 0) {
+    if (updates.length === 0) {
+      return {
+        message: "No changes to save.",
+        ok: true,
+      };
+    }
+
     return {
-      message: "No changes to save.",
+      message: `Saved ${updates.join(" and ")} changes.`,
       ok: true,
     };
+  } catch (error) {
+    throw new Error(
+      safeMembershipError(error, "saveMemberOperations", "Unable to save member changes.")
+    );
   }
-
-  return {
-    message: `Saved ${updates.join(" and ")} changes.`,
-    ok: true,
-  };
 }
 
 export async function lookupMemberForCycleAction(input: unknown): Promise<{
@@ -434,40 +486,48 @@ export async function lookupMemberForCycleAction(input: unknown): Promise<{
   fullName: string;
   id: string;
 } | null> {
-  await requireAdminUser({ fallbackPath: "/admin/membership" });
+  await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/membership",
+  });
 
-  const parsed = memberLookupSchema.safeParse(input);
+  try {
+    const parsed = memberLookupSchema.safeParse(input);
 
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message || "Invalid member ID.");
+    if (!parsed.success) {
+      throw parsed.error;
+    }
+
+    const normalizedId = parsed.data.jnuitsId.toUpperCase();
+    const admin = createAdminClient();
+    const { data, error } = await asFlexibleClient(admin)
+      .from("members" as string)
+      .select("id, jnuits_id, full_name")
+      .eq("jnuits_id", normalizedId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data?.id) {
+      return null;
+    }
+
+    return {
+      displayJnuitsId: formatMembershipIdForDisplay(
+        typeof data.jnuits_id === "string" ? data.jnuits_id : normalizedId
+      ),
+      fullName:
+        typeof data.full_name === "string" && data.full_name.trim()
+          ? data.full_name
+          : "Member record",
+      id: String(data.id),
+    };
+  } catch (error) {
+    throw new Error(
+      safeMembershipError(error, "lookupMemberForCycle", "Unable to look up that member.")
+    );
   }
-
-  const normalizedId = parsed.data.jnuitsId.toUpperCase();
-  const admin = createAdminClient();
-  const { data, error } = await asFlexibleClient(admin)
-    .from("members" as string)
-    .select("id, jnuits_id, full_name")
-    .eq("jnuits_id", normalizedId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data?.id) {
-    return null;
-  }
-
-  return {
-    displayJnuitsId: formatMembershipIdForDisplay(
-      typeof data.jnuits_id === "string" ? data.jnuits_id : normalizedId
-    ),
-    fullName:
-      typeof data.full_name === "string" && data.full_name.trim()
-        ? data.full_name
-        : "Member record",
-    id: String(data.id),
-  };
 }
 
 async function reviewMemberAccountRequest(options: {
@@ -490,10 +550,11 @@ async function reviewMemberAccountRequest(options: {
     request.status !== "pending" ||
     !["alumni_conversion", "account_deletion"].includes(request.request_type)
   ) {
-    throw new Error(
-      requestError?.message ||
-        "Pending alumni/deletion request could not be loaded."
-    );
+    if (requestError) {
+      throw requestError;
+    }
+
+    throw new SafeAdminActionError("Pending alumni/deletion request could not be loaded.");
   }
 
   const { data: member, error: memberError } = await flexibleAdmin
@@ -502,8 +563,12 @@ async function reviewMemberAccountRequest(options: {
     .eq("id", request.member_id)
     .maybeSingle();
 
-  if (memberError || !member) {
-    throw new Error(memberError?.message || "The linked member record was not found.");
+  if (memberError) {
+    throw memberError;
+  }
+
+  if (!member) {
+    throw new SafeAdminActionError("The linked member record was not found.");
   }
 
   const nowIso = new Date().toISOString();
@@ -523,7 +588,7 @@ async function reviewMemberAccountRequest(options: {
       );
 
       if (lifecycleError) {
-        throw new Error(lifecycleError.message);
+        throw lifecycleError;
       }
 
       if (member.user_id) {
@@ -548,7 +613,7 @@ async function reviewMemberAccountRequest(options: {
       );
 
       if (lifecycleError) {
-        throw new Error(lifecycleError.message);
+        throw lifecycleError;
       }
 
       if (targetUserId) {
@@ -594,7 +659,7 @@ async function reviewMemberAccountRequest(options: {
     .eq("id", request.id);
 
   if (updateError) {
-    throw new Error(updateError.message);
+    throw updateError;
   }
 
   await recordSecurityEvent(options.admin, {
@@ -672,10 +737,11 @@ export async function reviewMemberAccountRequestAction(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Account request review failed",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Pending alumni/deletion request could not be reviewed.",
+      message: safeMembershipError(
+        error,
+        "reviewAccountRequest",
+        "Pending alumni/deletion request could not be reviewed."
+      ),
     });
     redirectMembership();
   }
@@ -702,37 +768,49 @@ export async function bulkReviewMemberAccountRequestsAction(
     redirect("/login?next=%2Fadmin%2Fmembership");
   }
 
-  const parsed = accountRequestBulkReviewSchema.safeParse(input);
+  try {
+    const parsed = accountRequestBulkReviewSchema.safeParse(input);
 
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message || "Invalid bulk review.");
+    if (!parsed.success) {
+      throw parsed.error;
+    }
+
+    const admin = createAdminClient();
+    let reviewedCount = 0;
+
+    for (const requestId of parsed.data.requestIds) {
+      await reviewMemberAccountRequest({
+        actorUserId,
+        admin,
+        decision: parsed.data.decision,
+        requestId,
+        reviewNote: parsed.data.reviewNote,
+      });
+      reviewedCount += 1;
+    }
+
+    revalidatePath("/admin/membership");
+    revalidatePath("/admin/profile-changes");
+
+    return {
+      message: `${reviewedCount} request${reviewedCount === 1 ? "" : "s"} ${parsed.data.decision}.`,
+      ok: true,
+    };
+  } catch (error) {
+    throw new Error(
+      safeMembershipError(
+        error,
+        "bulkReviewAccountRequests",
+        "Unable to review the selected account requests."
+      )
+    );
   }
-
-  const admin = createAdminClient();
-  let reviewedCount = 0;
-
-  for (const requestId of parsed.data.requestIds) {
-    await reviewMemberAccountRequest({
-      actorUserId,
-      admin,
-      decision: parsed.data.decision,
-      requestId,
-      reviewNote: parsed.data.reviewNote,
-    });
-    reviewedCount += 1;
-  }
-
-  revalidatePath("/admin/membership");
-  revalidatePath("/admin/profile-changes");
-
-  return {
-    message: `${reviewedCount} request${reviewedCount === 1 ? "" : "s"} ${parsed.data.decision}.`,
-    ok: true,
-  };
 }
 
 export async function createMembershipCycleAction(formData: FormData) {
-  const auth = await requireAdminUser({ fallbackPath: "/admin/membership" });
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/membership",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -787,7 +865,9 @@ export async function createMembershipCycleAction(formData: FormData) {
       {
         tone: "error",
         title: "Cycle creation failed",
-        message: error?.message || "Unable to save membership cycle.",
+        message: error
+          ? safeMembershipError(error, "createCycle", "Unable to save membership cycle.")
+          : "Unable to save membership cycle.",
       },
       "/admin"
     );
@@ -819,7 +899,9 @@ export async function createMembershipCycleAction(formData: FormData) {
 }
 
 export async function updateMembershipCycleStatusAction(formData: FormData) {
-  const auth = await requireAdminUser({ fallbackPath: "/admin/membership" });
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/membership",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -857,7 +939,7 @@ export async function updateMembershipCycleStatusAction(formData: FormData) {
       {
         tone: "error",
         title: "Cycle status update failed",
-        message: error.message,
+        message: safeMembershipError(error, "updateCycleStatus", "Cycle status could not be updated."),
       },
       "/admin"
     );
@@ -887,7 +969,9 @@ export async function updateMembershipCycleStatusAction(formData: FormData) {
 }
 
 export async function enrollMemberInCycleAction(formData: FormData) {
-  const auth = await requireAdminUser({ fallbackPath: "/admin/membership" });
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/membership",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -968,7 +1052,7 @@ export async function enrollMemberInCycleAction(formData: FormData) {
       {
         tone: "error",
         title: "Enrollment failed",
-        message: upsertError.message,
+        message: safeMembershipError(upsertError, "enrollMember", "Member enrollment could not be saved."),
       },
       "/admin"
     );
@@ -1013,7 +1097,9 @@ export async function enrollMemberInCycleAction(formData: FormData) {
 }
 
 export async function updateCycleMemberStateAction(formData: FormData) {
-  const auth = await requireAdminUser({ fallbackPath: "/admin/membership" });
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/membership",
+  });
   const actorUserId = auth.user?.id;
 
   if (!actorUserId) {
@@ -1073,7 +1159,7 @@ export async function updateCycleMemberStateAction(formData: FormData) {
       {
         tone: "error",
         title: "State update failed",
-        message: error.message,
+        message: safeMembershipError(error, "updateCycleMemberState", "Member cycle state could not be updated."),
       },
       "/admin"
     );

@@ -6,7 +6,8 @@ import {
   getCloudinaryConfig,
   normalizeCloudinaryFolder,
 } from "@/lib/cloudinary/config";
-import { getAuthContext, hasOperatorRole } from "@/lib/auth/session";
+import { requireAdminApiPermission } from "@/lib/admin/api-auth";
+import { apiError } from "@/lib/errors/api-error";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 
 const requestSchema = z.object({
@@ -15,20 +16,13 @@ const requestSchema = z.object({
 });
 
 async function handlePost(request: NextRequest) {
-  const auth = await getAuthContext();
+  const permission = await requireAdminApiPermission("cms.media.manage", {
+    forbiddenMessage: "Only media managers can sign Cloudinary uploads.",
+    unauthenticatedMessage: "Sign in before generating an upload signature.",
+  });
 
-  if (!auth.user) {
-    return NextResponse.json(
-      { message: "Sign in before generating an upload signature." },
-      { status: 401 }
-    );
-  }
-
-  if (!hasOperatorRole(auth.roles)) {
-    return NextResponse.json(
-      { message: "Only operators can sign Cloudinary uploads." },
-      { status: 403 }
-    );
+  if (permission.response) {
+    return permission.response;
   }
 
   const body = await request.json().catch(() => null);
@@ -70,15 +64,10 @@ async function handlePost(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    return NextResponse.json(
-      {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Cloudinary is not fully configured.",
-      },
-      { status: 500 }
-    );
+    return apiError(error, {
+      context: "admin.cloudinarySign",
+      fallback: "Cloudinary is not fully configured.",
+    });
   }
 }
 
