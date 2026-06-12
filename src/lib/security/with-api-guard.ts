@@ -25,7 +25,7 @@ import { getAppBaseUrl } from "@/lib/env";
 import { rateLimitError, apiError } from "@/lib/errors/api-error";
 import { getAuthContext } from "@/lib/auth/session";
 import {
-  checkRateLimit,
+  checkRateLimitForApi,
   getRequestIp,
   type RateLimitConfig,
 } from "@/lib/security/rate-limit";
@@ -103,19 +103,21 @@ function getSameOriginError(request: NextRequest) {
     return null;
   }
 
+  const allowedOrigins = getAllowedOrigins(request);
   const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+  const sourceOrigin = origin ? toOrigin(origin) : toOrigin(referer);
 
-  if (!origin) {
-    return null;
-  }
-
-  const parsedOrigin = toOrigin(origin);
-
-  if (!parsedOrigin || !getAllowedOrigins(request).has(parsedOrigin)) {
-    return apiError("Cross-origin request rejected.", {
-      status: 403,
-      fallback: "Cross-origin requests are not allowed.",
-    });
+  if (!sourceOrigin || !allowedOrigins.has(sourceOrigin)) {
+    return apiError(
+      origin
+        ? "Cross-origin request rejected."
+        : "Missing same-origin request metadata.",
+      {
+        status: 403,
+        fallback: "Cross-origin requests are not allowed.",
+      }
+    );
   }
 
   return null;
@@ -143,7 +145,7 @@ export function withApiGuard<Context extends RouteContext = RouteContext>(
     // 2. Rate limiting
     if (options.rateLimit) {
       const ip = getRequestIp(request.headers);
-      const rl = checkRateLimit(`ip:${ip}`, options.rateLimit);
+      const rl = await checkRateLimitForApi(`ip:${ip}`, options.rateLimit);
       if (!rl.success) return rateLimitError(rl.resetAt);
     }
 
@@ -162,6 +164,13 @@ export function withApiGuard<Context extends RouteContext = RouteContext>(
     }
 
     // 4. Delegate to the handler
-    return handler(request, { ...routeContext, userId });
+    try {
+      return await handler(request, { ...routeContext, userId });
+    } catch (err) {
+      return apiError(err, {
+        context: "api.guard.handler",
+        fallback: "Unexpected server error.",
+      });
+    }
   };
 }

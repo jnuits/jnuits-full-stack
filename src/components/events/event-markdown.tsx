@@ -11,10 +11,6 @@ type EventMarkdownProps = {
   source?: string | null;
 };
 
-function hasHtmlMarkup(value: string) {
-  return /<\/?[a-z][\s\S]*>/i.test(value);
-}
-
 function getReadableLinkLabel(href: string | undefined, children: ReactNode) {
   const childText = Children.toArray(children).join("").trim();
 
@@ -49,7 +45,7 @@ export function EventMarkdown({
   const className =
     "event-markdown prose dark:prose-invert max-w-none prose-slate lg:prose-lg prose-headings:font-[family-name:var(--font-heading)] prose-headings:tracking-[-0.03em] prose-p:leading-8 prose-li:leading-8 prose-strong:text-[var(--color-text-primary)] prose-a:font-semibold prose-a:no-underline hover:prose-a:text-[var(--foreground)] hover:prose-a:underline prose-a:underline-offset-[0.18em] prose-img:max-w-full prose-img:rounded-xl prose-img:border prose-img:border-[var(--color-border-tertiary)] prose-code:before:content-none prose-code:after:content-none";
 
-  if (format === "html" || (format !== "plain" && hasHtmlMarkup(content))) {
+  if (format === "html") {
     return (
       <div
         className={className}

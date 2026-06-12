@@ -17,9 +17,10 @@ import {
   type EventArchiveView,
   type EventRichTextFormat,
 } from "@/lib/content/events-shared";
+import { sanitizeEventHtml } from "@/lib/content/sanitize-event-html";
 import type { Tables } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 export {
   EVENT_CATEGORIES,
@@ -91,6 +92,12 @@ type RegistrationRow = Pick<
   Tables<"event_registrations">,
   "event_id" | "event_post_id" | "id"
 >;
+
+type EventArchiveFilterable<T> = T & {
+  ilike: (column: string, pattern: string) => T;
+  lt: (column: string, value: string) => T;
+  or: (filters: string) => T;
+};
 
 export type EventLifecycleState = "upcoming" | "today" | "completed";
 export type EventRegistrationState =
@@ -207,6 +214,8 @@ export type EventEditorData = {
 
 const EVENT_SELECT =
   "id, slug, title, summary, body_markdown, category, delivery_mode, status, starts_at, ends_at, timezone, location_mode, location_label, venue_name, venue_address, online_url, registration_mode, registration_url, registration_open, registration_closes_at, capacity, cta_label, cta_url, cover_media_asset_id, cover_alt_text_override, legacy_content_post_id, published_at, source, source_metadata, created_at, created_by_user_id, updated_at, media_assets(id, public_id, secure_url, thumbnail_url, alt_text, title, width, height, media_kind)";
+const EVENT_LIST_SELECT =
+  "id, slug, title, summary, category, delivery_mode, status, starts_at, ends_at, timezone, location_mode, location_label, venue_name, venue_address, online_url, registration_mode, registration_url, registration_open, registration_closes_at, capacity, cta_label, cta_url, cover_media_asset_id, cover_alt_text_override, legacy_content_post_id, published_at, source, source_metadata, created_at, created_by_user_id, updated_at, media_assets(id, public_id, secure_url, thumbnail_url, alt_text, title, width, height, media_kind)";
 
 const EVENT_FALLBACK_IMAGE = "/images/workshop.jpg";
 
@@ -229,7 +238,12 @@ function normalizeIdentifier(value: string | null | undefined) {
 }
 
 function normalizeText(value: string | null | undefined) {
-  return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+  return String(value || "")
+    .replace(/[%,*]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .slice(0, 100);
 }
 
 function formatDateKey(value: Date | string, timeZone: string) {
@@ -243,6 +257,29 @@ function formatDateKey(value: Date | string, timeZone: string) {
 
 function safeTimeZone(value: string | null | undefined) {
   return value?.trim() || "Asia/Dhaka";
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function getStoredBodyFormat(row: Pick<EventRow, "source_metadata">): EventRichTextFormat {
+  const metadata = asRecord(row.source_metadata);
+  const format = metadata.bodyFormat || metadata.body_format || metadata.format;
+
+  return format === "html" ? "html" : "markdown";
+}
+
+function prepareEventBody(row: Pick<EventRow, "body_markdown" | "source_metadata">) {
+  const format = getStoredBodyFormat(row);
+  const body = row.body_markdown || null;
+
+  return {
+    bodyFormat: format,
+    bodyMarkdown: format === "html" && body ? sanitizeEventHtml(body) : body,
+  };
 }
 
 function getLifecycleState(row: Pick<EventRow, "ends_at" | "starts_at" | "timezone">) {
@@ -428,6 +465,51 @@ function buildPagedSlice<T>(items: T[], page: number, perPage = EVENTS_PER_PAGE)
   };
 }
 
+function getBangladeshDayStartIso() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+  })
+    .format(new Date())
+    .split("-")
+    .map(Number);
+  const [year, month, day] = parts;
+
+  return new Date(Date.UTC(year, month - 1, day, -6, 0, 0)).toISOString();
+}
+
+function applyPublicEventArchiveFilters<T>(
+  request: EventArchiveFilterable<T>,
+  options: {
+    category: string;
+    cutoffIso: string;
+    query: string;
+    view: EventArchiveView;
+  }
+) {
+  let result =
+    options.view === "past"
+      ? request.or(
+          `ends_at.lt.${options.cutoffIso},and(ends_at.is.null,starts_at.lt.${options.cutoffIso})`
+        )
+      : request.or(`ends_at.gte.${options.cutoffIso},starts_at.gte.${options.cutoffIso}`);
+
+  if (options.category) {
+    result = result.ilike("category", options.category);
+  }
+
+  if (options.query) {
+    const pattern = `%${options.query}%`;
+    result = result.or(
+      `slug.ilike.${pattern},title.ilike.${pattern},summary.ilike.${pattern},category.ilike.${pattern},location_label.ilike.${pattern},venue_name.ilike.${pattern},venue_address.ilike.${pattern}`
+    );
+  }
+
+  return result;
+}
+
 async function getRegistrationCountMap(rows: EventRow[]) {
   const eventIds = Array.from(new Set(rows.map((row) => row.id)));
   const legacyEventIds = Array.from(
@@ -531,11 +613,12 @@ function mapEventDetail(
     typeof row.capacity === "number"
       ? Math.max(0, row.capacity - registrationCount)
       : null;
+  const eventBody = prepareEventBody(row);
 
   return {
     ...base,
-    bodyFormat: "markdown",
-    bodyMarkdown: row.body_markdown,
+    bodyFormat: eventBody.bodyFormat,
+    bodyMarkdown: eventBody.bodyMarkdown,
     capacity: row.capacity,
     coverAltTextOverride: row.cover_alt_text_override,
     locationMode: row.location_mode,
@@ -553,10 +636,10 @@ function mapEventDetail(
 }
 
 const getAllPublishedEventRows = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("events")
-    .select(EVENT_SELECT)
+    .select(EVENT_LIST_SELECT)
     .eq("status", "published")
     .order("starts_at", { ascending: true });
 
@@ -574,7 +657,14 @@ const getAllAdminEventRows = cache(async () => {
 });
 
 export const getPublicEventFilterOptions = cache(async () => {
-  const rows = await getAllPublishedEventRows();
+  const supabase = createPublicClient();
+  const { data } = await supabase
+    .from("events")
+    .select("category")
+    .eq("status", "published")
+    .order("category", { ascending: true })
+    .limit(500);
+  const rows = (data || []) as Array<{ category: string }>;
 
   return Array.from(new Set(rows.map((row) => row.category))).sort();
 });
@@ -588,51 +678,99 @@ export async function getPublicEventsPage(
     : 1;
   const query = normalizeText(filters.query);
   const category = normalizeIdentifier(filters.category);
-  const rows = await getAllPublishedEventRows();
-  const featuredRow =
-    rows
-      .filter((row) => getLifecycleState(row) !== "completed")
-      .sort(sortByStartsAtAscending)[0] ||
-    [...rows].sort(sortByStartsAtDescending)[0] ||
-    null;
-  const filteredRows = rows
-    .filter((row) => {
-      const lifecycle = getLifecycleState(row);
+  const cutoffIso = getBangladeshDayStartIso();
+  const supabase = createPublicClient();
+  const [categoryRowsResult, categoryCountRowsResult, featuredResult] =
+    await Promise.all([
+      supabase
+        .from("events")
+        .select("category")
+        .eq("status", "published")
+        .order("category", { ascending: true })
+        .limit(500),
+      applyPublicEventArchiveFilters(
+        supabase.from("events").select("category").eq("status", "published"),
+        {
+          category: "",
+          cutoffIso,
+          query: "",
+          view,
+        }
+      ).limit(500),
+      applyPublicEventArchiveFilters(
+        supabase
+          .from("events")
+          .select(EVENT_LIST_SELECT)
+          .eq("status", "published"),
+        {
+          category: "",
+          cutoffIso,
+          query: "",
+          view: "upcoming",
+        }
+      )
+        .order("starts_at", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+  const fallbackFeaturedResult = featuredResult.data
+    ? null
+    : await supabase
+        .from("events")
+        .select(EVENT_LIST_SELECT)
+        .eq("status", "published")
+        .order("starts_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (view === "upcoming" && lifecycle === "completed") {
-        return false;
+  const buildPageQuery = () => {
+    const request = applyPublicEventArchiveFilters(
+      supabase
+        .from("events")
+        .select(EVENT_LIST_SELECT, { count: "exact" })
+        .eq("status", "published"),
+      {
+        category,
+        cutoffIso,
+        query,
+        view,
       }
+    );
 
-      if (view === "past" && lifecycle !== "completed") {
-        return false;
-      }
+    return request.order("starts_at", { ascending: view !== "past" });
+  };
 
-      if (category && row.category !== category) {
-        return false;
-      }
+  const fetchPage = async (targetPage: number) => {
+    const start = (targetPage - 1) * EVENTS_PER_PAGE;
+    return buildPageQuery().range(start, start + EVENTS_PER_PAGE - 1);
+  };
 
-      if (query && !buildSearchText(row).includes(query)) {
-        return false;
-      }
+  let pageResult = await fetchPage(page);
+  let totalItems = pageResult.count || 0;
+  let totalPages = Math.max(1, Math.ceil(totalItems / EVENTS_PER_PAGE));
+  let normalizedPage = Math.min(Math.max(page, 1), totalPages);
 
-      return true;
-    })
-    .sort(view === "past" ? sortByStartsAtDescending : sortByStartsAtAscending);
-  // UX-FIX: Category filter counts
-  const categoryCounts = rows
-    .filter((row) => {
-      const lifecycle = getLifecycleState(row);
+  if (normalizedPage !== page && totalItems > 0) {
+    pageResult = await fetchPage(normalizedPage);
+    totalItems = pageResult.count || 0;
+    totalPages = Math.max(1, Math.ceil(totalItems / EVENTS_PER_PAGE));
+    normalizedPage = Math.min(Math.max(normalizedPage, 1), totalPages);
+  }
 
-      return view === "upcoming"
-        ? lifecycle !== "completed"
-        : lifecycle === "completed";
-    })
-    .reduce((counts, row) => {
-      counts.set(row.category, (counts.get(row.category) || 0) + 1);
-      return counts;
-    }, new Map<string, number>());
-  const paged = buildPagedSlice(filteredRows, page);
-  const registrationRows = paged.items.slice();
+  const pageRows = (pageResult.data || []) as EventRow[];
+  const featuredRow = (featuredResult.data ||
+    fallbackFeaturedResult?.data ||
+    null) as EventRow | null;
+  const categoryRows = (categoryRowsResult.data || []) as Array<{
+    category: string;
+  }>;
+  const categoryCounts = ((categoryCountRowsResult.data || []) as Array<{
+    category: string;
+  }>).reduce((counts, row) => {
+    counts.set(row.category, (counts.get(row.category) || 0) + 1);
+    return counts;
+  }, new Map<string, number>());
+  const registrationRows = pageRows.slice();
 
   if (
     featuredRow &&
@@ -644,15 +782,15 @@ export async function getPublicEventsPage(
   const counts = await getRegistrationCountMap(registrationRows);
 
   return {
-    categories: Array.from(new Set(rows.map((row) => row.category))).sort(),
+    categories: Array.from(new Set(categoryRows.map((row) => row.category))).sort(),
     categoryCounts: Array.from(categoryCounts.entries())
       .map(([category, count]) => ({ category, count }))
       .sort((left, right) => left.category.localeCompare(right.category)),
     featuredEvent: featuredRow ? mapEventRow(featuredRow, counts.get(featuredRow.id) || 0) : null,
-    items: paged.items.map((row) => mapEventRow(row, counts.get(row.id) || 0)),
-    page: paged.page,
-    totalItems: paged.totalItems,
-    totalPages: paged.totalPages,
+    items: pageRows.map((row) => mapEventRow(row, counts.get(row.id) || 0)),
+    page: normalizedPage,
+    totalItems,
+    totalPages,
     view,
   };
 }
@@ -682,7 +820,7 @@ export const getPublishedEventBySlug = cache(async (slug: string) => {
     return null;
   }
 
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("events")
     .select(EVENT_SELECT)
@@ -701,7 +839,7 @@ export const getPublishedEventBySlug = cache(async (slug: string) => {
 });
 
 export const getPublishedEventSitemapEntries = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("events")
     .select("slug, updated_at")

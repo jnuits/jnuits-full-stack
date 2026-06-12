@@ -5,6 +5,10 @@
  * an Upstash Redis / Vercel KV backend.
  */
 
+import { createHash } from "node:crypto";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
+
 interface WindowEntry {
   count: number;
   resetAt: number;
@@ -14,7 +18,7 @@ interface WindowEntry {
 const store = new Map<string, WindowEntry>();
 
 // Periodically prune expired entries to prevent memory leaks.
-setInterval(
+const pruneTimer = setInterval(
   () => {
     const now = Date.now();
     for (const [key, entry] of store) {
@@ -23,6 +27,10 @@ setInterval(
   },
   60_000 // prune every 60 s
 );
+
+if (typeof pruneTimer === "object" && "unref" in pruneTimer) {
+  pruneTimer.unref();
+}
 
 export interface RateLimitConfig {
   /** Number of allowed requests per window. */
@@ -58,6 +66,82 @@ export function checkRateLimit(key: string, config: RateLimitConfig): RateLimitR
   const success = entry.count <= config.limit;
 
   return { success, remaining, resetAt: entry.resetAt };
+}
+
+function shouldUseSupabaseRateLimit() {
+  const backend = process.env.RATE_LIMIT_BACKEND?.trim().toLowerCase();
+
+  if (backend === "memory" || backend === "local") {
+    return false;
+  }
+
+  return backend === "supabase" || process.env.NODE_ENV === "production";
+}
+
+function getRateLimitSalt() {
+  return process.env.RATE_LIMIT_SECRET_SALT?.trim() || "";
+}
+
+function hashRateLimitKey(key: string) {
+  const salt = getRateLimitSalt();
+
+  if (!salt) {
+    return null;
+  }
+
+  return createHash("sha256").update(`${salt}:${key}`).digest("hex");
+}
+
+/**
+ * Async API-route limiter. In local development it uses the in-process store.
+ * In production, it records only salted key hashes in Supabase.
+ */
+export async function checkRateLimitForApi(
+  key: string,
+  config: RateLimitConfig
+): Promise<RateLimitResult> {
+  if (!shouldUseSupabaseRateLimit()) {
+    return checkRateLimit(key, config);
+  }
+
+  const keyHash = hashRateLimitKey(key);
+  const fallbackResetAt = Date.now() + config.windowSeconds * 1_000;
+
+  if (!keyHash) {
+    console.error("[RateLimit] RATE_LIMIT_SECRET_SALT is required for Supabase-backed rate limiting.");
+    return { success: false, remaining: 0, resetAt: fallbackResetAt };
+  }
+
+  try {
+    const admin = asFlexibleClient(createAdminClient());
+    const { data, error } = await admin.rpc("hit_rate_limit", {
+      p_key_hash: keyHash,
+      p_limit: config.limit,
+      p_window_seconds: config.windowSeconds,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    const resetAt =
+      typeof row?.reset_at === "string"
+        ? Date.parse(row.reset_at)
+        : fallbackResetAt;
+
+    return {
+      success: Boolean(row?.success),
+      remaining:
+        typeof row?.remaining === "number"
+          ? row.remaining
+          : Math.max(0, config.limit - 1),
+      resetAt: Number.isFinite(resetAt) ? resetAt : fallbackResetAt,
+    };
+  } catch (error) {
+    console.error("[RateLimit] Supabase-backed rate limit failed:", error);
+    return { success: false, remaining: 0, resetAt: fallbackResetAt };
+  }
 }
 
 /**
@@ -96,6 +180,12 @@ export const RATE_LIMITS = {
 
   /** Event check-in (admin only) — 60 per minute per IP */
   eventCheckin: { limit: 60, windowSeconds: 60 } satisfies RateLimitConfig,
+
+  /** Public certificate batch verification — 12 batches per 10 minutes per IP */
+  certificateBatch: { limit: 12, windowSeconds: 600 } satisfies RateLimitConfig,
+
+  /** Admin Cloudinary signing — 30 signatures per 5 minutes per IP */
+  cloudinarySign: { limit: 30, windowSeconds: 300 } satisfies RateLimitConfig,
 
   /** Auth login attempts — 8 per 10 minutes per IP+email */
   authLogin: { limit: 8, windowSeconds: 600 } satisfies RateLimitConfig,

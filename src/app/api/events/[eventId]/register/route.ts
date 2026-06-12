@@ -6,7 +6,13 @@ import { resolvePublishedEventForMutation } from "@/lib/content/events";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
+
+type EventRegistrationRpcResult = {
+  registration_code: null | string;
+  result_status: string;
+};
 
 const registerSchema = z.object({
   email: z.string().trim().email(),
@@ -83,33 +89,8 @@ export const POST = withApiGuard(
       );
     }
 
-    if (event.registrationState === "full") {
-      return NextResponse.json(
-        { error: "This event has reached capacity." },
-        { status: 409 }
-      );
-    }
-
     const admin = createAdminClient();
     const email = parsed.data.email.toLowerCase();
-    const duplicateLookup = await admin
-      .from("event_registrations")
-      .select("registration_code")
-      .eq("event_id", event.id)
-      .eq("registrant_email", email)
-      .is("cancelled_at", null)
-      .maybeSingle();
-
-    if (duplicateLookup.data?.registration_code) {
-      return NextResponse.json(
-        {
-          code: duplicateLookup.data.registration_code,
-          error: "You are already registered for this event.",
-        },
-        { status: 409 }
-      );
-    }
-
     let memberId: string | null = null;
 
     try {
@@ -129,28 +110,56 @@ export const POST = withApiGuard(
       // Best-effort member lookup only.
     }
 
-    const insertResult = await admin
-      .from("event_registrations")
-      .insert({
-        event_id: event.id,
-        event_post_id: event.legacyContentPostId,
-        member_id: memberId,
-        registrant_email: email,
-        registrant_name: parsed.data.name,
-        registrant_phone: parsed.data.phone || null,
-      })
-      .select("registration_code")
-      .single();
+    const { data: rpcData, error: rpcError } = await asFlexibleClient(admin).rpc(
+      "register_for_event_atomic",
+      {
+        p_event_id: event.id,
+        p_legacy_event_post_id: event.legacyContentPostId,
+        p_member_id: memberId,
+        p_registrant_email: email,
+        p_registrant_name: parsed.data.name,
+        p_registrant_phone: parsed.data.phone || null,
+      }
+    );
+    const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
+      | EventRegistrationRpcResult
+      | null;
 
-    if (insertResult.error || !insertResult.data) {
+    if (rpcError || !result) {
+      return NextResponse.json(
+        { error: "Unable to complete registration. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    if (result.result_status === "duplicate") {
       return NextResponse.json(
         {
-          error:
-            insertResult.error?.code === "23505"
-              ? "You are already registered for this event."
-              : "Unable to complete registration. Please try again.",
+          code: result.registration_code,
+          error: "You are already registered for this event.",
         },
-        { status: insertResult.error?.code === "23505" ? 409 : 500 }
+        { status: 409 }
+      );
+    }
+
+    if (result.result_status === "full") {
+      return NextResponse.json(
+        { error: "This event has reached capacity." },
+        { status: 409 }
+      );
+    }
+
+    if (result.result_status === "closed") {
+      return NextResponse.json(
+        { error: "Registration has closed for this event." },
+        { status: 409 }
+      );
+    }
+
+    if (result.result_status !== "created" || !result.registration_code) {
+      return NextResponse.json(
+        { error: "Unable to complete registration. Please try again." },
+        { status: 409 }
       );
     }
 
@@ -160,14 +169,14 @@ export const POST = withApiGuard(
         eventStart: event.startsAt,
         eventTitle: event.title,
         registrantName: parsed.data.name,
-        registrationCode: insertResult.data.registration_code,
+        registrationCode: result.registration_code,
       }),
       subject: `You're registered: ${event.title}`,
       to: email,
     });
 
     return NextResponse.json({
-      code: insertResult.data.registration_code,
+      code: result.registration_code,
       eventTitle: event.title,
       success: true,
     });

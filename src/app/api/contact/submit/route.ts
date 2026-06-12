@@ -3,7 +3,8 @@ import { z } from "zod";
 
 import { brandProfile } from "@/lib/branding";
 import { sendEmail } from "@/lib/notifications/send-email";
-import { RATE_LIMITS } from "@/lib/security/rate-limit";
+import { verifyCaptchaToken } from "@/lib/security/captcha";
+import { getRequestIp, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 
 const contactCategories = [
@@ -146,15 +147,24 @@ async function handleContactSubmit(request: NextRequest): Promise<NextResponse> 
       : NextResponse.json({ message }, { status: 400 });
   }
 
-  // TODO: Verify cf_turnstile_token against
-  // https://challenges.cloudflare.com/turnstile/v0/siteverify
-  // using TURNSTILE_SECRET_KEY (server-side env var, never public)
-
   // Honeypot — silently treat filled website field as success to fool bots
   if (parsed.data.website && parsed.data.website.length > 0) {
     return parsedPayload.isFormPost
       ? buildContactRedirect(request, "message", "Thanks. Your message was received.")
       : NextResponse.json({ success: true }, { status: 200 });
+  }
+
+  const captcha = await verifyCaptchaToken(
+    parsed.data.cf_turnstile_token || "",
+    getRequestIp(request.headers)
+  );
+
+  if (!captcha.ok) {
+    const message = captcha.error || "Verification failed. Please try again.";
+
+    return parsedPayload.isFormPost
+      ? buildContactRedirect(request, "error", message)
+      : NextResponse.json({ message }, { status: 403 });
   }
 
   const replyTo = process.env.RESEND_REPLY_TO || parsed.data.email;

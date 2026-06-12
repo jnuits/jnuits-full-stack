@@ -10,6 +10,10 @@ const adminMfaExemptPaths = new Set([
   "/admin/mfa/challenge",
 ]);
 const publicAuthPaths = new Set(["/login", "/admin/login", "/portal/login"]);
+const accessPendingPaths = new Set([
+  "/admin/access-pending",
+  "/portal/access-pending",
+]);
 const protectedPrefixes = ["/admin", "/portal", "/profile"];
 
 type RBACClaims = {
@@ -79,6 +83,10 @@ function isPortalPath(pathname: string) {
     pathname === "/profile" ||
     pathname.startsWith("/profile/")
   );
+}
+
+function isAccessPendingPath(pathname: string) {
+  return accessPendingPaths.has(pathname);
 }
 
 function copyCookies(
@@ -185,6 +193,47 @@ export async function updateSession(request: NextRequest) {
     );
   }
 
+  if (hasSession && pathname === "/login") {
+    return redirectWithCookies(
+      request,
+      supabaseResponse,
+      adminRole
+        ? "/admin/dashboard"
+        : portalRole
+          ? "/portal/dashboard"
+          : "/portal/access-pending"
+    );
+  }
+
+  if (hasSession && pathname === "/admin/access-pending") {
+    if (adminRole) {
+      const mfaRedirect = await resolveAdminMfaRedirect(
+        supabase,
+        "/admin/dashboard"
+      );
+
+      return redirectWithCookies(
+        request,
+        supabaseResponse,
+        mfaRedirect || "/admin/dashboard"
+      );
+    }
+
+    return portalRole
+      ? redirectWithCookies(request, supabaseResponse, "/portal/dashboard")
+      : supabaseResponse;
+  }
+
+  if (hasSession && pathname === "/portal/access-pending") {
+    if (portalRole) {
+      return redirectWithCookies(request, supabaseResponse, "/portal/dashboard");
+    }
+
+    return adminRole
+      ? redirectWithCookies(request, supabaseResponse, "/admin/dashboard")
+      : supabaseResponse;
+  }
+
   if (hasSession && pathname === "/admin/login") {
     if (adminRole) {
       const mfaRedirect = await resolveAdminMfaRedirect(
@@ -202,7 +251,7 @@ export async function updateSession(request: NextRequest) {
     return redirectWithCookies(
       request,
       supabaseResponse,
-      portalRole ? "/portal/dashboard" : "/admin/login"
+      portalRole ? "/portal/dashboard" : "/admin/access-pending"
     );
   }
 
@@ -214,23 +263,33 @@ export async function updateSession(request: NextRequest) {
     return redirectWithCookies(
       request,
       supabaseResponse,
-      adminRole ? "/admin/dashboard" : "/portal/login"
+      adminRole ? "/admin/dashboard" : "/portal/access-pending"
     );
   }
 
-  if (hasSession && isAdminPath(pathname) && !adminRole) {
+  if (
+    hasSession &&
+    isAdminPath(pathname) &&
+    !adminRole &&
+    !isAccessPendingPath(pathname)
+  ) {
     return redirectWithCookies(
       request,
       supabaseResponse,
-      portalRole ? "/portal/dashboard" : "/admin/login"
+      portalRole ? "/portal/dashboard" : "/admin/access-pending"
     );
   }
 
-  if (hasSession && isPortalPath(pathname) && !portalRole) {
+  if (
+    hasSession &&
+    isPortalPath(pathname) &&
+    !portalRole &&
+    !isAccessPendingPath(pathname)
+  ) {
     return redirectWithCookies(
       request,
       supabaseResponse,
-      adminRole ? "/admin/dashboard" : "/portal/login"
+      adminRole ? "/admin/dashboard" : "/portal/access-pending"
     );
   }
 

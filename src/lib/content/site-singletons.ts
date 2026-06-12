@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { brandProfile } from "@/lib/branding";
 import type { Json } from "@/lib/db/types";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 export type HomeHeroSlide = {
   buttonLink: string;
@@ -221,7 +221,7 @@ function parseHomeAchievements(
 }
 
 export const getHomePageContent = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("content_pages")
     .select("slug, title, eyebrow, summary, body")
@@ -310,7 +310,7 @@ function normalizeSocialLinks(
 }
 
 export const getContactContent = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("content_pages")
     .select("slug, title, summary, body")
@@ -349,7 +349,7 @@ export const getContactContent = cache(async () => {
 });
 
 export const getFooterContent = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("content_pages")
     .select("slug, title, summary, body")

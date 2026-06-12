@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { brandProfile } from "@/lib/branding";
 import type { Json, Tables } from "@/lib/db/types";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 export type AboutValue = {
   icon?: string;
@@ -1085,7 +1085,7 @@ export function formatDateRange(start: string, end: string) {
 }
 
 export const getHomepageContent = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("content_pages")
     .select("slug, title, eyebrow, summary, body")
@@ -1120,7 +1120,7 @@ export const getHomepageContent = cache(async () => {
 });
 
 export const getAboutContent = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("content_pages")
     .select("slug, title, eyebrow, summary, body")
@@ -1177,7 +1177,7 @@ export const getAboutContent = cache(async () => {
 });
 
 export const getPublishedBlogs = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("content_posts")
     .select(contentPostSelect)
@@ -1229,7 +1229,7 @@ function mapEventStatus(value: string | null | undefined): EventPreview["status"
 }
 
 export const getPublishedEvents = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("content_posts")
     .select(contentPostSelect)
@@ -1273,24 +1273,15 @@ export const getPublishedEvents = cache(async () => {
 const NOTICES_PER_PAGE = 12;
 
 function normalizeSearchText(value: string | null | undefined) {
-  return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+  return String(value || "")
+    .replace(/[%,*]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .slice(0, 100);
 }
 
-function buildNoticeSearchText(record: Pick<ContentPostRecord, "body" | "category" | "excerpt" | "slug" | "summary" | "title">) {
-  return [
-    record.slug,
-    record.title,
-    record.category,
-    record.summary,
-    record.excerpt,
-    record.body,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function mapNoticePreview(record: Pick<ContentPostRecord, "body" | "category" | "cta_href" | "id" | "published_at" | "slug" | "summary" | "title">, index = 0) {
+function mapNoticePreview(record: Pick<ContentPostRecord, "category" | "cta_href" | "id" | "published_at" | "slug" | "summary" | "title">, index = 0) {
   const slug = record.slug || slugifyValue(record.title);
 
   return {
@@ -1354,16 +1345,62 @@ export const getPublishedNotices = cache(async (
     : 1;
   const query = normalizeSearchText(filters.query);
   const category = normalizeIdentifier(filters.category || "");
-  const supabase = await createClient();
-  const { data } = await supabase
+  const supabase = createPublicClient();
+  const { data: categoryRows } = await supabase
     .from("content_posts")
-    .select("id, slug, title, category, summary, excerpt, body, published_at, cta_href")
+    .select("category")
     .eq("content_type", "notice")
     .eq("status", "published")
-    .order("published_at", { ascending: false })
-    .limit(100);
+    .order("category", { ascending: true })
+    .limit(500);
 
-  if (!data || data.length === 0) {
+  const dbCategories = Array.from(
+    new Set((categoryRows || []).map((record) => record.category || "Notice"))
+  ).sort();
+
+  const buildNoticeQuery = () => {
+    let request = supabase
+      .from("content_posts")
+      .select("id, slug, title, category, summary, published_at, cta_href", {
+        count: "exact",
+      })
+      .eq("content_type", "notice")
+      .eq("status", "published");
+
+    if (category) {
+      request = request.ilike("category", category);
+    }
+
+    if (query) {
+      const pattern = `%${query}%`;
+      request = request.or(
+        `slug.ilike.${pattern},title.ilike.${pattern},category.ilike.${pattern},summary.ilike.${pattern},excerpt.ilike.${pattern}`
+      );
+    }
+
+    return request.order("published_at", { ascending: false });
+  };
+
+  const fetchNoticePage = async (targetPage: number) => {
+    const start = (targetPage - 1) * NOTICES_PER_PAGE;
+    return buildNoticeQuery().range(start, start + NOTICES_PER_PAGE - 1);
+  };
+
+  let pageResult = await fetchNoticePage(page);
+  let totalItems = pageResult.count || 0;
+  let totalPages = Math.max(1, Math.ceil(totalItems / NOTICES_PER_PAGE));
+  let normalizedPage = Math.min(Math.max(page, 1), totalPages);
+
+  if (normalizedPage !== page && totalItems > 0) {
+    pageResult = await fetchNoticePage(normalizedPage);
+    totalItems = pageResult.count || 0;
+    totalPages = Math.max(1, Math.ceil(totalItems / NOTICES_PER_PAGE));
+    normalizedPage = Math.min(Math.max(normalizedPage, 1), totalPages);
+  }
+
+  const data = pageResult.data;
+
+  if ((!categoryRows || categoryRows.length === 0) && (!data || data.length === 0)) {
     const fallbackRows = fallbackPublicNotices.map(mapFallbackNotice);
     const filteredFallbackRows = fallbackRows.filter((notice) => {
       if (category && normalizeIdentifier(notice.category) !== category) {
@@ -1389,31 +1426,19 @@ export const getPublishedNotices = cache(async (
     };
   }
 
-  const rows = data as Array<Pick<ContentPostRecord, "body" | "category" | "cta_href" | "excerpt" | "id" | "published_at" | "slug" | "summary" | "title">>;
-  const filteredRows = rows.filter((record) => {
-    if (category && normalizeIdentifier(record.category || "Notice") !== category) {
-      return false;
-    }
-
-    if (!query) {
-      return true;
-    }
-
-    return buildNoticeSearchText(record).includes(query);
-  });
-  const pagedRows = buildPagedNoticeSlice(filteredRows, page);
+  const rows = (data || []) as Array<Pick<ContentPostRecord, "category" | "cta_href" | "id" | "published_at" | "slug" | "summary" | "title">>;
 
   return {
-    categories: Array.from(new Set(rows.map((record) => record.category || "Notice"))).sort(),
-    items: pagedRows.items.map((record, index) => mapNoticePreview(record, index)),
-    page: pagedRows.page,
-    totalItems: pagedRows.totalItems,
-    totalPages: pagedRows.totalPages,
+    categories: dbCategories,
+    items: rows.map((record, index) => mapNoticePreview(record, index)),
+    page: normalizedPage,
+    totalItems,
+    totalPages,
   };
 });
 
 export const getPublishedGallery = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("gallery_entries")
     .select(galleryEntrySelect)
@@ -1443,7 +1468,7 @@ export const getPublishedGallery = cache(async () => {
 });
 
 export const getPublishedDevelopers = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("developer_profiles")
     .select("name, role, focus, bio, is_lead, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)")
@@ -1551,7 +1576,7 @@ async function getPublishedPostByIdentifier(
     return null;
   }
 
-  const supabase = await createClient();
+  const supabase = createPublicClient();
 
   const { data: bySlug } = await supabase
     .from("content_posts")
@@ -1628,7 +1653,7 @@ export const getPublishedGalleryByIdentifier = cache(async (identifier: string) 
     return null;
   }
 
-  const supabase = await createClient();
+  const supabase = createPublicClient();
 
   if (isUuid(normalizedIdentifier)) {
     const { data: byId } = await supabase

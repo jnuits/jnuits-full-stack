@@ -6,7 +6,7 @@ import {
   formatMembershipIdForDisplay,
 } from "@/lib/members/jnuits-id";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 type CommitteeTermRecord = Pick<
   Tables<"committee_terms">,
@@ -254,7 +254,7 @@ function mapAssignment(assignment: CommitteeAssignmentRecord) {
 }
 
 async function loadTerms() {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const flexible = asFlexibleClient(supabase);
   const extendedSelect =
     "id, slug, title, summary, starts_on, ends_on, status, is_public, term_number, term_kind, election_date, is_current, date_confidence, tenure_note, target_executive_slots, voter_rule_note";
@@ -289,7 +289,7 @@ async function loadAssignments(termIds: string[]) {
     return [] as CommitteeAssignmentRecord[];
   }
 
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const flexible = asFlexibleClient(supabase);
   const extendedSelect =
     "id, term_id, display_name, bio, sort_order, starts_on, ends_on, status, is_public, public_title_override, committee_roles(title, title_bn, code, is_executive, is_public, sort_order, role_group), members(full_name, jnuits_id, department_code, avatar_secure_url, facebook_url, linkedin_url, website_url, departments(name))";
@@ -320,7 +320,7 @@ async function loadAssignments(termIds: string[]) {
 }
 
 async function loadAdvisors() {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const flexible = asFlexibleClient(supabase);
   const extendedSelect =
     "id, advisor_jnuits_id, advisor_type, full_name, title, former_title, department, designation, email, avatar_secure_url, speech, bio, work_experience, publications, facebook_url, linkedin_url, website_url, jnu_profile_url, joined_on, left_on, tenure_display, date_confidence, status_note, is_current, is_public, sort_order";

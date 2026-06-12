@@ -56,7 +56,6 @@ type MemberDirectoryRow = Pick<
 
 type ViewerContext = {
   userId: string | null;
-  memberId: string | null;
   signedIn: boolean;
   directoryVerified: boolean;
   isOperator: boolean;
@@ -252,7 +251,6 @@ async function resolveViewerContext(): Promise<ViewerContext> {
   if (!userId) {
     return {
       userId: null,
-      memberId: null,
       signedIn: false,
       directoryVerified: false,
       isOperator: false,
@@ -263,14 +261,11 @@ async function resolveViewerContext(): Promise<ViewerContext> {
   const directoryVerified = isDirectoryVerifiedForUser(cookieStore, userId);
   const admin = createAdminClient();
 
-  const [roleRowsResult, memberResult] = await Promise.all([
-    admin
-      .from("rbac_user_platform_roles")
-      .select("rbac_platform_roles(code)")
-      .eq("user_id", userId)
-      .is("revoked_at", null),
-    admin.from("members").select("id").eq("user_id", userId).maybeSingle(),
-  ]);
+  const roleRowsResult = await admin
+    .from("rbac_user_platform_roles")
+    .select("rbac_platform_roles(code)")
+    .eq("user_id", userId)
+    .is("revoked_at", null);
 
   const roleRows = (roleRowsResult.data || []) as Array<{
     rbac_platform_roles?: unknown;
@@ -280,7 +275,6 @@ async function resolveViewerContext(): Promise<ViewerContext> {
 
   return {
     userId,
-    memberId: memberResult.data?.id || null,
     signedIn: true,
     directoryVerified,
     isOperator,
@@ -295,7 +289,7 @@ function isWorkplaceVisible(member: MemberDirectoryRow, viewer: ViewerContext) {
   }
 
   if (visibility === "members-only") {
-    return Boolean(viewer.memberId) || viewer.isOperator;
+    return viewer.directoryVerified || viewer.isOperator;
   }
 
   if (visibility === "private") {
@@ -306,7 +300,7 @@ function isWorkplaceVisible(member: MemberDirectoryRow, viewer: ViewerContext) {
 }
 
 function canViewMembersOnlyProfile(viewer: ViewerContext) {
-  return Boolean(viewer.memberId) || viewer.isOperator;
+  return viewer.directoryVerified || viewer.isOperator;
 }
 
 function getVisibility(value: string): "public" | "members-only" | "private" {

@@ -7,7 +7,8 @@ import {
   getSeedGallerySitemapEntries,
 } from "@/lib/content/gallery-seed";
 import type { Tables } from "@/lib/db/types";
-import { createClient } from "@/lib/supabase/server";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { createPublicClient } from "@/lib/supabase/public";
 
 const DEFAULT_GALLERY_LIMIT = 20;
 const MAX_GALLERY_LIMIT = 40;
@@ -111,12 +112,39 @@ type MediaAssetRow = Pick<
   | "width"
 >;
 
+type GalleryAlbumCardRow = GalleryAlbumRow & {
+  item_count?: number | null;
+  cover_alt_text?: string | null;
+  cover_blur_data_url?: string | null;
+  cover_description?: string | null;
+  cover_height?: number | null;
+  cover_id?: string | null;
+  cover_media_alt_text?: string | null;
+  cover_media_height?: number | null;
+  cover_media_id?: string | null;
+  cover_media_kind?: string | null;
+  cover_media_public_id?: string | null;
+  cover_media_secure_url?: string | null;
+  cover_media_thumbnail_url?: string | null;
+  cover_media_title?: string | null;
+  cover_media_width?: number | null;
+  cover_sort_order?: number | null;
+  cover_source_caption?: string | null;
+  cover_title?: string | null;
+  cover_width?: number | null;
+};
+
 function firstRecord<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value || null;
 }
 
 function normalizeQuery(value: string | null | undefined) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .replace(/[%,*]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .slice(0, 100);
 }
 
 function encodeCursor(item: Pick<GalleryImage, "id" | "sortOrder">) {
@@ -202,99 +230,105 @@ function mapAlbum(
   };
 }
 
-function buildSearchText(album: GalleryAlbumSummary, itemRows: GalleryItemRow[]) {
-  const itemText = itemRows
-    .map((item) => `${item.title || ""} ${item.description || ""} ${item.source_caption || ""}`)
-    .join(" ");
+function mapAlbumCardCover(row: GalleryAlbumCardRow): GalleryImage | null {
+  if (!row.cover_id || !row.cover_media_secure_url || row.cover_media_kind !== "image") {
+    return null;
+  }
 
+  return mapItem({
+    album_id: row.id,
+    alt_text: row.cover_alt_text || null,
+    blur_data_url: row.cover_blur_data_url || null,
+    description: row.cover_description || null,
+    height: row.cover_height || null,
+    id: row.cover_id,
+    is_cover: row.cover_id === row.cover_item_id,
+    media_assets: {
+      alt_text: row.cover_media_alt_text || null,
+      height: row.cover_media_height || null,
+      id: row.cover_media_id || "",
+      media_kind: row.cover_media_kind,
+      public_id: row.cover_media_public_id || "",
+      secure_url: row.cover_media_secure_url,
+      thumbnail_url: row.cover_media_thumbnail_url || null,
+      title: row.cover_media_title || null,
+      width: row.cover_media_width || null,
+    },
+    sort_order: row.cover_sort_order || 0,
+    source_caption: row.cover_source_caption || null,
+    title: row.cover_title || null,
+    width: row.cover_width || null,
+  });
+}
+
+function buildAlbumSearchText(album: GalleryAlbumSummary) {
   return [
     album.title,
     album.eventName,
     album.description,
     album.category,
     String(album.year),
-    itemText,
   ]
     .join(" ")
     .toLowerCase();
 }
 
 export const getGalleryAlbums = cache(async (filters: GalleryAlbumFilters = {}) => {
-  const supabase = await createClient();
-  const { data: albumData, error } = await supabase
-    .from("gallery_albums")
-    .select(
-      "id, slug, title, event_name, description, year, month, starts_on, ends_on, category, featured, cover_item_id, cloudinary_folder, updated_at"
-    )
-    .eq("status", "published")
-    .is("deleted_at", null)
+  const supabase = asFlexibleClient(createPublicClient());
+  const year = normalizeQuery(filters.year);
+  const category = normalizeQuery(filters.category);
+  const query = normalizeQuery(filters.query);
+  let request = supabase
+    .from("gallery_album_cards")
+    .select("*")
     .order("featured", { ascending: false })
     .order("year", { ascending: false })
     .order("month", { ascending: false, nullsFirst: false })
-    .order("starts_on", { ascending: false, nullsFirst: false });
+    .order("starts_on", { ascending: false, nullsFirst: false })
+    .limit(120);
+
+  if (year && /^\d{4}$/.test(year)) {
+    request = request.eq("year", Number(year));
+  }
+
+  if (category) {
+    request = request.eq("category", category);
+  }
+
+  const { data: albumData, error } = await request;
 
   if (error || !albumData?.length) {
     return getSeedGalleryAlbums(filters);
   }
 
-  const albumRows = albumData as GalleryAlbumRow[];
-  const albumIds = albumRows.map((album) => album.id);
-  const { data: itemData } = await supabase
-    .from("gallery_album_items")
-    .select(GALLERY_ITEM_SELECT)
-    .in("album_id", albumIds)
-    .eq("status", "published")
-    .is("deleted_at", null)
-    .order("sort_order", { ascending: true })
-    .order("id", { ascending: true });
-
-  const itemRows = (itemData || []) as GalleryItemRow[];
-  const itemsByAlbumId = new Map<string, GalleryItemRow[]>();
-
-  for (const item of itemRows) {
-    if (!itemsByAlbumId.has(item.album_id)) {
-      itemsByAlbumId.set(item.album_id, []);
-    }
-
-    itemsByAlbumId.get(item.album_id)?.push(item);
-  }
-
-  const albums = albumRows.map((album) => {
-    const rows = itemsByAlbumId.get(album.id) || [];
-    const coverRow =
-      rows.find((item) => item.id === album.cover_item_id) ||
-      rows.find((item) => item.is_cover) ||
-      rows[0];
-
-    return mapAlbum(album, {
-      cover: coverRow ? mapItem(coverRow) : null,
-      itemCount: rows.length,
-    });
-  });
-
-  const query = normalizeQuery(filters.query);
-  const year = normalizeQuery(filters.year);
-  const category = normalizeQuery(filters.category);
+  const albums = (albumData as GalleryAlbumCardRow[]).map((album) =>
+    mapAlbum(album, {
+      cover: mapAlbumCardCover(album),
+      itemCount: album.item_count || 0,
+    })
+  );
 
   return albums.filter((album) => {
-    if (year && String(album.year) !== year) {
-      return false;
-    }
-
-    if (category && album.category !== category) {
-      return false;
-    }
-
     if (!query) {
       return true;
     }
 
-    return buildSearchText(album, itemsByAlbumId.get(album.id) || []).includes(query);
+    return buildAlbumSearchText(album).includes(query);
   });
 });
 
 export const getGalleryFilterOptions = cache(async (): Promise<GalleryFilterOptions> => {
-  const albums = await getGalleryAlbums();
+  const supabase = asFlexibleClient(createPublicClient());
+  const { data, error } = await supabase
+    .from("gallery_album_cards")
+    .select("category, year")
+    .order("year", { ascending: false })
+    .limit(500);
+
+  const albums =
+    error || !data?.length
+      ? await getSeedGalleryAlbums()
+      : (data as Array<{ category: string; year: number }>);
 
   return {
     categories: Array.from(new Set(albums.map((album) => album.category))).sort(),
@@ -310,7 +344,7 @@ export async function getGalleryAlbumItemsPage(options: {
   limit?: number | null;
   slug?: string;
 }) {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const limit = normalizeLimit(options.limit);
   let albumId = options.albumId || "";
 
@@ -400,7 +434,7 @@ export const getGalleryAlbumBySlug = cache(async (slug: string) => {
     return null;
   }
 
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data: albumData, error } = await supabase
     .from("gallery_albums")
     .select(
@@ -456,7 +490,7 @@ export const getGalleryAlbumBySlug = cache(async (slug: string) => {
 });
 
 export const getPublishedGallerySitemapEntries = cache(async () => {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("gallery_albums")
     .select("slug, updated_at")

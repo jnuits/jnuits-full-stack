@@ -8,9 +8,11 @@
   "scripts": {
     "dev": "next dev --webpack",
     "dev:turbopack": "next dev --turbopack",
+    "prebuild": "node scripts/validate-env.mjs --production",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "audit:admin-access": "node scripts/check-admin-access-map.cjs",
     "migration:check": "node scripts/check-migration-parity.cjs",
@@ -48,6 +50,7 @@
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "sanitize-html": "^2.17.5",
     "server-only": "^0.0.1",
     "yet-another-react-lightbox": "^3.31.0",
     "zod": "^4.2.1"
@@ -58,10 +61,12 @@
     "@types/node": "^24.12.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sanitize-html": "^2.16.1",
     "eslint": "^9",
     "eslint-config-next": "^16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.8"
   },
   "overrides": {
     "postcss": "8.5.10"

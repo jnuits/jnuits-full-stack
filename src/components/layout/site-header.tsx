@@ -13,7 +13,6 @@ import {
   publicResourceNavigation,
   type NavItem,
 } from "@/lib/site";
-import { createClient } from "@/lib/supabase/client";
 
 function isActivePath(pathname: string, href: string) {
   if (href === "/") {
@@ -163,41 +162,10 @@ function PublicNav({
   );
 }
 
-export function SiteHeader({
-  authenticated: initialAuthenticated = false,
-}: {
-  authenticated?: boolean;
-}) {
+export function SiteHeader() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobilePortalReady, setMobilePortalReady] = useState(false);
-  const [authenticated, setAuthenticated] = useState(initialAuthenticated);
-  const authHref = authenticated ? "/portal/dashboard" : "/portal/login";
-  const authLabel = "Sign In";
-
-  useEffect(() => {
-    let mounted = true;
-    const supabase = createClient();
-
-    void supabase.auth.getSession().then(({ data }) => {
-      if (mounted) {
-        setAuthenticated(Boolean(data.session));
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) {
-        setAuthenticated(Boolean(session));
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => setMobilePortalReady(true), 0);
@@ -266,10 +234,10 @@ export function SiteHeader({
             <ThemeToggle />
             <Link
               className="primary-button site-header-auth-button text-sm"
-              href={authHref}
+              href="/portal/dashboard"
               onClick={() => setMobileOpen(false)}
             >
-              {authLabel}
+              Portal
             </Link>
             <button
               aria-controls="mobile-site-navigation"

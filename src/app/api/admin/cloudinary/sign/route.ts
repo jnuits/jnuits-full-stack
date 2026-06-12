@@ -7,8 +7,11 @@ import {
   normalizeCloudinaryFolder,
 } from "@/lib/cloudinary/config";
 import { requireAdminApiPermission } from "@/lib/admin/api-auth";
+import { insertAuditEvent } from "@/lib/content/media-assets";
 import { apiError } from "@/lib/errors/api-error";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const requestSchema = z.object({
   folder: z.string().trim().max(180).optional(),
@@ -49,17 +52,30 @@ async function handlePost(request: NextRequest) {
       unique_filename: true,
     };
     const signature = createCloudinarySignature(paramsToSign, config.apiSecret);
+    const resourceType = parsed.data.resourceType || "auto";
+    const admin = createAdminClient();
+
+    await insertAuditEvent(admin, {
+      action: "content.cloudinary_upload_signature_issued",
+      actorUserId: permission.auth.user.id,
+      entityId: permission.auth.user.id,
+      entityType: "cloudinary_signature",
+      metadata: {
+        folder,
+        resourceType,
+      },
+    });
 
     return NextResponse.json(
       {
         apiKey: config.apiKey,
         cloudName: config.cloudName,
         folder,
-        resourceType: parsed.data.resourceType || "auto",
+        resourceType,
         signature,
         timestamp,
         uploadPreset: config.uploadPreset,
-        uploadUrl: `https://api.cloudinary.com/v1_1/${config.cloudName}/${parsed.data.resourceType || "auto"}/upload`,
+        uploadUrl: `https://api.cloudinary.com/v1_1/${config.cloudName}/${resourceType}/upload`,
       },
       { status: 200 }
     );
@@ -71,4 +87,6 @@ async function handlePost(request: NextRequest) {
   }
 }
 
-export const POST = withApiGuard(handlePost);
+export const POST = withApiGuard(handlePost, {
+  rateLimit: RATE_LIMITS.cloudinarySign,
+});

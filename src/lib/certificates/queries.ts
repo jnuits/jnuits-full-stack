@@ -1,5 +1,5 @@
 import type { Database } from "@/lib/db/types";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 const certificateSelect =
   "id, certificate_id, first_name, last_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url, source_document_id, source_record_id, source_migrated_at, created_at, updated_at";
@@ -17,7 +17,7 @@ export async function findCertificateById(rawId: string) {
     return null;
   }
 
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("certificates")
     .select(certificateSelect)
@@ -40,7 +40,7 @@ export async function findCertificatesByIds(rawIds: string[]) {
     return [];
   }
 
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data, error } = await supabase
     .from("certificates")
     .select(certificateSelect)
