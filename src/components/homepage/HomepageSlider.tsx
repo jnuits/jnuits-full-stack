@@ -110,12 +110,16 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
               data-active={index === activeIndex ? "true" : "false"}
               key={slide.id}
             >
+              {(() => {
+                const shouldPrioritize = index === 0 || index === activeIndex;
+
+                return (
               <Image
                 alt={slide.title}
                 className="hp-slider__image"
                 fill
-                fetchPriority={index === 0 ? "high" : "auto"}
-                loading={index === 0 ? "eager" : "lazy"}
+                fetchPriority={shouldPrioritize ? "high" : "auto"}
+                loading={shouldPrioritize ? "eager" : "lazy"}
                 onError={(event) => {
                   const fallback = fallbackImages[index % fallbackImages.length];
                   if (event.currentTarget.src.endsWith(fallback)) {
@@ -127,6 +131,8 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
                 src={transformCloudinaryUrl(slide.imageUrl, "full")}
                 unoptimized={true}
               />
+                );
+              })()}
               <div className="hp-slide-overlay" />
               <p className="hp-slide-title">{slide.title}</p>
               <p className="hp-slide-caption">{slide.caption}</p>
