@@ -1,4 +1,4 @@
-import type { CertificateRecord } from "@/lib/certificates/queries";
+import type { PublicCertificate } from "@/lib/certificates/queries";
 
 export const CERTIFICATE_TYPE_OPTIONS = [
   { label: "Course", value: "course" },
@@ -22,11 +22,11 @@ function ensureSentence(value: string) {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
-export function getCertificateDisplayName(certificate: CertificateRecord) {
+export function getCertificateDisplayName(certificate: PublicCertificate) {
   return [certificate.first_name, certificate.last_name].filter(Boolean).join(" ").trim();
 }
 
-export function getCertificateType(certificate: CertificateRecord) {
+export function getCertificateType(certificate: PublicCertificate) {
   const normalized = String(certificate.exam_or_event || "").trim().toLowerCase();
 
   if (normalized === "event") {
@@ -36,7 +36,7 @@ export function getCertificateType(certificate: CertificateRecord) {
   return CERTIFICATE_TYPE_OPTIONS[0];
 }
 
-export function getCertificateSubjectColumnLabel(certificate: CertificateRecord) {
+export function getCertificateSubjectColumnLabel(certificate: PublicCertificate) {
   return getCertificateType(certificate).label;
 }
 
@@ -50,7 +50,7 @@ export function formatCertificateIssueDate(value: string) {
   return issueDateFormatter.format(parsed);
 }
 
-export function getCertificateNarrative(certificate: CertificateRecord) {
+export function getCertificateNarrative(certificate: PublicCertificate) {
   const displayName = getCertificateDisplayName(certificate).toUpperCase();
   return ensureSentence(`${displayName} ${certificate.details}`);
 }

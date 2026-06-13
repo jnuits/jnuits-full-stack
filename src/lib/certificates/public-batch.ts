@@ -1,8 +1,8 @@
-import type { Database } from "@/lib/db/types";
+import type { Tables } from "@/lib/db/types";
 
 export const MAX_BATCH_IDS = 25;
 
-type CertificateRecord = Database["public"]["Tables"]["certificates"]["Row"];
+export type PublicCertificateRecord = Tables<"public_certificates">;
 
 export function normalizeCertificateId(value: string) {
   return value.trim().toUpperCase();
@@ -22,7 +22,7 @@ export function normalizeIds(input: unknown) {
   ).slice(0, MAX_BATCH_IDS);
 }
 
-export function toPublicCertificate(certificate: CertificateRecord) {
+export function toPublicCertificate<T extends PublicCertificateRecord>(certificate: T) {
   return {
     asset_url: certificate.asset_url,
     certificate_id: certificate.certificate_id,

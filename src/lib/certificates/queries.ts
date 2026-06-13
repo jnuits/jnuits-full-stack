@@ -1,11 +1,13 @@
-import type { Database } from "@/lib/db/types";
-import { normalizeCertificateId } from "@/lib/certificates/public-batch";
+import {
+  normalizeCertificateId,
+  type PublicCertificateRecord,
+} from "@/lib/certificates/public-batch";
 import { createPublicClient } from "@/lib/supabase/public";
 
 const certificateSelect =
-  "id, certificate_id, first_name, last_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url, source_document_id, source_record_id, source_migrated_at, created_at, updated_at";
+  "certificate_id, first_name, last_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url";
 
-export type CertificateRecord = Database["public"]["Tables"]["certificates"]["Row"];
+export type PublicCertificate = PublicCertificateRecord;
 
 export async function findCertificateById(rawId: string) {
   const certificateId = normalizeCertificateId(rawId);
@@ -16,7 +18,7 @@ export async function findCertificateById(rawId: string) {
 
   const supabase = createPublicClient();
   const { data, error } = await supabase
-    .from("certificates")
+    .from("public_certificates")
     .select(certificateSelect)
     .eq("certificate_id", certificateId)
     .maybeSingle();
@@ -25,7 +27,7 @@ export async function findCertificateById(rawId: string) {
     throw error;
   }
 
-  return data as CertificateRecord | null;
+  return data as PublicCertificate | null;
 }
 
 export async function findCertificatesByIds(rawIds: string[]) {
@@ -39,7 +41,7 @@ export async function findCertificatesByIds(rawIds: string[]) {
 
   const supabase = createPublicClient();
   const { data, error } = await supabase
-    .from("certificates")
+    .from("public_certificates")
     .select(certificateSelect)
     .in("certificate_id", certificateIds);
 
@@ -47,5 +49,5 @@ export async function findCertificatesByIds(rawIds: string[]) {
     throw error;
   }
 
-  return (data || []) as CertificateRecord[];
+  return (data || []) as PublicCertificate[];
 }

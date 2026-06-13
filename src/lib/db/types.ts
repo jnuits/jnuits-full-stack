@@ -1978,7 +1978,21 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_certificates: {
+        Row: {
+          asset_url: string | null
+          certificate_id: string
+          details: string
+          exam_or_event: string
+          exam_or_event_name: string
+          first_name: string
+          issue_date: string
+          last_name: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
     }
     Functions: {
       has_platform_role: { Args: { role_code: string }; Returns: boolean }
