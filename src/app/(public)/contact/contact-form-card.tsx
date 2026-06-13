@@ -408,8 +408,9 @@ export function ContactFormCard({
                         setCanSubmit(true);
                       }}
                       onError={() => {
+                        setTurnstileToken("");
                         setTurnstileError(true);
-                        setCanSubmit(true);
+                        setCanSubmit(false);
                       }}
                       onExpired={() => {
                         setTurnstileToken("");

@@ -94,9 +94,9 @@ type RegistrationRow = Pick<
 >;
 
 type EventArchiveFilterable<T> = T & {
-  ilike: (column: string, pattern: string) => T;
-  lt: (column: string, value: string) => T;
-  or: (filters: string) => T;
+  ilike: (column: string, pattern: string) => EventArchiveFilterable<T>;
+  lt: (column: string, value: string) => EventArchiveFilterable<T>;
+  or: (filters: string) => EventArchiveFilterable<T>;
 };
 
 export type EventLifecycleState = "upcoming" | "today" | "completed";

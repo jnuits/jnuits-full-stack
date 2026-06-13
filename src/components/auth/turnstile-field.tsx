@@ -1,7 +1,13 @@
 "use client";
 
 import Script from "next/script";
-import { useId, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  removeTurnstileWidget,
+  renderTurnstileWidget,
+  resetTurnstileWidget,
+  type TurnstileApi,
+} from "@/lib/security/turnstile-client";
 
 type TurnstileFieldProps = {
   siteKey: string;
@@ -9,43 +15,47 @@ type TurnstileFieldProps = {
 
 declare global {
   interface Window {
-    turnstile?: {
-      render: (
-        container: HTMLElement,
-        options: {
-          callback: (token: string) => void;
-          sitekey: string;
-          theme?: "auto" | "dark" | "light";
-        }
-      ) => string;
-      reset: (widgetId?: string) => void;
-    };
+    turnstile?: TurnstileApi;
   }
 }
 
 export function TurnstileField({ siteKey }: TurnstileFieldProps) {
-  const containerId = useId().replaceAll(":", "-");
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const widgetIdRef = useRef<string | null>(null);
   const [token, setToken] = useState("");
-  const [widgetId, setWidgetId] = useState<string | null>(null);
+  const [scriptReady, setScriptReady] = useState(false);
 
-  if (!siteKey) {
-    return null;
-  }
-
-  function renderWidget() {
-    const container = document.getElementById(containerId);
-
-    if (!container || !window.turnstile || widgetId) {
+  const renderWidget = useCallback(() => {
+    if (!siteKey || !containerRef.current || !window.turnstile || widgetIdRef.current) {
       return;
     }
 
-    const id = window.turnstile.render(container, {
-      callback: setToken,
-      sitekey: siteKey,
-      theme: "auto",
-    });
+    const resetWidget = () => {
+      setToken("");
+      resetTurnstileWidget(window.turnstile, widgetIdRef.current);
+    };
 
-    setWidgetId(id);
+    widgetIdRef.current = renderTurnstileWidget({
+      container: containerRef.current,
+      onError: resetWidget,
+      onExpired: resetWidget,
+      onSuccess: setToken,
+      siteKey,
+      turnstile: window.turnstile,
+    });
+  }, [siteKey]);
+
+  useEffect(() => {
+    renderWidget();
+
+    return () => {
+      removeTurnstileWidget(window.turnstile, widgetIdRef.current);
+      widgetIdRef.current = null;
+    };
+  }, [renderWidget, scriptReady]);
+
+  if (!siteKey) {
+    return null;
   }
 
   return (
@@ -53,10 +63,15 @@ export function TurnstileField({ siteKey }: TurnstileFieldProps) {
       <Script
         async
         defer
-        onLoad={renderWidget}
+        onLoad={() => {
+          setScriptReady(true);
+        }}
+        onReady={() => {
+          setScriptReady(true);
+        }}
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
       />
-      <div id={containerId} />
+      <div ref={containerRef} />
       <input name="captchaToken" type="hidden" value={token} />
     </div>
   );

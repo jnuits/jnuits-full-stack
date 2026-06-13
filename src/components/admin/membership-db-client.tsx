@@ -29,6 +29,7 @@ import {
   updateCycleMemberStateAction,
   updateMembershipCycleStatusAction,
 } from "@/app/admin/membership/actions";
+import { runBoundedTasks } from "@/lib/async/bounded-concurrency";
 
 export type MembershipCycleClientRecord = {
   code: string;
@@ -124,6 +125,7 @@ type MembershipDbClientProps = {
 };
 
 const lifecycleOptions = ["current", "former", "alumni", "deleted"] as const;
+const BULK_MEMBER_OPERATION_CONCURRENCY = 3;
 const portalAccessOptions = [
   "active",
   "frozen",
@@ -1334,8 +1336,8 @@ function BulkMemberOperationsBar({
     setError(null);
     startTransition(async () => {
       try {
-        await Promise.all(
-          selectedMembers.map((member) =>
+        const results = await runBoundedTasks(
+          selectedMembers.map((member) => () =>
             saveMemberOperationsAction({
               lifecycleNote: bulkNote,
               memberId: member.id,
@@ -1346,14 +1348,26 @@ function BulkMemberOperationsBar({
               updateLifecycle: true,
               updatePortalRole: false,
             })
-          )
+          ),
+          BULK_MEMBER_OPERATION_CONCURRENCY
         );
-        onMembersChanged(
-          selectedMembers.map((member) => ({
-            ...member,
-            lifecycle_status: bulkLifecycle,
-          }))
-        );
+        const successfulMembers = selectedMembers.filter((_, index) => results[index]?.ok);
+
+        if (successfulMembers.length > 0) {
+          onMembersChanged(
+            successfulMembers.map((member) => ({
+              ...member,
+              lifecycle_status: bulkLifecycle,
+            }))
+          );
+        }
+
+        const failedCount = results.filter((result) => !result.ok).length;
+        if (failedCount > 0) {
+          setError(`${failedCount} of ${selectedMembers.length} lifecycle updates failed.`);
+          return;
+        }
+
       } catch (bulkError) {
         setError(bulkError instanceof Error ? bulkError.message : "Bulk lifecycle update failed.");
       }
@@ -1371,8 +1385,8 @@ function BulkMemberOperationsBar({
     setError(null);
     startTransition(async () => {
       try {
-        await Promise.all(
-          targets.map((member) =>
+        const results = await runBoundedTasks(
+          targets.map((member) => () =>
             saveMemberOperationsAction({
               lifecycleNote: "",
               memberId: member.id,
@@ -1383,14 +1397,24 @@ function BulkMemberOperationsBar({
               updateLifecycle: false,
               updatePortalRole: true,
             })
-          )
+          ),
+          BULK_MEMBER_OPERATION_CONCURRENCY
         );
-        onMembersChanged(
-          targets.map((member) => ({
-            ...member,
-            currentPortalRole: bulkRole,
-          }))
-        );
+        const successfulMembers = targets.filter((_, index) => results[index]?.ok);
+
+        if (successfulMembers.length > 0) {
+          onMembersChanged(
+            successfulMembers.map((member) => ({
+              ...member,
+              currentPortalRole: bulkRole,
+            }))
+          );
+        }
+
+        const failedCount = results.filter((result) => !result.ok).length;
+        if (failedCount > 0) {
+          setError(`${failedCount} of ${targets.length} role updates failed.`);
+        }
       } catch (bulkError) {
         setError(bulkError instanceof Error ? bulkError.message : "Bulk role update failed.");
       }
@@ -1406,8 +1430,8 @@ function BulkMemberOperationsBar({
     setError(null);
     startTransition(async () => {
       try {
-        await Promise.all(
-          selectedMembers.map((member) =>
+        const results = await runBoundedTasks(
+          selectedMembers.map((member) => () =>
             saveMemberOperationsAction({
               lifecycleNote: "Portal access revoked from Membership DB bulk action.",
               memberId: member.id,
@@ -1418,14 +1442,24 @@ function BulkMemberOperationsBar({
               updateLifecycle: true,
               updatePortalRole: false,
             })
-          )
+          ),
+          BULK_MEMBER_OPERATION_CONCURRENCY
         );
-        onMembersChanged(
-          selectedMembers.map((member) => ({
-            ...member,
-            portal_access_status: "suspended",
-          }))
-        );
+        const successfulMembers = selectedMembers.filter((_, index) => results[index]?.ok);
+
+        if (successfulMembers.length > 0) {
+          onMembersChanged(
+            successfulMembers.map((member) => ({
+              ...member,
+              portal_access_status: "suspended",
+            }))
+          );
+        }
+
+        const failedCount = results.filter((result) => !result.ok).length;
+        if (failedCount > 0) {
+          setError(`${failedCount} of ${selectedMembers.length} revoke operations failed.`);
+        }
       } catch (bulkError) {
         setError(bulkError instanceof Error ? bulkError.message : "Bulk revoke failed.");
       }

@@ -1,4 +1,5 @@
-import { findCertificateById, normalizeCertificateId } from "@/lib/certificates/queries";
+import { normalizeCertificateId } from "@/lib/certificates/public-batch";
+import { findCertificateById } from "@/lib/certificates/queries";
 import {
   formatCertificateIssueDate,
   getCertificateDisplayName,

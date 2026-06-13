@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findCertificateById, normalizeCertificateId } from "@/lib/certificates/queries";
+import { normalizeCertificateId } from "@/lib/certificates/public-batch";
+import { findCertificateById } from "@/lib/certificates/queries";
 
 export async function GET(
   request: NextRequest,

@@ -3,7 +3,7 @@ import {
   MAX_BATCH_IDS,
   normalizeIds,
   toPublicCertificate,
-} from "@/app/api/certificates/batch/route";
+} from "@/lib/certificates/public-batch";
 
 describe("certificate batch route helpers", () => {
   it("normalizes, deduplicates, and caps batch IDs", () => {

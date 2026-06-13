@@ -25,6 +25,12 @@ import {
   ADMIN_FLASH_COOKIE_NAME,
   parseAdminFlash,
 } from "@/lib/admin/flash";
+import {
+  canShowDashboardActivity,
+  canShowDashboardDecisionCards,
+  getAdminDashboardQuickLinks,
+  resolveAdminDashboardCapabilities,
+} from "@/lib/admin/dashboard-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -137,10 +143,34 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+const adminQuickIconMap = {
+  barChart: BarChart2,
+  book: BookOpen,
+  clipboard: ClipboardList,
+  code: FileCode2,
+  file: FileText,
+  folder: FolderOpen,
+  mail: Mail,
+  refresh: RefreshCcw,
+  scroll: ScrollText,
+  shield: ShieldCheck,
+  userCheck: UserCheck,
+  users: Users,
+};
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function AdminPage() {
   const admin = createAdminClient();
+  const dashboardCapabilities = await resolveAdminDashboardCapabilities();
+  const canManageMembership = dashboardCapabilities.membershipManage;
+  const canReadAudit = dashboardCapabilities.auditRead;
+  const canViewMembershipDecisions =
+    canManageMembership || dashboardCapabilities.decisionsRead;
+  const showActivityPanels =
+    canManageMembership || canShowDashboardActivity(dashboardCapabilities);
+  const showDecisionCards = canShowDashboardDecisionCards(dashboardCapabilities);
+  const quickLinks = getAdminDashboardQuickLinks(dashboardCapabilities);
   const cookieStore = await cookies();
   const flash = parseAdminFlash(
     cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value
@@ -159,74 +189,96 @@ export default async function AdminPage() {
     pendingProfileChangeCountResult,
     auditLogsResult,
   ] = await Promise.all([
-    admin
-      .from("membership_applications")
-      .select(
-        "id, name, email, department_code, batch_label, student_id, phone, facebook_url, linkedin_url, photo_url, status, created_at, review_note, reviewed_at, invitation_id, processed_member_id, departments(name)"
-      )
-      .eq("status", "pending")
-      .order("created_at", { ascending: true })
-      .limit(12),
-    admin
-      .from("membership_applications")
-      .select(
-        "id, name, email, status, review_note, reviewed_at, invitation_id, processed_member_id"
-      )
-      .neq("status", "pending")
-      .order("reviewed_at", { ascending: false })
-      .limit(6),
-    admin
-      .from("membership_applications")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending"),
-    admin
-      .from("member_invitations")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true)
-      .is("revoked_at", null),
-    admin.from("members").select("*", { count: "exact", head: true }),
-    admin
-      .from("profile_update_requests")
-      .select(
-        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, member_type, avatar_secure_url, current_organization, designation, work_location, professional_visibility)"
-      )
-      .eq("request_type", "workplace_update")
-      .eq("status", "pending")
-      .order("requested_at", { ascending: true })
-      .limit(8),
-    admin
-      .from("profile_update_requests")
-      .select("*", { count: "exact", head: true })
-      .eq("request_type", "workplace_update")
-      .eq("status", "pending"),
-    admin
-      .from("profile_update_requests")
-      .select(
-        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, member_type)"
-      )
-      .eq("request_type", "workplace_update")
-      .neq("status", "pending")
-      .order("reviewed_at", { ascending: false })
-      .limit(6),
-    admin
-      .from("profile_update_requests")
-      .select(
-        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, avatar_secure_url, phone, facebook_url, linkedin_url, website_url)"
-      )
-      .eq("request_type", "profile_change")
-      .eq("status", "pending")
-      .order("requested_at", { ascending: true })
-      .limit(8),
-    admin
-      .from("profile_update_requests")
-      .select("*", { count: "exact", head: true })
-      .eq("request_type", "profile_change")
-      .eq("status", "pending"),
-    admin
-      .from("audit_events")
-      .select("id, action, entity_type, entity_id, metadata, created_at")
-      .order("created_at", { ascending: false })
-      .limit(12),
+    canManageMembership
+      ? admin
+          .from("membership_applications")
+          .select(
+            "id, name, email, department_code, batch_label, student_id, phone, facebook_url, linkedin_url, photo_url, status, created_at, review_note, reviewed_at, invitation_id, processed_member_id, departments(name)"
+          )
+          .eq("status", "pending")
+          .order("created_at", { ascending: true })
+          .limit(12)
+      : Promise.resolve({ data: [] as ApplicationRecord[] }),
+    canViewMembershipDecisions
+      ? admin
+          .from("membership_applications")
+          .select(
+            "id, name, email, status, review_note, reviewed_at, invitation_id, processed_member_id"
+          )
+          .neq("status", "pending")
+          .order("reviewed_at", { ascending: false })
+          .limit(6)
+      : Promise.resolve({ data: [] as ApplicationRecord[] }),
+    canManageMembership
+      ? admin
+          .from("membership_applications")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "pending")
+      : Promise.resolve({ count: 0 }),
+    canManageMembership
+      ? admin
+          .from("member_invitations")
+          .select("*", { count: "exact", head: true })
+          .eq("is_active", true)
+          .is("revoked_at", null)
+      : Promise.resolve({ count: 0 }),
+    canManageMembership
+      ? admin.from("members").select("*", { count: "exact", head: true })
+      : Promise.resolve({ count: 0 }),
+    canManageMembership
+      ? admin
+          .from("profile_update_requests")
+          .select(
+            "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, member_type, avatar_secure_url, current_organization, designation, work_location, professional_visibility)"
+          )
+          .eq("request_type", "workplace_update")
+          .eq("status", "pending")
+          .order("requested_at", { ascending: true })
+          .limit(8)
+      : Promise.resolve({ data: [] as WorkplaceRequestRecord[] }),
+    canManageMembership
+      ? admin
+          .from("profile_update_requests")
+          .select("*", { count: "exact", head: true })
+          .eq("request_type", "workplace_update")
+          .eq("status", "pending")
+      : Promise.resolve({ count: 0 }),
+    canViewMembershipDecisions
+      ? admin
+          .from("profile_update_requests")
+          .select(
+            "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, member_type)"
+          )
+          .eq("request_type", "workplace_update")
+          .neq("status", "pending")
+          .order("reviewed_at", { ascending: false })
+          .limit(6)
+      : Promise.resolve({ data: [] as WorkplaceRequestRecord[] }),
+    canManageMembership
+      ? admin
+          .from("profile_update_requests")
+          .select(
+            "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, avatar_secure_url, phone, facebook_url, linkedin_url, website_url)"
+          )
+          .eq("request_type", "profile_change")
+          .eq("status", "pending")
+          .order("requested_at", { ascending: true })
+          .limit(8)
+      : Promise.resolve({ data: [] as ProfileChangeRequestRecord[] }),
+    canManageMembership
+      ? admin
+          .from("profile_update_requests")
+          .select("*", { count: "exact", head: true })
+          .eq("request_type", "profile_change")
+          .eq("status", "pending")
+      : Promise.resolve({ count: 0 }),
+    canReadAudit
+      ? admin
+          .from("audit_events")
+          .select("id, action, entity_type, entity_id, metadata, created_at")
+          .order("created_at", { ascending: false })
+          .limit(12)
+      : Promise.resolve({ data: [] }),
   ]);
 
   const pendingApplications =
@@ -246,7 +298,7 @@ export default async function AdminPage() {
     .filter((v): v is string => Boolean(v));
 
   const relatedMembers =
-    processedMemberIds.length > 0
+    canViewMembershipDecisions && processedMemberIds.length > 0
       ? await admin
           .from("members")
           .select("id, jnuits_id")
@@ -326,70 +378,74 @@ export default async function AdminPage() {
       ) : null}
 
       {/* ── Metric cards ────────────────────────────────────────────────────── */}
-      <section className="admin-metric-grid">
-        <div
-          className="admin-metric-card"
-          data-tone={pendingCountResult.count ? "warning" : undefined}
-        >
-          <div className="admin-metric-card__icon">
-            <UserCheck size={16} />
+      {canManageMembership ? (
+        <section className="admin-metric-grid">
+          <div
+            className="admin-metric-card"
+            data-tone={pendingCountResult.count ? "warning" : undefined}
+          >
+            <div className="admin-metric-card__icon">
+              <UserCheck size={16} />
+            </div>
+            <p className="admin-metric-card__label">Pending applications</p>
+            <p className="admin-metric-card__value">{pendingCountResult.count || 0}</p>
+            <p className="admin-metric-card__sub">Awaiting operator review</p>
           </div>
-          <p className="admin-metric-card__label">Pending applications</p>
-          <p className="admin-metric-card__value">{pendingCountResult.count || 0}</p>
-          <p className="admin-metric-card__sub">Awaiting operator review</p>
-        </div>
 
-        <div className="admin-metric-card" data-tone="info">
-          <div className="admin-metric-card__icon">
-            <Mail size={16} />
+          <div className="admin-metric-card" data-tone="info">
+            <div className="admin-metric-card__icon">
+              <Mail size={16} />
+            </div>
+            <p className="admin-metric-card__label">Active invitations</p>
+            <p className="admin-metric-card__value">{activeInvitationsResult.count || 0}</p>
+            <p className="admin-metric-card__sub">Claim codes outstanding</p>
           </div>
-          <p className="admin-metric-card__label">Active invitations</p>
-          <p className="admin-metric-card__value">{activeInvitationsResult.count || 0}</p>
-          <p className="admin-metric-card__sub">Claim codes outstanding</p>
-        </div>
 
-        <div
-          className="admin-metric-card"
-          data-tone={pendingWorkplaceCountResult.count ? "warning" : undefined}
-        >
-          <div className="admin-metric-card__icon">
-            <ClipboardList size={16} />
+          <div
+            className="admin-metric-card"
+            data-tone={pendingWorkplaceCountResult.count ? "warning" : undefined}
+          >
+            <div className="admin-metric-card__icon">
+              <ClipboardList size={16} />
+            </div>
+            <p className="admin-metric-card__label">Workplace requests</p>
+            <p className="admin-metric-card__value">{pendingWorkplaceCountResult.count || 0}</p>
+            <p className="admin-metric-card__sub">Pending workplace changes</p>
           </div>
-          <p className="admin-metric-card__label">Workplace requests</p>
-          <p className="admin-metric-card__value">{pendingWorkplaceCountResult.count || 0}</p>
-          <p className="admin-metric-card__sub">Pending workplace changes</p>
-        </div>
 
-        <div
-          className="admin-metric-card"
-          data-tone={pendingProfileChangeCountResult.count ? "warning" : undefined}
-        >
-          <div className="admin-metric-card__icon">
-            <Users size={16} />
+          <div
+            className="admin-metric-card"
+            data-tone={pendingProfileChangeCountResult.count ? "warning" : undefined}
+          >
+            <div className="admin-metric-card__icon">
+              <Users size={16} />
+            </div>
+            <p className="admin-metric-card__label">Profile changes</p>
+            <p className="admin-metric-card__value">{pendingProfileChangeCountResult.count || 0}</p>
+            <p className="admin-metric-card__sub">Pending profile edits</p>
           </div>
-          <p className="admin-metric-card__label">Profile changes</p>
-          <p className="admin-metric-card__value">{pendingProfileChangeCountResult.count || 0}</p>
-          <p className="admin-metric-card__sub">Pending profile edits</p>
-        </div>
 
-        <div className="admin-metric-card" data-tone="success">
-          <div className="admin-metric-card__icon">
-            <ShieldCheck size={16} />
+          <div className="admin-metric-card" data-tone="success">
+            <div className="admin-metric-card__icon">
+              <ShieldCheck size={16} />
+            </div>
+            <p className="admin-metric-card__label">Total members</p>
+            <p className="admin-metric-card__value">{membersCountResult.count || 0}</p>
+            <p className="admin-metric-card__sub">Registered portal accounts</p>
           </div>
-          <p className="admin-metric-card__label">Total members</p>
-          <p className="admin-metric-card__value">{membersCountResult.count || 0}</p>
-          <p className="admin-metric-card__sub">Registered portal accounts</p>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       {/* ── Dashboard split: recent queue + audit log ────────────────────────── */}
-      <div className="admin-dashboard-split">
+      {showActivityPanels ? (
+        <div className="admin-dashboard-split">
 
         {/* Pending queue summary */}
-        <section
-          className="glass-card p-5"
-          style={{ borderRadius: "1.2rem" }}
-        >
+        {canManageMembership ? (
+          <section
+            className="glass-card p-5"
+            style={{ borderRadius: "1.2rem" }}
+          >
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="font-[family-name:var(--font-heading)] text-lg font-bold tracking-[-0.02em]">
               Pending queue
@@ -426,13 +482,15 @@ export default async function AdminPage() {
               )}
             </div>
           )}
-        </section>
+          </section>
+        ) : null}
 
         {/* Audit log */}
-        <section
-          className="glass-card p-5"
-          style={{ borderRadius: "1.2rem" }}
-        >
+        {canReadAudit ? (
+          <section
+            className="glass-card p-5"
+            style={{ borderRadius: "1.2rem" }}
+          >
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="font-[family-name:var(--font-heading)] text-lg font-bold tracking-[-0.02em]">
               Recent activity
@@ -466,95 +524,43 @@ export default async function AdminPage() {
               ))}
             </div>
           )}
-        </section>
-      </div>
+          </section>
+        ) : null}
+        </div>
+      ) : null}
 
       {/* ── Quick-action tiles ───────────────────────────────────────────────── */}
-      <section>
-        <h2
-          className="mb-3 text-xs font-bold uppercase tracking-[0.18em]"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          Quick navigation
-        </h2>
-        <div className="admin-quick-grid">
-          <Link href="/admin/membership" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <ShieldCheck size={16} />
-            </span>
-            Membership DB
-          </Link>
-          <Link href="/admin/committee" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <Users size={16} />
-            </span>
-            Committee
-          </Link>
-          <Link href="/admin/content" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <FolderOpen size={16} />
-            </span>
-            Content
-          </Link>
-          <Link href="/admin/reports" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <BarChart2 size={16} />
-            </span>
-            Reports
-          </Link>
-          <Link href="/admin#applications" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <UserCheck size={16} />
-            </span>
-            Applications
-          </Link>
-          <Link href="/admin/invitations" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <Mail size={16} />
-            </span>
-            Invitations
-          </Link>
-          <Link href="/admin#reconcile" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <RefreshCcw size={16} />
-            </span>
-            Reconcile
-          </Link>
-          <Link href="/admin#certificates" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <ScrollText size={16} />
-            </span>
-            Certificates
-          </Link>
-          <Link href="/admin/content#blogs" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <FileText size={16} />
-            </span>
-            Manage Blogs
-          </Link>
-          <Link href="/admin/content#projects" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <FileCode2 size={16} />
-            </span>
-            Projects
-          </Link>
-          <Link href="/admin/content#events" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <BookOpen size={16} />
-            </span>
-            Events
-          </Link>
-          <Link href="/admin#decisions" className="admin-quick-tile">
-            <span className="admin-quick-tile__icon">
-              <ClipboardList size={16} />
-            </span>
-            Decisions Log
-          </Link>
-        </div>
-      </section>
+      {quickLinks.length > 0 ? (
+        <section>
+          <h2
+            className="mb-3 text-xs font-bold uppercase tracking-[0.18em]"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            Quick navigation
+          </h2>
+          <div className="admin-quick-grid">
+            {quickLinks.map((link) => {
+              const Icon =
+                adminQuickIconMap[
+                  link.iconKey as keyof typeof adminQuickIconMap
+                ] || FolderOpen;
+
+              return (
+                <Link href={link.href} className="admin-quick-tile" key={link.href}>
+                  <span className="admin-quick-tile__icon">
+                    <Icon size={16} />
+                  </span>
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {/* ── Applications queue ───────────────────────────────────────────────── */}
-      <section id="applications" className="grid gap-4">
+      {canManageMembership ? (
+        <section id="applications" className="grid gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <span className="eyebrow">Membership queue</span>
@@ -725,9 +731,11 @@ export default async function AdminPage() {
             </article>
           ))
         )}
-      </section>
+        </section>
+      ) : null}
 
-      <section className="route-tile" id="invitations">
+      {canManageMembership ? (
+        <section className="route-tile" id="invitations">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3>Invitation workspace</h3>
@@ -739,17 +747,24 @@ export default async function AdminPage() {
             Open invitations
           </Link>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <WorkplaceRequestsPanel requests={pendingWorkplaceRequests} />
+      {canManageMembership ? (
+        <WorkplaceRequestsPanel requests={pendingWorkplaceRequests} />
+      ) : null}
 
-      <ProfileChangeRequestsPanel requests={pendingProfileChangeRequests} />
+      {canManageMembership ? (
+        <ProfileChangeRequestsPanel requests={pendingProfileChangeRequests} />
+      ) : null}
 
-      <section
-        id="decisions"
-        className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.92fr)]"
-      >
-        <article className="route-tile">
+      {showDecisionCards ? (
+        <section
+          id="decisions"
+          className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.92fr)]"
+        >
+        {canViewMembershipDecisions ? (
+          <article className="route-tile">
           <h3>Recent queue decisions</h3>
           <div className="mt-4 grid gap-3">
             {recentDecisions.length === 0 ? (
@@ -790,9 +805,11 @@ export default async function AdminPage() {
               ))
             )}
           </div>
-        </article>
+          </article>
+        ) : null}
 
-        <article className="route-tile">
+        {canViewMembershipDecisions ? (
+          <article className="route-tile">
           <h3>Recent workplace moderation</h3>
           <div className="mt-4 grid gap-3">
             {recentWorkplaceDecisions.length === 0 ? (
@@ -834,26 +851,35 @@ export default async function AdminPage() {
               })
             )}
           </div>
-        </article>
+          </article>
+        ) : null}
 
-        <div className="grid gap-4" id="certificates">
-          <article className="route-tile">
+        {dashboardCapabilities.certificatesManage ||
+        dashboardCapabilities.reconcileManage ? (
+          <div className="grid gap-4" id="certificates">
+          {dashboardCapabilities.certificatesManage ? (
+            <article className="route-tile">
             <h3>Certificates</h3>
             <p>
               Public certificate verification and QR-compatible lookup are live.
               Use the import tools to upload new certificate batches and monitor
               import run history.
             </p>
-          </article>
-          <article className="route-tile" id="reconcile">
+            </article>
+          ) : null}
+          {dashboardCapabilities.reconcileManage ? (
+            <article className="route-tile" id="reconcile">
             <h3>Batch import and reconciliation</h3>
             <p>
               Upload a CSV of certificates to stage and review them before
               committing. Dry-run mode lets you validate data before applying.
             </p>
-          </article>
-        </div>
-      </section>
+            </article>
+          ) : null}
+          </div>
+        ) : null}
+        </section>
+      ) : null}
     </div>
   );
 }

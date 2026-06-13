@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { validateEnv } from "./validate-env.mjs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { runValidateEnvCli, validateEnv } from "./validate-env.mjs";
 
 const baseEnv = {
   APP_BASE_URL: "https://jnuits.org.bd",
@@ -9,6 +9,10 @@ const baseEnv = {
 };
 
 describe("validateEnv", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("reports all missing base variables", () => {
     const result = validateEnv({}, { production: false });
 
@@ -52,5 +56,14 @@ describe("validateEnv", () => {
     );
 
     expect(result).toEqual({ invalid: [], missing: [], ok: true });
+  });
+
+  it("CLI validation reports missing production env without import errors", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const exitCode = runValidateEnvCli(["node", "scripts/validate-env.mjs", "--production"], {});
+
+    expect(exitCode).toBe(1);
+    expect(errorSpy.mock.calls[0]?.[0]).toContain("Environment validation failed.");
+    expect(errorSpy.mock.calls[0]?.[0]).toContain("NEXT_PUBLIC_SUPABASE_URL");
   });
 });

@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
-import { loadEnvConfig } from "@next/env";
+import { createRequire } from "node:module";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+
+const require = createRequire(import.meta.url);
+const { loadEnvConfig } = require("@next/env");
 
 export const baseRequiredEnv = [
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -99,7 +102,7 @@ export function runValidateEnvCli(argv = process.argv, env = process.env) {
   const production = argv.includes("--production") || env.NODE_ENV === "production";
   loadEnvConfig(process.cwd(), !production);
 
-  const result = validateEnv(process.env, { production });
+  const result = validateEnv(env, { production });
 
   if (!result.ok) {
     console.error(formatFailure(result));

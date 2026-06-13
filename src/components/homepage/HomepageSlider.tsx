@@ -114,6 +114,8 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
                 alt={slide.title}
                 className="hp-slider__image"
                 fill
+                fetchPriority={index === 0 ? "high" : "auto"}
+                loading={index === 0 ? "eager" : "lazy"}
                 onError={(event) => {
                   const fallback = fallbackImages[index % fallbackImages.length];
                   if (event.currentTarget.src.endsWith(fallback)) {
