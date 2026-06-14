@@ -7,7 +7,7 @@ import {
   getSupabasePublishableKey,
   getSupabaseUrl,
 } from "@/lib/supabase/config";
-import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { checkRateLimitForApi, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { rateLimitError } from "@/lib/errors/api-error";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 
@@ -26,7 +26,10 @@ async function handlePost(request: NextRequest) {
   }
 
   // Rate limit per user: 3 step-up attempts per 10 minutes
-  const rl = checkRateLimit(`step-up:${auth.user.id}`, RATE_LIMITS.profileStepUp);
+  const rl = await checkRateLimitForApi(
+    `step-up:${auth.user.id}`,
+    RATE_LIMITS.profileStepUp
+  );
   if (!rl.success) return rateLimitError(rl.resetAt);
 
   const body = await request.json().catch(() => null);

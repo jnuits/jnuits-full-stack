@@ -1,8 +1,8 @@
 /**
  * Lightweight in-process sliding-window rate limiter.
  * Works on both Node and Edge runtimes without external dependencies.
- * For multi-instance production deployments, replace the store with
- * an Upstash Redis / Vercel KV backend.
+ * API routes should use checkRateLimitForApi so production traffic uses
+ * the Supabase-backed durable limiter.
  */
 
 import { createHash } from "node:crypto";
@@ -183,6 +183,9 @@ export const RATE_LIMITS = {
 
   /** Public certificate batch verification — 12 batches per 10 minutes per IP */
   certificateBatch: { limit: 12, windowSeconds: 600 } satisfies RateLimitConfig,
+
+  /** Public single certificate view — 30 views per 10 minutes per IP */
+  certificateView: { limit: 30, windowSeconds: 600 } satisfies RateLimitConfig,
 
   /** Admin Cloudinary signing — 30 signatures per 5 minutes per IP */
   cloudinarySign: { limit: 30, windowSeconds: 300 } satisfies RateLimitConfig,

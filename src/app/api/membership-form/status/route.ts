@@ -8,11 +8,15 @@ import { withApiGuard } from "@/lib/security/with-api-guard";
  * JSON shape so an attacker cannot distinguish whether an email
  * has a submitted application by comparing response bodies.
  *
- * We also introduce a small artificial delay on the not-found path
- * to make timing-based enumeration harder.
+ * We also apply the same small jittered delay after the lookup on
+ * success and not-found paths to reduce simple timing differences.
  */
+export function getAntiEnumerationDelayMs(random = Math.random()) {
+  return 80 + Math.floor(random * 120); // 80-199 ms
+}
+
 function antiEnumerationDelay(): Promise<void> {
-  const ms = 80 + Math.floor(Math.random() * 120); // 80–200 ms
+  const ms = getAntiEnumerationDelayMs();
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -34,6 +38,7 @@ async function handleStatusLookup(request: NextRequest): Promise<NextResponse> {
   if (error) {
     // Log internally but return a safe generic message
     console.error("[membership-form/status] DB error:", error.message);
+    await antiEnumerationDelay();
     return NextResponse.json(
       { message: "Unable to check application status right now." },
       { status: 500 }
@@ -45,8 +50,9 @@ async function handleStatusLookup(request: NextRequest): Promise<NextResponse> {
   // ── Uniform response shape for both found and not-found ──────────────────
   // "found" is intentionally omitted so clients cannot enumerate by
   // checking field presence. Only "status" carries meaningful state.
+  await antiEnumerationDelay();
+
   if (!application) {
-    await antiEnumerationDelay();
     return NextResponse.json(
       { status: null, updatedAt: null },
       { status: 200 }

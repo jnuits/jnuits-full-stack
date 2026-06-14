@@ -81,13 +81,48 @@ function addVersion(target, value) {
   }
 }
 
+function parseRemoteVersionsFromMigrationTable(stdout) {
+  const versions = new Set();
+  const lines = String(stdout).split(/\r?\n/);
+
+  for (const line of lines) {
+    if (!/[|│]/.test(line)) {
+      continue;
+    }
+
+    const columns = line.split(/[|│]/).map((column) => column.trim());
+    if (columns.length < 2) {
+      continue;
+    }
+
+    const [localColumn, remoteColumn] = columns;
+    const normalized = `${localColumn} ${remoteColumn}`.toLowerCase();
+    if (
+      normalized.includes("local") ||
+      normalized.includes("remote") ||
+      /^[-─\s]+$/.test(line.replace(/[|│]/g, ""))
+    ) {
+      continue;
+    }
+
+    addVersion(versions, remoteColumn);
+  }
+
+  return [...versions].sort();
+}
+
 function parseRemoteVersionsFromMigrationList(stdout) {
   let parsed;
   try {
     parsed = JSON.parse(stdout);
   } catch (error) {
+    const versions = parseRemoteVersionsFromMigrationTable(stdout);
+    if (versions.length > 0) {
+      return versions;
+    }
+
     throw new Error(
-      "Supabase CLI did not return JSON for `supabase migration list --linked --output json`."
+      "Supabase CLI output was neither JSON nor a parseable migration table."
     );
   }
 
@@ -156,6 +191,19 @@ function buildSupabaseCliEnv(env) {
   return childEnv;
 }
 
+function parseCliCommand(value) {
+  const command = String(value || "supabase").trim();
+  if (!command) {
+    return { argsPrefix: [], command: "supabase" };
+  }
+
+  const parts = command.split(/\s+/);
+  return {
+    argsPrefix: parts.slice(1),
+    command: parts[0],
+  };
+}
+
 function runSupabaseMigrationList({ cwd = process.cwd(), env = process.env, runner } = {}) {
   const run =
     runner ??
@@ -165,9 +213,10 @@ function runSupabaseMigrationList({ cwd = process.cwd(), env = process.env, runn
         encoding: "utf8",
       }));
 
+  const cli = parseCliCommand(env.SUPABASE_CLI_COMMAND);
   const result = run(
-    "supabase",
-    ["migration", "list", "--linked", "--output", "json"],
+    cli.command,
+    [...cli.argsPrefix, "migration", "list", "--linked", "--output", "json"],
     {
       cwd,
       env: buildSupabaseCliEnv(env),
@@ -178,7 +227,7 @@ function runSupabaseMigrationList({ cwd = process.cwd(), env = process.env, runn
   if (result.error?.code === "ENOENT") {
     throw new Error(
       "Supabase CLI is required for migration parity checks but was not found on PATH.\n" +
-        "Install/login the Supabase CLI or run this check in CI with SUPABASE_ACCESS_TOKEN/SUPABASE_PAT.\n" +
+        "Install/login the Supabase CLI, set SUPABASE_CLI_COMMAND to a trusted CLI shim, or run this check in CI with SUPABASE_ACCESS_TOKEN/SUPABASE_PAT.\n" +
         "This script no longer calls the unsupported Management API migrations endpoint."
     );
   }
@@ -288,6 +337,7 @@ module.exports = {
   formatMigrationParityReport,
   getLocalMigrationFiles,
   loadDotEnvLocal,
+  parseRemoteVersionsFromMigrationTable,
   parseRemoteVersionsFromMigrationList,
   runMigrationParityCheck,
   runSupabaseMigrationList,

@@ -1,11 +1,20 @@
 import type { Tables } from "@/lib/db/types";
 
 export const MAX_BATCH_IDS = 25;
+export const MAX_CERTIFICATE_ID_LENGTH = 80;
 
 export type PublicCertificateRecord = Tables<"public_certificates">;
 
 export function normalizeCertificateId(value: string) {
   return value.trim().toUpperCase();
+}
+
+export function isValidCertificateId(value: string) {
+  return (
+    value.length > 0 &&
+    value.length <= MAX_CERTIFICATE_ID_LENGTH &&
+    !/[\u0000-\u001F\u007F]/.test(value)
+  );
 }
 
 export function normalizeIds(input: unknown) {

@@ -43,6 +43,12 @@ const PORTAL_ROLES = new Set([
   "alumni_ambassador",
   "advisor",
 ]);
+const MEMBER_PORTAL_ACCESS_ROLES = new Set([
+  "member",
+  "alumni",
+  "executive",
+  "alumni_ambassador",
+]);
 
 export function resolveSafeNextPath(
   nextPath: null | string | undefined,
@@ -69,6 +75,10 @@ export function hasAdminRole(roles: string[]) {
 
 export function hasPortalRole(roles: string[]) {
   return roles.some((role) => PORTAL_ROLES.has(role));
+}
+
+export function hasMemberPortalAccessRole(roles: string[]) {
+  return roles.some((role) => MEMBER_PORTAL_ACCESS_ROLES.has(role));
 }
 
 export function resolveScopedNextPath(
@@ -322,13 +332,13 @@ async function resolvePortalAccessState(
   };
 }
 
-function portalAccessRedirectPath(access: PortalAccessState) {
+export function portalAccessRedirectPath(access: PortalAccessState) {
   const status =
     access.portalAccessStatus ||
     access.lifecycleStatus ||
     (access.memberId ? "restricted" : "unlinked");
 
-  return `/portal?access=${encodeURIComponent(status)}`;
+  return `/portal/access-pending?access=${encodeURIComponent(status)}`;
 }
 
 async function hasPermissionInternal(
@@ -393,6 +403,7 @@ export async function requireAdminUser(options?: {
 
 export async function requirePortalUser(options?: {
   fallbackPath?: string;
+  requireActiveAccess?: boolean;
 }) {
   const auth = await requireAuthenticatedUser({
     fallbackPath: options?.fallbackPath || "/portal",
@@ -400,6 +411,18 @@ export async function requirePortalUser(options?: {
 
   if (!hasPortalRole(auth.roles)) {
     redirect(hasAdminRole(auth.roles) ? "/admin/dashboard" : "/portal/login");
+  }
+
+  if (
+    options?.requireActiveAccess !== false &&
+    hasMemberPortalAccessRole(auth.roles)
+  ) {
+    const supabase = await createClient();
+    const access = await resolvePortalAccessState(supabase, auth.user?.id || "");
+
+    if (!isMutablePortalAccess(access)) {
+      redirect(portalAccessRedirectPath(access));
+    }
   }
 
   return auth;
@@ -445,14 +468,8 @@ export async function requirePortalPermission(
 ) {
   const auth = await requirePortalUser({
     fallbackPath: options?.fallbackPath || "/portal/dashboard",
+    requireActiveAccess: true,
   });
-  const supabase = await createClient();
-  const access = await resolvePortalAccessState(supabase, auth.user?.id || "");
-
-  if (!isMutablePortalAccess(access)) {
-    redirect(portalAccessRedirectPath(access));
-  }
-
   const authorized = await hasPermissionInternal(requestedPermission);
 
   if (!authorized) {

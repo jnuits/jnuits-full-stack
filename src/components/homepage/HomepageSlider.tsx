@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { transformCloudinaryUrl } from "@/lib/cloudinary/urls";
+import { getHomepageSlideImagePriority } from "@/components/homepage/slider-image-priority";
 import type { HomepageSliderImage } from "@/lib/content/public-content";
 
 type HomepageSliderProps = {
@@ -18,32 +19,10 @@ const fallbackImages = [
   "/images/gallery-2.jpg",
 ];
 
-function pickRandomSlides(images: HomepageSliderImage[]) {
-  const limit = Math.min(5, images.length);
-  const pool = [...images];
-
-  for (let index = pool.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [pool[index], pool[swapIndex]] = [pool[swapIndex], pool[index]];
-  }
-
-  return pool.slice(0, limit);
-}
-
 export function HomepageSlider({ images }: HomepageSliderProps) {
-  const initialSlides = useMemo(() => images.slice(0, Math.min(5, images.length)), [images]);
-  const [slides, setSlides] = useState(initialSlides);
+  const slides = useMemo(() => images.slice(0, Math.min(5, images.length)), [images]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setSlides(pickRandomSlides(images));
-      setActiveIndex(0);
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [images]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -71,7 +50,8 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
     return null;
   }
 
-  const activeSlide = slides[activeIndex];
+  const safeActiveIndex = Math.min(activeIndex, slides.length - 1);
+  const activeSlide = slides[safeActiveIndex];
 
   function goToSlide(index: number) {
     setActiveIndex((index + slides.length) % slides.length);
@@ -80,12 +60,12 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key === "ArrowLeft") {
       event.preventDefault();
-      goToSlide(activeIndex - 1);
+      goToSlide(safeActiveIndex - 1);
     }
 
     if (event.key === "ArrowRight") {
       event.preventDefault();
-      goToSlide(activeIndex + 1);
+      goToSlide(safeActiveIndex + 1);
     }
 
     if (event.key === "Enter" && activeSlide?.link) {
@@ -103,58 +83,57 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
         tabIndex={0}
       >
         <div className="hp-slider__viewport">
-          {slides.map((slide, index) => (
-            <div
-              aria-hidden={index === activeIndex ? undefined : true}
-              className="hp-slider__slide"
-              data-active={index === activeIndex ? "true" : "false"}
-              key={slide.id}
-            >
-              {(() => {
-                const shouldPrioritize = index === 0 || index === activeIndex;
+          {slides.map((slide, index) => {
+            const isActive = index === safeActiveIndex;
+            const imagePriority = getHomepageSlideImagePriority(index, safeActiveIndex);
 
-                return (
-              <Image
-                alt={slide.title}
-                className="hp-slider__image"
-                fill
-                fetchPriority={shouldPrioritize ? "high" : "auto"}
-                loading={shouldPrioritize ? "eager" : "lazy"}
-                onError={(event) => {
-                  const fallback = fallbackImages[index % fallbackImages.length];
-                  if (event.currentTarget.src.endsWith(fallback)) {
-                    return;
-                  }
-                  event.currentTarget.src = fallback;
-                }}
-                sizes="(min-width: 1280px) 1220px, 94vw"
-                src={transformCloudinaryUrl(slide.imageUrl, "full")}
-                unoptimized={true}
-              />
-                );
-              })()}
-              <div className="hp-slide-overlay" />
-              <p className="hp-slide-title">{slide.title}</p>
-              <p className="hp-slide-caption">{slide.caption}</p>
-              {slide.link ? (
-                <a
-                  aria-label={`View ${slide.title}`}
-                  className="hp-slide-view"
-                  href={slide.link}
-                  tabIndex={index === activeIndex ? 0 : -1}
-                >
-                  View →
-                </a>
-              ) : null}
-            </div>
-          ))}
+            return (
+              <div
+                aria-hidden={isActive ? undefined : true}
+                className="hp-slider__slide"
+                data-active={isActive ? "true" : "false"}
+                key={slide.id}
+              >
+                <Image
+                  alt={slide.title}
+                  className="hp-slider__image"
+                  fill
+                  fetchPriority={imagePriority.fetchPriority}
+                  loading={imagePriority.loading}
+                  onError={(event) => {
+                    const fallback = fallbackImages[index % fallbackImages.length];
+                    if (event.currentTarget.src.endsWith(fallback)) {
+                      return;
+                    }
+                    event.currentTarget.src = fallback;
+                  }}
+                  sizes="(min-width: 1280px) 1220px, 94vw"
+                  src={transformCloudinaryUrl(slide.imageUrl, "full")}
+                  unoptimized={true}
+                />
+                <div className="hp-slide-overlay" />
+                <p className="hp-slide-title">{slide.title}</p>
+                <p className="hp-slide-caption">{slide.caption}</p>
+                {slide.link ? (
+                  <a
+                    aria-label={`View ${slide.title}`}
+                    className="hp-slide-view"
+                    href={slide.link}
+                    tabIndex={isActive ? 0 : -1}
+                  >
+                    View →
+                  </a>
+                ) : null}
+              </div>
+            );
+          })}
 
           {slides.length > 1 ? (
             <>
               <button
                 aria-label="Previous slide"
                 className="hp-slider__control hp-slider__control--prev"
-                onClick={() => goToSlide(activeIndex - 1)}
+                onClick={() => goToSlide(safeActiveIndex - 1)}
                 type="button"
               >
                 <ChevronLeft aria-hidden="true" size={24} strokeWidth={2.2} />
@@ -162,7 +141,7 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
               <button
                 aria-label="Next slide"
                 className="hp-slider__control hp-slider__control--next"
-                onClick={() => goToSlide(activeIndex + 1)}
+                onClick={() => goToSlide(safeActiveIndex + 1)}
                 type="button"
               >
                 <ChevronRight aria-hidden="true" size={24} strokeWidth={2.2} />
@@ -176,9 +155,9 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
           {slides.map((slide, index) => (
             <button
               aria-label={`Slide ${index + 1} of ${slides.length}`}
-              aria-selected={index === activeIndex}
-              className={`hp-slider-dot${index === activeIndex ? " active" : ""}`}
-              data-active={index === activeIndex ? "true" : "false"}
+              aria-selected={index === safeActiveIndex}
+              className={`hp-slider-dot${index === safeActiveIndex ? " active" : ""}`}
+              data-active={index === safeActiveIndex ? "true" : "false"}
               key={slide.id}
               onClick={() => goToSlide(index)}
               role="tab"

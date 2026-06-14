@@ -5,7 +5,7 @@ import { getAuthContext } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiError } from "@/lib/errors/api-error";
 import {
-  checkRateLimit,
+  checkRateLimitForApi,
   getRequestIp,
   RATE_LIMITS,
 } from "@/lib/security/rate-limit";
@@ -33,7 +33,7 @@ async function handlePost(request: NextRequest) {
   }
 
   const ip = getRequestIp(request.headers);
-  const limit = checkRateLimit(
+  const limit = await checkRateLimitForApi(
     `security-event:${auth.user.id}:${ip}`,
     RATE_LIMITS.securityEvent
   );

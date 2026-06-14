@@ -1,0 +1,44 @@
+import { describe, expect, it } from "vitest";
+import {
+  hasMemberPortalAccessRole,
+  isMutablePortalAccess,
+  portalAccessRedirectPath,
+  type PortalAccessState,
+} from "@/lib/auth/session";
+
+describe("portal access helpers", () => {
+  it("treats only active current or alumni members as mutable portal users", () => {
+    const activeCurrent = {
+      lifecycleStatus: "current",
+      memberId: "member-1",
+      portalAccessStatus: "active",
+    } satisfies PortalAccessState;
+    const suspended = {
+      ...activeCurrent,
+      portalAccessStatus: "suspended",
+    } satisfies PortalAccessState;
+    const deleted = {
+      ...activeCurrent,
+      lifecycleStatus: "deleted",
+    } satisfies PortalAccessState;
+
+    expect(isMutablePortalAccess(activeCurrent)).toBe(true);
+    expect(isMutablePortalAccess(suspended)).toBe(false);
+    expect(isMutablePortalAccess(deleted)).toBe(false);
+  });
+
+  it("redirects inactive portal users to the explanation route", () => {
+    expect(
+      portalAccessRedirectPath({
+        lifecycleStatus: "current",
+        memberId: "member-1",
+        portalAccessStatus: "suspended",
+      })
+    ).toBe("/portal/access-pending?access=suspended");
+  });
+
+  it("does not treat advisor-only accounts as member access-status scoped", () => {
+    expect(hasMemberPortalAccessRole(["advisor"])).toBe(false);
+    expect(hasMemberPortalAccessRole(["advisor", "member"])).toBe(true);
+  });
+});

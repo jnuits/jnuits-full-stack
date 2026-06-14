@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeCertificateId } from "@/lib/certificates/public-batch";
+import {
+  isValidCertificateId,
+  normalizeCertificateId,
+} from "@/lib/certificates/public-batch";
 import { findCertificateById } from "@/lib/certificates/queries";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
+import { withApiGuard } from "@/lib/security/with-api-guard";
 
-export async function GET(
+async function handleGet(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: rawId } = await params;
   const certificateId = normalizeCertificateId(rawId);
 
-  if (!certificateId) {
+  if (!isValidCertificateId(certificateId)) {
     return NextResponse.json(
-      { message: "Certificate ID is required." },
+      { message: "Enter a valid certificate ID." },
       { status: 400 }
     );
   }
@@ -28,3 +33,8 @@ export async function GET(
 
   return NextResponse.json({ data: certificate }, { status: 200 });
 }
+
+export const GET = withApiGuard(handleGet, {
+  enforceSameOrigin: false,
+  rateLimit: RATE_LIMITS.certificateView,
+});

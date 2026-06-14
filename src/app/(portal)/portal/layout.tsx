@@ -47,10 +47,16 @@ export default async function MemberPortalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requirePortalUser({ fallbackPath: "/portal" });
   const requestHeaders = await headers();
   const requestedPath =
     requestHeaders.get("x-jnuits-return-to")?.split("?")[0] || "/portal";
+  const allowAccessExplanation = requestedPath === "/portal/access-pending";
+
+  await requirePortalUser({
+    fallbackPath: "/portal",
+    requireActiveAccess: !allowAccessExplanation,
+  });
+
   const requiredPermission = getPortalPermissionForPath(requestedPath);
 
   if (requiredPermission) {
