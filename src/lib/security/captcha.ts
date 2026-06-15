@@ -15,7 +15,15 @@ export function isCaptchaConfigured() {
   return Boolean(getTurnstileSiteKey() && getTurnstileSecretKey());
 }
 
+export function isDeployedProduction() {
+  return process.env.VERCEL_ENV === "production";
+}
+
 export function isCaptchaRequired() {
+  if (isDeployedProduction()) {
+    return true;
+  }
+
   const override = process.env.AUTH_CAPTCHA_REQUIRED?.trim().toLowerCase();
 
   if (override === "false" || override === "0" || override === "off") {
@@ -29,10 +37,19 @@ export function isCaptchaRequired() {
   return process.env.NODE_ENV === "production";
 }
 
+export function getAuthCaptchaUiConfig() {
+  const required = isCaptchaRequired();
+
+  return {
+    required,
+    siteKey: required ? getTurnstileSiteKey() : "",
+  };
+}
+
 export async function verifyCaptchaToken(token: string, remoteIp?: string) {
   const secret = getTurnstileSecretKey();
 
-  if (!isCaptchaRequired() && !secret) {
+  if (!isCaptchaRequired()) {
     return { error: null, ok: true };
   }
 

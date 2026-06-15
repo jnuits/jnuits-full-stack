@@ -5,13 +5,14 @@ import {
   BlogMediaSelect,
   type BlogMediaOption,
 } from "@/components/admin/blog-media-select";
+import { BlogPublishChecklist } from "@/components/admin/blog-publish-checklist";
 import { MarkdownEditor } from "@/components/admin/markdown-editor";
 import { MemberBlogSubmissionsPanel } from "@/components/admin/member-blog-submissions-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import {
   getBlogCategories,
-  getBlogPublishValidationError,
+  getBlogHref,
   makeBlogTeaser,
   normalizeBlogCategory,
 } from "@/lib/content/blogs";
@@ -143,14 +144,6 @@ export default async function BlogsPage({
   const selected = posts.find((post) => post.id === editId) || null;
   const postCategories = getBlogCategories(posts);
   const filteredPosts = filterPosts(posts, filters);
-  const selectedValidationMessage = getBlogPublishValidationError({
-    body: selected?.body || "",
-    publishedAt: selected?.published_at || "",
-    slug: selected?.slug || "",
-    status: selected?.status || "draft",
-    summary: selected?.summary || "",
-    title: selected?.title || "",
-  });
 
   return (
     <div className="grid gap-8">
@@ -218,6 +211,7 @@ export default async function BlogsPage({
         <form action={saveContentPost} className="blog-admin-workspace">
           <input name="postId" type="hidden" value={selected?.id || ""} />
           <input name="contentType" type="hidden" value="blog" />
+          <input name="status" type="hidden" value={selected?.status || "draft"} />
 
           <div className="blog-admin-main">
             <label className="input-label">
@@ -281,14 +275,10 @@ export default async function BlogsPage({
           <aside className="blog-admin-sidebar">
             <div className="blog-admin-sidebar__section">
               <p className="admin-section-label">Publication settings</p>
-              <label className="input-label">
-                Status
-                <select defaultValue={selected?.status || "draft"} name="status">
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </label>
+              <div className="blog-status-surface">
+                <span>Current status</span>
+                <strong>{(selected?.status || "draft").replaceAll("_", " ")}</strong>
+              </div>
               <label className="input-label">
                 Published at
                 <input
@@ -343,32 +333,51 @@ export default async function BlogsPage({
 
             <div className="blog-admin-sidebar__section">
               <p className="admin-section-label">Publish checklist</p>
-              <ul className="blog-validation-list">
-                <li data-state={selected?.title ? "done" : "pending"}>Title</li>
-                <li data-state={selected?.slug ? "done" : "pending"}>Slug</li>
-                <li data-state={selected?.summary ? "done" : "pending"}>Summary</li>
-                <li data-state={selected?.body ? "done" : "pending"}>Markdown body</li>
-                <li data-state={selected?.published_at ? "done" : "pending"}>
-                  Publish date
-                </li>
-              </ul>
-              {selectedValidationMessage ? (
-                <p className="blog-validation-note">{selectedValidationMessage}</p>
-              ) : null}
+              <BlogPublishChecklist
+                defaults={{
+                  body: selected?.body || "",
+                  publishedAt: selected?.published_at?.slice(0, 16) || "",
+                  summary: selected?.summary || "",
+                  title: selected?.title || "",
+                }}
+              />
             </div>
 
             <div className="blog-admin-actions">
-              <button className="admin-btn admin-btn--primary" type="submit">
-                {selected ? "Update blog post" : "Save blog post"}
+              <button
+                className="admin-btn admin-btn--ghost"
+                name="intent"
+                type="submit"
+                value="save"
+              >
+                {selected ? "Save changes" : "Save draft"}
+              </button>
+              <button
+                className="admin-btn admin-btn--primary"
+                name="intent"
+                type="submit"
+                value="publish"
+              >
+                Publish
               </button>
               {selected?.status === "published" ? (
                 <Link
                   className="admin-btn admin-btn--ghost"
-                  href={`/blogs/${selected.slug}`}
+                  href={getBlogHref(selected.slug)}
                   target="_blank"
                 >
                   View public
                 </Link>
+              ) : null}
+              {selected ? (
+                <button
+                  className="admin-btn admin-btn--ghost"
+                  name="intent"
+                  type="submit"
+                  value="archive"
+                >
+                  Archive
+                </button>
               ) : null}
               {selected ? (
                 <Link className="admin-btn admin-btn--ghost" href="/admin/content/blogs">

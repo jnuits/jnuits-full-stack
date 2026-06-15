@@ -13,6 +13,7 @@ import { requireAdminPermission } from "@/lib/auth/session";
 import {
   getBlogPublishValidationError,
   getContentPostRevalidationPaths,
+  resolveBlogPostStatusForIntent,
 } from "@/lib/content/blogs";
 import {
   insertAuditEvent as recordAuditEvent,
@@ -84,6 +85,7 @@ const contentPostFormSchema = z.object({
   excerpt: optionalText(1000),
   location: optionalText(180),
   mediaAssetId: optionalText(80),
+  intent: z.enum(["archive", "publish", "save"]).optional().default("save"),
   postId: optionalText(80),
   publishedAt: optionalText(80),
   readTime: optionalText(40),
@@ -415,6 +417,7 @@ export async function saveContentPost(formData: FormData) {
       "excerpt",
       "location",
       "mediaAssetId",
+      "intent",
       "postId",
       "publishedAt",
       "readTime",
@@ -461,6 +464,7 @@ export async function saveContentPost(formData: FormData) {
     excerpt,
     location,
     mediaAssetId,
+    intent,
     postId,
     publishedAt,
     readTime,
@@ -484,13 +488,46 @@ export async function saveContentPost(formData: FormData) {
     redirect(redirectTarget);
   }
 
+  let previousPost: { slug?: null | string; status?: null | string } | null = null;
+  if (postId) {
+    const { data, error } = await admin
+      .from("content_posts")
+      .select("slug, content_type, status")
+      .eq("id", postId)
+      .maybeSingle();
+
+    if (error) {
+      await setAdminFlash({
+        tone: "error",
+        title: "Content post not saved",
+        message: safeContentError(
+          error,
+          "loadContentPost",
+          "The current content post could not be loaded."
+        ),
+      });
+      redirect(redirectTarget);
+    }
+
+    previousPost = data;
+  }
+
+  const nextStatus =
+    contentType === "blog"
+      ? resolveBlogPostStatusForIntent({
+          intent,
+          isExistingPost: Boolean(postId),
+          previousStatus: previousPost?.status ?? null,
+          submittedStatus: status,
+        })
+      : status;
   const validationError =
     contentType === "blog"
       ? getBlogPublishValidationError({
           body,
           publishedAt,
           slug,
-          status,
+          status: nextStatus,
           summary,
           title,
         })
@@ -506,18 +543,6 @@ export async function saveContentPost(formData: FormData) {
   }
 
   try {
-    const { data: previousPost, error: previousPostError } = postId
-      ? await admin
-          .from("content_posts")
-          .select("slug, content_type")
-          .eq("id", postId)
-          .maybeSingle()
-      : { data: null, error: null };
-
-    if (previousPostError) {
-      throw previousPostError;
-    }
-
     const payload = {
       body: body || null,
       category: category || null,
@@ -532,7 +557,7 @@ export async function saveContentPost(formData: FormData) {
       read_time: readTime || null,
       slug,
       starts_at: startsAt || null,
-      status,
+      status: nextStatus,
       summary: summary || null,
       title,
     };
@@ -559,7 +584,7 @@ export async function saveContentPost(formData: FormData) {
       metadata: {
         contentType,
         slug,
-        status,
+        status: nextStatus,
       },
     });
 

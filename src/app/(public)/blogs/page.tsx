@@ -85,7 +85,7 @@ export default async function BlogsPage({
                 More from the community
               </h2>
             </div>
-            <Link className="ghost-button" href="/portal/blogs">
+            <Link className="ghost-button" href="/portal/login?next=/portal/blogs">
               Draft in portal
             </Link>
           </div>
@@ -100,6 +100,9 @@ export default async function BlogsPage({
           <p className="section-divider">Latest articles</p>
           <h2>Only one article is published right now</h2>
           <p>More reviewed posts will appear here as the editorial lane grows.</p>
+          <Link className="ghost-button" href="/portal/login?next=/portal/blogs">
+            Members can submit drafts from the portal
+          </Link>
         </section>
       ) : null}
     </div>

@@ -16,8 +16,13 @@ export function BlogCopyLinkButton() {
   }
 
   return (
-    <button className="ghost-button" onClick={copyLink} type="button">
-      {copied ? "Copied" : "Copy link"}
-    </button>
+    <>
+      <button className="ghost-button" onClick={copyLink} type="button">
+        {copied ? "Copied" : "Copy link"}
+      </button>
+      <span aria-live="polite" className="sr-only">
+        {copied ? "Article link copied to clipboard." : ""}
+      </span>
+    </>
   );
 }

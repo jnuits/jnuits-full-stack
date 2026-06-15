@@ -30,4 +30,14 @@ describe("BlogMarkdown", () => {
     expect(html).not.toContain("<strong onclick");
     expect(html).toContain("&lt;script&gt;");
   });
+
+  it("normalizes body-level h1 markdown to section heading markup", () => {
+    const html = renderToStaticMarkup(
+      <BlogMarkdown source={"# Imported body title\n\n## Section title"} />
+    );
+
+    expect(html).not.toContain("<h1");
+    expect(html).toContain("blog-markdown__heading--from-h1");
+    expect(html).toContain("blog-markdown__heading--h2");
+  });
 });

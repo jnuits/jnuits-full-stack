@@ -2,7 +2,7 @@ import Link from "next/link";
 import { loginPortal } from "@/app/(auth)/actions";
 import { TurnstileField } from "@/components/auth/turnstile-field";
 import { resolveScopedNextPath } from "@/lib/auth/session";
-import { getTurnstileSiteKey } from "@/lib/security/captcha";
+import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
 
 export default async function PortalLoginPage({
   searchParams,
@@ -25,7 +25,7 @@ export default async function PortalLoginPage({
     ["/portal", "/profile"],
     "/portal/dashboard"
   );
-  const turnstileSiteKey = getTurnstileSiteKey();
+  const captcha = getAuthCaptchaUiConfig();
 
   return (
     <div>
@@ -66,7 +66,7 @@ export default async function PortalLoginPage({
             required
           />
         </label>
-        <TurnstileField siteKey={turnstileSiteKey} />
+        {captcha.required ? <TurnstileField siteKey={captcha.siteKey} /> : null}
         <input type="hidden" name="next" value={next} />
         <button className="primary-button" formAction={loginPortal}>
           Sign in to portal

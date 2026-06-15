@@ -29,6 +29,15 @@ export function BlogMarkdown({ markdown, source }: BlogMarkdownProps) {
               target={isInternalHref(href) ? undefined : "_blank"}
             />
           ),
+          h1: ({ ...props }) => (
+            <h2 {...props} className="blog-markdown__heading blog-markdown__heading--from-h1" />
+          ),
+          h2: ({ ...props }) => (
+            <h2 {...props} className="blog-markdown__heading blog-markdown__heading--h2" />
+          ),
+          h3: ({ ...props }) => (
+            <h3 {...props} className="blog-markdown__heading blog-markdown__heading--h3" />
+          ),
         }}
       >
         {content}

@@ -125,6 +125,7 @@ export default async function BlogDetailPage({ params }: BlogDetailParams) {
 
         <BlogImage
           alt={article.title}
+          category={article.category}
           className="blog-detail-hero__image"
           fetchPriority="high"
           loading="eager"

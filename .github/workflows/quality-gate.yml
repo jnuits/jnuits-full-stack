@@ -40,4 +40,15 @@ jobs:
         run: npm audit --audit-level=moderate
 
       - name: Build
+        env:
+          # CI verifies that the app compiles. Vercel production still supplies
+          # real deployment secrets and is protected by scripts/validate-env.mjs.
+          APP_BASE_URL: https://jnuits.org.bd
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ci-placeholder-turnstile-site-key
+          RATE_LIMIT_BACKEND: supabase
+          RATE_LIMIT_SECRET_SALT: ci-placeholder-rate-limit-secret-salt-000000
+          SUPABASE_SECRET_KEY: ci-placeholder-supabase-secret-key
+          TURNSTILE_SECRET_KEY: ci-placeholder-turnstile-secret-key
         run: npm run build

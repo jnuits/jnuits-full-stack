@@ -131,7 +131,7 @@ async function enforceAuthActionProtection(options: {
     return "Too many attempts. Try again later.";
   }
 
-  if (!isCaptchaRequired() && !isCaptchaConfigured()) {
+  if (!isCaptchaRequired()) {
     return null;
   }
 

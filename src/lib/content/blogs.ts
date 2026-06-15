@@ -1,6 +1,7 @@
 export const BLOG_CARD_TEASER_LENGTH = 180;
 export const BLOG_FEATURE_TEASER_LENGTH = 320;
 export const BLOG_FALLBACK_IMAGE_SRC = "/images/home-group.jpg";
+const BLOG_FALLBACK_TONES = ["blue", "gold", "green", "slate"] as const;
 
 type BlogTeaserSource = {
   body?: null | string;
@@ -22,6 +23,22 @@ type ContentPostRevalidationInput = {
   contentType: string;
   previousSlug?: null | string;
   slug: string;
+};
+
+export type BlogSaveIntent = "archive" | "publish" | "save";
+export type BlogFallbackTone = (typeof BLOG_FALLBACK_TONES)[number];
+
+export type BlogFallbackVisual = {
+  categoryLabel: string;
+  initials: string;
+  tone: BlogFallbackTone;
+};
+
+type BlogStatusIntentInput = {
+  intent: BlogSaveIntent;
+  isExistingPost: boolean;
+  previousStatus?: null | string;
+  submittedStatus?: null | string;
 };
 
 function collapseWhitespace(value: string) {
@@ -94,6 +111,56 @@ export function isBlogFallbackImage(src: null | string | undefined) {
   return !src || src === BLOG_FALLBACK_IMAGE_SRC;
 }
 
+function hashString(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash;
+}
+
+function firstGraphemes(value: string, count: number) {
+  const source = collapseWhitespace(value);
+
+  if (!source) {
+    return "";
+  }
+
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
+    return Array.from(segmenter.segment(source))
+      .slice(0, count)
+      .map((segment) => segment.segment)
+      .join("");
+  }
+
+  return Array.from(source).slice(0, count).join("");
+}
+
+export function getBlogFallbackVisual(options: {
+  category?: null | string;
+  title: string;
+}): BlogFallbackVisual {
+  const categoryLabel = clampText(normalizeBlogCategory(options.category), 24);
+  const seed = `${categoryLabel}:${options.title}`;
+  const initials =
+    collapseWhitespace(options.title)
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => firstGraphemes(word, 1))
+      .join("")
+      .toUpperCase() || firstGraphemes(categoryLabel, 2).toUpperCase() || "JN";
+
+  return {
+    categoryLabel,
+    initials: clampText(initials, 4),
+    tone: BLOG_FALLBACK_TONES[hashString(seed) % BLOG_FALLBACK_TONES.length],
+  };
+}
+
 export function decodeBlogIdentifier(value: string) {
   try {
     return decodeURIComponent(value);
@@ -104,6 +171,33 @@ export function decodeBlogIdentifier(value: string) {
 
 export function getBlogHref(slug: string) {
   return `/blogs/${encodeURIComponent(slug)}`;
+}
+
+export function resolveBlogPostStatusForIntent({
+  intent,
+  isExistingPost,
+  previousStatus,
+  submittedStatus,
+}: BlogStatusIntentInput) {
+  if (intent === "publish") {
+    return "published";
+  }
+
+  if (intent === "archive") {
+    return "archived";
+  }
+
+  if (!isExistingPost) {
+    return "draft";
+  }
+
+  if (previousStatus === "published" || previousStatus === "archived") {
+    return previousStatus;
+  }
+
+  return submittedStatus === "published"
+    ? previousStatus || "draft"
+    : submittedStatus || previousStatus || "draft";
 }
 
 export function getBlogPublishValidationError(

@@ -21,6 +21,7 @@ export function BlogFeatureCard({ blog }: BlogFeatureCardProps) {
     <article className="blog-feature-card">
       <BlogImage
         alt={blog.title}
+        category={blog.category}
         className="blog-feature-card__image"
         fetchPriority="high"
         loading="eager"

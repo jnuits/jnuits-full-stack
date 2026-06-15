@@ -21,6 +21,7 @@ export function BlogCard({ blog }: BlogCardProps) {
     <article className="blog-card">
       <BlogImage
         alt={blog.title}
+        category={blog.category}
         className="blog-card__image"
         sizes="(min-width: 1024px) 30vw, (min-width: 640px) 44vw, 100vw"
         src={blog.imageSrc}

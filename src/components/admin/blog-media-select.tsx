@@ -23,14 +23,49 @@ export function BlogMediaSelect({
   defaultValue = "",
 }: BlogMediaSelectProps) {
   const [value, setValue] = useState(defaultValue || "");
+  const [query, setQuery] = useState("");
   const selected = useMemo(
     () => assets.find((asset) => asset.id === value) || null,
     [assets, value]
   );
+  const visibleAssets = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return assets;
+    }
+
+    return assets.filter((asset) =>
+      [asset.title, asset.public_id, asset.alt_text]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(normalizedQuery))
+    );
+  }, [assets, query]);
+  const selectAssets =
+    selected && !visibleAssets.some((asset) => asset.id === selected.id)
+      ? [selected, ...visibleAssets]
+      : visibleAssets;
   const previewSrc = selected?.thumbnail_url || selected?.secure_url || "";
+  const selectedAltText =
+    selected?.alt_text || selected?.title || selected?.public_id || "";
 
   return (
     <div className="blog-media-select">
+      <input
+        name="selectedMediaSecureUrl"
+        type="hidden"
+        value={selected?.secure_url || ""}
+      />
+      <input name="selectedMediaAltText" type="hidden" value={selectedAltText} />
+      <label className="input-label">
+        Search media
+        <input
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search title or Cloudinary public ID"
+          type="search"
+          value={query}
+        />
+      </label>
       <label className="input-label">
         Cover image
         <select
@@ -39,17 +74,20 @@ export function BlogMediaSelect({
           value={value}
         >
           <option value="">No cover image</option>
-          {assets.map((asset) => (
+          {selectAssets.map((asset) => (
             <option key={asset.id} value={asset.id}>
               {asset.title || asset.public_id} ({asset.media_kind})
             </option>
           ))}
         </select>
       </label>
+      <p className="blog-media-select__hint">
+        Recommended: add a 16:9 cover image for listing and sharing.
+      </p>
       <div className="blog-media-select__preview">
         {previewSrc ? (
           <Image
-            alt={selected?.alt_text || selected?.title || "Selected blog cover"}
+            alt={selectedAltText || "Selected blog cover"}
             className="object-cover"
             fill
             sizes="(min-width: 1024px) 18rem, 100vw"

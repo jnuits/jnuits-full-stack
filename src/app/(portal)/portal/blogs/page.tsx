@@ -303,6 +303,12 @@ export default async function PortalBlogsPage({
                       Use headings, lists, links, quotes, tables, and inline code. Raw HTML is not supported.
                     </span>
                   </div>
+                  <div className="portal-markdown-examples">
+                    <code>## বাংলা সেকশন শিরোনাম</code>
+                    <code>- Workshop outcome</code>
+                    <code>[JnUITS link](https://jnuits.org.bd)</code>
+                    <code>&gt; Short quote or reflection</code>
+                  </div>
                   <div className="portal-info-row">
                     <span className="portal-info-row__label">Safe boundary</span>
                     <span className="portal-info-row__value" style={{ fontSize: "0.82rem", lineHeight: 1.6 }}>

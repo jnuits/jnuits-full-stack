@@ -6,6 +6,7 @@ import {
   Code,
   EyeOff,
   Heading2,
+  Image as ImageIcon,
   Italic,
   Link as LinkIcon,
   List,
@@ -30,6 +31,7 @@ type MarkdownAction =
   | "bold"
   | "code"
   | "heading"
+  | "image"
   | "italic"
   | "link"
   | "list"
@@ -44,6 +46,8 @@ function applyMarkdownAction(action: MarkdownAction) {
       return { prefix: "`", suffix: "`", fallback: "inline code" };
     case "heading":
       return { prefix: "## ", suffix: "", fallback: "Section heading" };
+    case "image":
+      return { prefix: "![", suffix: "](image-url)", fallback: "Alt text" };
     case "italic":
       return { prefix: "_", suffix: "_", fallback: "emphasis" };
     case "link":
@@ -83,7 +87,28 @@ export function MarkdownEditor({
     const selectionStart = textarea.selectionStart;
     const selectionEnd = textarea.selectionEnd;
     const selectedText = value.slice(selectionStart, selectionEnd);
-    const { fallback, prefix, suffix } = applyMarkdownAction(action);
+    const selectedMediaUrl =
+      action === "image"
+        ? textarea.form?.querySelector<HTMLInputElement>(
+            'input[name="selectedMediaSecureUrl"]'
+          )?.value || ""
+        : "";
+    const selectedMediaAlt =
+      action === "image"
+        ? textarea.form?.querySelector<HTMLInputElement>(
+            'input[name="selectedMediaAltText"]'
+          )?.value || ""
+        : "";
+    const actionTemplate = applyMarkdownAction(action);
+    const { prefix } = actionTemplate;
+    const fallback =
+      action === "image" && selectedMediaAlt
+        ? selectedMediaAlt
+        : actionTemplate.fallback;
+    const suffix =
+      action === "image" && selectedMediaUrl
+        ? `](${selectedMediaUrl})`
+        : actionTemplate.suffix;
     const replacement = `${prefix}${selectedText || fallback}${suffix}`;
     const nextValue =
       value.slice(0, selectionStart) + replacement + value.slice(selectionEnd);
@@ -162,6 +187,14 @@ export function MarkdownEditor({
           type="button"
         >
           <LinkIcon aria-hidden="true" size={16} />
+        </button>
+        <button
+          aria-label="Image"
+          onClick={() => insertMarkdown("image")}
+          title="Insert image"
+          type="button"
+        >
+          <ImageIcon aria-hidden="true" size={16} />
         </button>
         <span>{guidance}</span>
       </div>

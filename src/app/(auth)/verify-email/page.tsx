@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { resendSignupConfirmation } from "@/app/(auth)/actions";
 import { TurnstileField } from "@/components/auth/turnstile-field";
-import { getTurnstileSiteKey } from "@/lib/security/captcha";
+import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
 
 export default async function VerifyEmailPage({
   searchParams,
@@ -23,7 +23,7 @@ export default async function VerifyEmailPage({
       ? resolvedSearchParams.email.trim().toLowerCase()
       : "";
   const hasError = Boolean(error);
-  const turnstileSiteKey = getTurnstileSiteKey();
+  const captcha = getAuthCaptchaUiConfig();
 
   return (
     <div>
@@ -66,7 +66,7 @@ export default async function VerifyEmailPage({
               type="email"
             />
           </label>
-          <TurnstileField siteKey={turnstileSiteKey} />
+          {captcha.required ? <TurnstileField siteKey={captcha.siteKey} /> : null}
           <button className="ghost-button w-full" type="submit">
             Resend confirmation email
           </button>
