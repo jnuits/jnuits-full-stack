@@ -34,6 +34,21 @@ export type BlogFallbackVisual = {
   tone: BlogFallbackTone;
 };
 
+export type BlogAttribution = {
+  authorLabel: string;
+  sourceLabel: string;
+};
+
+type BlogAttributionInput = {
+  advisorIsPublic?: boolean | null;
+  advisorName?: null | string;
+  advisorTitle?: null | string;
+  authorAdvisorProfileId?: null | string;
+  authorMemberId?: null | string;
+  memberName?: null | string;
+  memberType?: null | string;
+};
+
 type BlogStatusIntentInput = {
   intent: BlogSaveIntent;
   isExistingPost: boolean;
@@ -171,6 +186,42 @@ export function decodeBlogIdentifier(value: string) {
 
 export function getBlogHref(slug: string) {
   return `/blogs/${encodeURIComponent(slug)}`;
+}
+
+export function resolveBlogAttribution({
+  advisorIsPublic,
+  advisorName,
+  advisorTitle,
+  authorAdvisorProfileId,
+  authorMemberId,
+  memberName,
+  memberType,
+}: BlogAttributionInput): BlogAttribution {
+  const cleanMemberName = collapseWhitespace(memberName || "");
+  const cleanAdvisorName = collapseWhitespace(advisorName || "");
+  const cleanAdvisorTitle = collapseWhitespace(advisorTitle || "");
+
+  if (authorMemberId && cleanMemberName) {
+    return {
+      authorLabel: cleanMemberName,
+      sourceLabel:
+        memberType === "alumni" ? "Alumni contribution" : "Member contribution",
+    };
+  }
+
+  if (authorAdvisorProfileId && advisorIsPublic !== false && cleanAdvisorName) {
+    return {
+      authorLabel: cleanAdvisorTitle
+        ? `${cleanAdvisorName}, ${cleanAdvisorTitle}`
+        : cleanAdvisorName,
+      sourceLabel: "Advisor contribution",
+    };
+  }
+
+  return {
+    authorLabel: "JnUITS Editorial",
+    sourceLabel: "Official editorial",
+  };
 }
 
 export function resolveBlogPostStatusForIntent({

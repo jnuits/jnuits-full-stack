@@ -180,9 +180,13 @@ export async function upsertCloudinaryMediaAsset(
         .from("media_assets")
         .update(payload)
         .eq("id", options.assetId)
-        .select("id")
+        .select("id, title, public_id, media_kind, secure_url, thumbnail_url, alt_text")
         .single()
-    : admin.from("media_assets").insert(payload).select("id").single();
+    : admin
+        .from("media_assets")
+        .insert(payload)
+        .select("id, title, public_id, media_kind, secure_url, thumbnail_url, alt_text")
+        .single();
 
   const { data, error } = await query;
 

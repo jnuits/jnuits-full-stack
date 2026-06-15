@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { brandProfile } from "@/lib/branding";
+import { resolveBlogAttribution } from "@/lib/content/blogs";
 import type { Json, Tables } from "@/lib/db/types";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -98,6 +99,7 @@ export type HomepageContent = {
 };
 
 export type BlogPreview = {
+  authorLabel: string;
   slug: string;
   title: string;
   category: string;
@@ -106,6 +108,7 @@ export type BlogPreview = {
   publishedAt: string;
   readTime: string;
   imageSrc: string;
+  sourceLabel: string;
 };
 
 export type EventPreview = {
@@ -201,8 +204,27 @@ type GalleryEntryPublicRecord = Pick<
   media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
 };
 
+type BlogMemberAuthorRecord = {
+  full_name?: null | string;
+  member_type?: null | string;
+};
+
+type BlogAdvisorAuthorRecord = {
+  full_name?: null | string;
+  is_public?: boolean | null;
+  title?: null | string;
+};
+
+type BlogPostRecordWithRelations = ContentPostRecord & {
+  advisor_profiles?: BlogAdvisorAuthorRecord | BlogAdvisorAuthorRecord[] | null;
+  media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
+  members?: BlogMemberAuthorRecord | BlogMemberAuthorRecord[] | null;
+};
+
 const contentPostSelect =
   "id, slug, title, category, summary, excerpt, body, published_at, read_time, location, starts_at, ends_at, cta_href, content_type, status, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)";
+const blogContentPostSelect =
+  `${contentPostSelect}, author_member_id, author_advisor_profile_id, members!content_posts_author_member_id_fkey(full_name, member_type), advisor_profiles!content_posts_author_advisor_profile_id_fkey(full_name, title, is_public)`;
 const galleryEntrySelect =
   "id, title, caption, sort_order, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)";
 
@@ -544,6 +566,7 @@ export const fallbackAboutContent = {
 
 export const fallbackPublicBlogs: BlogPreview[] = [
   {
+    authorLabel: "JnUITS Editorial",
     slug: "society-program-highlights",
     title: "Society program highlights for the current session",
     category: "Programs",
@@ -554,8 +577,10 @@ export const fallbackPublicBlogs: BlogPreview[] = [
     publishedAt: "2026-04-06",
     readTime: "6 min read",
     imageSrc: "/images/home-group.jpg",
+    sourceLabel: "Official editorial",
   },
   {
+    authorLabel: "JnUITS Editorial",
     slug: "certificate-verification-guidelines",
     title: "Certificate verification guidelines for participants",
     category: "Certificates",
@@ -566,8 +591,10 @@ export const fallbackPublicBlogs: BlogPreview[] = [
     publishedAt: "2026-03-28",
     readTime: "4 min read",
     imageSrc: "/images/achievement.jpg",
+    sourceLabel: "Official editorial",
   },
   {
+    authorLabel: "JnUITS Editorial",
     slug: "member-community-updates",
     title: "Member community updates and participation pathways",
     category: "Community",
@@ -578,6 +605,7 @@ export const fallbackPublicBlogs: BlogPreview[] = [
     publishedAt: "2026-03-17",
     readTime: "5 min read",
     imageSrc: "/images/workshop.jpg",
+    sourceLabel: "Official editorial",
   },
 ];
 
@@ -1039,6 +1067,21 @@ function resolveImage(media: MediaAssetRecord | MediaAssetRecord[] | null | unde
   return resolved.secure_url || fallback;
 }
 
+function mapBlogAttribution(record: BlogPostRecordWithRelations) {
+  const member = resolveRelation(record.members);
+  const advisor = resolveRelation(record.advisor_profiles);
+
+  return resolveBlogAttribution({
+    advisorIsPublic: advisor?.is_public,
+    advisorName: advisor?.full_name,
+    advisorTitle: advisor?.title,
+    authorAdvisorProfileId: record.author_advisor_profile_id,
+    authorMemberId: record.author_member_id,
+    memberName: member?.full_name,
+    memberType: member?.member_type,
+  });
+}
+
 function normalizeIdentifier(value: string) {
   try {
     return decodeURIComponent(String(value || "").trim()).toLowerCase();
@@ -1180,7 +1223,7 @@ export const getPublishedBlogs = cache(async () => {
   const supabase = createPublicClient();
   const { data } = await supabase
     .from("content_posts")
-    .select(contentPostSelect)
+    .select(blogContentPostSelect)
     .eq("content_type", "blog")
     .eq("status", "published")
     .order("published_at", { ascending: false })
@@ -1191,13 +1234,11 @@ export const getPublishedBlogs = cache(async () => {
   }
 
   return data.map((record, index) => {
-    const media = (
-      record as ContentPostRecord & {
-        media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
-      }
-    ).media_assets;
+    const blogRecord = record as unknown as BlogPostRecordWithRelations;
+    const media = blogRecord.media_assets;
 
     return {
+      ...mapBlogAttribution(blogRecord),
       slug: record.slug,
       title: record.title,
       category: record.category || "Blog",
@@ -1244,7 +1285,7 @@ export const getPublishedEvents = cache(async () => {
 
   return data.map((record, index) => {
     const media = (
-      record as ContentPostRecord & {
+      record as unknown as ContentPostRecord & {
         media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
       }
     ).media_assets;
@@ -1505,11 +1546,10 @@ export const getPublishedDevelopers = cache(async () => {
 });
 
 function mapBlogDetail(
-  record: ContentPostRecord & {
-    media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
-  }
+  record: BlogPostRecordWithRelations
 ): BlogDetail {
   return {
+    ...mapBlogAttribution(record),
     body: record.body || "",
     category: record.category || "Blog",
     ctaHref: record.cta_href,
@@ -1577,19 +1617,19 @@ async function getPublishedPostByIdentifier(
   }
 
   const supabase = createPublicClient();
+  const select =
+    contentType === "blog" ? blogContentPostSelect : contentPostSelect;
 
   const { data: bySlug } = await supabase
     .from("content_posts")
-    .select(contentPostSelect)
+    .select(select)
     .eq("content_type", contentType)
     .eq("status", "published")
     .eq("slug", normalizedIdentifier)
     .maybeSingle();
 
   if (bySlug) {
-    return bySlug as ContentPostRecord & {
-      media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
-    };
+    return bySlug as unknown as BlogPostRecordWithRelations;
   }
 
   if (!isUuid(normalizedIdentifier)) {
@@ -1598,17 +1638,13 @@ async function getPublishedPostByIdentifier(
 
   const { data: byId } = await supabase
     .from("content_posts")
-    .select(contentPostSelect)
+    .select(select)
     .eq("content_type", contentType)
     .eq("status", "published")
     .eq("id", normalizedIdentifier)
     .maybeSingle();
 
-  return (byId as
-    | (ContentPostRecord & {
-        media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
-      })
-    | null);
+  return byId as unknown as BlogPostRecordWithRelations | null;
 }
 
 export const getPublishedBlogByIdentifier = cache(async (identifier: string) => {

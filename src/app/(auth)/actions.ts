@@ -12,6 +12,7 @@ import {
   resolveScopedNextPath,
 } from "@/lib/auth/session";
 import { checkAdminMFA } from "@/lib/auth/mfa";
+import { buildPasswordSignInPayload } from "@/lib/auth/password-sign-in";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
 import { logServerError } from "@/lib/errors/api-error";
@@ -412,13 +413,13 @@ async function loginForPortal(portal: LoginPortal, formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    options: {
+  const { data, error } = await supabase.auth.signInWithPassword(
+    buildPasswordSignInPayload({
       captchaToken: parsed.data.captchaToken,
-    },
-    password,
-  });
+      email,
+      password,
+    })
+  );
 
   if (error) {
     redirectToLoginPage(portal, {
@@ -722,13 +723,13 @@ export async function claimProfile(formData: FormData) {
 
   const supabase = await createClient();
   const { data: signInData, error: signInError } =
-    await supabase.auth.signInWithPassword({
-      email,
-      password,
-      options: {
+    await supabase.auth.signInWithPassword(
+      buildPasswordSignInPayload({
         captchaToken: parsed.data.captchaToken,
-      },
-    });
+        email,
+        password,
+      })
+    );
 
   if (signInError || !signInData.user) {
     logServerError("claimProfile.signIn", signInError);

@@ -17587,6 +17587,20 @@ a[href="/admin/content/notices/new"].admin-btn--primary:focus-visible,
   font-size: 0.9rem;
 }
 
+.blog-cover-upload {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: color-mix(in oklab, var(--background) 72%, var(--card));
+  padding: 0.85rem;
+}
+
+.blog-cover-upload .admin-btn {
+  justify-content: center;
+  width: 100%;
+}
+
 .blog-seo-preview {
   display: grid;
   gap: 0.35rem;
@@ -17736,6 +17750,13 @@ a[href="/admin/content/notices/new"].admin-btn--primary:focus-visible,
 
 .blog-markdown__heading {
   scroll-margin-top: 7rem;
+}
+
+.blog-detail-byline {
+  margin-top: -0.45rem;
+  color: var(--muted-foreground);
+  font-size: clamp(0.92rem, 1.4vw, 1rem);
+  font-weight: 750;
 }
 
 .blog-markdown__heading--from-h1 {

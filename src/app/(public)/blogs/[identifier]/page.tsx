@@ -102,8 +102,10 @@ export default async function BlogDetailPage({ params }: BlogDetailParams) {
             <span>{article.category}</span>
             <span>{formatDisplayDate(article.publishedAt)}</span>
             <span>{article.readTime}</span>
+            <span>{article.sourceLabel}</span>
           </div>
           <h1 className="blog-detail-title blog-bengali-text">{article.title}</h1>
+          <p className="blog-detail-byline">By {article.authorLabel}</p>
           <p className="blog-detail-summary blog-bengali-text">{article.summary}</p>
           <div className="blog-article-actions">
             <Link className="secondary-button" href="/blogs">

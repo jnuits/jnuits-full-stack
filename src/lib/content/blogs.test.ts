@@ -7,6 +7,7 @@ import {
   getBlogFallbackVisual,
   getBlogHref,
   makeBlogTeaser,
+  resolveBlogAttribution,
   resolveBlogPostStatusForIntent,
   stripMarkdownForTeaser,
 } from "@/lib/content/blogs";
@@ -100,6 +101,42 @@ describe("blog content helpers", () => {
     expect(first.categoryLabel).toBe("Election");
     expect(first.initials).toBe("J6");
     expect(["blue", "gold", "green", "slate"]).toContain(first.tone);
+  });
+
+  it("resolves safe public blog attribution labels", () => {
+    expect(
+      resolveBlogAttribution({
+        authorMemberId: "member-id",
+        memberName: "  Member Author  ",
+        memberType: "member",
+      })
+    ).toEqual({
+      authorLabel: "Member Author",
+      sourceLabel: "Member contribution",
+    });
+
+    expect(
+      resolveBlogAttribution({
+        advisorIsPublic: true,
+        advisorName: "Advisor Author",
+        advisorTitle: "Professor",
+        authorAdvisorProfileId: "advisor-id",
+      })
+    ).toEqual({
+      authorLabel: "Advisor Author, Professor",
+      sourceLabel: "Advisor contribution",
+    });
+
+    expect(
+      resolveBlogAttribution({
+        advisorIsPublic: false,
+        advisorName: "Private Advisor",
+        authorAdvisorProfileId: "advisor-id",
+      })
+    ).toEqual({
+      authorLabel: "JnUITS Editorial",
+      sourceLabel: "Official editorial",
+    });
   });
 
   it("resolves explicit blog save intents without accidental publishing", () => {

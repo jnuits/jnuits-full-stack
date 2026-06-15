@@ -66,7 +66,13 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json(
       {
         data: {
+          altText: result.alt_text,
           id: result.id,
+          mediaKind: result.media_kind,
+          publicId: result.public_id,
+          secureUrl: result.secure_url,
+          thumbnailUrl: result.thumbnail_url,
+          title: result.title,
         },
         message: "Cloudinary media uploaded and registered successfully.",
       },
