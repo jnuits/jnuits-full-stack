@@ -2,6 +2,7 @@ import {
   saveMemberBlogDraft,
   submitMemberBlogDraft,
 } from "@/app/(portal)/portal/blogs/actions";
+import { MarkdownEditor } from "@/components/admin/markdown-editor";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { requirePortalUser } from "@/lib/auth/session";
 import { getPortalBlogAuthorSnapshot } from "@/lib/portal/blogs";
@@ -234,17 +235,17 @@ export default async function PortalBlogsPage({
                     />
                   </label>
 
-                  <label className="input-label" htmlFor="blog-body">
-                    Body *
-                    <textarea
-                      id="blog-body"
-                      defaultValue={selectedDraft?.body || ""}
-                      name="body"
-                      placeholder="Write the full body of your member post…"
-                      rows={14}
-                      required
-                    />
-                  </label>
+                  <MarkdownEditor
+                    defaultValue={selectedDraft?.body || ""}
+                    guidance="Markdown preview for editorial review"
+                    inputLabel="Blog body markdown"
+                    name="body"
+                    placeholder="Write the full body of your member post in Markdown..."
+                    previewLabel="Draft preview"
+                    previewTitle="Rendered member blog"
+                    required
+                    rows={14}
+                  />
 
                   <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
                     <button className="primary-button" type="submit">
@@ -296,6 +297,12 @@ export default async function PortalBlogsPage({
                   </div>
                 </div>
                 <div className="portal-section__body" style={{ display: "grid", gap: "0.65rem" }}>
+                  <div className="portal-info-row">
+                    <span className="portal-info-row__label">Markdown</span>
+                    <span className="portal-info-row__value" style={{ fontSize: "0.82rem", lineHeight: 1.6 }}>
+                      Use headings, lists, links, quotes, tables, and inline code. Raw HTML is not supported.
+                    </span>
+                  </div>
                   <div className="portal-info-row">
                     <span className="portal-info-row__label">Safe boundary</span>
                     <span className="portal-info-row__value" style={{ fontSize: "0.82rem", lineHeight: 1.6 }}>

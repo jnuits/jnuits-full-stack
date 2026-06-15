@@ -3,6 +3,7 @@ import {
   Inter,
   JetBrains_Mono,
   Lora,
+  Noto_Sans_Bengali,
 } from "next/font/google";
 import "yet-another-react-lightbox/styles.css";
 import "yet-another-react-lightbox/plugins/captions.css";
@@ -27,6 +28,12 @@ const serifFont = Lora({
   weight: ["400", "500", "600", "700"],
 });
 
+const bengaliFont = Noto_Sans_Bengali({
+  variable: "--font-bengali",
+  subsets: ["bengali"],
+  weight: ["400", "500", "600", "700", "800"],
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://jnuits.org.bd"),
   title: {
@@ -47,7 +54,7 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       data-scroll-behavior="smooth"
-      className={`${bodyFont.variable} ${monoFont.variable} ${serifFont.variable} h-full antialiased`}
+      className={`${bodyFont.variable} ${monoFont.variable} ${serifFont.variable} ${bengaliFont.variable} h-full antialiased`}
     >
       <body
         suppressHydrationWarning

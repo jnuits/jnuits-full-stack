@@ -309,5 +309,6 @@ export async function submitMemberBlogDraft(formData: FormData) {
 
   revalidatePath("/portal/blogs");
   revalidatePath("/admin/content");
+  revalidatePath("/admin/content/blogs");
   redirect("/portal/blogs?message=draft-submitted");
 }

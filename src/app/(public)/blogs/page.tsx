@@ -1,138 +1,107 @@
-import Image from "next/image";
 import Link from "next/link";
+import { BlogCard } from "@/components/blogs/blog-card";
+import { BlogFeatureCard } from "@/components/blogs/blog-feature-card";
 import {
-  formatDisplayDate,
-  getPublishedBlogs,
-} from "@/lib/content/public-content";
+  getBlogCategories,
+  normalizeBlogCategory,
+} from "@/lib/content/blogs";
+import { getPublishedBlogs } from "@/lib/content/public-content";
 
-export default async function BlogsPage() {
+export default async function BlogsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const selectedCategory =
+    typeof resolvedSearchParams.category === "string"
+      ? normalizeBlogCategory(resolvedSearchParams.category)
+      : "";
   const publicBlogs = await getPublishedBlogs();
-  const featuredBlog = publicBlogs[0];
-  const remainingBlogs = publicBlogs.slice(1);
+  const categories = getBlogCategories(publicBlogs);
+  const visibleBlogs = selectedCategory
+    ? publicBlogs.filter(
+        (blog) => normalizeBlogCategory(blog.category) === selectedCategory
+      )
+    : publicBlogs;
+  const featuredBlog = visibleBlogs[0] || null;
+  const latestBlogs = visibleBlogs.slice(1);
 
   return (
-    <div className="shell py-12">
-      <section className="glass-card overflow-hidden px-6 py-6 sm:px-8 sm:py-8">
-        <div className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:items-center">
-          <div>
-            <span className="eyebrow">Public editorial lane</span>
-            <h1 className="section-title mt-4">
-              Stories, announcements, and technology reflections from the JnUITS community.
-            </h1>
-            <p className="section-copy mt-5">
-              This section highlights program updates, student initiatives, and
-              society activities published for members, alumni, and the wider
-              public audience.
-            </p>
-          </div>
-
-          <article
-            className="overflow-hidden rounded-[1.8rem] border border-[var(--line)]"
-            style={{
-              background: "color-mix(in oklab, var(--card) 94%, transparent)",
-            }}
-          >
-            <div className="relative h-64">
-              <Image
-                alt={featuredBlog.title}
-                className="object-cover"
-                fill
-                priority
-                sizes="(min-width: 1024px) 38vw, 100vw"
-                src={featuredBlog.imageSrc}
-              />
-            </div>
-            <div className="p-6">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--brand-blue)]">
-                Featured article
-              </p>
-              <h2 className="mt-3 font-[family-name:var(--font-heading)] text-[2rem] leading-[0.98] tracking-[-0.04em]">
-                {featuredBlog.title}
-              </h2>
-              <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
-                {featuredBlog.excerpt}
-              </p>
-              <div className="mt-6">
-                <Link className="secondary-button" href={`/blogs/${featuredBlog.slug}`}>
-                  Open article
-                </Link>
-              </div>
-            </div>
-          </article>
+    <div className="shell blog-index-shell py-12">
+      <section className="blog-index-hero">
+        <div>
+          <span className="eyebrow">JnUITS editorial</span>
+          <h1 className="section-title blog-bengali-text mt-4">
+            Stories, announcements, and technology reflections from the JnUITS community.
+          </h1>
         </div>
+        <p className="section-copy">
+          Program updates, student initiatives, and society activities published
+          for members, alumni, and the wider public audience.
+        </p>
       </section>
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
-        <article className="section-band">
-          <p className="section-divider">Preview articles</p>
-          <div className="mt-6 grid gap-5">
-            {publicBlogs.map((blog) => (
-              <article
-                key={blog.slug}
-                className="grid gap-4 rounded-[1.4rem] border border-[var(--line)] p-5 md:grid-cols-[minmax(0,0.78fr)_minmax(220px,0.22fr)] md:items-center"
-                style={{
-                  background: "color-mix(in oklab, var(--card) 94%, transparent)",
-                }}
-              >
-                <div>
-                  <div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                    <span>{blog.category}</span>
-                    <span>{formatDisplayDate(blog.publishedAt)}</span>
-                    <span>{blog.readTime}</span>
-                  </div>
-                  <h3 className="mt-3 font-[family-name:var(--font-heading)] text-[1.75rem] leading-[1.02] tracking-[-0.04em]">
-                    {blog.title}
-                  </h3>
-                  <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-                    {blog.summary}
-                  </p>
-                  <div className="mt-4">
-                    <Link className="queue-link" href={`/blogs/${blog.slug}`}>
-                      Open article
-                    </Link>
-                  </div>
-                </div>
-                <div className="relative min-h-[180px] overflow-hidden rounded-[1.25rem] border border-[var(--line)]">
-                  <Image
-                    alt={blog.title}
-                    className="object-cover"
-                    fill
-                    sizes="(min-width: 768px) 22vw, 100vw"
-                    src={blog.imageSrc}
-                  />
-                </div>
-              </article>
-            ))}
-          </div>
-        </article>
+      {categories.length > 1 ? (
+        <nav className="blog-category-nav" aria-label="Blog categories">
+          <Link
+            aria-current={!selectedCategory ? "page" : undefined}
+            className={!selectedCategory ? "is-active" : ""}
+            href="/blogs"
+          >
+            All
+          </Link>
+          {categories.map((category) => (
+            <Link
+              aria-current={selectedCategory === category ? "page" : undefined}
+              className={selectedCategory === category ? "is-active" : ""}
+              href={`/blogs?category=${encodeURIComponent(category)}`}
+              key={category}
+            >
+              {category}
+            </Link>
+          ))}
+        </nav>
+      ) : null}
 
-        <article className="section-band">
-          <p className="section-divider">Editorial notes</p>
-          <ul className="clean-list mt-6">
-            <li>Articles are published for public reading after editorial moderation.</li>
-            <li>Society updates include program reports, technical highlights, and community insights.</li>
-            <li>Each article keeps a stable direct link for sharing and long-term reference.</li>
-          </ul>
-          <div className="mt-8 grid gap-4">
-            {remainingBlogs.map((blog) => (
-              <div
-                key={blog.slug}
-                className="rounded-[1.2rem] border border-[var(--line)] p-4"
-                style={{
-                  background: "color-mix(in oklab, var(--panel) 92%, transparent)",
-                }}
-              >
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--brand-blue)]">
-                  {blog.category}
-                </p>
-                <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-                  {blog.excerpt}
-                </p>
-              </div>
+      {featuredBlog ? (
+        <BlogFeatureCard blog={featuredBlog} />
+      ) : (
+        <section className="section-band blog-empty-state">
+          <p className="section-divider">No articles</p>
+          <h2>No published blog posts found</h2>
+          <p>
+            Published society stories will appear here after editorial review.
+          </p>
+        </section>
+      )}
+
+      {latestBlogs.length > 0 ? (
+        <section className="blog-latest-section">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="section-divider">Latest articles</p>
+              <h2 className="blog-section-heading blog-bengali-text">
+                More from the community
+              </h2>
+            </div>
+            <Link className="ghost-button" href="/portal/blogs">
+              Draft in portal
+            </Link>
+          </div>
+          <div className="blog-card-grid">
+            {latestBlogs.map((blog) => (
+              <BlogCard blog={blog} key={blog.slug} />
             ))}
           </div>
-        </article>
-      </section>
+        </section>
+      ) : featuredBlog ? (
+        <section className="section-band blog-empty-state">
+          <p className="section-divider">Latest articles</p>
+          <h2>Only one article is published right now</h2>
+          <p>More reviewed posts will appear here as the editorial lane grows.</p>
+        </section>
+      ) : null}
     </div>
   );
 }

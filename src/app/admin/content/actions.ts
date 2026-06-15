@@ -11,6 +11,10 @@ import {
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
 import {
+  getBlogPublishValidationError,
+  getContentPostRevalidationPaths,
+} from "@/lib/content/blogs";
+import {
   insertAuditEvent as recordAuditEvent,
   upsertCloudinaryMediaAsset,
 } from "@/lib/content/media-assets";
@@ -433,10 +437,12 @@ export async function saveContentPost(formData: FormData) {
     redirect("/admin/content");
   }
 
+  const contentEditorPath =
+    parsed.data.contentType === "blog" ? "/admin/content/blogs" : "/admin/content";
   const auth = await requireAdminPermission(
     permissionForContentPost(parsed.data.contentType),
     {
-      fallbackPath: "/admin/content",
+      fallbackPath: contentEditorPath,
     }
   );
   const actorUserId = auth.user?.id;
@@ -464,6 +470,10 @@ export async function saveContentPost(formData: FormData) {
     title,
   } = parsed.data;
   const slug = slugify(parsed.data.slug || title);
+  const redirectTarget =
+    contentType === "blog"
+      ? `/admin/content/blogs${postId ? `?edit=${encodeURIComponent(postId)}` : ""}`
+      : "/admin/content";
 
   if (!slug) {
     await setAdminFlash({
@@ -471,10 +481,43 @@ export async function saveContentPost(formData: FormData) {
       title: "Content post not saved",
       message: "Title or slug must produce a valid public slug.",
     });
-    redirect("/admin/content");
+    redirect(redirectTarget);
+  }
+
+  const validationError =
+    contentType === "blog"
+      ? getBlogPublishValidationError({
+          body,
+          publishedAt,
+          slug,
+          status,
+          summary,
+          title,
+        })
+      : null;
+
+  if (validationError) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Blog post not published",
+      message: validationError,
+    });
+    redirect(redirectTarget);
   }
 
   try {
+    const { data: previousPost, error: previousPostError } = postId
+      ? await admin
+          .from("content_posts")
+          .select("slug, content_type")
+          .eq("id", postId)
+          .maybeSingle()
+      : { data: null, error: null };
+
+    if (previousPostError) {
+      throw previousPostError;
+    }
+
     const payload = {
       body: body || null,
       category: category || null,
@@ -520,16 +563,12 @@ export async function saveContentPost(formData: FormData) {
       },
     });
 
-    revalidatePath("/admin/content");
-    if (contentType === "blog") {
-      revalidatePath("/blogs");
-    }
-    if (contentType === "event") {
-      revalidatePath("/events");
-    }
-    if (contentType === "notice") {
-      revalidatePath("/notices");
-    }
+    getContentPostRevalidationPaths({
+      contentType,
+      previousSlug:
+        previousPost && "slug" in previousPost ? previousPost.slug : null,
+      slug,
+    }).forEach((path) => revalidatePath(path));
     await setAdminFlash({
       tone: "success",
       title: "Content post saved",
@@ -547,7 +586,7 @@ export async function saveContentPost(formData: FormData) {
     });
   }
 
-  redirect("/admin/content");
+  redirect(redirectTarget);
 }
 
 async function loadPendingReviewBlog(
@@ -588,7 +627,7 @@ export async function publishMemberBlogSubmission(formData: FormData) {
         parsed.error.issues[0]?.message ||
         "The member blog identifier is missing.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/blogs");
   }
 
   const { postId, reviewNote } = parsed.data;
@@ -602,7 +641,7 @@ export async function publishMemberBlogSubmission(formData: FormData) {
       title: "Blog review failed",
       message: "The submitted member draft could not be found.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/blogs");
   }
 
   if (post.status !== "pending_review") {
@@ -611,7 +650,7 @@ export async function publishMemberBlogSubmission(formData: FormData) {
       title: "Blog review failed",
       message: "Only drafts in editorial review can be published from this queue.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/blogs");
   }
 
   const reviewTimestamp = new Date().toISOString();
@@ -633,7 +672,7 @@ export async function publishMemberBlogSubmission(formData: FormData) {
       title: "Blog review failed",
       message: safeContentError(error, "approveBlog", "Blog review could not be saved."),
     });
-    redirect("/admin/content");
+    redirect("/admin/content/blogs");
   }
 
   if (post.author_member_id) {
@@ -668,14 +707,16 @@ export async function publishMemberBlogSubmission(formData: FormData) {
   });
 
   revalidatePath("/admin/content");
+  revalidatePath("/admin/content/blogs");
   revalidatePath("/blogs");
+  revalidatePath(`/blogs/${post.slug}`);
   revalidatePath("/portal/blogs");
   await setAdminFlash({
     tone: "success",
     title: "Member blog published",
     message: `${post.title} is now live on the public blog route.`,
   });
-  redirect("/admin/content");
+  redirect("/admin/content/blogs");
 }
 
 export async function returnMemberBlogSubmission(formData: FormData) {
@@ -702,7 +743,7 @@ export async function returnMemberBlogSubmission(formData: FormData) {
         parsed.error.issues[0]?.message ||
         "The member blog identifier is missing.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/blogs");
   }
 
   const { postId, reviewNote } = parsed.data;
@@ -715,7 +756,7 @@ export async function returnMemberBlogSubmission(formData: FormData) {
       title: "Blog review failed",
       message: "The submitted member draft could not be found.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/blogs");
   }
 
   const reviewTimestamp = new Date().toISOString();
@@ -736,7 +777,7 @@ export async function returnMemberBlogSubmission(formData: FormData) {
       title: "Blog review failed",
       message: safeContentError(error, "rejectBlog", "Blog review could not be saved."),
     });
-    redirect("/admin/content");
+    redirect("/admin/content/blogs");
   }
 
   if (post.author_member_id) {
@@ -771,13 +812,14 @@ export async function returnMemberBlogSubmission(formData: FormData) {
   });
 
   revalidatePath("/admin/content");
+  revalidatePath("/admin/content/blogs");
   revalidatePath("/portal/blogs");
   await setAdminFlash({
     tone: "success",
     title: "Changes requested",
     message: `${post.title} is back with the author together with your review note.`,
   });
-  redirect("/admin/content");
+  redirect("/admin/content/blogs");
 }
 
 export async function saveGalleryEntry(formData: FormData) {

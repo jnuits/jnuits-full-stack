@@ -2,11 +2,14 @@ import {
   publishMemberBlogSubmission,
   returnMemberBlogSubmission,
 } from "@/app/admin/content/actions";
+import { BlogMarkdown } from "@/components/blogs/blog-markdown";
 import { EmptyState } from "@/components/ui/empty-state";
 
 type MemberBlogSubmission = {
   author_member_id: string | null;
+  body: string | null;
   category: string | null;
+  excerpt: string | null;
   id: string;
   read_time: string | null;
   review_note: string | null;
@@ -105,9 +108,21 @@ export function MemberBlogSubmissionsPanel({
                       <p>{submission.summary || "No summary provided."}</p>
                     </div>
                     <div className="route-tile sm:col-span-2">
+                      <h3>Excerpt</h3>
+                      <p>{submission.excerpt || "No excerpt provided."}</p>
+                    </div>
+                    <div className="route-tile sm:col-span-2">
                       <h3>Slug</h3>
                       <p>{submission.slug}</p>
                     </div>
+                  </div>
+                  <div className="blog-review-preview">
+                    <p className="admin-section-label">Submitted markdown preview</p>
+                    {submission.body ? (
+                      <BlogMarkdown source={submission.body} />
+                    ) : (
+                      <p>No body content submitted.</p>
+                    )}
                   </div>
                 </div>
 
