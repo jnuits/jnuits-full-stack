@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import {
@@ -449,7 +450,8 @@ export default async function AdminCertificatesPage({
         </div>
 
         {/* Search & filter form */}
-        <form method="get" action="/admin/certificates" style={{ display: "grid", gap: "0.85rem", gridTemplateColumns: "1fr auto auto" }}>
+        <AutoSubmitForm action="/admin/certificates" className="admin-filter-form">
+          <div className="admin-filter-grid">
           <label className="input-label" htmlFor="cert-search" style={{ position: "relative" }}>
             <input
               id="cert-search"
@@ -473,20 +475,19 @@ export default async function AdminCertificatesPage({
             </select>
           </label>
 
-          <button className="primary-button" type="submit"><Search size={13} /> Filter</button>
-
           {(q || filterType) && (
-            <Link href="/admin/certificates" className="ghost-button" style={{ gridColumn: "1/-1", textAlign: "center", fontSize: "0.82rem" }}>
+            <Link href="/admin/certificates" className="ghost-button" style={{ textAlign: "center", fontSize: "0.82rem" }}>
               Clear filters
             </Link>
           )}
-        </form>
+          </div>
+        </AutoSubmitForm>
       </section>
 
       {/* ── Certificate table ────────────────────────────────────────────────── */}
       <section className="section-band" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{
+        <div className="admin-responsive-table-shell" style={{ overflowX: "auto" }}>
+          <table className="admin-responsive-table" style={{
             width: "100%",
             borderCollapse: "collapse",
             fontSize: "0.82rem",
@@ -523,19 +524,19 @@ export default async function AdminCertificatesPage({
                       }}
                     >
                       {/* Cert ID */}
-                      <td style={{ padding: "0.7rem 1rem" }}>
+                      <td data-label="Certificate ID" style={{ padding: "0.7rem 1rem" }}>
                         <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", fontWeight: 700, color: "var(--brand-blue)" }}>
                           {cert.certificate_id}
                         </code>
                       </td>
 
                       {/* Name */}
-                      <td style={{ padding: "0.7rem 1rem", fontWeight: 600 }}>
+                      <td data-label="Name" style={{ padding: "0.7rem 1rem", fontWeight: 600 }}>
                         {cert.first_name} {cert.last_name}
                       </td>
 
                       {/* Type */}
-                      <td style={{ padding: "0.7rem 1rem" }}>
+                      <td data-label="Type" style={{ padding: "0.7rem 1rem" }}>
                         {isDirty ? (
                           <form action={fixCertTypeAction} style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
                             <input type="hidden" name="id" value={cert.id} />
@@ -579,21 +580,21 @@ export default async function AdminCertificatesPage({
                       </td>
 
                       {/* Event name */}
-                      <td style={{ padding: "0.7rem 1rem", maxWidth: "18rem" }}>
+                      <td data-label="Event / Exam" style={{ padding: "0.7rem 1rem", maxWidth: "18rem" }}>
                         <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.5, color: "var(--muted-foreground)" }}>
                           {cert.exam_or_event_name}
                         </span>
                       </td>
 
                       {/* Issue date */}
-                      <td style={{ padding: "0.7rem 1rem", whiteSpace: "nowrap", color: "var(--muted-foreground)" }}>
+                      <td data-label="Issue Date" style={{ padding: "0.7rem 1rem", whiteSpace: "nowrap", color: "var(--muted-foreground)" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
                           <Calendar size={11} /> {fmtDate(cert.issue_date)}
                         </span>
                       </td>
 
                       {/* Asset URL */}
-                      <td style={{ padding: "0.7rem 1rem" }}>
+                      <td data-label="Asset" style={{ padding: "0.7rem 1rem" }}>
                         {cert.asset_url ? (
                           <a
                             href={cert.asset_url}
@@ -611,8 +612,8 @@ export default async function AdminCertificatesPage({
                       </td>
 
                       {/* Actions */}
-                      <td style={{ padding: "0.7rem 1rem" }}>
-                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                      <td data-label="Actions" style={{ padding: "0.7rem 1rem" }}>
+                        <div className="admin-action-row" style={{ gap: "0.5rem" }}>
                           <Link
                             href={`/admin/certificates?edit=${cert.id}#add-form`}
                             className="ghost-button"

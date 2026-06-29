@@ -239,8 +239,8 @@ export default async function ApplicationsPage() {
       {recent.length > 0 && (
         <section>
           <p className="admin-section-label">Recent decisions</p>
-          <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--line)" }}>
-            <table className="admin-queue-table">
+          <div className="admin-responsive-table-shell overflow-x-auto rounded-xl border" style={{ borderColor: "var(--line)" }}>
+            <table className="admin-queue-table admin-responsive-table">
               <thead>
                 <tr>
                   <th>Applicant</th>
@@ -253,15 +253,15 @@ export default async function ApplicationsPage() {
               <tbody>
                 {recent.map((app) => (
                   <tr key={app.id}>
-                    <td className="font-semibold text-sm">{app.name}</td>
-                    <td className="text-sm" style={{ color: "var(--muted-foreground)" }}>{app.email}</td>
-                    <td>
+                    <td className="font-semibold text-sm" data-label="Applicant">{app.name}</td>
+                    <td className="text-sm" data-label="Email" style={{ color: "var(--muted-foreground)" }}>{app.email}</td>
+                    <td data-label="Status">
                       <span className={`abadge abadge--${app.status}`}>{app.status}</span>
                     </td>
-                    <td className="text-xs" style={{ color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                    <td className="text-xs" data-label="Reviewed" style={{ color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                       {app.reviewed_at ? new Date(app.reviewed_at).toLocaleDateString("en-BD") : "—"}
                     </td>
-                    <td className="text-xs max-w-[16rem] truncate" style={{ color: "var(--muted-foreground)" }}>
+                    <td className="text-xs max-w-[16rem] truncate" data-label="Note" style={{ color: "var(--muted-foreground)" }}>
                       {app.review_note || "—"}
                     </td>
                   </tr>

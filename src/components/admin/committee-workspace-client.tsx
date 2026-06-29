@@ -2810,7 +2810,7 @@ export function CommitteeWorkspaceClient({
             title="Executive committee terms"
           >
             <TableCard>
-              <table className="w-full min-w-[980px] text-left text-sm">
+              <table className="admin-responsive-table w-full min-w-[980px] text-left text-sm">
                 <thead className="border-b border-border bg-muted/50 text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   <tr className="h-12">
                     <th className="px-4 font-semibold" scope="col">Term</th>
@@ -2995,7 +2995,7 @@ export function CommitteeWorkspaceClient({
                   title="No public executive assignments in this term"
                 />
               ) : (
-                <table className="w-full min-w-[860px] text-left text-sm">
+                <table className="admin-responsive-table w-full min-w-[860px] text-left text-sm">
                   <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                     <tr className="h-10">
                       <th className="w-10 px-4" scope="col">
@@ -3145,7 +3145,7 @@ export function CommitteeWorkspaceClient({
                   title="No advisors match this view"
                 />
               ) : (
-                <table className="w-full min-w-[840px] text-left text-sm">
+                <table className="admin-responsive-table w-full min-w-[840px] text-left text-sm">
                   <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                     <tr className="h-10">
                       <th className="px-4 font-semibold" scope="col">Advisor</th>
@@ -3305,7 +3305,7 @@ export function CommitteeWorkspaceClient({
                 />
               ) : (
                 <div className="max-h-[320px] overflow-auto">
-                  <table className="w-full min-w-[720px] text-left text-sm">
+                  <table className="admin-responsive-table w-full min-w-[720px] text-left text-sm">
                     <thead className="sticky top-0 border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                       <tr className="h-10">
                         <th className="px-4 font-semibold" scope="col">Row #</th>
@@ -3422,7 +3422,7 @@ export function CommitteeWorkspaceClient({
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-left text-sm">
+                <table className="admin-responsive-table w-full min-w-[720px] text-left text-sm">
                     <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                       <tr className="h-10">
                         <th className="px-4 font-semibold" scope="col">Role</th>
@@ -3481,7 +3481,7 @@ export function CommitteeWorkspaceClient({
                   title="No committee audit events in this view"
                 />
               ) : (
-                <table className="w-full min-w-[840px] text-left text-sm">
+                <table className="admin-responsive-table w-full min-w-[840px] text-left text-sm">
                   <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                     <tr className="h-10">
                       <th className="px-4 font-semibold" scope="col">Event</th>

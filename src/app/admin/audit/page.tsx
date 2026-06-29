@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Download, Filter, RotateCcw, Search, ShieldCheck } from "lucide-react";
+import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
+import { Download, RotateCcw, Search, ShieldCheck } from "lucide-react";
 import {
   loadAuditExplorerData,
   parseAuditFilters,
@@ -99,8 +100,8 @@ export default async function AdminAuditPage({
       </div>
 
       <section className="section-band">
-        <form className="grid gap-4" action="/admin/audit">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <AutoSubmitForm action="/admin/audit" className="admin-filter-form">
+          <div className="admin-filter-grid">
             <label className="input-label">
               Search
               <div className="relative">
@@ -142,16 +143,13 @@ export default async function AdminAuditPage({
                 <option value="100">100</option>
               </select>
             </label>
-            <div className="flex items-end gap-2">
-              <button className="admin-btn admin-btn--primary" type="submit">
-                <Filter size={14} /> Apply
-              </button>
+            <div className="admin-action-row">
               <Link className="admin-btn admin-btn--ghost" href="/admin/audit">
                 <RotateCcw size={14} /> Reset
               </Link>
             </div>
           </div>
-        </form>
+        </AutoSubmitForm>
       </section>
 
       <section className="section-band">

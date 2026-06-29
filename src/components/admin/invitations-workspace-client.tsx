@@ -757,7 +757,7 @@ export function InvitationsWorkspaceClient({
                       key={invitation.id}
                       onClick={() => setEditingId(invitation.id)}
                     >
-                      <td className="membership-table__checkbox" onClick={(event) => event.stopPropagation()}>
+                      <td className="membership-table__checkbox" data-label="Select" onClick={(event) => event.stopPropagation()}>
                         <input
                           aria-label={`Select ${invitation.memberName}`}
                           checked={selectedIds.has(invitation.id)}
@@ -765,7 +765,7 @@ export function InvitationsWorkspaceClient({
                           type="checkbox"
                         />
                       </td>
-                      <td>
+                      <td data-label="Recipient">
                         <div className="membership-table-member">
                           <span className="membership-table-avatar" data-tone={avatarTone(invitation.id)}>
                             {initials(invitation.memberName)}
@@ -778,18 +778,18 @@ export function InvitationsWorkspaceClient({
                           </span>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Status">
                         <Badge kind="lifecycle" value={status} />
                       </td>
-                      <td>{humanize(invitation.invitationType)}</td>
-                      <td className="membership-table__cycle">{invitation.batchLabel || "Direct"}</td>
-                      <td className="membership-table__cycle">
+                      <td data-label="Type">{humanize(invitation.invitationType)}</td>
+                      <td className="membership-table__cycle" data-label="Batch">{invitation.batchLabel || "Direct"}</td>
+                      <td className="membership-table__cycle" data-label="Expires / use">
                         {formatDate(invitation.expiresAt)} · {invitation.usedCount}/{invitation.maxUses}
                       </td>
-                      <td>
+                      <td data-label="Delivery">
                         <Badge kind="access" value={invitation.deliveryStatus || "pending"} />
                       </td>
-                      <td className="membership-table__actions" onClick={(event) => event.stopPropagation()}>
+                      <td className="membership-table__actions" data-label="Actions" onClick={(event) => event.stopPropagation()}>
                         <div className="membership-row-actions">
                           <button
                             aria-label={`View ${invitation.memberName}`}

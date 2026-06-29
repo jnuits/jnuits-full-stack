@@ -881,7 +881,7 @@ function MemberOperationsSection({
                     key={member.id}
                     onClick={() => setEditingMemberId(member.id)}
                   >
-                    <td className="membership-table__checkbox">
+                    <td className="membership-table__checkbox" data-label="Select">
                       <input
                         aria-label={`Select ${member.full_name}`}
                         checked={isSelected}
@@ -890,7 +890,7 @@ function MemberOperationsSection({
                         type="checkbox"
                       />
                     </td>
-                    <td>
+                    <td data-label="Member">
                       <div className="membership-table-member">
                         <MemberTableAvatar member={member} />
                         <span>
@@ -901,15 +901,15 @@ function MemberOperationsSection({
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Lifecycle">
                       <TableBadge type="lifecycle" value={getMemberLifecycle(member)} />
                     </td>
-                    <td>
+                    <td data-label="Portal access">
                       <TableBadge type="access" value={getMemberPortalAccess(member)} />
                     </td>
-                    <td className="membership-table__role">{humanize(member.currentPortalRole)}</td>
-                    <td className="membership-table__cycle">{cycleLabel}</td>
-                    <td className="membership-table__actions">
+                    <td className="membership-table__role" data-label="Portal role">{humanize(member.currentPortalRole)}</td>
+                    <td className="membership-table__cycle" data-label="Cycle">{cycleLabel}</td>
+                    <td className="membership-table__actions" data-label="Actions">
                       <div className="membership-row-actions">
                         <button
                           aria-label={`Edit ${member.full_name}`}

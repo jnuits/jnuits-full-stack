@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
 import { saveContentPost } from "@/app/admin/content/actions";
 import {
   BlogMediaSelect,
@@ -395,7 +396,7 @@ export default async function BlogsPage({
             <p className="admin-section-label">All blog posts</p>
             <h2 className="admin-card-row__title">Editorial registry</h2>
           </div>
-          <form className="blog-post-filters">
+          <AutoSubmitForm action="/admin/content/blogs" className="blog-post-filters">
             <Filter aria-hidden="true" size={14} />
             <input
               defaultValue={filters.q}
@@ -418,13 +419,10 @@ export default async function BlogsPage({
                 </option>
               ))}
             </select>
-            <button className="admin-btn admin-btn--ghost" type="submit">
-              Apply
-            </button>
             <Link className="admin-btn admin-btn--ghost" href="/admin/content/blogs">
               Clear
             </Link>
-          </form>
+          </AutoSubmitForm>
         </div>
         {filteredPosts.length === 0 ? (
           <EmptyState

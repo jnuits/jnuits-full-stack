@@ -648,7 +648,7 @@ export function WorkplaceWorkspaceClient({
                     key={request.id}
                     onClick={() => setEditingRequestId(request.id)}
                   >
-                    <td className="membership-table__checkbox">
+                    <td className="membership-table__checkbox" data-label="Select">
                       <input
                         aria-label={`Select ${request.fullName}'s workplace request`}
                         checked={selectedIds.has(request.id)}
@@ -660,7 +660,7 @@ export function WorkplaceWorkspaceClient({
                         type="checkbox"
                       />
                     </td>
-                    <td>
+                    <td data-label="Member">
                       <div className="membership-table-member">
                         <span className="membership-table-avatar" data-tone={avatarTone(request.memberId)}>
                           {initials(request.fullName)}
@@ -673,16 +673,16 @@ export function WorkplaceWorkspaceClient({
                         </span>
                       </div>
                     </td>
-                    <td>{payloadSummary(request)}</td>
-                    <td>{currentSummary(request)}</td>
-                    <td>
+                    <td data-label="Requested">{payloadSummary(request)}</td>
+                    <td data-label="Current">{currentSummary(request)}</td>
+                    <td data-label="Visibility">
                       <RequestStatusBadge status={request.payload.professionalVisibility || request.professionalVisibility || "members-only"} />
                     </td>
-                    <td>{formatDate(request.requestedAt)}</td>
-                    <td>
+                    <td data-label="Submitted">{formatDate(request.requestedAt)}</td>
+                    <td data-label="Status">
                       <RequestStatusBadge status={request.status} />
                     </td>
-                    <td className="membership-table__actions" onClick={(event) => event.stopPropagation()}>
+                    <td className="membership-table__actions" data-label="Actions" onClick={(event) => event.stopPropagation()}>
                       <div className="membership-row-actions">
                         <button
                           aria-label={`Review ${request.fullName}'s workplace request`}
@@ -894,7 +894,7 @@ export function WorkplaceWorkspaceClient({
                     key={member.id}
                     onClick={() => setEditingMemberId(member.id)}
                   >
-                    <td>
+                    <td data-label="Member">
                       <div className="membership-table-member">
                         <span className="membership-table-avatar" data-tone={avatarTone(member.id)}>
                           {initials(member.fullName)}
@@ -907,17 +907,17 @@ export function WorkplaceWorkspaceClient({
                         </span>
                       </div>
                     </td>
-                    <td>{member.currentOrganization || "Not set"}</td>
-                    <td>{displayDesignation(member.designation)}</td>
-                    <td>{member.workLocation || "Not set"}</td>
-                    <td>
+                    <td data-label="Organization">{member.currentOrganization || "Not set"}</td>
+                    <td data-label="Designation">{displayDesignation(member.designation)}</td>
+                    <td data-label="Location">{member.workLocation || "Not set"}</td>
+                    <td data-label="Visibility">
                       <RequestStatusBadge status={member.professionalVisibility || "members-only"} />
                     </td>
-                    <td>
+                    <td data-label="Lifecycle">
                       <Badge kind="lifecycle" value={member.lifecycleStatus || "current"} />
                     </td>
-                    <td>{formatDate(member.updatedAt)}</td>
-                    <td className="membership-table__actions" onClick={(event) => event.stopPropagation()}>
+                    <td data-label="Last updated">{formatDate(member.updatedAt)}</td>
+                    <td className="membership-table__actions" data-label="Actions" onClick={(event) => event.stopPropagation()}>
                       <div className="membership-row-actions">
                         <button
                           aria-label={`Edit ${member.fullName}'s workplace profile`}

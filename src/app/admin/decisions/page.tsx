@@ -1,8 +1,8 @@
 import Link from "next/link";
+import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
 import {
   ClipboardList,
   FileClock,
-  Filter,
   RotateCcw,
   ShieldCheck,
   UserCheck,
@@ -285,8 +285,8 @@ export default async function AdminDecisionsPage({
       </section>
 
       <section className="section-band">
-        <form action="/admin/decisions" className="grid gap-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <AutoSubmitForm action="/admin/decisions" className="admin-filter-form">
+          <div className="admin-filter-grid">
             <label className="input-label xl:col-span-2">
               Search decisions
               <input defaultValue={q} name="q" placeholder="Name, ID, email, source, or status" />
@@ -310,12 +310,11 @@ export default async function AdminDecisionsPage({
                 <option value="completed">Completed</option>
               </select>
             </label>
-            <div className="flex items-end gap-2">
-              <button className="admin-btn admin-btn--primary" type="submit"><Filter size={14} /> Apply</button>
+            <div className="admin-action-row">
               <Link className="admin-btn admin-btn--ghost" href="/admin/decisions"><RotateCcw size={14} /> Reset</Link>
             </div>
           </div>
-        </form>
+        </AutoSubmitForm>
       </section>
 
       <section className="section-band">

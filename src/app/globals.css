@@ -1595,12 +1595,18 @@
 }
 
 .section-band {
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 2rem;
   background: color-mix(in oklab, var(--panel) 92%, transparent);
   box-shadow: var(--shadow-panel);
   padding: clamp(1.4rem, 3vw, 2rem);
 }
+
+.section-band > * {
+  min-width: 0;
+}
+
 
 @media (min-width: 1024px) {
   .stat-item + .stat-item {
@@ -3617,6 +3623,12 @@
 @media (max-width: 768px) {
   .membership-toolbar {
     flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  .membership-toolbar > *,
+  .membership-table-toolbar > * {
+    min-width: 0;
   }
 
   .membership-search-field {
@@ -3676,6 +3688,133 @@
     top: 0;
     overflow-x: auto;
     flex-wrap: nowrap;
+  }
+
+  .membership-table-heading h2 {
+    font-size: 1.6rem !important;
+    line-height: 1.08 !important;
+    letter-spacing: 0 !important;
+    overflow-wrap: anywhere;
+  }
+
+  .membership-table-shell {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .membership-table {
+    display: block;
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .membership-table thead {
+    display: none;
+  }
+
+  .membership-table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .membership-table tr,
+  .membership-table-row {
+    display: grid;
+    gap: 0.55rem;
+    border: 1px solid var(--color-border-tertiary);
+    border-radius: 1rem;
+    background: var(--color-background-primary);
+    padding: 0.8rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .membership-table tr:has(td[colspan]) {
+    display: block;
+  }
+
+  .membership-table td {
+    display: grid;
+    grid-template-columns: minmax(5.75rem, 0.38fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 0.65rem;
+    min-width: 0;
+    border-bottom: 0;
+    padding: 0.15rem 0;
+    font-size: 0.82rem;
+  }
+
+  .membership-table td::before {
+    content: attr(data-label);
+    color: var(--color-text-secondary);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1.45;
+    text-transform: uppercase;
+  }
+
+  .membership-table td:not([data-label])::before,
+  .membership-table td[data-label=""]::before,
+  .membership-table td[colspan]::before {
+    content: none;
+  }
+
+  .membership-table td:not([data-label]),
+  .membership-table td[data-label=""] {
+    grid-template-columns: 1fr;
+  }
+
+  .membership-table td[colspan] {
+    display: block;
+    padding: 0;
+  }
+
+  .membership-table__checkbox,
+  .membership-table__actions {
+    width: auto;
+    text-align: left !important;
+  }
+
+  .membership-table__checkbox input {
+    justify-self: start;
+  }
+
+  .membership-table-member {
+    min-width: 0;
+  }
+
+  .membership-table-member strong,
+  .membership-table-member small,
+  .membership-table__cycle,
+  .membership-table__role {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .membership-row-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .membership-bulk-member-bar__summary,
+  .membership-bulk-member-bar__form,
+  .membership-inline-editor__header,
+  .membership-inline-editor__footer,
+  .membership-edit-panel__header,
+  .membership-edit-panel__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .membership-bulk-member-bar .admin-btn,
+  .membership-bulk-member-bar .ghost-button,
+  .membership-inline-editor__footer .admin-btn,
+  .membership-inline-editor__footer .ghost-button,
+  .membership-edit-panel__footer .admin-btn,
+  .membership-edit-panel__footer .ghost-button {
+    width: 100%;
   }
 }
 
@@ -7400,6 +7539,56 @@ footer {
   gap: 0.75rem;
   align-items: center;
   flex-shrink: 0;
+  min-width: 0;
+}
+
+/* Admin responsive primitives */
+.admin-action-row,
+.admin-toolbar,
+.admin-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.admin-action-row { justify-content: flex-start; }
+.admin-action-row--end { justify-content: flex-end; }
+.admin-action-row > *,
+.admin-toolbar > *,
+.admin-filter-row > * { min-width: 0; }
+
+.admin-filter-form {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.admin-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.75rem;
+  align-items: end;
+  min-width: 0;
+}
+
+.admin-filter-grid .admin-filter-search {
+  grid-column: 1 / -1;
+}
+
+.admin-data-surface {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--card);
+}
+
+.admin-wrap-anywhere,
+.admin-data-surface :where(td, dd, p, small, strong, span, a),
+.section-band :where(p, small, strong, span, a, label, input, textarea, select) {
+  overflow-wrap: anywhere;
 }
 
 /* Metric cards */
@@ -7636,6 +7825,88 @@ footer {
   .admin-topbar {
     display: flex;
     flex-wrap: nowrap;
+    padding-inline: clamp(0.75rem, 3vw, 1.25rem);
+  }
+
+  .admin-topbar__right {
+    gap: 0.45rem;
+  }
+
+  .admin-topbar__right .admin-sidebar__view-site {
+    display: none;
+  }
+
+  .admin-content {
+    padding: clamp(1rem, 3vw, 1.5rem) clamp(0.75rem, 3vw, 1.25rem) 2.25rem;
+  }
+
+  .admin-page-header {
+    align-items: flex-start;
+    gap: 0.9rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+  }
+
+  .admin-page-header > div:first-child,
+  .admin-page-header__actions {
+    width: 100%;
+  }
+
+  .admin-page-header__actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-topbar__title {
+    max-width: min(48vw, 13rem);
+  }
+
+  .admin-topbar__right .admin-user-badge {
+    display: none;
+  }
+
+  .section-band {
+    border-radius: 1.15rem;
+    padding: 1rem;
+  }
+
+  .admin-page-header__title {
+    font-size: 1.85rem;
+    line-height: 1.08;
+    letter-spacing: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-page-header__desc {
+    max-width: none;
+    font-size: 0.83rem;
+  }
+
+  .admin-action-row,
+  .admin-toolbar,
+  .admin-filter-row,
+  .admin-page-header__actions {
+    align-items: stretch;
+  }
+
+  .admin-action-row > .admin-btn,
+  .admin-action-row > .ghost-button,
+  .admin-toolbar > .admin-btn,
+  .admin-toolbar > .ghost-button,
+  .admin-page-header__actions > .admin-btn,
+  .admin-page-header__actions > .ghost-button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .admin-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-metric-card {
+    border-radius: 0.95rem;
+    padding: 1rem;
   }
 }
 
@@ -7675,6 +7946,93 @@ footer {
 .admin-queue-table tbody tr:hover {
   background: color-mix(in oklab, var(--accent) 40%, transparent);
 }
+/* Generic responsive admin tables */
+.admin-responsive-table-shell {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.admin-responsive-table {
+  min-width: 44rem;
+}
+
+.admin-responsive-table :where(td, th) {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .admin-responsive-table-shell {
+    overflow: visible !important;
+    border: 0;
+  }
+
+  .admin-responsive-table {
+    display: block;
+    min-width: 0;
+    width: 100%;
+    border-collapse: separate !important;
+    border-spacing: 0;
+  }
+
+  .admin-responsive-table thead {
+    display: none;
+  }
+
+  .admin-responsive-table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .admin-responsive-table tr {
+    display: grid;
+    gap: 0.55rem;
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    background: var(--card) !important;
+    padding: 0.85rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .admin-responsive-table tr:has(td[colspan]) {
+    display: block;
+  }
+
+  .admin-responsive-table td {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, 0.38fr) minmax(0, 1fr);
+    gap: 0.65rem;
+    align-items: start;
+    border-bottom: 0 !important;
+    max-width: none !important;
+    padding: 0.15rem 0 !important;
+    white-space: normal !important;
+  }
+
+  .admin-responsive-table td::before {
+    content: attr(data-label);
+    color: var(--muted-foreground);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1.45;
+    text-transform: uppercase;
+  }
+
+  .admin-responsive-table td:not([data-label])::before,
+  .admin-responsive-table td[colspan]::before {
+    content: none;
+  }
+
+  .admin-responsive-table td:not([data-label]) {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-responsive-table td[colspan] {
+    display: block;
+    padding: 1rem !important;
+  }
+}
+
 
 /* ── Admin status badges ───────────────────────────────────────────────────── */
 

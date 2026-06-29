@@ -239,7 +239,7 @@ export function GalleryAlbumMediaGrid({
           </label>
           <button className="admin-btn admin-btn--primary" disabled={disabled} type="submit">
             <Archive size={15} />
-            Apply
+            Run action
           </button>
           <button
             className="admin-btn admin-btn--ghost"
