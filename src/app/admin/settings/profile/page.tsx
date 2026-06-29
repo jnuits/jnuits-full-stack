@@ -1,7 +1,7 @@
-import { AdminProfileSettingsScreen } from "@/components/admin/admin-profile-settings-screen";
+import { redirect } from "next/navigation";
 
 export const metadata = { title: "Admin Profile Settings | JnUITS" };
 
-export default async function AdminProfileSettingsPage() {
-  return <AdminProfileSettingsScreen />;
+export default function AdminProfileSettingsPage() {
+  redirect("/admin/admin-profiles?tab=self&profile=me");
 }

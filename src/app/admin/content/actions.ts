@@ -344,7 +344,7 @@ export async function saveContentPage(formData: FormData) {
       title: "Content page not saved",
       message: parsed.error.issues[0]?.message || "Choose a page slug and provide a title.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/pages");
   }
 
   const { bodyJson, eyebrow, slug, status, summary, title } = parsed.data;
@@ -387,8 +387,15 @@ export async function saveContentPage(formData: FormData) {
     });
 
     revalidatePath("/admin/content");
+    revalidatePath("/admin/content/pages");
+    if (slug === "home" || slug === "footer") {
+      revalidatePath("/");
+    }
     if (slug === "about") {
       revalidatePath("/about");
+    }
+    if (slug === "contact") {
+      revalidatePath("/contact");
     }
     await setAdminFlash({
       tone: "success",
@@ -403,7 +410,7 @@ export async function saveContentPage(formData: FormData) {
     });
   }
 
-  redirect("/admin/content");
+  redirect(`/admin/content/pages?edit=${encodeURIComponent(slug)}`);
 }
 
 export async function saveContentPost(formData: FormData) {
@@ -968,7 +975,7 @@ export async function saveDeveloperProfile(formData: FormData) {
         parsed.error.issues[0]?.message ||
         "Name, role, focus, and bio are required.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/projects");
   }
 
   const {
@@ -1047,7 +1054,7 @@ export async function saveDeveloperProfile(formData: FormData) {
     });
   }
 
-  redirect("/admin/content");
+  redirect("/admin/content/projects");
 }
 
 // ── Project Showcase Actions ────────────────────────────────────────────────
@@ -1090,7 +1097,7 @@ export async function createProject(formData: FormData) {
       title: "Project not saved",
       message: parsed.error.issues[0]?.message || "Title is required.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/projects");
   }
 
   const {
@@ -1117,7 +1124,7 @@ export async function createProject(formData: FormData) {
 
   if (!slug) {
     await setAdminFlash({ tone: "error", title: "Project not saved", message: "Title or slug must produce a valid public slug." });
-    redirect("/admin/content");
+    redirect("/admin/content/projects");
   }
 
   try {
@@ -1169,7 +1176,7 @@ export async function createProject(formData: FormData) {
     });
   }
 
-  redirect("/admin/content");
+  redirect("/admin/content/projects");
 }
 
 export async function updateProject(formData: FormData) {
@@ -1207,7 +1214,7 @@ export async function updateProject(formData: FormData) {
         parsed.error.issues[0]?.message ||
         "Project ID and title are required.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/projects");
   }
 
   const {
@@ -1272,7 +1279,7 @@ export async function updateProject(formData: FormData) {
     });
   }
 
-  redirect("/admin/content");
+  redirect("/admin/content/projects");
 }
 
 export async function deleteProject(formData: FormData) {
@@ -1293,7 +1300,7 @@ export async function deleteProject(formData: FormData) {
       title: "Delete failed",
       message: parsed.error.issues[0]?.message || "Project ID is missing.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/projects");
   }
 
   const { projectId } = parsed.data;
@@ -1321,7 +1328,7 @@ export async function deleteProject(formData: FormData) {
     });
   }
 
-  redirect("/admin/content");
+  redirect("/admin/content/projects");
 }
 
 export async function addProjectContributor(formData: FormData) {
@@ -1344,7 +1351,7 @@ export async function addProjectContributor(formData: FormData) {
         parsed.error.issues[0]?.message ||
         "Project ID and JnUITS ID are required.",
     });
-    redirect("/admin/content");
+    redirect("/admin/content/projects");
   }
 
   const { jnuitsId, projectId, role } = parsed.data;
@@ -1363,7 +1370,7 @@ export async function addProjectContributor(formData: FormData) {
 
     if (!member) {
       await setAdminFlash({ tone: "error", title: "Contributor not added", message: `No member found with JnUITS ID: ${jnuitsId}.` });
-      redirect("/admin/content");
+      redirect("/admin/content/projects");
     }
 
     const { error } = await admin.from("project_contributors").insert({
@@ -1390,7 +1397,7 @@ export async function addProjectContributor(formData: FormData) {
     });
   }
 
-  redirect("/admin/content");
+  redirect("/admin/content/projects");
 }
 
 export async function removeProjectContributor(formData: FormData) {

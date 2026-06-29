@@ -777,3 +777,39 @@ export function buildEventConfirmationEmail(props: EventConfirmationEmailProps):
   ].join("");
   return wrap(`You're registered for ${eventTitle}. Your check-in code: ${registrationCode}`, content);
 }
+
+export interface AdminInvitationEmailProps {
+  actionLink: string;
+  adminRoleLabel: string;
+  expiresInDays: number;
+  recipientEmail: string;
+  recipientName: string;
+}
+
+export function buildAdminInvitationEmail(props: AdminInvitationEmailProps): string {
+  const content = [
+    h1("Admin workspace invitation"),
+    p(
+      `Hi ${esc(props.recipientName)}, you have been invited to the JnUITS operator workspace as <strong class="email-value" style="color:${TEXT};">${esc(props.adminRoleLabel)}</strong>.`,
+    ),
+    card([
+      ["Admin role", props.adminRoleLabel],
+      ["Invited email", props.recipientEmail],
+      ["Expires", `${props.expiresInDays} days from issue`],
+    ]),
+    orderedSteps([
+      "Open the invitation link using the email address shown above.",
+      "Set or confirm your Supabase account session.",
+      "Accept the admin invitation, then complete MFA setup before entering the workspace.",
+    ]),
+    button("Accept admin invitation", props.actionLink),
+    fallbackLink(props.actionLink),
+    hr(),
+    p(
+      `If this invitation was unexpected, ignore this email or ${link("contact JnUITS support", "https://jnuits.org.bd/contact")}.`,
+      "font-size:13px;margin:0;",
+    ),
+  ].join("");
+
+  return wrap("You have been invited to the JnUITS admin workspace.", content);
+}

@@ -117,6 +117,25 @@ function encodeMessage(message: string) {
   return encodeURIComponent(message);
 }
 
+function getSafeAuthErrorMessage(error: unknown, fallback: string) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+
+  if (/captcha|captcha_token|turnstile|request disallowed/i.test(message)) {
+    return "Complete the verification challenge and try again.";
+  }
+
+  if (/invalid login credentials/i.test(message)) {
+    return "Invalid email or password.";
+  }
+
+  return message || fallback;
+}
+
 async function enforceAuthActionProtection(options: {
   captchaToken: string;
   email?: string;
@@ -423,7 +442,7 @@ async function loginForPortal(portal: LoginPortal, formData: FormData) {
 
   if (error) {
     redirectToLoginPage(portal, {
-      error: error.message,
+      error: getSafeAuthErrorMessage(error, "Unable to sign in. Try again."),
       next: nextPath,
     });
   }
@@ -513,7 +532,7 @@ export async function requestPasswordReset(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/forgot-password?error=${encodeMessage(error.message)}`);
+    redirect(`/forgot-password?error=${encodeMessage(getSafeAuthErrorMessage(error, "Unable to request a password reset. Try again."))}`);
   }
 
   redirect("/verify-email?message=Password recovery email sent.");

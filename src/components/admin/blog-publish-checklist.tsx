@@ -18,6 +18,11 @@ type BlogPublishChecklistProps = {
   defaults: Record<ChecklistItem["key"], string>;
 };
 
+type PublishDialog =
+  | { kind: "blocked"; missing: ChecklistItem[] }
+  | { kind: "confirm" }
+  | null;
+
 function getValue(form: HTMLFormElement | null, name: string) {
   if (!form) {
     return "";
@@ -43,7 +48,10 @@ function readChecklistState(form: HTMLFormElement | null) {
 
 export function BlogPublishChecklist({ defaults }: BlogPublishChecklistProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const publishButtonRef = useRef<HTMLButtonElement | null>(null);
+  const allowPublishRef = useRef(false);
   const [state, setState] = useState(defaults);
+  const [dialog, setDialog] = useState<PublishDialog>(null);
 
   useEffect(() => {
     const form = rootRef.current?.closest("form") || null;
@@ -63,23 +71,24 @@ export function BlogPublishChecklist({ defaults }: BlogPublishChecklistProps) {
         return;
       }
 
+      if (allowPublishRef.current) {
+        allowPublishRef.current = false;
+        return;
+      }
+
+      event.preventDefault();
+      publishButtonRef.current = submitter;
+
       const nextState = readChecklistState(form);
       setState(nextState);
       const missing = CHECKLIST_ITEMS.filter((item) => !nextState[item.key]);
 
       if (missing.length > 0) {
-        event.preventDefault();
-        window.alert(
-          `Complete before publishing: ${missing
-            .map((item) => item.label)
-            .join(", ")}.`
-        );
+        setDialog({ kind: "blocked", missing });
         return;
       }
 
-      if (!window.confirm("Publish this blog post to the public site now?")) {
-        event.preventDefault();
-      }
+      setDialog({ kind: "confirm" });
     }
 
     updateState();
@@ -94,6 +103,14 @@ export function BlogPublishChecklist({ defaults }: BlogPublishChecklistProps) {
     };
   }, [defaults]);
 
+  function confirmPublish() {
+    const button = publishButtonRef.current;
+    setDialog(null);
+    if (!button) return;
+    allowPublishRef.current = true;
+    button.click();
+  }
+
   return (
     <div ref={rootRef}>
       <ul className="blog-validation-list">
@@ -107,6 +124,42 @@ export function BlogPublishChecklist({ defaults }: BlogPublishChecklistProps) {
         Publish checks update as you type. Save draft keeps the post out of the
         public blog listing.
       </p>
+
+      {dialog ? (
+        <div aria-modal="true" className="fixed inset-0 z-[100] grid place-items-center bg-black/45 p-4" role="dialog">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--background)] p-5 shadow-2xl">
+            <h2 className="font-[family-name:var(--font-heading)] text-2xl font-semibold">
+              {dialog.kind === "blocked" ? "Complete required fields" : "Publish blog post?"}
+            </h2>
+            {dialog.kind === "blocked" ? (
+              <>
+                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+                  This post cannot be published until the required fields are complete.
+                </p>
+                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-[var(--muted-foreground)]">
+                  {dialog.missing.map((item) => (
+                    <li key={item.key}>{item.label}</li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+                This will make the blog post visible on the public site using the current content and publish date.
+              </p>
+            )}
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button className="admin-btn admin-btn--ghost" onClick={() => setDialog(null)} type="button">
+                {dialog.kind === "blocked" ? "Close" : "Cancel"}
+              </button>
+              {dialog.kind === "confirm" ? (
+                <button className="admin-btn admin-btn--primary" onClick={confirmPublish} type="button">
+                  Publish
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

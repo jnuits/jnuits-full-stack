@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
@@ -59,10 +60,13 @@ export async function saveAdminNotificationSettings(formData: FormData) {
   );
 
   if (error) {
+    const message = getSafeAdminActionErrorMessage(error, {
+      context: "settings.notifications.save",
+      fallback: "Notification settings could not be saved.",
+    });
+
     redirect(
-      `/admin/settings/notifications?error=${encodeURIComponent(
-        error.message || "settings-save"
-      )}`
+      `/admin/settings/notifications?error=${encodeURIComponent(message)}`
     );
   }
 
@@ -101,10 +105,13 @@ export async function saveAdminSecuritySettings(formData: FormData) {
     .eq("id", true);
 
   if (error) {
+    const message = getSafeAdminActionErrorMessage(error, {
+      context: "settings.security.save",
+      fallback: "Security settings could not be saved.",
+    });
+
     redirect(
-      `/admin/settings/security?error=${encodeURIComponent(
-        error.message || "security-settings-save"
-      )}`
+      `/admin/settings/security?error=${encodeURIComponent(message)}`
     );
   }
 

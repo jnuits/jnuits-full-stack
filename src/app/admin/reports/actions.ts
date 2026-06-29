@@ -3,6 +3,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { redirect } from "next/navigation";
 import { setAdminFlash } from "@/lib/admin/flash";
+import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { buildOperationalSnapshot } from "@/lib/admin/reports";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -46,7 +47,10 @@ async function persistReport(options: {
     await setAdminFlash({
       tone: "error",
       title: "Report generation failed",
-      message: error?.message || "The operator report could not be saved.",
+      message: getSafeAdminActionErrorMessage(error, {
+        context: "reports.persist",
+        fallback: "The operator report could not be saved.",
+      }),
     });
     redirect("/admin/reports");
   }

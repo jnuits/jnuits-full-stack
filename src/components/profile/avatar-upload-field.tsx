@@ -12,6 +12,7 @@ type AvatarUploadFieldProps = {
   canUpload: boolean;
   compact?: boolean;
   currentUrl?: null | string;
+  showLegacyAvatar?: boolean;
   displayName: string;
   targetId: string;
   targetType: AvatarTargetType;
@@ -98,7 +99,9 @@ async function validateImage(file: File) {
     dimensions.width > MAX_DIMENSION ||
     dimensions.height > MAX_DIMENSION
   ) {
-    throw new Error("Profile photo must be between 400x400 and 800x800 pixels.");
+    throw new Error(
+      "Profile photo must be between 400x400 and 800x800 pixels.",
+    );
   }
 }
 
@@ -111,6 +114,7 @@ export function AvatarUploadField({
   compact = false,
   currentUrl,
   displayName,
+  showLegacyAvatar = true,
   targetId,
   targetType,
 }: AvatarUploadFieldProps) {
@@ -145,7 +149,9 @@ export function AvatarUploadField({
         !signBody.uploadPreset ||
         !signBody.uploadUrl
       ) {
-        throw new Error(signBody?.message || "Unable to sign profile photo upload.");
+        throw new Error(
+          signBody?.message || "Unable to sign profile photo upload.",
+        );
       }
 
       const uploadFormData = new FormData();
@@ -162,7 +168,8 @@ export function AvatarUploadField({
         body: uploadFormData,
         method: "POST",
       });
-      const uploadBody = await parseJson<CloudinaryUploadResponse>(uploadResponse);
+      const uploadBody =
+        await parseJson<CloudinaryUploadResponse>(uploadResponse);
 
       if (
         !uploadResponse.ok ||
@@ -176,7 +183,7 @@ export function AvatarUploadField({
         throw new Error(
           uploadBody?.error?.message ||
             uploadBody?.message ||
-            "Cloudinary profile photo upload failed."
+            "Cloudinary profile photo upload failed.",
         );
       }
 
@@ -194,10 +201,14 @@ export function AvatarUploadField({
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-      const completeBody = await parseJson<{ message?: string }>(completeResponse);
+      const completeBody = await parseJson<{ message?: string }>(
+        completeResponse,
+      );
 
       if (!completeResponse.ok) {
-        throw new Error(completeBody?.message || "Profile photo metadata could not be saved.");
+        throw new Error(
+          completeBody?.message || "Profile photo metadata could not be saved.",
+        );
       }
 
       setState({
@@ -242,21 +253,32 @@ export function AvatarUploadField({
     >
       <div
         className="avatar-upload-row"
-        style={{ alignItems: "center", display: "flex", flexWrap: "nowrap", gap: "0.65rem" }}
+        style={{
+          alignItems: "center",
+          display: "flex",
+          flexWrap: "nowrap",
+          gap: "0.65rem",
+        }}
       >
-        <ProfileAvatar name={displayName} src={currentUrl} size={compact ? "md" : "lg"} />
-        <div
-          aria-hidden="true"
-          className="portal-identity-banner__avatar"
-          style={{
-            backgroundImage: currentUrl ? `url("${currentUrl}")` : undefined,
-            backgroundPosition: "center",
-            backgroundSize: "cover",
-            flex: "0 0 auto",
-          }}
-        >
-          {currentUrl ? null : initials}
-        </div>
+        <ProfileAvatar
+          name={displayName}
+          src={currentUrl}
+          size={compact ? "md" : "lg"}
+        />
+        {showLegacyAvatar ? (
+          <div
+            aria-hidden="true"
+            className="portal-identity-banner__avatar"
+            style={{
+              backgroundImage: currentUrl ? `url("${currentUrl}")` : undefined,
+              backgroundPosition: "center",
+              backgroundSize: "cover",
+              flex: "0 0 auto",
+            }}
+          >
+            {currentUrl ? null : initials}
+          </div>
+        ) : null}
         {canUpload ? (
           <>
             <button
@@ -289,7 +311,9 @@ export function AvatarUploadField({
         ) : null}
       </div>
       {state.message ? (
-        <p className="portal-message portal-message--success">{state.message}</p>
+        <p className="portal-message portal-message--success">
+          {state.message}
+        </p>
       ) : null}
       {state.error ? (
         <p className="portal-message portal-message--error">{state.error}</p>

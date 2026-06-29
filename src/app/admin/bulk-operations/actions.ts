@@ -6,6 +6,7 @@ import { parse } from "csv-parse/sync";
 import { z } from "zod";
 
 import { setAdminFlash } from "@/lib/admin/flash";
+import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { requireAdminPermission } from "@/lib/auth/session";
 import {
   DEFAULT_INVITATION_EXPIRY_DAYS,
@@ -552,7 +553,10 @@ export async function previewBulkOperationAction(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Bulk preview failed",
-      message: operationError?.message || "Unable to create bulk operation.",
+      message: getSafeAdminActionErrorMessage(operationError, {
+        context: "bulk.preview.createOperation",
+        fallback: "Unable to create bulk operation.",
+      }),
     });
     redirect("/admin/bulk-operations");
   }
@@ -590,7 +594,10 @@ export async function previewBulkOperationAction(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Bulk preview failed",
-      message: rowsError.message,
+      message: getSafeAdminActionErrorMessage(rowsError, {
+        context: "bulk.preview.createRows",
+        fallback: "Unable to create bulk operation rows.",
+      }),
     });
     redirect("/admin/bulk-operations");
   }
@@ -809,7 +816,10 @@ export async function commitBulkOperationAction(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Bulk commit failed",
-      message: operationError?.message || "Bulk operation was not found.",
+      message: getSafeAdminActionErrorMessage(operationError, {
+        context: "bulk.commit.loadOperation",
+        fallback: "Bulk operation was not found.",
+      }),
     });
     redirect("/admin/bulk-operations");
   }
@@ -864,10 +874,15 @@ export async function commitBulkOperationAction(formData: FormData) {
         .eq("id", row.id);
       committedRows += 1;
     } catch (error) {
+      const safeMessage = getSafeAdminActionErrorMessage(error, {
+        context: "bulk.commitRow",
+        fallback: "Commit failed.",
+      });
+
       await flexibleAdmin
         .from("bulk_operation_rows" as string)
         .update({
-          errors: [error instanceof Error ? error.message : "Commit failed."],
+          errors: [safeMessage],
           status: "error",
         })
         .eq("id", row.id);

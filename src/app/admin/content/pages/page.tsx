@@ -2,8 +2,8 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
-import { saveContentPage } from "@/app/admin/content/actions";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageSingletonEditor } from "@/components/admin/page-singleton-editor";
 import { FileText } from "lucide-react";
 
 type ContentPageRecord = {
@@ -16,10 +16,6 @@ type ContentPageRecord = {
   updated_at: string;
 };
 
-function serializeJson(value: unknown) {
-  if (!value) return "";
-  return JSON.stringify(value, null, 2);
-}
 
 export const metadata = { title: "Page Singletons — Admin | JnUITS" };
 
@@ -111,57 +107,7 @@ export default async function PagesPage({
       {/* Form */}
       <section>
         <p className="admin-section-label">{selected ? `Editing: ${selected.slug}` : "Create / update page singleton"}</p>
-        <div className="admin-review-card">
-          <form action={saveContentPage} className="grid gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="input-label">
-                Page
-                <select defaultValue={selected?.slug || "about"} name="slug">
-                  <option value="home">Home</option>
-                  <option value="about">About</option>
-                  <option value="contact">Contact</option>
-                  <option value="footer">Footer</option>
-                </select>
-              </label>
-              <label className="input-label">
-                Status
-                <select defaultValue={selected?.status || "draft"} name="status">
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                </select>
-              </label>
-              <label className="input-label sm:col-span-2">
-                Eyebrow
-                <input defaultValue={selected?.eyebrow || ""} name="eyebrow" placeholder="Institutional profile" />
-              </label>
-              <label className="input-label sm:col-span-2">
-                Title
-                <input defaultValue={selected?.title || ""} name="title" placeholder="Public page title" required />
-              </label>
-              <label className="input-label sm:col-span-2">
-                Summary
-                <textarea defaultValue={selected?.summary || ""} name="summary" placeholder="Page summary" rows={4} />
-              </label>
-              <label className="input-label sm:col-span-2">
-                Body JSON
-                <textarea
-                  defaultValue={serializeJson(selected?.body)}
-                  name="bodyJson"
-                  placeholder='{"story":["..."],"missionTitle":"...","missionPoints":["..."]}'
-                  rows={8}
-                />
-              </label>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button className="admin-btn admin-btn--primary" type="submit">
-                {selected ? "Update content page" : "Save content page"}
-              </button>
-              {selected && (
-                <Link href="/admin/content/pages" className="admin-btn admin-btn--ghost">Clear editor</Link>
-              )}
-            </div>
-          </form>
-        </div>
+        <PageSingletonEditor key={selected?.slug || "new"} selected={selected} />
       </section>
     </div>
   );

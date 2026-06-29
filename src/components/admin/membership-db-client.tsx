@@ -1881,8 +1881,8 @@ function CycleAndEnrollmentForms({
       } else {
         setLookupResult(result);
       }
-    } catch (error) {
-      setLookupError(error instanceof Error ? error.message : "Member lookup failed.");
+    } catch {
+      setLookupError("Member lookup failed.");
     } finally {
       setLookupPending(false);
     }

@@ -11,6 +11,39 @@ function getTurnstileSecretKey() {
   return process.env.TURNSTILE_SECRET_KEY?.trim() || "";
 }
 
+function getConfiguredSupabaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
+    process.env.SUPABASE_URL?.trim() ||
+    ""
+  );
+}
+
+export function isLocalSupabaseUrl() {
+  const rawUrl = getConfiguredSupabaseUrl();
+
+  if (!rawUrl) {
+    return true;
+  }
+
+  try {
+    const { hostname } = new URL(rawUrl);
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "0.0.0.0" ||
+      hostname === "::1" ||
+      hostname.endsWith(".localhost")
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function isHostedSupabaseUrl() {
+  return !isLocalSupabaseUrl();
+}
+
 export function isCaptchaConfigured() {
   return Boolean(getTurnstileSiteKey() && getTurnstileSecretKey());
 }
@@ -24,17 +57,18 @@ export function isCaptchaRequired() {
     return true;
   }
 
+  const usingHostedSupabase = isHostedSupabaseUrl();
   const override = process.env.AUTH_CAPTCHA_REQUIRED?.trim().toLowerCase();
 
   if (override === "false" || override === "0" || override === "off") {
-    return false;
+    return usingHostedSupabase;
   }
 
   if (override === "true" || override === "1" || override === "on") {
     return true;
   }
 
-  return process.env.NODE_ENV === "production";
+  return usingHostedSupabase || process.env.NODE_ENV === "production";
 }
 
 export function getAuthCaptchaUiConfig() {

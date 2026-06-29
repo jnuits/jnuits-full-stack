@@ -415,7 +415,7 @@ export async function issueDirectInvitationAction(input: unknown): Promise<Actio
       jnuitsId: member.jnuits_id || undefined,
       message:
         result.deliveryStatus === "failed"
-          ? `Invitation created, but email delivery failed for ${member.email}: ${result.deliveryError || "unknown error"}`
+          ? `Invitation created, but email delivery failed for ${member.email}. Check the delivery ledger for provider details.`
           : result.deliveryStatus === "sent"
             ? `Invitation email sent to ${member.email}. The raw code is shown once.`
             : "Invitation created, but no recipient email was available.",
@@ -761,7 +761,7 @@ export async function reissueInvitationAction(input: unknown): Promise<ActionRes
       jnuitsId: member.jnuits_id || undefined,
       message:
         result.deliveryStatus === "failed"
-          ? `Replacement created, but email delivery failed for ${member.email}: ${result.deliveryError || "unknown error"}`
+          ? `Replacement created, but email delivery failed for ${member.email}. Check the delivery ledger for provider details.`
           : result.deliveryStatus === "sent"
             ? `Replacement email sent to ${member.email}. The raw code is shown once.`
             : "Replacement created, but no recipient email was available.",

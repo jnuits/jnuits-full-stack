@@ -5,7 +5,7 @@ import { getActiveDepartmentOptions } from "@/lib/departments.server";
 import {
   approveProfileChangeRequest,
   rejectProfileChangeRequest,
-} from "@/app/admin/actions";
+} from "@/app/admin/membership/moderation-actions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { User, CheckCircle, XCircle, Clock } from "lucide-react";
 

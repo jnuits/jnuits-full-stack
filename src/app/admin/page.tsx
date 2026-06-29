@@ -3,7 +3,7 @@ import Link from "next/link";
 import {
   approveMembershipApplication,
   rejectMembershipApplication,
-} from "@/app/admin/actions";
+} from "@/app/admin/membership/moderation-actions";
 import { ProfileChangeRequestsPanel } from "@/components/admin/profile-change-requests-panel";
 import { WorkplaceRequestsPanel } from "@/components/admin/workplace-requests-panel";
 import { EmptyState } from "@/components/ui/empty-state";

@@ -10,6 +10,7 @@ import {
 } from "@/app/admin/content/actions";
 import { getAllProjectsForAdmin } from "@/lib/content/projects";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmSubmitButton } from "@/components/admin/confirm-submit-button";
 import { FolderOpen, User } from "lucide-react";
 
 type DeveloperRecord = {
@@ -117,7 +118,16 @@ export default async function ProjectsPage({
                   <Link href={`/admin/content/projects?editProject=${project.id}`} className="admin-btn admin-btn--ghost" style={{ padding: "0.3rem 0.75rem", fontSize: "0.77rem" }}>Edit</Link>
                   <form style={{ display: "inline" }}>
                     <input type="hidden" name="projectId" value={project.id} />
-                    <button className="admin-btn admin-btn--danger" style={{ padding: "0.3rem 0.75rem", fontSize: "0.77rem" }} formAction={deleteProject}>Delete</button>
+                    <ConfirmSubmitButton
+                      className="admin-btn admin-btn--danger"
+                      confirmLabel="Delete project"
+                      description={`This permanently removes ${project.title} from the project showcase.`}
+                      formAction={deleteProject}
+                      style={{ padding: "0.3rem 0.75rem", fontSize: "0.77rem" }}
+                      title="Delete project?"
+                    >
+                      Delete
+                    </ConfirmSubmitButton>
                   </form>
                 </div>
               </div>

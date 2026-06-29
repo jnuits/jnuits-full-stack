@@ -309,7 +309,7 @@ export default async function GalleryAdminPage({
               </h2>
               {albumResult.error ? (
                 <p className="mt-2 text-sm leading-7">
-                  Supabase returned: {albumResult.error.message}
+                  Gallery seed preview data is unavailable in this environment.
                 </p>
               ) : null}
               <div className="mt-5 grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--background)] p-4 text-sm leading-7">

@@ -2,6 +2,8 @@ import Link from "next/link";
 import {
   ClipboardList,
   FileClock,
+  Filter,
+  RotateCcw,
   ShieldCheck,
   UserCheck,
   Users,
@@ -9,6 +11,8 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata = { title: "Decisions - Admin | JnUITS" };
+
+type SearchParams = Record<string, string | string[] | undefined>;
 
 type ApplicationDecision = {
   created_at: string;
@@ -50,6 +54,17 @@ type AuditEvent = {
   id: string;
 };
 
+type DecisionRecord = {
+  date: string | null;
+  href: string;
+  id: string;
+  kind: "application" | "profile" | "workplace";
+  meta: string;
+  source: string;
+  status: string;
+  title: string;
+};
+
 function resolveMember(decision: ProfileDecision) {
   if (Array.isArray(decision.members)) {
     return decision.members[0] || null;
@@ -59,10 +74,10 @@ function resolveMember(decision: ProfileDecision) {
 }
 
 function statusTone(status: string) {
-  if (status === "approved" || status === "completed") {
+  if (["approved", "completed", "published"].includes(status)) {
     return "verified";
   }
-  if (status === "rejected" || status === "returned") {
+  if (["rejected", "returned", "archived"].includes(status)) {
     return "returned";
   }
   return "draft";
@@ -82,7 +97,75 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
-export default async function AdminDecisionsPage() {
+function parseString(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+function parsePage(value: string | string[] | undefined) {
+  return Math.max(1, Number.parseInt(parseString(value), 10) || 1);
+}
+
+function normalize(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function buildApplicationRecord(decision: ApplicationDecision): DecisionRecord {
+  return {
+    date: decision.reviewed_at || decision.created_at,
+    href: "/admin/applications",
+    id: `application-${decision.id}`,
+    kind: "application",
+    meta: decision.email,
+    source: "Membership applications",
+    status: decision.status,
+    title: decision.name,
+  };
+}
+
+function buildProfileRecord(decision: ProfileDecision): DecisionRecord {
+  const member = resolveMember(decision);
+  const workplace = decision.request_type === "workplace_update";
+
+  return {
+    date: decision.reviewed_at || decision.requested_at,
+    href: workplace ? "/admin/workplace" : "/admin/profile-changes",
+    id: `profile-${decision.id}`,
+    kind: workplace ? "workplace" : "profile",
+    meta: [member?.jnuits_id, member?.email, decision.request_type.replaceAll("_", " ")]
+      .filter(Boolean)
+      .join(" · "),
+    source: workplace ? "Workplace moderation" : "Profile changes",
+    status: decision.status,
+    title: member?.full_name || member?.jnuits_id || "Member request",
+  };
+}
+
+function buildHref(params: URLSearchParams, overrides: Record<string, string | number | null>) {
+  const next = new URLSearchParams(params);
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === null || value === "") next.delete(key);
+    else next.set(key, String(value));
+  }
+  const query = next.toString();
+  return query ? `/admin/decisions?${query}` : "/admin/decisions";
+}
+
+export default async function AdminDecisionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const resolved = await searchParams;
+  const kind = parseString(resolved.kind);
+  const status = parseString(resolved.status);
+  const q = parseString(resolved.q);
+  const page = parsePage(resolved.page);
+  const pageSize = 20;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(resolved)) {
+    if (typeof value === "string" && value) params.set(key, value);
+  }
+
   const admin = createAdminClient();
   const [
     pendingApplications,
@@ -111,7 +194,7 @@ export default async function AdminDecisionsPage() {
       .select("id, name, email, status, created_at, review_note, reviewed_at")
       .neq("status", "pending")
       .order("reviewed_at", { ascending: false })
-      .limit(8),
+      .limit(120),
     admin
       .from("profile_update_requests")
       .select(
@@ -119,7 +202,7 @@ export default async function AdminDecisionsPage() {
       )
       .neq("status", "pending")
       .order("reviewed_at", { ascending: false })
-      .limit(8),
+      .limit(120),
     admin
       .from("audit_events")
       .select("id, action, actor_user_id, entity_type, entity_id, created_at")
@@ -131,6 +214,29 @@ export default async function AdminDecisionsPage() {
     (recentApplicationsResult.data || []) as ApplicationDecision[];
   const profileDecisions = (recentProfileResult.data || []) as ProfileDecision[];
   const auditEvents = (recentAuditResult.data || []) as AuditEvent[];
+  const query = normalize(q);
+
+  const allRecords = [
+    ...applicationDecisions.map(buildApplicationRecord),
+    ...profileDecisions.map(buildProfileRecord),
+  ]
+    .filter((record) => !kind || record.kind === kind)
+    .filter((record) => !status || record.status === status)
+    .filter((record) => {
+      if (!query) return true;
+      return [record.title, record.meta, record.status, record.source]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    })
+    .sort((left, right) => {
+      const leftTime = left.date ? new Date(left.date).getTime() : 0;
+      const rightTime = right.date ? new Date(right.date).getTime() : 0;
+      return rightTime - leftTime;
+    });
+
+  const totalPages = Math.max(1, Math.ceil(allRecords.length / pageSize));
+  const records = allRecords.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="grid gap-8">
@@ -139,154 +245,125 @@ export default async function AdminDecisionsPage() {
           <p className="admin-page-header__breadcrumb">Admin / Operations</p>
           <h1 className="admin-page-header__title">Decisions Log</h1>
           <p className="admin-page-header__desc">
-            A task-first landing page for operator decisions, moderation queues,
-            and recent audit evidence.
+            Searchable decision history for membership, workplace, profile, and recent audit evidence.
           </p>
         </div>
         <span className="abadge abadge--active">
-          <ShieldCheck size={10} />
-          Protected workspace
+          <ShieldCheck size={10} /> Protected workspace
         </span>
       </div>
 
       <section className="admin-metric-grid">
         <article className="admin-metric-card" data-tone="warning">
-          <div className="admin-metric-card__icon">
-            <UserCheck size={16} />
-          </div>
+          <div className="admin-metric-card__icon"><UserCheck size={16} /></div>
           <p className="admin-metric-card__label">Applications</p>
-          <p className="admin-metric-card__value">
-            {pendingApplications.count || 0}
-          </p>
+          <p className="admin-metric-card__value">{pendingApplications.count || 0}</p>
           <p className="admin-metric-card__sub">Pending membership decisions</p>
-          <Link href="/admin/applications" className="queue-link">
-            Review applications
-          </Link>
+          <Link href="/admin/applications" className="queue-link">Review applications</Link>
         </article>
         <article className="admin-metric-card" data-tone="warning">
-          <div className="admin-metric-card__icon">
-            <ClipboardList size={16} />
-          </div>
+          <div className="admin-metric-card__icon"><ClipboardList size={16} /></div>
           <p className="admin-metric-card__label">Workplace</p>
           <p className="admin-metric-card__value">{pendingWorkplace.count || 0}</p>
           <p className="admin-metric-card__sub">Pending directory visibility edits</p>
-          <Link href="/admin/workplace" className="queue-link">
-            Review workplace
-          </Link>
+          <Link href="/admin/workplace" className="queue-link">Review workplace</Link>
         </article>
         <article className="admin-metric-card" data-tone="info">
-          <div className="admin-metric-card__icon">
-            <Users size={16} />
-          </div>
+          <div className="admin-metric-card__icon"><Users size={16} /></div>
           <p className="admin-metric-card__label">Profile changes</p>
           <p className="admin-metric-card__value">{pendingProfile.count || 0}</p>
           <p className="admin-metric-card__sub">Pending personal data edits</p>
-          <Link href="/admin/profile-changes" className="queue-link">
-            Review profiles
-          </Link>
+          <Link href="/admin/profile-changes" className="queue-link">Review profiles</Link>
         </article>
         <article className="admin-metric-card">
-          <div className="admin-metric-card__icon">
-            <FileClock size={16} />
-          </div>
-          <p className="admin-metric-card__label">Audit events</p>
+          <div className="admin-metric-card__icon"><FileClock size={16} /></div>
+          <p className="admin-metric-card__label">Recent audit</p>
           <p className="admin-metric-card__value">{auditEvents.length}</p>
-          <p className="admin-metric-card__sub">Recent sensitive mutations</p>
-          <Link href="/admin/reports" className="queue-link">
-            Open reports
-          </Link>
+          <p className="admin-metric-card__sub">Latest sensitive mutations</p>
+          <Link href="/admin/audit" className="queue-link">Open audit explorer</Link>
         </article>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-3">
-        <article className="section-band">
-          <p className="section-divider">Membership decisions</p>
-          <div className="mt-6 grid gap-3">
-            {applicationDecisions.length === 0 ? (
-              <div className="empty-state">No reviewed applications yet.</div>
-            ) : (
-              applicationDecisions.map((decision) => (
-                <article key={decision.id} className="route-tile">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3>{decision.name}</h3>
-                    <span
-                      className={`portal-badge portal-badge--${statusTone(
-                        decision.status
-                      )}`}
-                    >
-                      {decision.status}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-                    {decision.email}
-                  </p>
-                  <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                    {formatDate(decision.reviewed_at)}
-                  </p>
-                </article>
-              ))
-            )}
+      <section className="section-band">
+        <form action="/admin/decisions" className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <label className="input-label xl:col-span-2">
+              Search decisions
+              <input defaultValue={q} name="q" placeholder="Name, ID, email, source, or status" />
+            </label>
+            <label className="input-label">
+              Decision type
+              <select defaultValue={kind} name="kind">
+                <option value="">All</option>
+                <option value="application">Applications</option>
+                <option value="workplace">Workplace</option>
+                <option value="profile">Profile</option>
+              </select>
+            </label>
+            <label className="input-label">
+              Status
+              <select defaultValue={status} name="status">
+                <option value="">All</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="returned">Returned</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
+            <div className="flex items-end gap-2">
+              <button className="admin-btn admin-btn--primary" type="submit"><Filter size={14} /> Apply</button>
+              <Link className="admin-btn admin-btn--ghost" href="/admin/decisions"><RotateCcw size={14} /> Reset</Link>
+            </div>
           </div>
-        </article>
+        </form>
+      </section>
 
-        <article className="section-band">
-          <p className="section-divider">Profile and workplace decisions</p>
-          <div className="mt-6 grid gap-3">
-            {profileDecisions.length === 0 ? (
-              <div className="empty-state">No reviewed profile requests yet.</div>
-            ) : (
-              profileDecisions.map((decision) => {
-                const member = resolveMember(decision);
-                return (
-                  <article key={decision.id} className="route-tile">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3>
-                        {member?.full_name ||
-                          member?.jnuits_id ||
-                          "Member request"}
-                      </h3>
-                      <span
-                        className={`portal-badge portal-badge--${statusTone(
-                          decision.status
-                        )}`}
-                      >
-                        {decision.status}
-                      </span>
-                    </div>
+      <section className="section-band">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="section-divider">Decision records</p>
+            <h2 className="mt-3 font-[family-name:var(--font-heading)] text-2xl font-semibold">
+              {records.length} shown from {allRecords.length} matching records
+            </h2>
+          </div>
+          <Link href="/admin/audit" className="admin-btn admin-btn--secondary">Open audit evidence</Link>
+        </div>
+
+        <div className="mt-6 grid gap-3">
+          {records.length === 0 ? (
+            <div className="empty-state">No decisions match the current filters.</div>
+          ) : (
+            records.map((record) => (
+              <article className="route-tile" key={record.id}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3>{record.title}</h3>
                     <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-                      {decision.request_type.replaceAll("_", " ")}
+                      {record.source} · {record.meta || "No additional metadata"}
                     </p>
-                    <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                      {formatDate(decision.reviewed_at)}
-                    </p>
-                  </article>
-                );
-              })
-            )}
-          </div>
-        </article>
+                  </div>
+                  <span className={`portal-badge portal-badge--${statusTone(record.status)}`}>
+                    {record.status}
+                  </span>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                    {formatDate(record.date)}
+                  </p>
+                  <Link href={record.href} className="queue-link">Open source queue</Link>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
 
-        <article className="section-band">
-          <p className="section-divider">Recent audit trail</p>
-          <div className="mt-6 grid gap-3">
-            {auditEvents.length === 0 ? (
-              <div className="empty-state">No audit events found.</div>
-            ) : (
-              auditEvents.map((event) => (
-                <article key={event.id} className="route-tile">
-                  <h3>{event.action}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-                    {event.entity_type || "entity"}{" "}
-                    {event.entity_id ? `- ${event.entity_id}` : ""}
-                  </p>
-                  <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                    {formatDate(event.created_at)}
-                  </p>
-                </article>
-              ))
-            )}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-[var(--muted-foreground)]">Page {page} of {totalPages}</p>
+          <div className="flex gap-2">
+            <Link className="admin-btn admin-btn--ghost" href={buildHref(params, { page: Math.max(1, page - 1) })}>Previous</Link>
+            <Link className="admin-btn admin-btn--ghost" href={buildHref(params, { page: Math.min(totalPages, page + 1) })}>Next</Link>
           </div>
-        </article>
+        </div>
       </section>
     </div>
   );

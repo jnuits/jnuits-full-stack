@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Database } from "@/lib/db/types";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
+import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { isActiveDepartmentCode } from "@/lib/departments.server";
 import { getAppBaseUrl } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -45,6 +46,13 @@ type ProfileUpdateRequestRow =
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function safeLegacyAdminError(error: unknown, context: string, fallback: string) {
+  return getSafeAdminActionErrorMessage(error, {
+    context: `legacy.${context}`,
+    fallback,
+  });
 }
 
 const optionalPositiveInt = (fallback: number, max: number) =>
@@ -438,10 +446,11 @@ export async function approveMembershipApplication(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Application approval failed",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The invitation workflow could not be completed.",
+      message: safeLegacyAdminError(
+        error,
+        "applications.approve",
+        "The invitation workflow could not be completed."
+      ),
     });
   }
 
@@ -512,7 +521,7 @@ export async function rejectMembershipApplication(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Application rejection failed",
-      message: error.message,
+      message: safeLegacyAdminError(error, "legacy.update", "The admin operation could not be completed."),
     });
     redirect("/admin");
   }
@@ -619,7 +628,7 @@ export async function revokeMemberInvitation(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Invitation revocation failed",
-      message: error.message,
+      message: safeLegacyAdminError(error, "legacy.update", "The admin operation could not be completed."),
     });
     redirect("/admin#invitations");
   }
@@ -742,7 +751,7 @@ export async function reissueMemberInvitation(formData: FormData) {
       await setAdminFlash({
         tone: "error",
         title: "Invitation reissue failed",
-        message: revokeError.message,
+        message: safeLegacyAdminError(revokeError, "invitations.reissue.revokeOld", "The existing invitation could not be revoked."),
       });
       redirect("/admin#invitations");
     }
@@ -836,10 +845,11 @@ export async function reissueMemberInvitation(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Invitation reissue failed",
-      message:
-        error instanceof Error
-          ? error.message
-          : "A replacement invitation could not be issued.",
+      message: safeLegacyAdminError(
+        error,
+        "invitations.reissue",
+        "A replacement invitation could not be issued."
+      ),
     });
   }
 
@@ -950,7 +960,7 @@ export async function approveWorkplaceUpdateRequest(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Workplace approval failed",
-      message: memberError.message,
+      message: safeLegacyAdminError(memberError, "member.update", "The member profile could not be updated."),
     });
     redirect("/admin#workplace");
   }
@@ -970,7 +980,7 @@ export async function approveWorkplaceUpdateRequest(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Workplace approval failed",
-      message: requestError.message,
+      message: safeLegacyAdminError(requestError, "profileRequest.update", "The profile request could not be updated."),
     });
     redirect("/admin#workplace");
   }
@@ -1083,7 +1093,7 @@ export async function rejectWorkplaceUpdateRequest(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Workplace rejection failed",
-      message: error.message,
+      message: safeLegacyAdminError(error, "legacy.update", "The admin operation could not be completed."),
     });
     redirect("/admin#workplace");
   }
@@ -1313,7 +1323,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
       await setAdminFlash({
         tone: "error",
         title: "JnUITS ID approval failed",
-        message: memberError.message,
+        message: safeLegacyAdminError(memberError, "member.update", "The member profile could not be updated."),
       });
       redirect("/admin#profile-requests");
     }
@@ -1401,10 +1411,11 @@ export async function approveProfileChangeRequest(formData: FormData) {
       await setAdminFlash({
         tone: "error",
         title: "Email approval failed",
-        message:
-          currentLinkResult.error?.message ||
-          newLinkResult.error?.message ||
-          "Unable to generate Supabase email verification links.",
+        message: safeLegacyAdminError(
+          currentLinkResult.error || newLinkResult.error,
+          "profile.emailChange.generateLinks",
+          "Unable to generate email verification links."
+        ),
       });
       redirect("/admin#profile-requests");
     }
@@ -1509,7 +1520,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Profile approval failed",
-      message: memberError.message,
+      message: safeLegacyAdminError(memberError, "member.update", "The member profile could not be updated."),
     });
     redirect("/admin#profile-requests");
   }
@@ -1529,7 +1540,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Profile approval failed",
-      message: requestError.message,
+      message: safeLegacyAdminError(requestError, "profileRequest.update", "The profile request could not be updated."),
     });
     redirect("/admin#profile-requests");
   }
@@ -1667,7 +1678,7 @@ export async function rejectProfileChangeRequest(formData: FormData) {
     await setAdminFlash({
       tone: "error",
       title: "Profile rejection failed",
-      message: error.message,
+      message: safeLegacyAdminError(error, "legacy.update", "The admin operation could not be completed."),
     });
     redirect("/admin#profile-requests");
   }

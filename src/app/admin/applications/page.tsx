@@ -4,7 +4,7 @@ import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import {
   approveMembershipApplication,
   rejectMembershipApplication,
-} from "@/app/admin/actions";
+} from "@/app/admin/membership/moderation-actions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CheckCircle, XCircle, Clock, UserCheck } from "lucide-react";
 

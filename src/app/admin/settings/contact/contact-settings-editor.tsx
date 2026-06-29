@@ -93,11 +93,11 @@ export function ContactSettingsEditor({ rows }: ContactSettingsEditorProps) {
           current[row.key] === "saved" ? { ...current, [row.key]: "idle" } : current,
         );
       }, 1800);
-    } catch (error) {
+    } catch {
       setStatuses((current) => ({ ...current, [row.key]: "error" }));
       setErrors((current) => ({
         ...current,
-        [row.key]: error instanceof Error ? error.message : "Unable to save setting.",
+        [row.key]: "Unable to save setting.",
       }));
     }
   }

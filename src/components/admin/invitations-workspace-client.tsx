@@ -222,7 +222,7 @@ function ActionFeedback({ result }: { result: ActionResult }) {
       <strong>{actionTitle(result)}</strong>
       <span className="invitation-action-feedback__message">{result.message}</span>
       {result.recipientEmail ? <small>Recipient: {result.recipientEmail}</small> : null}
-      {result.deliveryError ? <small>Provider response: {result.deliveryError}</small> : null}
+      {result.deliveryError ? <small>Delivery provider returned an error. Reissue or review the delivery ledger.</small> : null}
       {result.code ? (
         <div className="invitation-code-reveal">
           <span>
@@ -425,6 +425,11 @@ export function InvitationsWorkspaceClient({
   const selectedInvitation = invitations.find((invitation) => invitation.id === editingId) || null;
   const directFeedback = feedbackKey === "direct-invite" ? feedback : null;
   const csvCommitFeedback = feedbackKey === "csv-commit" ? feedback : null;
+  const deliverySummary = {
+    failed: deliveries.filter((delivery) => delivery.status === "failed").length,
+    sent: deliveries.filter((delivery) => delivery.status === "sent").length,
+    skipped: deliveries.filter((delivery) => delivery.status === "skipped").length,
+  };
 
   const filteredInvitations = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -531,7 +536,7 @@ export function InvitationsWorkspaceClient({
           ) : null}
           {feedback.deliveryError ? (
             <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--brand-rust)]">
-              Provider response: {feedback.deliveryError}
+              Delivery provider returned an error. Use the delivery ledger to reissue or investigate.
             </p>
           ) : null}
           {feedback.code ? (
@@ -1294,7 +1299,24 @@ export function InvitationsWorkspaceClient({
             Recent email delivery attempts
           </h2>
         </div>
-        <div className="grid gap-3">
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="admin-metric-card" data-tone="success">
+            <p className="admin-metric-card__label">Sent</p>
+            <p className="admin-metric-card__value">{deliverySummary.sent}</p>
+            <p className="admin-metric-card__sub">Recent successful attempts</p>
+          </div>
+          <div className="admin-metric-card" data-tone="warning">
+            <p className="admin-metric-card__label">Failed</p>
+            <p className="admin-metric-card__value">{deliverySummary.failed}</p>
+            <p className="admin-metric-card__sub">Needs resend or reissue</p>
+          </div>
+          <div className="admin-metric-card">
+            <p className="admin-metric-card__label">Skipped</p>
+            <p className="admin-metric-card__value">{deliverySummary.skipped}</p>
+            <p className="admin-metric-card__sub">No deliverable address</p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3">
           {deliveries.length === 0 ? (
             <EmptyPanel
               description="Email attempts will appear here after invitations are issued."
@@ -1310,7 +1332,7 @@ export function InvitationsWorkspaceClient({
                       {formatDateTime(delivery.createdAt)} · {delivery.providerMessageId || "No provider ID"}
                     </p>
                     {delivery.errorMessage ? (
-                      <p className="mt-2 text-sm text-[var(--brand-rust)]">{delivery.errorMessage}</p>
+                      <p className="mt-2 text-sm text-[var(--brand-rust)]">Provider reported a delivery failure. Reissue the invitation if the address is correct.</p>
                     ) : null}
                   </div>
                   <Badge kind="access" value={delivery.status} />

@@ -1,7 +1,7 @@
 import {
   approveProfileChangeRequest,
   rejectProfileChangeRequest,
-} from "@/app/admin/actions";
+} from "@/app/admin/membership/moderation-actions";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 
