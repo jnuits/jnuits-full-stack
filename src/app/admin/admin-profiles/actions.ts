@@ -15,6 +15,7 @@ import {
 } from "@/lib/admin/admin-account-policy";
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
+import { issueInvitationForMember } from "@/lib/admin/invitations";
 import {
   hasPermission,
   requireAdminPermission,
@@ -47,13 +48,37 @@ const roleChangeSchema = z.object({
   roleCode: z.enum(["super_admin", "admin", "content_admin"]),
 });
 
-const inviteSchema = z.object({
-  displayName: z.string().trim().max(160).optional().default(""),
-  email: z.string().trim().email("Enter a valid admin email.").transform((value) => value.toLowerCase()),
-  note: z.string().trim().max(500).optional().default(""),
-  roleCode: z.enum(["super_admin", "admin", "content_admin"]),
-  title: z.string().trim().max(120).optional().default(""),
-});
+const inviteSchema = z
+  .object({
+    displayName: z.string().trim().max(160).optional().default(""),
+    email: z.string().trim().max(254).optional().default(""),
+    inviteMode: z.enum(["email", "member"]).default("email"),
+    memberId: z.string().trim().max(80).optional().default(""),
+    note: z.string().trim().max(500).optional().default(""),
+    roleCode: z.enum(["super_admin", "admin", "content_admin"]),
+    title: z.string().trim().max(120).optional().default(""),
+  })
+  .transform((value) => ({
+    ...value,
+    email: value.email.toLowerCase(),
+  }))
+  .superRefine((value, ctx) => {
+    if (value.inviteMode === "member" && !value.memberId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Select a member profile to invite.",
+        path: ["memberId"],
+      });
+    }
+
+    if (value.inviteMode === "email" && !z.string().email().safeParse(value.email).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Enter a valid admin email.",
+        path: ["email"],
+      });
+    }
+  });
 
 const revokeInvitationSchema = z.object({
   confirmation: z.string().trim().min(1, "Confirmation is required."),
@@ -68,6 +93,7 @@ type AdminProfileRecord = {
   email: null | string;
   id: string;
   is_active: boolean;
+  linked_member_id?: null | string;
   status?: null | string;
   title: null | string;
   user_id: string;
@@ -97,6 +123,18 @@ type AdminInvitationRecord = {
   status: string;
   target_admin_profile_id: null | string;
   target_user_id: null | string;
+};
+
+type MemberInviteRecord = {
+  email: null | string;
+  full_name: null | string;
+  id: string;
+  is_profile_claimed: boolean;
+  jnuits_id: null | string;
+  lifecycle_status: null | string;
+  member_type: null | string;
+  portal_access_status: null | string;
+  user_id: null | string;
 };
 
 function asString(value: FormDataEntryValue | null) {
@@ -407,41 +445,158 @@ async function ensureAdminInvitationSchema(admin: AdminClient) {
   }
 }
 
+async function findMemberForAdminInvite(admin: AdminClient, memberId: string) {
+  const result = await asFlexibleClient(admin)
+    .from("members" as string)
+    .select(
+      "id, user_id, full_name, email, jnuits_id, member_type, is_profile_claimed, lifecycle_status, portal_access_status",
+    )
+    .eq("id", memberId)
+    .maybeSingle();
+
+  if (result.error || !result.data) {
+    throw result.error || new Error("Selected member profile was not found.");
+  }
+
+  return result.data as MemberInviteRecord;
+}
+
+async function findMemberByEmail(admin: AdminClient, email: string) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+
+  const result = await asFlexibleClient(admin)
+    .from("members" as string)
+    .select("id, user_id, full_name, email, jnuits_id, member_type, is_profile_claimed, lifecycle_status, portal_access_status")
+    .ilike("email", normalizedEmail)
+    .maybeSingle();
+
+  if (result.error) throw result.error;
+  return (result.data || null) as MemberInviteRecord | null;
+}
+
+async function loadAdminProfileByLinkedMember(admin: AdminClient, memberId: string) {
+  const result = await asFlexibleClient(admin)
+    .from("admin_profiles" as string)
+    .select("id, user_id, admin_code, display_name, email, title, is_active, linked_member_id, status")
+    .eq("linked_member_id", memberId)
+    .maybeSingle();
+
+  if (result.error) throw result.error;
+  return (result.data || null) as AdminProfileRecord | null;
+}
+
+function assertLinkedMemberCanBeInvited(options: {
+  linkedProfile: AdminProfileRecord | null;
+  member: MemberInviteRecord;
+}) {
+  if (!options.member.email) {
+    throw new Error("Selected member profile has no email address.");
+  }
+
+  if (!options.linkedProfile) {
+    return;
+  }
+
+  const status = normalizeAdminLifecycleStatus(
+    options.linkedProfile.status,
+    options.linkedProfile.is_active,
+  );
+
+  if (status !== "removed") {
+    throw new Error("This member is already linked to an admin identity.");
+  }
+}
+
+async function ensureTargetAuthUserForEmail(admin: AdminClient, email: string) {
+  const existingUser = await findAuthUserByEmail(admin, email);
+  const fallbackActionLink = `${getAppBaseUrl()}/admin/invite/accept`;
+
+  if (existingUser) {
+    return { actionLink: fallbackActionLink, user: existingUser };
+  }
+
+  const { data, error } = await admin.auth.admin.generateLink({
+    email,
+    options: {
+      redirectTo: `${getAppBaseUrl()}/auth/confirm?next=${encodeURIComponent("/admin/invite/accept")}`,
+    },
+    type: "invite",
+  });
+
+  if (error || !data.user) {
+    throw error || new Error("Supabase could not create the invite link.");
+  }
+
+  return {
+    actionLink:
+      (data as { properties?: { action_link?: string } }).properties?.action_link ||
+      fallbackActionLink,
+    user: data.user,
+  };
+}
+
 async function ensurePendingAdminProfile(options: {
   actorUserId: string;
   admin: AdminClient;
   displayName: string;
   email: string;
+  linkedMemberId?: null | string;
   roleCode: AdminAccountRoleCode;
   targetUserId: string;
   title: string;
 }) {
-  const profile = await asFlexibleClient(options.admin)
+  const flexibleAdmin = asFlexibleClient(options.admin);
+  const userProfileResult = await flexibleAdmin
     .from("admin_profiles" as string)
-    .select("id, user_id, admin_code, is_active, status")
+    .select("id, user_id, admin_code, linked_member_id, is_active, status")
     .eq("user_id", options.targetUserId)
     .maybeSingle();
 
-  if (profile.error) throw profile.error;
+  if (userProfileResult.error) throw userProfileResult.error;
 
-  if (profile.data) {
-    const existing = profile.data as AdminProfileRecord;
+  const linkedProfileResult = options.linkedMemberId
+    ? await flexibleAdmin
+        .from("admin_profiles" as string)
+        .select("id, user_id, admin_code, linked_member_id, is_active, status")
+        .eq("linked_member_id", options.linkedMemberId)
+        .maybeSingle()
+    : { data: null, error: null };
+
+  if (linkedProfileResult.error) throw linkedProfileResult.error;
+
+  const userProfile = (userProfileResult.data || null) as AdminProfileRecord | null;
+  const linkedProfile = (linkedProfileResult.data || null) as AdminProfileRecord | null;
+
+  if (userProfile && linkedProfile && userProfile.id !== linkedProfile.id) {
+    throw new Error("This user and member profile are already tied to different admin identities.");
+  }
+
+  const existing = linkedProfile || userProfile;
+  const now = new Date().toISOString();
+  const nextProfileValues = {
+    display_name: options.displayName || options.email,
+    email: options.email,
+    is_active: false,
+    linked_member_id: options.linkedMemberId || null,
+    status: "pending_invite",
+    status_reason: `Invited as ${ADMIN_ROLE_LABELS[options.roleCode]}`,
+    status_updated_at: now,
+    status_updated_by_user_id: options.actorUserId,
+    title: options.title || ADMIN_ROLE_LABELS[options.roleCode],
+    updated_at: now,
+    user_id: options.targetUserId,
+  };
+
+  if (existing) {
     const status = normalizeAdminLifecycleStatus(existing.status, existing.is_active);
-    if (status === "active") throw new Error("This user already has an active admin profile.");
+    if (status !== "removed") {
+      throw new Error("This user or member already has a pending or active admin identity.");
+    }
 
-    const result = await asFlexibleClient(options.admin)
+    const result = await flexibleAdmin
       .from("admin_profiles" as string)
-      .update({
-        display_name: options.displayName || options.email,
-        email: options.email,
-        is_active: false,
-        status: "pending_invite",
-        status_reason: `Invited as ${ADMIN_ROLE_LABELS[options.roleCode]}`,
-        status_updated_at: new Date().toISOString(),
-        status_updated_by_user_id: options.actorUserId,
-        title: options.title || ADMIN_ROLE_LABELS[options.roleCode],
-        updated_at: new Date().toISOString(),
-      })
+      .update(nextProfileValues)
       .eq("id", existing.id)
       .select("id")
       .single();
@@ -450,20 +605,12 @@ async function ensurePendingAdminProfile(options: {
     return (result.data as { id: string }).id;
   }
 
-  const result = await asFlexibleClient(options.admin)
+  const result = await flexibleAdmin
     .from("admin_profiles" as string)
     .insert({
+      ...nextProfileValues,
       admin_code: generateAdminCode(options.targetUserId),
       created_by_user_id: options.actorUserId,
-      display_name: options.displayName || options.email,
-      email: options.email,
-      is_active: false,
-      status: "pending_invite",
-      status_reason: `Invited as ${ADMIN_ROLE_LABELS[options.roleCode]}`,
-      status_updated_at: new Date().toISOString(),
-      status_updated_by_user_id: options.actorUserId,
-      title: options.title || ADMIN_ROLE_LABELS[options.roleCode],
-      user_id: options.targetUserId,
     })
     .select("id")
     .single();
@@ -471,7 +618,6 @@ async function ensurePendingAdminProfile(options: {
   if (result.error) throw result.error;
   return (result.data as { id: string }).id;
 }
-
 async function setFlashAndRedirect(
   tone: "error" | "success",
   title: string,
@@ -773,7 +919,15 @@ export async function inviteAdminAction(formData: FormData) {
   if (!actorUserId) redirect("/admin/login?next=%2Fadmin%2Fadmin-profiles");
 
   const parsed = inviteSchema.safeParse(
-    pickFormFields(formData, ["displayName", "email", "note", "roleCode", "title"]),
+    pickFormFields(formData, [
+      "displayName",
+      "email",
+      "inviteMode",
+      "memberId",
+      "note",
+      "roleCode",
+      "title",
+    ]),
   );
 
   if (!parsed.success) {
@@ -785,7 +939,7 @@ export async function inviteAdminAction(formData: FormData) {
     );
   }
 
-  const allowedRoles = actorRole === "super_admin"
+  const allowedRoles: AdminAccountRoleCode[] = actorRole === "super_admin"
     ? ["super_admin", "admin", "content_admin"]
     : actorRole === "admin"
       ? ["content_admin"]
@@ -804,22 +958,62 @@ export async function inviteAdminAction(formData: FormData) {
 
   try {
     await ensureAdminInvitationSchema(admin);
-    const existingUser = await findAuthUserByEmail(admin, parsed.data.email);
-    let targetUser: User | null = existingUser;
+
     let actionLink = `${getAppBaseUrl()}/admin/invite/accept`;
+    let claimInvitationId: null | string = null;
+    let email = parsed.data.email;
+    let displayName = parsed.data.displayName;
+    let linkedMemberId: null | string = null;
+    let targetUser: User | null = null;
+
+    if (parsed.data.inviteMode === "member") {
+      const member = await findMemberForAdminInvite(admin, parsed.data.memberId);
+      const linkedProfile = await loadAdminProfileByLinkedMember(admin, member.id);
+      assertLinkedMemberCanBeInvited({ linkedProfile, member });
+
+      email = normalizeEmail(member.email);
+      displayName = parsed.data.displayName || member.full_name || email;
+      linkedMemberId = member.id;
+
+      if (!email) {
+        throw new Error("Selected member profile has no email address.");
+      }
+
+      if (member.user_id) {
+        targetUser = { email, id: member.user_id } as User;
+      } else {
+        const target = await ensureTargetAuthUserForEmail(admin, email);
+        actionLink = target.actionLink;
+        targetUser = target.user;
+      }
+
+      if (!member.is_profile_claimed || member.user_id !== targetUser.id) {
+        const claimInvite = await issueInvitationForMember({
+          actorUserId,
+          admin,
+          expiresInDays: 7,
+          invitationType: member.member_type === "alumni" ? "alumni_direct" : "member_claim",
+          maxUses: 1,
+          member,
+          note: parsed.data.note || "Issued before admin invitation activation.",
+        });
+        claimInvitationId = claimInvite.invitationId;
+      }
+    } else {
+      const matchingMember = await findMemberByEmail(admin, parsed.data.email);
+      if (matchingMember) {
+        throw new Error("This email matches an existing member profile. Search and link that member instead of creating an email-only admin identity.");
+      }
+
+      const target = await ensureTargetAuthUserForEmail(admin, parsed.data.email);
+      actionLink = target.actionLink;
+      targetUser = target.user;
+      email = parsed.data.email;
+      displayName = parsed.data.displayName || parsed.data.email;
+    }
 
     if (!targetUser) {
-      const { data, error } = await admin.auth.admin.generateLink({
-        email: parsed.data.email,
-        options: {
-          redirectTo: `${getAppBaseUrl()}/auth/confirm?next=${encodeURIComponent("/admin/invite/accept")}`,
-        },
-        type: "invite",
-      });
-
-      if (error || !data.user) throw error || new Error("Supabase could not create the invite link.");
-      targetUser = data.user;
-      actionLink = (data as { properties?: { action_link?: string } }).properties?.action_link || actionLink;
+      throw new Error("Admin invite target user could not be resolved.");
     }
 
     const existingAdminGrant = await asFlexibleClient(admin)
@@ -828,6 +1022,7 @@ export async function inviteAdminAction(formData: FormData) {
       .eq("user_id", targetUser.id)
       .eq("scope", "admin")
       .is("revoked_at", null)
+      .limit(1)
       .maybeSingle();
 
     if (existingAdminGrant.error) throw existingAdminGrant.error;
@@ -836,8 +1031,9 @@ export async function inviteAdminAction(formData: FormData) {
     const profileId = await ensurePendingAdminProfile({
       actorUserId,
       admin,
-      displayName: parsed.data.displayName,
-      email: parsed.data.email,
+      displayName,
+      email,
+      linkedMemberId,
       roleCode: parsed.data.roleCode,
       targetUserId: targetUser.id,
       title: parsed.data.title,
@@ -847,7 +1043,7 @@ export async function inviteAdminAction(formData: FormData) {
       .from("admin_invitations" as string)
       .insert({
         delivery_status: "pending",
-        email: parsed.data.email,
+        email,
         invited_by_user_id: actorUserId,
         invited_role_code: parsed.data.roleCode,
         note: parsed.data.note || null,
@@ -866,11 +1062,11 @@ export async function inviteAdminAction(formData: FormData) {
         actionLink,
         adminRoleLabel: ADMIN_ROLE_LABELS[parsed.data.roleCode],
         expiresInDays: 7,
-        recipientEmail: parsed.data.email,
-        recipientName: parsed.data.displayName || parsed.data.email,
+        recipientEmail: email,
+        recipientName: displayName || email,
       }),
       subject: "Your JnUITS admin workspace invitation",
-      to: parsed.data.email,
+      to: email,
     });
 
     await asFlexibleClient(admin)
@@ -890,8 +1086,11 @@ export async function inviteAdminAction(formData: FormData) {
       entity_id: invitationId,
       entity_type: "admin_invitation",
       metadata: {
+        claimInvitationId,
         deliveryStatus: delivery.success ? "sent" : "failed",
-        email: parsed.data.email,
+        email,
+        inviteMode: parsed.data.inviteMode,
+        linkedMemberId,
         roleCode: parsed.data.roleCode,
         targetUserId: targetUser.id,
       },
@@ -901,8 +1100,11 @@ export async function inviteAdminAction(formData: FormData) {
       actorUserId,
       eventType: "admin_invitation.created",
       payload: {
+        claimInvitationId,
         deliveryStatus: delivery.success ? "sent" : "failed",
         invitationId,
+        inviteMode: parsed.data.inviteMode,
+        linkedMemberId,
         roleCode: parsed.data.roleCode,
       },
       severity: parsed.data.roleCode === "super_admin" ? "critical" : "warning",
@@ -922,7 +1124,7 @@ export async function inviteAdminAction(formData: FormData) {
     {
       tone: "success",
       title: "Admin invitation sent",
-      message: "The admin invitation was created and delivery was attempted.",
+      message: "The admin invitation was created. Linked unclaimed member profiles must be claimed before admin activation.",
     },
     "/admin/admin-profiles",
   );
@@ -1038,6 +1240,50 @@ export async function acceptAdminInvitationAction() {
       throw new Error("This admin invitation has expired.");
     }
     if (invitation.target_user_id && invitation.target_user_id !== user.id) throw new Error("This invitation belongs to a different signed-in user.");
+
+    if (invitation.target_admin_profile_id) {
+      const profileResult = await asFlexibleClient(admin)
+        .from("admin_profiles" as string)
+        .select("id, user_id, linked_member_id")
+        .eq("id", invitation.target_admin_profile_id)
+        .maybeSingle();
+
+      if (profileResult.error || !profileResult.data) {
+        throw profileResult.error || new Error("The pending admin profile was not found.");
+      }
+
+      const adminProfile = profileResult.data as {
+        id: string;
+        linked_member_id?: null | string;
+        user_id: string;
+      };
+
+      if (adminProfile.user_id !== user.id) {
+        throw new Error("This admin profile belongs to a different signed-in user.");
+      }
+
+      if (adminProfile.linked_member_id) {
+        const memberResult = await asFlexibleClient(admin)
+          .from("members" as string)
+          .select("id, user_id, is_profile_claimed")
+          .eq("id", adminProfile.linked_member_id)
+          .maybeSingle();
+
+        if (memberResult.error || !memberResult.data) {
+          throw memberResult.error || new Error("The linked member profile was not found.");
+        }
+
+        const member = memberResult.data as {
+          id: string;
+          is_profile_claimed?: boolean | null;
+          user_id?: null | string;
+        };
+
+        if (!member.is_profile_claimed || member.user_id !== user.id) {
+          throw new Error("Claim the linked member profile with this same account before accepting admin access.");
+        }
+      }
+    }
 
     await insertAdminRoleGrant(admin, {
       actorUserId: user.id,

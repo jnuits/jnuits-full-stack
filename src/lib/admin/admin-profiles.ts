@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   canActorSeeTarget,
+  normalizeAdminLifecycleStatus,
   normalizeAdminRoleCode,
   resolveAdminAccountCapabilities,
   resolveAllowedInviteRoles,
@@ -14,6 +15,7 @@ import {
   toAdminLifecycleStatus,
   toAdminProfileRole,
   type AdminAccountInvitation,
+  type AdminInviteMemberCandidate,
   type AdminInvitationDeliveryStatus,
   type AdminInvitationStatus,
   type AdminProfileActivity,
@@ -61,6 +63,26 @@ type MemberRow = {
   member_type: null | string;
 };
 
+type MemberSearchRow = MemberRow & {
+  is_profile_claimed?: boolean | null;
+  lifecycle_status?: null | string;
+  portal_access_status?: null | string;
+  user_id?: null | string;
+};
+
+type LinkedAdminProfileRow = {
+  admin_code: string;
+  id: string;
+  is_active: boolean;
+  linked_member_id: null | string;
+  status?: null | string;
+  user_id: string;
+};
+
+type CommitteeAssignmentRow = {
+  member_id: null | string;
+};
+
 type AdminInvitationRow = {
   accepted_at?: null | string;
   delivery_status?: null | string;
@@ -88,6 +110,7 @@ export type AdminProfileDirectoryData = {
   actorProfile: AdminProfileDirectoryProfile | null;
   activities: AdminProfileActivity[];
   filteredProfiles: AdminProfileDirectoryProfile[];
+  invitationMemberCandidates: AdminInviteMemberCandidate[];
   invitations: AdminAccountInvitation[];
   profiles: AdminProfileDirectoryProfile[];
   roleOptions: AdminProfileRole[];
@@ -263,6 +286,171 @@ async function loadSelectedProfileActivities(
   );
 }
 
+function cleanMemberSearchQuery(value: string) {
+  return value.replace(/[%*,]/g, " ").trim().slice(0, 80);
+}
+
+function memberSearchPattern(query: string) {
+  return `%${query}%`;
+}
+
+function isBlockingLinkedAdminProfile(profile: LinkedAdminProfileRow | undefined) {
+  if (!profile) {
+    return false;
+  }
+
+  return normalizeAdminLifecycleStatus(profile.status, profile.is_active) !== "removed";
+}
+
+function mapMemberCandidate(options: {
+  activeAdminUserIds: Set<string>;
+  executiveMemberIds: Set<string>;
+  linkedAdminProfileByMemberId: Map<string, LinkedAdminProfileRow>;
+  row: MemberSearchRow;
+}): AdminInviteMemberCandidate {
+  const linkedProfile = options.linkedAdminProfileByMemberId.get(options.row.id);
+  const hasActiveAdminGrant = options.row.user_id
+    ? options.activeAdminUserIds.has(options.row.user_id)
+    : false;
+  const hasBlockingLinkedProfile = isBlockingLinkedAdminProfile(linkedProfile);
+  const blockedReason = !options.row.email
+    ? "Member profile has no email address."
+    : hasActiveAdminGrant
+      ? "This member's account already has active admin access."
+      : hasBlockingLinkedProfile
+        ? "This member is already linked to an admin identity."
+        : null;
+
+  return {
+    blockedReason,
+    canInvite: !blockedReason,
+    email: options.row.email,
+    fullName: options.row.full_name,
+    hasActiveAdminGrant,
+    id: options.row.id,
+    isExecutive: options.executiveMemberIds.has(options.row.id),
+    isProfileClaimed: Boolean(options.row.is_profile_claimed),
+    jnuitsId: options.row.jnuits_id,
+    lifecycleStatus: options.row.lifecycle_status || null,
+    linkedAdminCode: linkedProfile?.admin_code || null,
+    linkedAdminProfileId: linkedProfile?.id || null,
+    linkedAdminStatus: linkedProfile
+      ? normalizeAdminLifecycleStatus(linkedProfile.status, linkedProfile.is_active)
+      : null,
+    memberType: options.row.member_type,
+    portalAccessStatus: options.row.portal_access_status || null,
+    userId: options.row.user_id || null,
+  };
+}
+
+async function loadAdminInviteMemberCandidates(options: {
+  actorRole: AdminAccountRoleCode | null;
+  admin: ReturnType<typeof createAdminClient>;
+  filters: AdminProfileFilters;
+  hasManageAdminRoles: boolean;
+}) {
+  const allowedInviteRoles = resolveAllowedInviteRoles({
+    actorRole: options.actorRole,
+    hasManageAdminRoles: options.hasManageAdminRoles,
+  });
+  const query = cleanMemberSearchQuery(options.filters.inviteMemberQ);
+
+  if (allowedInviteRoles.length === 0 || query.length < 2) {
+    return [];
+  }
+
+  const flexibleAdmin = asFlexibleClient(options.admin);
+  const pattern = memberSearchPattern(query);
+  const memberResult = await flexibleAdmin
+    .from("members" as string)
+    .select(
+      "id, user_id, jnuits_id, full_name, email, member_type, is_profile_claimed, lifecycle_status, portal_access_status",
+    )
+    .or(
+      `full_name.ilike.${pattern},email.ilike.${pattern},jnuits_id.ilike.${pattern},member_type.ilike.${pattern}`,
+    )
+    .order("full_name", { ascending: true })
+    .limit(12);
+
+  if (memberResult.error) {
+    if (process.env.NODE_ENV !== "development") {
+      console.error("Admin invite member search failed", {
+        code: memberResult.error.code,
+        message: memberResult.error.message,
+      });
+    }
+    return [];
+  }
+
+  const members = (memberResult.data || []) as MemberSearchRow[];
+  const memberIds = members.map((member) => member.id);
+  const userIds = members
+    .map((member) => member.user_id)
+    .filter((userId): userId is string => Boolean(userId));
+
+  const [linkedProfilesResult, roleGrantResult, committeeResult] = await Promise.all([
+    memberIds.length > 0
+      ? flexibleAdmin
+          .from("admin_profiles" as string)
+          .select("id, user_id, admin_code, linked_member_id, is_active, status")
+          .in("linked_member_id", memberIds)
+      : Promise.resolve({ data: [], error: null }),
+    userIds.length > 0
+      ? flexibleAdmin
+          .from("rbac_user_platform_roles" as string)
+          .select("user_id, rbac_platform_roles!inner(code, scope)")
+          .eq("scope", "admin")
+          .is("revoked_at", null)
+          .in("user_id", userIds)
+      : Promise.resolve({ data: [], error: null }),
+    memberIds.length > 0
+      ? flexibleAdmin
+          .from("committee_assignments" as string)
+          .select("member_id")
+          .eq("status", "active")
+          .in("member_id", memberIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (
+    linkedProfilesResult.error ||
+    roleGrantResult.error ||
+    committeeResult.error
+  ) {
+    if (process.env.NODE_ENV !== "development") {
+      console.error("Admin invite member search context failed", {
+        committeeError: committeeResult.error,
+        linkedProfileError: linkedProfilesResult.error,
+        roleGrantError: roleGrantResult.error,
+      });
+    }
+  }
+
+  const linkedAdminProfileByMemberId = new Map(
+    ((linkedProfilesResult.data || []) as LinkedAdminProfileRow[])
+      .filter((profile) => Boolean(profile.linked_member_id))
+      .map((profile) => [profile.linked_member_id as string, profile] as const),
+  );
+  const activeAdminUserIds = new Set(
+    ((roleGrantResult.data || []) as Array<{ user_id?: null | string }>)
+      .map((grant) => grant.user_id)
+      .filter((userId): userId is string => Boolean(userId)),
+  );
+  const executiveMemberIds = new Set(
+    ((committeeResult.data || []) as CommitteeAssignmentRow[])
+      .map((assignment) => assignment.member_id)
+      .filter((memberId): memberId is string => Boolean(memberId)),
+  );
+
+  return members.map((row) =>
+    mapMemberCandidate({
+      activeAdminUserIds,
+      executiveMemberIds,
+      linkedAdminProfileByMemberId,
+      row,
+    }),
+  );
+}
 async function loadAdminInvitations(options: {
   actorRole: AdminAccountRoleCode | null;
   actorUserId: string;
@@ -454,6 +642,12 @@ export async function loadAdminProfileDirectory(options: {
     actorProfile,
     activities: await loadSelectedProfileActivities(admin, selectedProfile),
     filteredProfiles,
+    invitationMemberCandidates: await loadAdminInviteMemberCandidates({
+      actorRole: options.actorAdminRole,
+      admin,
+      filters: options.filters,
+      hasManageAdminRoles: options.canManageAdminRoles,
+    }),
     invitations: await loadAdminInvitations({
       actorRole: options.actorAdminRole,
       actorUserId: options.actorUserId,

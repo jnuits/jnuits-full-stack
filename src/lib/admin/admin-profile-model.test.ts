@@ -25,6 +25,7 @@ function filters(
   overrides: Partial<AdminProfileFilters> = {},
 ): AdminProfileFilters {
   return {
+    inviteMemberQ: "",
     profile: "",
     q: "",
     role: "",
@@ -68,6 +69,7 @@ describe("admin profile model", () => {
   it("parses and sanitizes supported filters", () => {
     expect(
       parseAdminProfileFilters({
+        inviteMemberQ: " member@example.com() ",
         profile: " profile-1 ",
         q: " Redwan() ",
         role: "content_admin",
@@ -75,6 +77,7 @@ describe("admin profile model", () => {
         tab: "self",
       }),
     ).toEqual({
+      inviteMemberQ: "member@example.com",
       profile: "profile-1",
       q: "Redwan",
       role: "content_admin",

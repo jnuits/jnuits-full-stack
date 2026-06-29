@@ -19,6 +19,7 @@ export type AdminProfileStatusFilter =
 export type AdminProfileTab = "access" | "directory" | "invitations" | "self";
 
 export type AdminProfileFilters = {
+  inviteMemberQ: string;
   profile: string;
   q: string;
   role: string;
@@ -37,6 +38,25 @@ export type AdminProfileLinkedMember = {
   id: string;
   jnuitsId: null | string;
   memberType: null | string;
+};
+
+export type AdminInviteMemberCandidate = {
+  blockedReason: null | string;
+  canInvite: boolean;
+  email: null | string;
+  fullName: null | string;
+  hasActiveAdminGrant: boolean;
+  id: string;
+  isExecutive: boolean;
+  isProfileClaimed: boolean;
+  jnuitsId: null | string;
+  lifecycleStatus: null | string;
+  linkedAdminCode: null | string;
+  linkedAdminProfileId: null | string;
+  linkedAdminStatus: null | string;
+  memberType: null | string;
+  portalAccessStatus: null | string;
+  userId: null | string;
 };
 
 export type AdminProfileDirectoryProfile = {
@@ -164,6 +184,7 @@ export function parseAdminProfileFilters(
   const tab = cleanFilterValue(readParam(searchParams, "tab"), 24);
 
   return {
+    inviteMemberQ: cleanFilterValue(readParam(searchParams, "inviteMemberQ"), 120),
     profile: cleanFilterValue(readParam(searchParams, "profile"), 80),
     q: cleanFilterValue(readParam(searchParams, "q"), 120),
     role: cleanFilterValue(readParam(searchParams, "role"), 80),

@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import {
-  Filter,
   LockKeyhole,
   MailPlus,
   RotateCcw,
@@ -20,6 +19,7 @@ import {
   updateAdminLifecycleAction,
 } from "@/app/admin/admin-profiles/actions";
 import { AdminProfileActivityList } from "@/components/admin/admin-profile-activity-list";
+import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
 import { AdminProfileEditorForm } from "@/components/admin/admin-profile-editor-form";
 import { ConfirmSubmitButton } from "@/components/admin/confirm-submit-button";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
@@ -33,6 +33,7 @@ import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import {
   parseAdminProfileFilters,
   type AdminAccountInvitation,
+  type AdminInviteMemberCandidate,
   type AdminProfileDirectoryProfile,
   type AdminProfileFilters,
   type AdminProfileStats,
@@ -76,6 +77,7 @@ function tabHref(filters: AdminProfileFilters, tab: AdminProfileFilters["tab"]) 
   if (filters.q) params.set("q", filters.q);
   if (filters.role) params.set("role", filters.role);
   if (filters.status) params.set("status", filters.status);
+  if (filters.inviteMemberQ) params.set("inviteMemberQ", filters.inviteMemberQ);
   if (filters.profile) params.set("profile", filters.profile);
   params.set("tab", tab);
   return `/admin/admin-profiles?${params.toString()}`;
@@ -118,6 +120,19 @@ function MetricsGrid({ stats }: { stats: AdminProfileStats }) {
   );
 }
 
+function uniqueDisplayRoles(roles: AdminProfileDirectoryProfile["roles"]) {
+  const seen = new Set<string>();
+
+  return roles.filter((role) => {
+    const key = role.displayName.toLowerCase();
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 function TabLink({
   active,
   children,
@@ -150,6 +165,8 @@ function ProfileRow({
   isSelected: boolean;
   profile: AdminProfileDirectoryProfile;
 }) {
+  const displayRoles = uniqueDisplayRoles(profile.roles);
+
   return (
     <Link
       aria-current={isSelected ? "page" : undefined}
@@ -180,8 +197,8 @@ function ProfileRow({
             <span className="status-pill">{profile.lifecycleLabel}</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {profile.roles.length > 0 ? (
-              profile.roles.map((role) => (
+            {displayRoles.length > 0 ? (
+              displayRoles.map((role) => (
                 <span className="detail-chip" key={role.code}>
                   {role.displayName}
                 </span>
@@ -230,68 +247,224 @@ function LinkedMemberSummary({ profile }: { profile: AdminProfileDirectoryProfil
   );
 }
 
+function memberCandidateBadges(candidate: AdminInviteMemberCandidate) {
+  return [
+    candidate.isProfileClaimed ? "Claimed" : "Unclaimed",
+    candidate.memberType,
+    candidate.lifecycleStatus,
+    candidate.portalAccessStatus,
+    candidate.isExecutive ? "Executive body" : null,
+    candidate.hasActiveAdminGrant ? "Already admin" : null,
+    candidate.linkedAdminCode ? `Linked ${candidate.linkedAdminCode}` : null,
+  ].filter(Boolean) as string[];
+}
+
+function MemberCandidateCard({
+  candidate,
+}: {
+  candidate: AdminInviteMemberCandidate;
+}) {
+  return (
+    <label
+      className={`grid gap-3 rounded-[0.9rem] border p-3 ${
+        candidate.canInvite
+          ? "border-[var(--line)] bg-[var(--card)]"
+          : "border-[var(--line)] bg-[color-mix(in_oklab,var(--muted)_12%,var(--card))] opacity-75"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <input
+          className="mt-1"
+          disabled={!candidate.canInvite}
+          name="memberId"
+          required={candidate.canInvite}
+          type="radio"
+          value={candidate.id}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-semibold tracking-[0]">
+                {candidate.fullName || "Unnamed member"}
+              </p>
+              <p className="mt-1 text-xs font-medium text-[var(--muted-foreground)]">
+                {candidate.jnuitsId || "No JnUITS ID"} / {candidate.email || "No email"}
+              </p>
+            </div>
+            {!candidate.isProfileClaimed && candidate.canInvite ? (
+              <span className="status-pill">Claim email will be issued</span>
+            ) : null}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {memberCandidateBadges(candidate).map((badge) => (
+              <span className="detail-chip" key={badge}>
+                {badge}
+              </span>
+            ))}
+          </div>
+          {candidate.blockedReason ? (
+            <p className="mt-3 text-xs font-semibold text-[var(--danger)]">
+              {candidate.blockedReason}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </label>
+  );
+}
+
 function InviteAdminPanel({
   allowedRoles,
+  filters,
+  memberCandidates,
 }: {
   allowedRoles: AdminAccountRoleCode[];
+  filters: AdminProfileFilters;
+  memberCandidates: AdminInviteMemberCandidate[];
 }) {
   if (allowedRoles.length === 0) {
     return null;
   }
 
+  const canSubmitMemberInvite = memberCandidates.some((candidate) => candidate.canInvite);
+
   return (
-    <form action={inviteAdminAction} className="section-band grid gap-4">
+    <section className="section-band admin-invite-section grid gap-5">
       <div>
         <p className="section-divider">Invite admin</p>
         <h2 className="mt-3 font-[family-name:var(--font-heading)] text-2xl font-semibold tracking-[0]">
           Send admin access invitation
         </h2>
+        <p className="section-copy mt-2 max-w-3xl">
+          Prefer linking an existing member or executive profile. Use email-only invitations only when no member profile exists.
+        </p>
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">
-        <label className="input-label">
-          Email
-          <input name="email" placeholder="admin@example.com" required type="email" />
-        </label>
-        <label className="input-label">
-          Role
-          <select name="roleCode" required>
-            {allowedRoles.map((role) => (
-              <option key={role} value={role}>
-                {ADMIN_ROLE_LABELS[role]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="input-label">
-          Display name
-          <input name="displayName" placeholder="Admin display name" />
-        </label>
-        <label className="input-label">
-          Title
-          <input name="title" placeholder="Operational title" />
-        </label>
+
+      <div className="admin-invite-layout">
+        <div className="admin-invite-card admin-invite-card--member">
+          <AutoSubmitForm action="/admin/admin-profiles" className="admin-invite-search-form">
+            <input name="tab" type="hidden" value="invitations" />
+            <label className="input-label admin-invite-search-field">
+              Search member or executive profile
+              <div className="admin-invite-input-wrap">
+                <Search aria-hidden="true" className="admin-invite-search-icon" size={16} />
+                <input
+                  className="admin-invite-search-input"
+                  defaultValue={filters.inviteMemberQ}
+                  name="inviteMemberQ"
+                  placeholder="Name, email, JnUITS ID, member type"
+                />
+              </div>
+            </label>
+            <div className="admin-invite-actions">
+              <Link className="admin-btn admin-btn--ghost admin-invite-action" href="/admin/admin-profiles?tab=invitations">
+                <RotateCcw size={14} /> Clear search
+              </Link>
+            </div>
+          </AutoSubmitForm>
+
+          {filters.inviteMemberQ.length < 2 ? (
+            <div className="empty-state admin-invite-empty">
+              Search by at least two characters to link an existing member profile.
+            </div>
+          ) : memberCandidates.length === 0 ? (
+            <div className="empty-state admin-invite-empty">
+              No member profiles matched this search. Use email-only invite if this person has no profile.
+            </div>
+          ) : (
+            <form action={inviteAdminAction} className="grid gap-4">
+              <input name="inviteMode" type="hidden" value="member" />
+              <div className="admin-invite-candidate-list grid gap-2">
+                {memberCandidates.map((candidate) => (
+                  <MemberCandidateCard candidate={candidate} key={candidate.id} />
+                ))}
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                <label className="input-label">
+                  Role
+                  <select name="roleCode" required>
+                    {allowedRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {ADMIN_ROLE_LABELS[role]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="input-label">
+                  Title
+                  <input name="title" placeholder="Operational title" />
+                </label>
+              </div>
+              <label className="input-label">
+                Note
+                <textarea name="note" placeholder="Reason or onboarding context" rows={3} />
+              </label>
+              <button className="admin-btn admin-btn--primary admin-invite-action" disabled={!canSubmitMemberInvite} type="submit">
+                <MailPlus size={14} /> Invite selected member
+              </button>
+            </form>
+          )}
+        </div>
+
+        <form action={inviteAdminAction} className="admin-invite-card admin-invite-card--email">
+          <input name="inviteMode" type="hidden" value="email" />
+          <div>
+            <p className="section-kicker">No member profile</p>
+            <h3 className="mt-2 font-[family-name:var(--font-heading)] text-xl font-semibold tracking-[0]">
+              Invite by email
+            </h3>
+            <p className="section-copy mt-2 text-sm">
+              If the email belongs to an existing member, this action will be blocked so you can link that profile instead.
+            </p>
+          </div>
+          <label className="input-label">
+            Email
+            <input name="email" placeholder="admin@example.com" required type="email" />
+          </label>
+          <label className="input-label">
+            Role
+            <select name="roleCode" required>
+              {allowedRoles.map((role) => (
+                <option key={role} value={role}>
+                  {ADMIN_ROLE_LABELS[role]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="input-label">
+            Display name
+            <input name="displayName" placeholder="Admin display name" />
+          </label>
+          <label className="input-label">
+            Title
+            <input name="title" placeholder="Operational title" />
+          </label>
+          <label className="input-label">
+            Note
+            <textarea name="note" placeholder="Reason or onboarding context" rows={3} />
+          </label>
+          <button className="admin-btn admin-btn--primary admin-invite-action admin-invite-submit" type="submit">
+            <MailPlus size={14} /> Send email-only invite
+          </button>
+        </form>
       </div>
-      <label className="input-label">
-        Note
-        <textarea name="note" placeholder="Reason or onboarding context" rows={3} />
-      </label>
-      <button className="admin-btn admin-btn--primary w-fit" type="submit">
-        <MailPlus size={14} /> Send invitation
-      </button>
-    </form>
+    </section>
   );
 }
-
 function InvitationsPanel({
   allowedRoles,
+  filters,
   invitations,
+  memberCandidates,
 }: {
   allowedRoles: AdminAccountRoleCode[];
+  filters: AdminProfileFilters;
   invitations: AdminAccountInvitation[];
+  memberCandidates: AdminInviteMemberCandidate[];
 }) {
   return (
     <div className="grid gap-4">
-      <InviteAdminPanel allowedRoles={allowedRoles} />
+      <InviteAdminPanel allowedRoles={allowedRoles} filters={filters} memberCandidates={memberCandidates} />
       <section className="section-band grid gap-4">
         <div>
           <p className="section-divider">Invitations</p>
@@ -300,7 +473,7 @@ function InvitationsPanel({
           </h2>
         </div>
         {invitations.length === 0 ? (
-          <div className="empty-state m-0 max-w-none py-8">
+          <div className="empty-state admin-invite-empty">
             No admin invitations are visible for your role.
           </div>
         ) : (
@@ -314,7 +487,7 @@ function InvitationsPanel({
                       {ADMIN_ROLE_LABELS[invitation.invitedRoleCode]} / expires {formatDate(invitation.expiresAt)}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="admin-invite-actions">
                     <span className="status-pill">{invitation.status}</span>
                     <span className="detail-chip">Delivery {invitation.deliveryStatus}</span>
                   </div>
@@ -463,6 +636,8 @@ function ProfileDetail({
   activities: React.ComponentProps<typeof AdminProfileActivityList>["activities"];
   profile: AdminProfileDirectoryProfile;
 }) {
+  const displayRoles = uniqueDisplayRoles(profile.roles);
+
   return (
     <div className="section-band grid content-start gap-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -486,7 +661,7 @@ function ProfileDetail({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {profile.roles.map((role) => (
+        {displayRoles.map((role) => (
           <span className="detail-chip" key={role.code}>
             {role.displayName}
           </span>
@@ -555,6 +730,7 @@ export default async function AdminProfilesPage({
     actorProfile,
     activities,
     filteredProfiles,
+    invitationMemberCandidates,
     invitations,
     profiles,
     roleOptions,
@@ -615,12 +791,17 @@ export default async function AdminProfilesPage({
       </nav>
 
       {filters.tab === "invitations" ? (
-        <InvitationsPanel allowedRoles={actorInviteRoles} invitations={invitations} />
+        <InvitationsPanel
+          allowedRoles={actorInviteRoles}
+          filters={filters}
+          invitations={invitations}
+          memberCandidates={invitationMemberCandidates}
+        />
       ) : (
         <>
           {filters.tab !== "self" ? (
             <section className="section-band">
-              <form action="/admin/admin-profiles" className="grid gap-4">
+              <AutoSubmitForm action="/admin/admin-profiles" className="grid gap-4">
                 <input name="tab" type="hidden" value={filters.tab} />
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.45fr)_minmax(10rem,0.35fr)_auto]">
                   <label className="input-label">
@@ -653,15 +834,12 @@ export default async function AdminProfilesPage({
                     </select>
                   </label>
                   <div className="flex items-end gap-2">
-                    <button className="admin-btn admin-btn--primary" type="submit">
-                      <Filter size={14} /> Apply
-                    </button>
                     <Link className="admin-btn admin-btn--ghost" href={`/admin/admin-profiles?tab=${filters.tab}`}>
                       <RotateCcw size={14} /> Reset
                     </Link>
                   </div>
                 </div>
-              </form>
+              </AutoSubmitForm>
             </section>
           ) : null}
 
@@ -678,7 +856,7 @@ export default async function AdminProfilesPage({
                 </div>
 
                 {filteredProfiles.length === 0 ? (
-                  <div className="empty-state m-0 max-w-none py-8">
+                  <div className="empty-state admin-invite-empty">
                     No admin profiles match the current filters.
                   </div>
                 ) : (
@@ -711,6 +889,3 @@ export default async function AdminProfilesPage({
     </div>
   );
 }
-
-
-
