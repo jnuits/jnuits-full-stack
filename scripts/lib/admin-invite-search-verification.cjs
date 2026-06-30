@@ -4,7 +4,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const { buildSupabaseCliEnv, loadDotEnvLocal } = require("./migration-parity.cjs");
 
-const TARGET_MIGRATION_VERSION = "20260630090000";
+const TARGET_MIGRATION_VERSION = "20260630191141";
 const REQUIRED_TRGM_INDEXES = [
   "members_admin_invite_email_trgm_idx",
   "members_admin_invite_full_name_trgm_idx",

@@ -2,7 +2,7 @@
 -- This migration is additive and safe to apply after the admin account lifecycle migration.
 
 alter table public.admin_invitations
-  add column if not exists claim_invitation_id uuid references public.invitations(id) on delete set null;
+  add column if not exists claim_invitation_id uuid references public.member_invitations(id) on delete set null;
 
 create index if not exists admin_invitations_claim_invitation_idx
   on public.admin_invitations (claim_invitation_id)
@@ -24,7 +24,7 @@ begin
 exception
   when insufficient_privilege then
     raise notice 'Skipping pg_trgm extension creation; current role lacks privilege.';
-  when undefined_schema then
+  when invalid_schema_name then
     begin
       create extension if not exists pg_trgm;
     exception
@@ -57,3 +57,5 @@ begin
     raise notice 'pg_trgm extension is unavailable; skipping admin member invite trigram indexes.';
   end if;
 end $$;
+
+
