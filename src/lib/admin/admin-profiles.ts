@@ -232,6 +232,15 @@ function isMissingAdminInvitationsRelation(error: SupabaseLikeError) {
   );
 }
 
+function isMissingAdminProfileStatusColumn(error: SupabaseLikeError | null | undefined) {
+  const message = error?.message || '';
+
+  return (
+    error?.code === '42703' && /admin_profiles\.status|column .*status/i.test(message) ||
+    /schema cache.*admin_profiles.*status|Could not find.*status/i.test(message)
+  );
+}
+
 function logOptionalAdminInvitationLoadError(error: SupabaseLikeError) {
   if (isMissingAdminInvitationsRelation(error)) {
     return;
@@ -388,7 +397,7 @@ async function loadAdminInviteMemberCandidates(options: {
     .map((member) => member.user_id)
     .filter((userId): userId is string => Boolean(userId));
 
-  const [linkedProfilesResult, roleGrantResult, committeeResult] = await Promise.all([
+  const contextResults = await Promise.all([
     memberIds.length > 0
       ? flexibleAdmin
           .from("admin_profiles" as string)
@@ -411,20 +420,33 @@ async function loadAdminInviteMemberCandidates(options: {
           .in("member_id", memberIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
+  let linkedProfilesResult = contextResults[0];
+  const roleGrantResult = contextResults[1];
+  const committeeResult = contextResults[2];
 
-  if (
-    linkedProfilesResult.error ||
-    roleGrantResult.error ||
-    committeeResult.error
-  ) {
+  if (isMissingAdminProfileStatusColumn(linkedProfilesResult.error)) {
+    linkedProfilesResult = memberIds.length > 0
+      ? await flexibleAdmin
+          .from("admin_profiles" as string)
+          .select("id, user_id, admin_code, linked_member_id, is_active")
+          .in("linked_member_id", memberIds)
+      : { data: [], error: null };
+  }
+
+  if (linkedProfilesResult.error || roleGrantResult.error) {
     if (process.env.NODE_ENV !== "development") {
       console.error("Admin invite member search context failed", {
-        committeeError: committeeResult.error,
         linkedProfileError: linkedProfilesResult.error,
         roleGrantError: roleGrantResult.error,
       });
     }
     return [];
+  }
+
+  if (committeeResult.error && process.env.NODE_ENV !== "development") {
+    console.error("Admin invite member executive context failed", {
+      committeeError: committeeResult.error,
+    });
   }
 
   const linkedAdminProfileByMemberId = new Map(
@@ -438,7 +460,7 @@ async function loadAdminInviteMemberCandidates(options: {
       .filter((userId): userId is string => Boolean(userId)),
   );
   const executiveMemberIds = new Set(
-    ((committeeResult.data || []) as CommitteeAssignmentRow[])
+    (committeeResult.error ? [] : ((committeeResult.data || []) as CommitteeAssignmentRow[]))
       .map((assignment) => assignment.member_id)
       .filter((memberId): memberId is string => Boolean(memberId)),
   );

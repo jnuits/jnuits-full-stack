@@ -266,44 +266,44 @@ function MemberCandidateCard({
 }) {
   return (
     <label
-      className={`grid gap-3 rounded-[0.9rem] border p-3 ${
+      className={`block rounded-[0.9rem] border p-3 ${
         candidate.canInvite
           ? "border-[var(--line)] bg-[var(--card)]"
           : "border-[var(--line)] bg-[color-mix(in_oklab,var(--muted)_12%,var(--card))] opacity-75"
       }`}
     >
-      <div className="flex items-start gap-3">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
         <input
-          className="mt-1"
+          className="mt-1 shrink-0"
           disabled={!candidate.canInvite}
           name="memberId"
           required={candidate.canInvite}
           type="radio"
           value={candidate.id}
         />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <div className="min-w-0">
-              <p className="font-semibold tracking-[0]">
+              <p className="break-words font-semibold tracking-[0]">
                 {candidate.fullName || "Unnamed member"}
               </p>
-              <p className="mt-1 text-xs font-medium text-[var(--muted-foreground)]">
+              <p className="mt-1 break-all text-xs font-medium text-[var(--muted-foreground)] sm:break-words">
                 {candidate.jnuitsId || "No JnUITS ID"} / {candidate.email || "No email"}
               </p>
             </div>
             {!candidate.isProfileClaimed && candidate.canInvite ? (
-              <span className="status-pill">Claim email will be issued</span>
+              <span className="status-pill justify-self-start sm:justify-self-end">Claim email will be issued</span>
             ) : null}
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {memberCandidateBadges(candidate).map((badge) => (
-              <span className="detail-chip" key={badge}>
+          <div className="mt-3 flex min-w-0 flex-wrap gap-1.5">
+            {memberCandidateBadges(candidate).map((badge, index) => (
+              <span className="detail-chip" key={`${badge}-${index}`}>
                 {badge}
               </span>
             ))}
           </div>
           {candidate.blockedReason ? (
-            <p className="mt-3 text-xs font-semibold text-[var(--danger)]">
+            <p className="mt-3 break-words text-xs font-semibold text-[var(--danger)]">
               {candidate.blockedReason}
             </p>
           ) : null}
@@ -629,6 +629,80 @@ function AccessControls({ profile }: { profile: AdminProfileDirectoryProfile }) 
   );
 }
 
+function ProfileAccessDetail({
+  activities,
+  profile,
+}: {
+  activities: React.ComponentProps<typeof AdminProfileActivityList>["activities"];
+  profile: AdminProfileDirectoryProfile;
+}) {
+  const displayRoles = uniqueDisplayRoles(profile.roles);
+
+  return (
+    <div className="section-band grid content-start gap-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="section-kicker">Access target</p>
+          <h2 className="mt-1 truncate font-[family-name:var(--font-heading)] text-3xl font-semibold leading-tight tracking-[0]">
+            {profile.displayName}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            {profile.adminCode} / {profile.email || "No email"}
+          </p>
+        </div>
+        <span className="status-pill">{profile.lifecycleLabel}</span>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.78fr)_minmax(18rem,0.42fr)]">
+        <div className="grid content-start gap-4">
+          <div className="route-tile min-h-0 p-4">
+            <p className="section-kicker">Role assignment</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {displayRoles.length > 0 ? (
+                displayRoles.map((role) => (
+                  <span className="detail-chip" key={role.code}>
+                    {role.displayName}
+                  </span>
+                ))
+              ) : (
+                <span className="detail-chip">No active admin role</span>
+              )}
+            </div>
+            <p className="section-copy mt-3 text-sm">
+              Role changes, freezes, unfreezes, and removals are controlled here. Profile metadata stays in Directory or My profile.
+            </p>
+          </div>
+
+          <AccessControls key={`access-tab-controls-${profile.id}`} profile={profile} />
+        </div>
+
+        <div className="grid content-start gap-4">
+          <LinkedMemberSummary profile={profile} />
+          <div className="route-tile min-h-0 p-4">
+            <p className="section-kicker">Lifecycle state</p>
+            <p className="mt-2 text-sm font-semibold tracking-[0]">
+              {ADMIN_LIFECYCLE_LABELS[profile.lifecycleStatus]}
+            </p>
+            {profile.statusReason ? (
+              <p className="section-copy mt-2 text-sm">{profile.statusReason}</p>
+            ) : null}
+            {profile.statusUpdatedAt ? (
+              <p className="mt-3 text-xs font-semibold text-[var(--muted-foreground)]">
+                Changed {formatDate(profile.statusUpdatedAt)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <AdminProfileActivityList
+        activities={activities}
+        profileId={profile.id}
+        userId={profile.userId}
+      />
+    </div>
+  );
+}
 function ProfileDetail({
   activities,
   profile,
@@ -672,6 +746,7 @@ function ProfileDetail({
       <div className="grid gap-4 lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.48fr)]">
         <div className="grid gap-4">
           <AdminProfileEditorForm
+            key={`editor-${profile.id}`}
             profile={{
               adminCode: profile.adminCode,
               avatarSecureUrl: profile.avatarSecureUrl,
@@ -682,7 +757,7 @@ function ProfileDetail({
               title: profile.title,
             }}
           />
-          <AccessControls profile={profile} />
+          <AccessControls key={`controls-${profile.id}`} profile={profile} />
         </div>
         <div className="grid content-start gap-4">
           <LinkedMemberSummary profile={profile} />
@@ -875,7 +950,19 @@ export default async function AdminProfilesPage({
             ) : null}
 
             {detailProfile ? (
-              <ProfileDetail activities={activities} profile={detailProfile} />
+              filters.tab === "access" ? (
+                <ProfileAccessDetail
+                  activities={activities}
+                  key={`access-${detailProfile.id}`}
+                  profile={detailProfile}
+                />
+              ) : (
+                <ProfileDetail
+                  activities={activities}
+                  key={`profile-${detailProfile.id}`}
+                  profile={detailProfile}
+                />
+              )
             ) : (
               <div className="section-band">
                 <div className="empty-state m-0 max-w-none py-12">

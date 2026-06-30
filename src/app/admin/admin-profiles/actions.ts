@@ -479,11 +479,19 @@ async function findMemberByEmail(admin: AdminClient, email: string) {
 }
 
 async function loadAdminProfileByLinkedMember(admin: AdminClient, memberId: string) {
-  const result = await asFlexibleClient(admin)
+  let result = await asFlexibleClient(admin)
     .from("admin_profiles" as string)
     .select("id, user_id, admin_code, display_name, email, title, is_active, linked_member_id, status")
     .eq("linked_member_id", memberId)
     .maybeSingle();
+
+  if (result.error && isMissingSchemaError(result.error)) {
+    result = await asFlexibleClient(admin)
+      .from("admin_profiles" as string)
+      .select("id, user_id, admin_code, display_name, email, title, is_active, linked_member_id")
+      .eq("linked_member_id", memberId)
+      .maybeSingle();
+  }
 
   if (result.error) throw result.error;
   return (result.data || null) as AdminProfileRecord | null;
@@ -541,21 +549,39 @@ async function loadExistingAdminProfileForInvite(
   flexibleAdmin: ReturnType<typeof asFlexibleClient>,
   options: { linkedMemberId?: null | string; targetUserId: string },
 ) {
-  const userProfileResult = await flexibleAdmin
+  let userProfileResult = await flexibleAdmin
     .from("admin_profiles" as string)
     .select("id, user_id, admin_code, linked_member_id, is_active, status")
     .eq("user_id", options.targetUserId)
     .maybeSingle();
 
+  if (userProfileResult.error && isMissingSchemaError(userProfileResult.error)) {
+    userProfileResult = await flexibleAdmin
+      .from("admin_profiles" as string)
+      .select("id, user_id, admin_code, linked_member_id, is_active")
+      .eq("user_id", options.targetUserId)
+      .maybeSingle();
+  }
+
   if (userProfileResult.error) throw userProfileResult.error;
 
-  const linkedProfileResult = options.linkedMemberId
+  let linkedProfileResult = options.linkedMemberId
     ? await flexibleAdmin
         .from("admin_profiles" as string)
         .select("id, user_id, admin_code, linked_member_id, is_active, status")
         .eq("linked_member_id", options.linkedMemberId)
         .maybeSingle()
     : { data: null, error: null };
+
+  if (linkedProfileResult.error && isMissingSchemaError(linkedProfileResult.error)) {
+    linkedProfileResult = options.linkedMemberId
+      ? await flexibleAdmin
+          .from("admin_profiles" as string)
+          .select("id, user_id, admin_code, linked_member_id, is_active")
+          .eq("linked_member_id", options.linkedMemberId)
+          .maybeSingle()
+      : { data: null, error: null };
+  }
 
   if (linkedProfileResult.error) throw linkedProfileResult.error;
 
