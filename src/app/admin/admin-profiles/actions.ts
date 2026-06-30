@@ -1145,6 +1145,9 @@ export async function inviteAdminAction(formData: FormData) {
       .single();
 
     if (invitationResult.error && isMissingSchemaError(invitationResult.error)) {
+      if (claimInvitationId) {
+        logServerError("adminInvitation.claimInvitationIdColumnMissing", invitationResult.error);
+      }
       const legacyInvitationValues = { ...invitationInsertValues };
       delete (legacyInvitationValues as Partial<typeof invitationInsertValues>).claim_invitation_id;
       invitationResult = await asFlexibleClient(admin)
