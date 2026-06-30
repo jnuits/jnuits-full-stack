@@ -54,16 +54,36 @@ for (const target of TARGETS) {
   }
 }
 
+const defaultBudget = 29;
+const configuredBudget = Number.parseInt(
+  process.env.ADMIN_UI_AUDIT_MAX_FINDINGS || `${defaultBudget}`,
+  10
+);
+const findingBudget = Number.isFinite(configuredBudget)
+  ? Math.max(0, configuredBudget)
+  : defaultBudget;
+
 if (findings.length === 0) {
   console.log('Admin responsive UI audit: no risky patterns found.');
   process.exit(0);
 }
 
-console.log(`Admin responsive UI audit: ${findings.length} report-only finding(s).`);
+console.log(
+  `Admin responsive UI audit: ${findings.length} finding(s), budget ${findingBudget}.`
+);
 for (const finding of findings.slice(0, 80)) {
   console.log(`- [${finding.check}] ${finding.file}:${finding.line} - ${finding.message}`);
 }
 if (findings.length > 80) {
   console.log(`... ${findings.length - 80} more finding(s) omitted.`);
 }
-console.log('Report-only mode: this script does not fail CI yet.');
+
+if (findings.length > findingBudget) {
+  console.error(
+    `Admin responsive UI audit failed: ${findings.length} findings exceeds budget ${findingBudget}. ` +
+      'Fix new findings or intentionally raise ADMIN_UI_AUDIT_MAX_FINDINGS with review.'
+  );
+  process.exit(1);
+}
+
+console.log('Admin responsive UI audit passed within the current finding budget.');

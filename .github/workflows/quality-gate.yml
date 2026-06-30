@@ -11,6 +11,10 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      HAS_SUPABASE_CLI_TOKEN: ${{ (secrets.SUPABASE_ACCESS_TOKEN != '' || secrets.SUPABASE_PAT != '') && 'true' || 'false' }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PAT: ${{ secrets.SUPABASE_PAT }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,8 +40,25 @@ jobs:
       - name: Admin access audit
         run: npm run audit:admin-access
 
+      - name: Admin responsive UI audit
+        run: npm run audit:admin-ui
+
       - name: Dependency audit
         run: npm audit --audit-level=moderate
+
+      - name: Setup Supabase CLI
+        if: env.HAS_SUPABASE_CLI_TOKEN == 'true'
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Migration parity
+        if: env.HAS_SUPABASE_CLI_TOKEN == 'true'
+        run: npm run migration:check
+
+      - name: Admin invite DB verification
+        if: env.HAS_SUPABASE_CLI_TOKEN == 'true'
+        run: npm run db:verify-admin-invite-search
 
       - name: Build
         env:
@@ -52,3 +73,27 @@ jobs:
           SUPABASE_SECRET_KEY: ci-placeholder-supabase-secret-key
           TURNSTILE_SECRET_KEY: ci-placeholder-turnstile-secret-key
         run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npm run test:e2e:install
+
+      - name: Playwright Chromium smoke
+        env:
+          APP_BASE_URL: https://jnuits.org.bd
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ci-placeholder-turnstile-site-key
+          PLAYWRIGHT_PORT: 3100
+          RATE_LIMIT_BACKEND: supabase
+          RATE_LIMIT_SECRET_SALT: ci-placeholder-rate-limit-secret-salt-000000
+          SUPABASE_SECRET_KEY: ci-placeholder-supabase-secret-key
+          TURNSTILE_SECRET_KEY: ci-placeholder-turnstile-secret-key
+        run: npm run test:e2e:ci
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/playwright
+          if-no-files-found: ignore

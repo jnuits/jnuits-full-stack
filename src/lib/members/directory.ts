@@ -159,7 +159,7 @@ function normalizePageValue(value: string, fallback: number, max: number) {
 const VALID_SORT_KEYS = new Set<MemberDirectorySortKey>(["name", "batch", "joined"]);
 const DEPT_CODE_PATTERN = /^[A-Z0-9_-]{1,80}$/i;
 
-function normalizeDirectoryQuery(
+export function normalizeDirectoryQuery(
   input: MemberDirectoryQueryInput
 ): NormalizedDirectoryQuery {
   const typeRaw = firstString(input.type).trim().toLowerCase();

@@ -11,6 +11,10 @@ import {
   hasPortalRole,
   resolveScopedNextPath,
 } from "@/lib/auth/session";
+import {
+  enforceAuthActionProtection,
+  shouldAttemptPostClaimAutoLogin,
+} from "@/lib/auth/action-protection";
 import { checkAdminMFA } from "@/lib/auth/mfa";
 import { buildPasswordSignInPayload } from "@/lib/auth/password-sign-in";
 import { getAppBaseUrl } from "@/lib/env";
@@ -18,15 +22,7 @@ import type { Database } from "@/lib/db/types";
 import { logServerError } from "@/lib/errors/api-error";
 import { hashInvitationCode } from "@/lib/members/invitation-code";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
-import {
-  isCaptchaConfigured,
-  isCaptchaRequired,
-} from "@/lib/security/captcha";
-import {
-  checkRateLimit,
-  getRequestIp,
-  RATE_LIMITS,
-} from "@/lib/security/rate-limit";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
@@ -136,31 +132,6 @@ function getSafeAuthErrorMessage(error: unknown, fallback: string) {
   return message || fallback;
 }
 
-async function enforceAuthActionProtection(options: {
-  captchaToken: string;
-  email?: string;
-  rateLimit: (typeof RATE_LIMITS)[keyof typeof RATE_LIMITS];
-  rateLimitPrefix: string;
-}) {
-  const requestHeaders = await headers();
-  const ip = getRequestIp(requestHeaders);
-  const key = `${options.rateLimitPrefix}:${ip}:${options.email || "unknown"}`;
-  const rateLimit = checkRateLimit(key, options.rateLimit);
-
-  if (!rateLimit.success) {
-    return "Too many attempts. Try again later.";
-  }
-
-  if (!isCaptchaRequired()) {
-    return null;
-  }
-
-  if (!isCaptchaConfigured()) {
-    return "CAPTCHA protection is not configured. Set TURNSTILE_SECRET_KEY and NEXT_PUBLIC_TURNSTILE_SITE_KEY.";
-  }
-
-  return options.captchaToken ? null : "Complete the verification challenge.";
-}
 
 function getEmailRedirect(pathname: string) {
   return `${getAppBaseUrl()}/auth/confirm?next=${encodeURIComponent(pathname)}`;
@@ -419,9 +390,11 @@ async function loginForPortal(portal: LoginPortal, formData: FormData) {
   const nextPath = resolveLoginRedirectPath(portal, parsed.data.next);
   const protectionError = await enforceAuthActionProtection({
     captchaToken: parsed.data.captchaToken,
+    captchaValidation: "supabase",
     email,
     rateLimit: RATE_LIMITS.authLogin,
     rateLimitPrefix: `auth-login:${portal}`,
+    requestHeaders: await headers(),
   });
 
   if (protectionError) {
@@ -516,9 +489,11 @@ export async function requestPasswordReset(formData: FormData) {
 
   const protectionError = await enforceAuthActionProtection({
     captchaToken: parsed.data.captchaToken,
+    captchaValidation: "supabase",
     email: parsed.data.email,
     rateLimit: RATE_LIMITS.authPasswordReset,
     rateLimitPrefix: "auth-password-reset",
+    requestHeaders: await headers(),
   });
 
   if (protectionError) {
@@ -551,9 +526,11 @@ export async function resendSignupConfirmation(formData: FormData) {
 
   const protectionError = await enforceAuthActionProtection({
     captchaToken: parsed.data.captchaToken,
+    captchaValidation: "supabase",
     email: parsed.data.email,
     rateLimit: RATE_LIMITS.authPasswordReset,
     rateLimitPrefix: "auth-resend-signup-confirmation",
+    requestHeaders: await headers(),
   });
 
   if (protectionError) {
@@ -627,9 +604,11 @@ export async function claimProfile(formData: FormData) {
   const { email, invitationCode, jnuitsId, password } = parsed.data;
   const protectionError = await enforceAuthActionProtection({
     captchaToken: parsed.data.captchaToken,
+    captchaValidation: "turnstile",
     email,
     rateLimit: RATE_LIMITS.authRegister,
     rateLimitPrefix: "auth-register",
+    requestHeaders: await headers(),
   });
 
   if (protectionError) {
@@ -738,6 +717,12 @@ export async function claimProfile(formData: FormData) {
 
   if (auditError) {
     logServerError("claimProfile.audit", auditError);
+  }
+
+  if (!shouldAttemptPostClaimAutoLogin()) {
+    redirect(
+      `/portal/login?message=${encodeMessage("Profile claimed. Sign in with the password you just created.")}`
+    );
   }
 
   const supabase = await createClient();

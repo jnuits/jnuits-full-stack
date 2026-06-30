@@ -35,7 +35,11 @@
     "rehearse:evidence": "node scripts/build-cutover-evidence-pack.mjs",
     "ops:ensure-super-admin": "node scripts/ensure-super-admin.mjs",
     "ops:relocate-cloudinary": "node scripts/relocate-cloudinary-assets.mjs",
-    "ops:verify-sentry": "node scripts/verify-sentry-ingest.mjs"
+    "ops:verify-sentry": "node scripts/verify-sentry-ingest.mjs",
+    "test:e2e": "playwright test --project=chromium",
+    "test:e2e:ci": "playwright test --project=chromium",
+    "test:e2e:install": "playwright install chromium",
+    "db:verify-admin-invite-search": "node scripts/verify-admin-invite-search-migration.cjs"
   },
   "dependencies": {
     "@react-email/components": "1.0.12",
@@ -57,6 +61,7 @@
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.2.4",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^24.12.2",
