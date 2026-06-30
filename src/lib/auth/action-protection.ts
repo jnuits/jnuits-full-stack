@@ -13,6 +13,13 @@ import {
 
 export type AuthCaptchaValidationMode = "supabase" | "turnstile";
 
+export const AUTH_ACTION_CAPTCHA_MODES = {
+  memberClaim: "turnstile",
+  passwordReset: "supabase",
+  passwordSignIn: "supabase",
+  signupConfirmationResend: "supabase",
+} as const satisfies Record<string, AuthCaptchaValidationMode>;
+
 export async function enforceAuthActionProtection(options: {
   captchaToken: string;
   captchaValidation: AuthCaptchaValidationMode;
@@ -53,3 +60,4 @@ export async function enforceAuthActionProtection(options: {
 export function shouldAttemptPostClaimAutoLogin() {
   return !isCaptchaRequired();
 }
+

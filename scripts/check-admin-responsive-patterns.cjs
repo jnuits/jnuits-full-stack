@@ -54,7 +54,7 @@ for (const target of TARGETS) {
   }
 }
 
-const defaultBudget = 29;
+const defaultBudget = 16;
 const configuredBudget = Number.parseInt(
   process.env.ADMIN_UI_AUDIT_MAX_FINDINGS || `${defaultBudget}`,
   10

@@ -3,6 +3,7 @@
 import { Children, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { sanitizeEventHtml } from "@/lib/content/sanitize-event-html";
 import type { EventRichTextFormat } from "@/lib/content/events-shared";
 
 type EventMarkdownProps = {
@@ -49,7 +50,7 @@ export function EventMarkdown({
     return (
       <div
         className={className}
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: sanitizeEventHtml(content) }}
       />
     );
   }
@@ -77,3 +78,4 @@ export function EventMarkdown({
     </div>
   );
 }
+

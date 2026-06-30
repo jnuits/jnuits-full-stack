@@ -2226,7 +2226,7 @@ function RegistrySections({
                       <MemberChip>{row.isProfileClaimed ? "Claimed" : "Not claimed"}</MemberChip>
                     </div>
                   </div>
-                  <form action={updateCycleMemberStateAction} className="grid gap-2 sm:min-w-[280px]">
+                  <form action={updateCycleMemberStateAction} className="grid gap-2 sm:min-w-72">
                     <input name="rowId" type="hidden" value={row.id} />
                     <label className="input-label" htmlFor={`cycle-member-state-${row.id}`}>
                       Next state
@@ -2359,3 +2359,4 @@ export function MembershipDbClient({
     </div>
   );
 }
+

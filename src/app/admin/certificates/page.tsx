@@ -235,7 +235,7 @@ export default async function AdminCertificatesPage({
       </section>
 
       {/* ── Forms row: Add cert + Bulk import ───────────────────────────────── */}
-      <section style={{ display: "grid", gap: "1.5rem", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 26rem), 1fr))", alignItems: "start" }}>
+      <section className="grid items-start gap-6 xl:grid-cols-2">
         {/* Add / edit certificate */}
         <form action={upsertCertificateAction} className="section-band grid gap-4">
           <div>
@@ -739,3 +739,4 @@ export default async function AdminCertificatesPage({
     </div>
   );
 }
+

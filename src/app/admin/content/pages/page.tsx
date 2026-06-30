@@ -60,7 +60,7 @@ export default async function PagesPage({
       )}
 
       {/* Metrics */}
-      <div className="admin-metric-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(11rem, 1fr))" }}>
+      <div className="admin-metric-grid">
         <div className="admin-metric-card" data-tone="info">
           <div className="admin-metric-card__icon"><FileText size={16} /></div>
           <p className="admin-metric-card__label">Total pages</p>
@@ -112,3 +112,4 @@ export default async function PagesPage({
     </div>
   );
 }
+

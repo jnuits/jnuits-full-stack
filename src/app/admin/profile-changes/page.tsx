@@ -124,7 +124,7 @@ export default async function ProfileChangesPage() {
       )}
 
       {/* Metrics */}
-      <div className="admin-metric-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(11rem, 1fr))" }}>
+      <div className="admin-metric-grid">
         <div className="admin-metric-card" data-tone="warning">
           <div className="admin-metric-card__icon"><Clock size={16} /></div>
           <p className="admin-metric-card__label">Pending</p>
@@ -333,3 +333,4 @@ export default async function ProfileChangesPage() {
     </div>
   );
 }
+

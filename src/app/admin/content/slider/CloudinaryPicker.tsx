@@ -119,7 +119,7 @@ export function CloudinaryPicker({
 
       <div className="grid gap-3 rounded-xl border border-[var(--color-border-secondary)] p-4">
         <div className="grid gap-1">
-          <label className="input-label min-w-[min(100%,18rem)]">
+          <label className="input-label w-full max-w-sm">
             Pick from Cloudinary
             <input
               disabled={disabled}
@@ -259,3 +259,4 @@ function useDebouncedValue(value: string, delay: number) {
 
   return debounced;
 }
+

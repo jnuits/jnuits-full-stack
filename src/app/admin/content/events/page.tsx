@@ -142,7 +142,7 @@ export default async function EventsAdminPage({
         </section>
       ) : null}
 
-      <section className="admin-metric-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(11rem, 1fr))" }}>
+      <section className="admin-metric-grid">
         <article className="admin-metric-card" data-tone="info">
           <div className="admin-metric-card__icon">
             <CalendarDays size={16} />
@@ -254,3 +254,4 @@ export default async function EventsAdminPage({
     </div>
   );
 }
+

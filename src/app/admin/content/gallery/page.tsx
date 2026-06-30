@@ -338,7 +338,7 @@ export default async function GalleryAdminPage({
         </section>
       )}
 
-      <div className="admin-metric-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(11rem, 1fr))" }}>
+      <div className="admin-metric-grid">
         <div className="admin-metric-card" data-tone="info">
           <div className="admin-metric-card__icon">
             <ImageIcon size={16} />
@@ -476,3 +476,4 @@ export default async function GalleryAdminPage({
     </div>
   );
 }
+

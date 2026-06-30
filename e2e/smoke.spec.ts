@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const securityHeaderExpectations = {
   "content-security-policy": /default-src 'self'/,
@@ -6,6 +6,36 @@ const securityHeaderExpectations = {
   "x-content-type-options": /nosniff/,
   "x-frame-options": /SAMEORIGIN/,
 };
+
+const responsiveViewports = [
+  { height: 900, label: "desktop", width: 1280 },
+  { height: 1024, label: "tablet", width: 768 },
+  { height: 812, label: "mobile", width: 375 },
+];
+
+async function expectNoRuntimeError(page: Page) {
+  const body = page.locator("body");
+  await expect(body).not.toContainText(/Runtime Error|Internal Server Error|Application error/i);
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  const overflow = await page.evaluate(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    return Math.max(root.scrollWidth, body?.scrollWidth || 0) - root.clientWidth;
+  });
+
+  expect(overflow, "page-level horizontal overflow").toBeLessThanOrEqual(2);
+}
+
+async function expectStablePage(page: Page, path: string) {
+  const response = await page.goto(path, { waitUntil: "domcontentloaded" });
+
+  expect(response?.status(), `${path} status`).toBeLessThan(500);
+  await expect(page.locator("body")).toContainText(/JnUITS|Members|Gallery|Events|Email/i);
+  await expectNoRuntimeError(page);
+  await expectNoHorizontalOverflow(page);
+}
 
 test.describe("public and auth smoke", () => {
   test("homepage renders with security headers", async ({ page }) => {
@@ -17,26 +47,39 @@ test.describe("public and auth smoke", () => {
     for (const [name, expected] of Object.entries(securityHeaderExpectations)) {
       expect(headers[name], `${name} header`).toMatch(expected);
     }
+    expect(headers["content-security-policy"]).not.toContain("'unsafe-eval'");
 
     await expect(page.locator("body")).toContainText("JnUITS");
-    await expect(page.locator("body")).not.toContainText("Runtime Error");
+    await expectNoRuntimeError(page);
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("public archive routes render responsively", async ({ page }) => {
+    for (const viewport of responsiveViewports) {
+      await page.setViewportSize({ height: viewport.height, width: viewport.width });
+      for (const route of ["/members", "/gallery", "/events"]) {
+        await expectStablePage(page, route);
+      }
+    }
   });
 
   test("membership form route loads without submitting data", async ({ page }) => {
-    await page.goto("/membership-form");
-
+    await expectStablePage(page, "/membership-form");
     await expect(page.locator("body")).toContainText(/membership/i);
-    await expect(page.locator("body")).not.toContainText("Runtime Error");
   });
 
-  test("admin and portal login pages render accessible email fields", async ({ page }) => {
-    await page.goto("/admin/login");
-    await expect(page.getByRole("textbox", { name: /email/i })).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+  test("admin and portal login pages render accessible fields responsively", async ({ page }) => {
+    for (const viewport of responsiveViewports) {
+      await page.setViewportSize({ height: viewport.height, width: viewport.width });
 
-    await page.goto("/portal/login");
-    await expect(page.getByRole("textbox", { name: /email/i })).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+      await expectStablePage(page, "/admin/login");
+      await expect(page.getByRole("textbox", { name: /email/i })).toBeVisible();
+      await expect(page.getByLabel(/password/i)).toBeVisible();
+
+      await expectStablePage(page, "/portal/login");
+      await expect(page.getByRole("textbox", { name: /email/i })).toBeVisible();
+      await expect(page.getByLabel(/password/i)).toBeVisible();
+    }
   });
 
   test("unauthenticated admin routes redirect to admin login", async ({ page }) => {
@@ -44,13 +87,38 @@ test.describe("public and auth smoke", () => {
 
     await expect(page).toHaveURL(/\/admin\/login/);
     await expect(page.locator("body")).toContainText(/admin/i);
+    await expectNoRuntimeError(page);
   });
 
-  test("keyboard navigation can reach a primary public link", async ({ page }) => {
+  test("keyboard navigation reaches public controls and login fields", async ({ page }) => {
     await page.goto("/");
     await page.keyboard.press("Tab");
 
     const activeTag = await page.evaluate(() => document.activeElement?.tagName.toLowerCase());
     expect(["a", "button", "input", "select", "textarea"].includes(activeTag || "")).toBe(true);
+
+    const membersMenu = page.getByRole("button", { name: /^Members$/ }).first();
+    if ((await membersMenu.count()) > 0 && (await membersMenu.isVisible())) {
+      await membersMenu.focus();
+      await page.keyboard.press("Enter");
+      await expect(membersMenu).toHaveAttribute("aria-expanded", "true");
+    }
+
+    const nextSlide = page.getByRole("button", { name: /next slide/i }).first();
+    if ((await nextSlide.count()) > 0 && (await nextSlide.isVisible())) {
+      await nextSlide.focus();
+      await expect(nextSlide).toBeFocused();
+    }
+
+    await page.goto("/admin/login");
+    await page.getByRole("textbox", { name: /email/i }).focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByLabel(/password/i)).toBeFocused();
+
+    await page.goto("/portal/login");
+    await page.getByRole("textbox", { name: /email/i }).focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByLabel(/password/i)).toBeFocused();
   });
 });
+

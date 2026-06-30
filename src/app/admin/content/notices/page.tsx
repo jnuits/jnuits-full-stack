@@ -254,7 +254,6 @@ export default async function NoticesAdminPage({
 
       <section
         className="admin-metric-grid notice-admin-metrics"
-        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(11rem, 1fr))" }}
       >
         <article className="admin-metric-card" data-tone="info">
           <div className="admin-metric-card__icon">
@@ -375,3 +374,4 @@ export default async function NoticesAdminPage({
     </div>
   );
 }
+

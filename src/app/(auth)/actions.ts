@@ -12,6 +12,7 @@ import {
   resolveScopedNextPath,
 } from "@/lib/auth/session";
 import {
+  AUTH_ACTION_CAPTCHA_MODES,
   enforceAuthActionProtection,
   shouldAttemptPostClaimAutoLogin,
 } from "@/lib/auth/action-protection";
@@ -390,7 +391,7 @@ async function loginForPortal(portal: LoginPortal, formData: FormData) {
   const nextPath = resolveLoginRedirectPath(portal, parsed.data.next);
   const protectionError = await enforceAuthActionProtection({
     captchaToken: parsed.data.captchaToken,
-    captchaValidation: "supabase",
+    captchaValidation: AUTH_ACTION_CAPTCHA_MODES.passwordSignIn,
     email,
     rateLimit: RATE_LIMITS.authLogin,
     rateLimitPrefix: `auth-login:${portal}`,
@@ -489,7 +490,7 @@ export async function requestPasswordReset(formData: FormData) {
 
   const protectionError = await enforceAuthActionProtection({
     captchaToken: parsed.data.captchaToken,
-    captchaValidation: "supabase",
+    captchaValidation: AUTH_ACTION_CAPTCHA_MODES.passwordReset,
     email: parsed.data.email,
     rateLimit: RATE_LIMITS.authPasswordReset,
     rateLimitPrefix: "auth-password-reset",
@@ -526,7 +527,7 @@ export async function resendSignupConfirmation(formData: FormData) {
 
   const protectionError = await enforceAuthActionProtection({
     captchaToken: parsed.data.captchaToken,
-    captchaValidation: "supabase",
+    captchaValidation: AUTH_ACTION_CAPTCHA_MODES.signupConfirmationResend,
     email: parsed.data.email,
     rateLimit: RATE_LIMITS.authPasswordReset,
     rateLimitPrefix: "auth-resend-signup-confirmation",
@@ -604,7 +605,7 @@ export async function claimProfile(formData: FormData) {
   const { email, invitationCode, jnuitsId, password } = parsed.data;
   const protectionError = await enforceAuthActionProtection({
     captchaToken: parsed.data.captchaToken,
-    captchaValidation: "turnstile",
+    captchaValidation: AUTH_ACTION_CAPTCHA_MODES.memberClaim,
     email,
     rateLimit: RATE_LIMITS.authRegister,
     rateLimitPrefix: "auth-register",
@@ -748,3 +749,5 @@ export async function claimProfile(formData: FormData) {
   revalidatePath("/", "layout");
   redirect("/portal/dashboard?claimed=1");
 }
+
+

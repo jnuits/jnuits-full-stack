@@ -110,7 +110,7 @@ export default async function ApplicationsPage() {
       )}
 
       {/* ── Metrics ── */}
-      <div className="admin-metric-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(11rem, 1fr))" }}>
+      <div className="admin-metric-grid">
         <div className="admin-metric-card" data-tone="warning">
           <div className="admin-metric-card__icon"><Clock size={16} /></div>
           <p className="admin-metric-card__label">Pending</p>
@@ -261,7 +261,7 @@ export default async function ApplicationsPage() {
                     <td className="text-xs" data-label="Reviewed" style={{ color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                       {app.reviewed_at ? new Date(app.reviewed_at).toLocaleDateString("en-BD") : "—"}
                     </td>
-                    <td className="text-xs max-w-[16rem] truncate" data-label="Note" style={{ color: "var(--muted-foreground)" }}>
+                    <td className="max-w-64 whitespace-normal break-words text-xs" data-label="Note" style={{ color: "var(--muted-foreground)" }}>
                       {app.review_note || "—"}
                     </td>
                   </tr>
@@ -274,3 +274,5 @@ export default async function ApplicationsPage() {
     </div>
   );
 }
+
+

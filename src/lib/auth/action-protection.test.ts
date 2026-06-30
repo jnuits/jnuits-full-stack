@@ -10,6 +10,7 @@ const captchaMocks = vi.hoisted(() => ({
 vi.mock("@/lib/security/captcha", () => captchaMocks);
 
 import {
+  AUTH_ACTION_CAPTCHA_MODES,
   enforceAuthActionProtection,
   shouldAttemptPostClaimAutoLogin,
 } from "./action-protection";
@@ -30,7 +31,7 @@ describe("auth action protection", () => {
     await expect(
       enforceAuthActionProtection({
         captchaToken: "turnstile-token",
-        captchaValidation: "supabase",
+        captchaValidation: AUTH_ACTION_CAPTCHA_MODES.passwordSignIn,
         email: "member@example.com",
         rateLimit: RATE_LIMITS.authLogin,
         rateLimitPrefix: `test-auth-login-${crypto.randomUUID()}`,
@@ -49,7 +50,7 @@ describe("auth action protection", () => {
     await expect(
       enforceAuthActionProtection({
         captchaToken: "turnstile-token",
-        captchaValidation: "turnstile",
+        captchaValidation: AUTH_ACTION_CAPTCHA_MODES.memberClaim,
         email: "member@example.com",
         rateLimit: RATE_LIMITS.authRegister,
         rateLimitPrefix: `test-auth-claim-${crypto.randomUUID()}`,
@@ -74,13 +75,22 @@ describe("auth action protection", () => {
     await expect(
       enforceAuthActionProtection({
         captchaToken: "random-string",
-        captchaValidation: "turnstile",
+        captchaValidation: AUTH_ACTION_CAPTCHA_MODES.memberClaim,
         email: "member@example.com",
         rateLimit: RATE_LIMITS.authRegister,
         rateLimitPrefix: `test-auth-claim-fail-${crypto.randomUUID()}`,
         requestHeaders: headers(),
       })
     ).resolves.toBe("CAPTCHA verification failed.");
+  });
+
+  it("documents the intended CAPTCHA validation mode for each auth action", () => {
+    expect(AUTH_ACTION_CAPTCHA_MODES).toEqual({
+      memberClaim: "turnstile",
+      passwordReset: "supabase",
+      passwordSignIn: "supabase",
+      signupConfirmationResend: "supabase",
+    });
   });
 
   it("does not attempt post-claim auto-login when CAPTCHA is required", () => {

@@ -156,7 +156,7 @@ export function ContactSettingsEditor({ rows }: ContactSettingsEditorProps) {
                       />
 
                       <button
-                        className="secondary-button inline-flex h-10 min-w-[6.5rem] items-center justify-center gap-2 px-3 text-xs"
+                        className="secondary-button inline-flex h-10 min-w-24 items-center justify-center gap-2 px-3 text-xs"
                         type="button"
                         disabled={!dirty || status === "saving"}
                         onClick={() => {
@@ -189,3 +189,4 @@ export function ContactSettingsEditor({ rows }: ContactSettingsEditorProps) {
     </div>
   );
 }
+

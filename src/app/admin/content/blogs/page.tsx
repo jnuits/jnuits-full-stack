@@ -177,7 +177,6 @@ export default async function BlogsPage({
 
       <div
         className="admin-metric-grid"
-        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(11rem, 1fr))" }}
       >
         <div className="admin-metric-card" data-tone="info">
           <div className="admin-metric-card__icon">
@@ -476,3 +475,4 @@ export default async function BlogsPage({
     </div>
   );
 }
+
