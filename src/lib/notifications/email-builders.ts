@@ -799,7 +799,7 @@ export function buildAdminInvitationEmail(props: AdminInvitationEmailProps): str
     ]),
     orderedSteps([
       "Open the invitation link using the email address shown above.",
-      "Set or confirm your Supabase account session.",
+      "Set or confirm your Supabase account session. If you already use this email on JnUITS, sign in with that same account when prompted.",
       "Accept the admin invitation, then complete MFA setup before entering the workspace.",
     ]),
     button("Accept admin invitation", props.actionLink),

@@ -286,8 +286,8 @@ async function loadSelectedProfileActivities(
   );
 }
 
-function cleanMemberSearchQuery(value: string) {
-  return value.replace(/[%*,]/g, " ").trim().slice(0, 80);
+export function cleanMemberSearchQuery(value: string) {
+  return value.replace(/[%*,_]/g, " ").trim().slice(0, 80);
 }
 
 function memberSearchPattern(query: string) {
@@ -424,6 +424,7 @@ async function loadAdminInviteMemberCandidates(options: {
         roleGrantError: roleGrantResult.error,
       });
     }
+    return [];
   }
 
   const linkedAdminProfileByMemberId = new Map(

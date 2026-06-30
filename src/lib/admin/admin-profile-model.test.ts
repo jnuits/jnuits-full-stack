@@ -9,6 +9,7 @@ import {
   type AdminProfileDirectoryProfile,
   type AdminProfileFilters,
 } from "@/lib/admin/admin-profile-model";
+import { cleanMemberSearchQuery } from "@/lib/admin/admin-profiles";
 
 const defaultCapabilities: AdminAccountCapabilities = {
   allowedInviteRoles: [],
@@ -91,6 +92,11 @@ describe("admin profile model", () => {
     expect(parseAdminProfileFilters({ tab: "unknown" }).tab).toBe(
       "directory",
     );
+  });
+
+  it("neutralizes SQL wildcard characters in member invite search", () => {
+    expect(cleanMemberSearchQuery("__@evil.com%*,")).toBe("@evil.com");
+    expect(cleanMemberSearchQuery(" Red_wan% ")).toBe("Red wan");
   });
 
   it("filters by search, role, status, and linked member metadata", () => {
