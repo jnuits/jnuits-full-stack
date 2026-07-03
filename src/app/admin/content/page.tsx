@@ -22,7 +22,7 @@ export default async function ContentHubPage() {
       admin.from("media_assets").select("*", { count: "exact", head: true }),
       admin.from("content_pages").select("*", { count: "exact", head: true }),
       admin.from("content_posts").select("*", { count: "exact", head: true }),
-      admin.from("gallery_entries").select("*", { count: "exact", head: true }),
+      admin.from("gallery_albums").select("*", { count: "exact", head: true }),
       admin.from("projects").select("*", { count: "exact", head: true }),
     ]);
 
@@ -35,10 +35,7 @@ export default async function ContentHubPage() {
       .from("content_posts")
       .select("*", { count: "exact", head: true })
       .eq("content_type", "notice"),
-    admin
-      .from("content_posts")
-      .select("*", { count: "exact", head: true })
-      .eq("content_type", "event"),
+    admin.from("events").select("*", { count: "exact", head: true }),
     admin
       .from("content_posts")
       .select("*", { count: "exact", head: true })
@@ -81,7 +78,7 @@ export default async function ContentHubPage() {
       icon: <ImageIcon size={20} />,
       count: galleryResult.count || 0,
       label: "Gallery",
-      desc: "Manage gallery entries linked to Cloudinary media",
+      desc: "Manage gallery albums and Cloudinary-backed items",
     },
     {
       href: "/admin/content/projects",
@@ -94,8 +91,8 @@ export default async function ContentHubPage() {
       href: "/admin/content/pages",
       icon: <FileText size={20} />,
       count: pagesResult.count || 0,
-      label: "Page Singletons",
-      desc: "Home, about, contact, footer — edit page copy",
+      label: "Advanced page content",
+      desc: "Advanced singleton copy for home, contact, and footer",
     },
   ];
 
@@ -141,7 +138,7 @@ export default async function ContentHubPage() {
           <div className="admin-metric-card" data-tone="info">
             <p className="admin-metric-card__label">Total posts</p>
             <p className="admin-metric-card__value">{postsResult.count || 0}</p>
-            <p className="admin-metric-card__sub">Blogs + events + notices</p>
+            <p className="admin-metric-card__sub">Blogs + notices</p>
           </div>
           <div className="admin-metric-card" data-tone="warning">
             <p className="admin-metric-card__label">Pending review</p>

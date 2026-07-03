@@ -21,6 +21,7 @@ export type AdminBadgeCounts = {
   pendingApps: number;
   pendingWorkplace: number;
   pendingProfile: number;
+  pendingProfileRequests: number;
 };
 
 export type AdminShellNavigationItem = Pick<
@@ -73,12 +74,16 @@ export async function AdminShell({
   const showPendingProfile = navigationItems.some(
     (item) => item.badgeKey === "pendingProfile"
   );
+  const showPendingProfileRequests = navigationItems.some(
+    (item) => item.badgeKey === "pendingProfileRequests"
+  );
 
   const admin = createAdminClient();
   const [
     { count: pendingApps },
     { count: pendingWorkplace },
     { count: pendingProfile },
+    { count: pendingProfileRequests },
   ] = await Promise.all([
     showPendingApps
       ? admin
@@ -100,12 +105,25 @@ export async function AdminShell({
           .eq("request_type", "profile_change")
           .eq("status", "pending")
       : Promise.resolve({ count: 0 }),
+    showPendingProfileRequests
+      ? admin
+          .from("profile_update_requests")
+          .select("*", { count: "exact", head: true })
+          .in("request_type", [
+            "workplace_update",
+            "profile_change",
+            "email_change",
+            "jnuits_id_change",
+          ])
+          .eq("status", "pending")
+      : Promise.resolve({ count: 0 }),
   ]);
 
   const badgeCounts: AdminBadgeCounts = {
     pendingApps: pendingApps ?? 0,
     pendingWorkplace: pendingWorkplace ?? 0,
     pendingProfile: pendingProfile ?? 0,
+    pendingProfileRequests: pendingProfileRequests ?? 0,
   };
 
   return (

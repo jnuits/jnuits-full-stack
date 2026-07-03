@@ -75,7 +75,7 @@ export const adminDashboardQuickLinks = [
   },
   {
     capability: "membershipManage",
-    href: "/admin#applications",
+    href: "/admin/applications",
     iconKey: "userCheck",
     label: "Applications",
   },
@@ -86,10 +86,10 @@ export const adminDashboardQuickLinks = [
     label: "Invitations",
   },
   {
-    capability: "reconcileManage",
-    href: "/admin/reconcile",
-    iconKey: "refresh",
-    label: "Reconcile",
+    capability: "membershipManage",
+    href: "/admin/profile-changes",
+    iconKey: "users",
+    label: "Profile Requests",
   },
   {
     capability: "certificatesManage",

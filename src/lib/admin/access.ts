@@ -57,6 +57,7 @@ export type AdminNavIconKey =
 export type AdminBadgeKey =
   | "pendingApps"
   | "pendingProfile"
+  | "pendingProfileRequests"
   | "pendingWorkplace";
 
 export type AdminAccessItem = {
@@ -98,19 +99,11 @@ export const adminAccessItems: readonly AdminAccessItem[] = [
     requiredPermission: "admin.membership.manage",
   },
   {
-    badgeKey: "pendingWorkplace",
-    group: "Membership",
-    href: "/admin/workplace",
-    iconKey: "clipboard",
-    label: "Workplace",
-    requiredPermission: "admin.membership.manage",
-  },
-  {
-    badgeKey: "pendingProfile",
+    badgeKey: "pendingProfileRequests",
     group: "Membership",
     href: "/admin/profile-changes",
     iconKey: "users",
-    label: "Profile Changes",
+    label: "Profile Requests",
     requiredPermission: "admin.membership.manage",
   },
   {
@@ -191,13 +184,6 @@ export const adminAccessItems: readonly AdminAccessItem[] = [
     requiredPermission: "cms.projects.manage",
   },
   {
-    group: "Content",
-    href: "/admin/content/pages",
-    iconKey: "scroll",
-    label: "Page Singletons",
-    requiredPermission: "cms.pages.manage",
-  },
-  {
     group: "Organization",
     href: "/admin/committee",
     iconKey: "shield",
@@ -217,13 +203,6 @@ export const adminAccessItems: readonly AdminAccessItem[] = [
     iconKey: "barChart",
     label: "Reports",
     requiredPermission: "admin.reports.read",
-  },
-  {
-    group: "Organization",
-    href: "/admin/reconcile",
-    iconKey: "refresh",
-    label: "Reconcile",
-    requiredPermission: "admin.reconcile.manage",
   },
   {
     group: "Organization",
@@ -286,6 +265,24 @@ const hiddenAdminRoutes: Array<{ href: string; access: AdminRouteAccess }> = [
   {
     href: "/admin/settings",
     access: { requiredPermission: "admin.settings.read", requireAal2: false },
+  },
+  {
+    href: "/admin/workplace",
+    access: {
+      requiredPermission: "admin.membership.manage",
+      requireAal2: false,
+    },
+  },
+  {
+    href: "/admin/content/pages",
+    access: { requiredPermission: "cms.pages.manage", requireAal2: false },
+  },
+  {
+    href: "/admin/reconcile",
+    access: {
+      requiredPermission: "admin.reconcile.manage",
+      requireAal2: false,
+    },
   },
 ];
 

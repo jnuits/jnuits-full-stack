@@ -1,13 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import {
-  approveMembershipApplication,
-  rejectMembershipApplication,
-} from "@/app/admin/membership/moderation-actions";
-import { ProfileChangeRequestsPanel } from "@/components/admin/profile-change-requests-panel";
-import { WorkplaceRequestsPanel } from "@/components/admin/workplace-requests-panel";
-import { EmptyState } from "@/components/ui/empty-state";
-import {
   BarChart2,
   BookOpen,
   ClipboardList,
@@ -90,37 +83,6 @@ type WorkplaceRequestRecord = {
     | null;
 };
 
-type ProfileChangeRequestRecord = {
-  id: string;
-  member_id: string;
-  payload: unknown;
-  request_type: string;
-  requested_at: string;
-  review_note: string | null;
-  reviewed_at: string | null;
-  status: string;
-  members?:
-    | {
-        email?: string | null;
-        full_name?: string | null;
-        jnuits_id?: string | null;
-        avatar_secure_url?: string | null;
-        phone?: string | null;
-        linkedin_url?: string | null;
-        website_url?: string | null;
-      }
-    | {
-        email?: string | null;
-        full_name?: string | null;
-        jnuits_id?: string | null;
-        avatar_secure_url?: string | null;
-        phone?: string | null;
-        linkedin_url?: string | null;
-        website_url?: string | null;
-      }[]
-    | null;
-};
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function resolveDepartmentName(
@@ -182,10 +144,8 @@ export default async function AdminPage() {
     pendingCountResult,
     activeInvitationsResult,
     membersCountResult,
-    pendingWorkplaceRequestsResult,
     pendingWorkplaceCountResult,
     recentWorkplaceDecisionsResult,
-    pendingProfileChangeRequestsResult,
     pendingProfileChangeCountResult,
     auditLogsResult,
   ] = await Promise.all([
@@ -228,17 +188,6 @@ export default async function AdminPage() {
     canManageMembership
       ? admin
           .from("profile_update_requests")
-          .select(
-            "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, member_type, avatar_secure_url, current_organization, designation, work_location, professional_visibility)"
-          )
-          .eq("request_type", "workplace_update")
-          .eq("status", "pending")
-          .order("requested_at", { ascending: true })
-          .limit(8)
-      : Promise.resolve({ data: [] as WorkplaceRequestRecord[] }),
-    canManageMembership
-      ? admin
-          .from("profile_update_requests")
           .select("*", { count: "exact", head: true })
           .eq("request_type", "workplace_update")
           .eq("status", "pending")
@@ -254,17 +203,6 @@ export default async function AdminPage() {
           .order("reviewed_at", { ascending: false })
           .limit(6)
       : Promise.resolve({ data: [] as WorkplaceRequestRecord[] }),
-    canManageMembership
-      ? admin
-          .from("profile_update_requests")
-          .select(
-            "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, avatar_secure_url, phone, facebook_url, linkedin_url, website_url)"
-          )
-          .eq("request_type", "profile_change")
-          .eq("status", "pending")
-          .order("requested_at", { ascending: true })
-          .limit(8)
-      : Promise.resolve({ data: [] as ProfileChangeRequestRecord[] }),
     canManageMembership
       ? admin
           .from("profile_update_requests")
@@ -285,12 +223,8 @@ export default async function AdminPage() {
     (pendingApplicationsResult.data || []) as ApplicationRecord[];
   const recentDecisions =
     (recentDecisionsResult.data || []) as ApplicationRecord[];
-  const pendingWorkplaceRequests =
-    (pendingWorkplaceRequestsResult.data || []) as WorkplaceRequestRecord[];
   const recentWorkplaceDecisions =
     (recentWorkplaceDecisionsResult.data || []) as WorkplaceRequestRecord[];
-  const pendingProfileChangeRequests =
-    (pendingProfileChangeRequestsResult.data || []) as ProfileChangeRequestRecord[];
   const auditLogs = auditLogsResult.data || [];
 
   const processedMemberIds = recentDecisions
@@ -450,7 +384,7 @@ export default async function AdminPage() {
             <h2 className="font-[family-name:var(--font-heading)] text-lg font-bold tracking-[-0.02em]">
               Pending queue
             </h2>
-            <Link href="/admin#applications" className="queue-link text-xs">
+            <Link href="/admin/applications" className="queue-link text-xs">
               View all →
             </Link>
           </div>
@@ -557,207 +491,69 @@ export default async function AdminPage() {
           </div>
         </section>
       ) : null}
-
-      {/* ── Applications queue ───────────────────────────────────────────────── */}
+      {/* ── Source-of-truth membership workflows ───────────────────────────── */}
       {canManageMembership ? (
-        <section id="applications" className="grid gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <span className="eyebrow">Membership queue</span>
-            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,3rem)] leading-[0.96] tracking-[-0.04em]">
-              Pending applications ready for operator review
-            </h2>
-          </div>
-          <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
-            Approving an application creates the member record, assigns a
-            JnUITS ID, generates a claim code, and writes an audit event.
-          </p>
-        </div>
-
-        {pendingApplications.length === 0 ? (
-          <EmptyState
-            title="No pending applications right now"
-            description="The intake queue is empty. As new applications arrive they will appear here for operator review."
-          />
-        ) : (
-          pendingApplications.map((application) => (
-            <article key={application.id} className="application-card">
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
-                <div className="application-card__meta">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="eyebrow">Pending review</span>
-                    <span className="detail-chip">
-                      Applied{" "}
-                      {new Date(application.created_at).toLocaleDateString(
-                        "en-BD"
-                      )}
-                    </span>
-                  </div>
-                  <div>
-                    <h3 className="font-[family-name:var(--font-heading)] text-3xl font-semibold tracking-[-0.04em]">
-                      {application.name}
-                    </h3>
-                    <p className="mt-2 text-base font-semibold text-[var(--brand-blue)]">
-                      {application.email}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="detail-chip">
-                      {resolveDepartmentName(
-                        application.departments,
-                        application.department_code
-                      )}
-                    </span>
-                    {application.batch_label ? (
-                      <span className="detail-chip">
-                        Batch {application.batch_label}
-                      </span>
-                    ) : null}
-                    {application.student_id ? (
-                      <span className="detail-chip">
-                        Student ID {application.student_id}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {application.phone ? (
-                      <div className="route-tile">
-                        <h3>Phone</h3>
-                        <p>{application.phone}</p>
-                      </div>
-                    ) : null}
-                    {application.photo_url ? (
-                      <div className="route-tile">
-                        <h3>Photo</h3>
-                        <a
-                          className="queue-link"
-                          href={application.photo_url}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          Open uploaded photo
-                        </a>
-                      </div>
-                    ) : null}
-                    {application.facebook_url ? (
-                      <div className="route-tile">
-                        <h3>Facebook</h3>
-                        <a
-                          className="queue-link"
-                          href={application.facebook_url}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          Review profile
-                        </a>
-                      </div>
-                    ) : null}
-                    {application.linkedin_url ? (
-                      <div className="route-tile">
-                        <h3>LinkedIn</h3>
-                        <a
-                          className="queue-link"
-                          href={application.linkedin_url}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          Review profile
-                        </a>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <form className="application-card__actions">
-                  <input
-                    type="hidden"
-                    name="applicationId"
-                    value={application.id}
-                  />
-                  <label className="input-label">
-                    Optional JnUITS ID override
-                    <input
-                      name="jnuitsIdOverride"
-                      placeholder="JNUITS-2026001"
-                      type="text"
-                    />
-                  </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="input-label">
-                      Invitation expiry days
-                      <input
-                        defaultValue={14}
-                        max={60}
-                        min={1}
-                        name="invitationExpiresInDays"
-                        type="number"
-                      />
-                    </label>
-                    <label className="input-label">
-                      Max uses
-                      <input
-                        defaultValue={1}
-                        max={5}
-                        min={1}
-                        name="maxUses"
-                        type="number"
-                      />
-                    </label>
-                  </div>
-                  <label className="input-label">
-                    Review note
-                    <textarea
-                      name="reviewNote"
-                      placeholder="Operator note, context, or decision rationale"
-                      rows={4}
-                    />
-                  </label>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      className="primary-button"
-                      formAction={approveMembershipApplication}
-                    >
-                      Approve and generate invite
-                    </button>
-                    <button
-                      className="secondary-button"
-                      formAction={rejectMembershipApplication}
-                    >
-                      Reject application
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </article>
-          ))
-        )}
-        </section>
-      ) : null}
-
-      {canManageMembership ? (
-        <section className="route-tile" id="invitations">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3>Invitation workspace</h3>
-            <p className="mt-2">
-              Claim codes, direct invites, delivery state, batch issuance, and revocation now live on the dedicated invitations page.
+        <section id="membership-workflows" className="grid gap-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <span className="eyebrow">Membership workflows</span>
+              <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,3rem)] leading-[0.96] tracking-[-0.04em]">
+                Daily queues live on dedicated operator pages
+              </h2>
+            </div>
+            <p className="max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
+              The dashboard summarizes queue pressure only. Open the dedicated
+              workspace for approval, rejection, delivery, and audit actions.
             </p>
           </div>
-          <Link className="primary-button" href="/admin/invitations">
-            Open invitations
-          </Link>
-        </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <article className="route-tile">
+              <h3>Applications</h3>
+              <p>
+                {pendingCountResult.count || 0} membership application{(pendingCountResult.count || 0) === 1 ? "" : "s"} waiting for review.
+              </p>
+              <Link className="queue-link" href="/admin/applications">
+                Open applications
+              </Link>
+            </article>
+            <article className="route-tile">
+              <h3>Invitations</h3>
+              <p>
+                {activeInvitationsResult.count || 0} active claim-code invitation{(activeInvitationsResult.count || 0) === 1 ? "" : "s"}; delivery and revocation live in the invitation workspace.
+              </p>
+              <Link className="queue-link" href="/admin/invitations">
+                Open invitations
+              </Link>
+            </article>
+            <article className="route-tile">
+              <h3>Profile requests</h3>
+              <p>
+                {(pendingWorkplaceCountResult.count || 0) + (pendingProfileChangeCountResult.count || 0)} profile or workplace request{((pendingWorkplaceCountResult.count || 0) + (pendingProfileChangeCountResult.count || 0)) === 1 ? "" : "s"} waiting for moderation.
+              </p>
+              <Link className="queue-link" href="/admin/profile-changes">
+                Open profile requests
+              </Link>
+            </article>
+          </div>
+
+          <article className="route-tile" id="workplace">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3>Workplace directory and history</h3>
+                <p className="mt-2">
+                  The dedicated workplace workspace remains available for alumni
+                  workplace history, stale profile checks, bulk moderation, and
+                  direct profile corrections.
+                </p>
+              </div>
+              <Link className="secondary-button" href="/admin/workplace">
+                Open workplace workspace
+              </Link>
+            </div>
+          </article>
         </section>
       ) : null}
-
-      {canManageMembership ? (
-        <WorkplaceRequestsPanel requests={pendingWorkplaceRequests} />
-      ) : null}
-
-      {canManageMembership ? (
-        <ProfileChangeRequestsPanel requests={pendingProfileChangeRequests} />
-      ) : null}
-
       {showDecisionCards ? (
         <section
           id="decisions"
@@ -861,9 +657,7 @@ export default async function AdminPage() {
             <article className="route-tile">
             <h3>Certificates</h3>
             <p>
-              Public certificate verification and QR-compatible lookup are live.
-              Use the import tools to upload new certificate batches and monitor
-              import run history.
+              Public certificate verification is live through certificate IDs and public verification links. Use the Certificates workspace to create records, import batches, and monitor import history.
             </p>
             </article>
           ) : null}
@@ -871,8 +665,7 @@ export default async function AdminPage() {
             <article className="route-tile" id="reconcile">
             <h3>Batch import and reconciliation</h3>
             <p>
-              Upload a CSV of certificates to stage and review them before
-              committing. Dry-run mode lets you validate data before applying.
+              Reconciliation snapshots now live in Reports. Use saved operator reports for migration parity, queue pressure, and cutover evidence.
             </p>
             </article>
           ) : null}

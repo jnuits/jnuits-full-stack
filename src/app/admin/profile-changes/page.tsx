@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
@@ -59,14 +60,20 @@ function formatRequestType(value: string) {
   return value.replaceAll("_", " ");
 }
 
-export const metadata = { title: "Profile Changes — Admin | JnUITS" };
+export const metadata = { title: "Profile Requests — Admin | JnUITS" };
 
 export default async function ProfileChangesPage() {
   const admin = createAdminClient();
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
 
-  const [pendingResult, recentResult, countResult, departments] = await Promise.all([
+  const [
+    pendingResult,
+    recentResult,
+    countResult,
+    pendingWorkplaceCountResult,
+    departments,
+  ] = await Promise.all([
     admin
       .from("profile_update_requests")
       .select(
@@ -88,12 +95,18 @@ export default async function ProfileChangesPage() {
       .select("*", { count: "exact", head: true })
       .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
       .eq("status", "pending"),
+    admin
+      .from("profile_update_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("request_type", "workplace_update")
+      .eq("status", "pending"),
     getActiveDepartmentOptions(),
   ]);
 
   const pending = (pendingResult.data || []) as ProfileChangeRequestRecord[];
   const recent = (recentResult.data || []) as ProfileChangeRequestRecord[];
   const pendingCount = countResult.count || 0;
+  const pendingWorkplaceCount = pendingWorkplaceCountResult.count || 0;
   const departmentNameByCode = new Map(
     departments.map((department) => [department.code, department.name])
   );
@@ -103,9 +116,9 @@ export default async function ProfileChangesPage() {
       <div className="admin-page-header">
         <div>
           <p className="admin-page-header__breadcrumb">Admin / Membership</p>
-          <h1 className="admin-page-header__title">Profile Changes</h1>
+          <h1 className="admin-page-header__title">Profile Requests</h1>
           <p className="admin-page-header__desc">
-            Review each member-requested name, phone, and social link edit before it is applied to the member record.
+            Review member-requested identity, contact, and social edits. Workplace requests remain linked here and open in the dedicated workplace workspace.
           </p>
         </div>
         {pendingCount > 0 && (
@@ -127,7 +140,7 @@ export default async function ProfileChangesPage() {
       <div className="admin-metric-grid">
         <div className="admin-metric-card" data-tone="warning">
           <div className="admin-metric-card__icon"><Clock size={16} /></div>
-          <p className="admin-metric-card__label">Pending</p>
+          <p className="admin-metric-card__label">Profile edits</p>
           <p className="admin-metric-card__value">{pendingCount}</p>
           <p className="admin-metric-card__sub">Await review</p>
         </div>
@@ -143,8 +156,27 @@ export default async function ProfileChangesPage() {
           <p className="admin-metric-card__value">{recent.filter((r) => r.status === "approved").length}</p>
           <p className="admin-metric-card__sub">Recent decisions</p>
         </div>
+        <div className="admin-metric-card" data-tone="info">
+          <div className="admin-metric-card__icon"><Clock size={16} /></div>
+          <p className="admin-metric-card__label">Workplace</p>
+          <p className="admin-metric-card__value">{pendingWorkplaceCount}</p>
+          <p className="admin-metric-card__sub">Open in workplace workspace</p>
+        </div>
       </div>
 
+      <section className="route-tile">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3>Workplace queue and directory</h3>
+            <p className="mt-2">
+              {pendingWorkplaceCount} workplace request{pendingWorkplaceCount === 1 ? "" : "s"} waiting for review. Use the dedicated workspace for workplace history, directory visibility, stale-profile checks, and manual corrections.
+            </p>
+          </div>
+          <Link className="secondary-button" href="/admin/workplace">
+            Open workplace workspace
+          </Link>
+        </div>
+      </section>
       {/* Pending Queue */}
       <section>
         <p className="admin-section-label">Pending profile change requests</p>

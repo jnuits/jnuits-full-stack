@@ -45,6 +45,16 @@ type CertRow = {
 };
 
 
+type LegacyCertRow = Omit<CertRow, "full_name"> & {
+  first_name: string | null;
+  last_name: string | null;
+};
+
+type CertificateLoadResult = {
+  certs: CertRow[];
+  totalCount: number;
+  warning: string | null;
+};
 type BatchRow = {
   id: string;
   source_name: string;
@@ -76,6 +86,118 @@ function batchStatusClass(status: string) {
   return "portal-badge--draft";
 }
 
+function isMissingColumnError(error: unknown, columnName: string) {
+  if (!error || typeof error !== "object") return false;
+  const maybeError = error as { code?: string; message?: string };
+  return maybeError.code === "42703" && (maybeError.message ?? "").includes(columnName);
+}
+
+function escapePostgrestPattern(value: string) {
+  return value.replace(/[%_,]/g, " ").trim();
+}
+
+function deriveLegacyFullName(row: Pick<LegacyCertRow, "first_name" | "last_name" | "certificate_id">) {
+  const name = [row.first_name, row.last_name]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return name || row.certificate_id;
+}
+
+async function loadCertificates(params: {
+  admin: ReturnType<typeof createAdminClient>;
+  q: string;
+  filterType: string;
+  offset: number;
+  pageSize: number;
+}): Promise<CertificateLoadResult> {
+  const { admin, q, filterType, offset, pageSize } = params;
+  const search = escapePostgrestPattern(q);
+
+  let certQuery = admin
+    .from("certificates")
+    .select(
+      "id, certificate_id, full_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url, created_at, updated_at",
+      { count: "exact" }
+    );
+
+  if (search) {
+    certQuery = certQuery.or(
+      `certificate_id.ilike.%${search}%,full_name.ilike.%${search}%,exam_or_event_name.ilike.%${search}%`
+    );
+  }
+  if (filterType) {
+    certQuery = certQuery.ilike("exam_or_event", filterType);
+  }
+
+  const certsResult = await certQuery
+    .order("issue_date", { ascending: false })
+    .range(offset, offset + pageSize - 1);
+
+  if (!certsResult.error) {
+    return {
+      certs: (certsResult.data || []) as CertRow[],
+      totalCount: certsResult.count ?? 0,
+      warning: null,
+    };
+  }
+
+  if (!isMissingColumnError(certsResult.error, "full_name")) {
+    return {
+      certs: [],
+      totalCount: 0,
+      warning: "Certificate records could not be loaded. Server details were kept out of the operator UI.",
+    };
+  }
+
+  let legacyQuery = admin
+    .from("certificates")
+    .select(
+      "id, certificate_id, first_name, last_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url, created_at, updated_at",
+      { count: "exact" }
+    );
+
+  if (search) {
+    legacyQuery = legacyQuery.or(
+      `certificate_id.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,exam_or_event_name.ilike.%${search}%`
+    );
+  }
+  if (filterType) {
+    legacyQuery = legacyQuery.ilike("exam_or_event", filterType);
+  }
+
+  const legacyResult = await legacyQuery
+    .order("issue_date", { ascending: false })
+    .range(offset, offset + pageSize - 1);
+
+  if (legacyResult.error) {
+    return {
+      certs: [],
+      totalCount: 0,
+      warning: "Certificate records could not be loaded from the current database schema.",
+    };
+  }
+
+  const certs = ((legacyResult.data || []) as LegacyCertRow[]).map((row) => ({
+    id: row.id,
+    certificate_id: row.certificate_id,
+    full_name: deriveLegacyFullName(row),
+    details: row.details,
+    exam_or_event: row.exam_or_event,
+    exam_or_event_name: row.exam_or_event_name,
+    issue_date: row.issue_date,
+    asset_url: row.asset_url,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+
+  return {
+    certs,
+    totalCount: legacyResult.count ?? certs.length,
+    warning: "Showing legacy certificate records. Apply the certificate full-name migration when ready to make full_name canonical in Supabase.",
+  };
+}
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export const metadata = { title: "Certificates | JnUITS Admin" };
@@ -99,26 +221,8 @@ export default async function AdminCertificatesPage({
   const offset = (page - 1) * pageSize;
 
   // ── Queries ──
-  let certQuery = admin
-    .from("certificates")
-    .select(
-      "id, certificate_id, full_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url, created_at, updated_at",
-      { count: "exact" }
-    );
-
-  if (q) {
-    certQuery = certQuery.or(
-      `certificate_id.ilike.%${q}%,full_name.ilike.%${q}%,exam_or_event_name.ilike.%${q}%`
-    );
-  }
-  if (filterType) {
-    certQuery = certQuery.ilike("exam_or_event", filterType);
-  }
-
-  certQuery = certQuery.order("issue_date", { ascending: false }).range(offset, offset + pageSize - 1);
-
-  const [certsResult, batchesResult] = await Promise.all([
-    certQuery,
+  const [certificateLoad, batchesResult] = await Promise.all([
+    loadCertificates({ admin, q, filterType, offset, pageSize }),
     admin
       .from("certificate_import_batches")
       .select("id, source_name, status, source_row_count, inserted_count, updated_count, rejected_count, started_at, finished_at, report")
@@ -126,17 +230,13 @@ export default async function AdminCertificatesPage({
       .limit(10),
   ]);
 
-  if (certsResult.error) {
-    console.error("Certificates load failed", certsResult.error);
-  }
-  if (batchesResult.error) {
-    console.error("Certificate import batches load failed", batchesResult.error);
-  }
-
-  const certs = (certsResult.data || []) as CertRow[];
-  const totalCount = certsResult.count ?? 0;
+  const certs = certificateLoad.certs;
+  const totalCount = certificateLoad.totalCount;
+  const loadWarnings = [
+    certificateLoad.warning,
+    batchesResult.error ? "Certificate import batch history could not be loaded." : null,
+  ].filter(Boolean);
   const batches = (batchesResult.data || []) as BatchRow[];
-
   // Stats: counts by type
   const { data: typeStats } = await admin
     .from("certificates")
@@ -195,6 +295,21 @@ export default async function AdminCertificatesPage({
         </section>
       )}
 
+      {loadWarnings.length > 0 && (
+        <section className="flash-panel" data-tone="warning">
+          <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.2em", color: "var(--muted-foreground)" }}>
+            Certificate registry notice
+          </p>
+          <h2 style={{ marginTop: "0.35rem", fontFamily: "var(--font-heading)", fontSize: "1.15rem", fontWeight: 700, letterSpacing: "-0.03em" }}>
+            Some certificate data used a compatibility path
+          </h2>
+          <ul style={{ marginTop: "0.5rem", paddingLeft: "1.1rem", fontSize: "0.86rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
+            {loadWarnings.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       {/* ── Stat cards ──────────────────────────────────────────────────────── */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <article className="metric-card">
