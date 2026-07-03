@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -205,10 +205,9 @@ export type Database = {
           details: string
           exam_or_event: string
           exam_or_event_name: string
-          first_name: string
+          full_name: string
           id: string
           issue_date: string
-          last_name: string
           source_document_id: string | null
           source_migrated_at: string
           source_record_id: string | null
@@ -221,10 +220,9 @@ export type Database = {
           details?: string
           exam_or_event: string
           exam_or_event_name: string
-          first_name: string
+          full_name: string
           id?: string
           issue_date: string
-          last_name: string
           source_document_id?: string | null
           source_migrated_at?: string
           source_record_id?: string | null
@@ -237,10 +235,9 @@ export type Database = {
           details?: string
           exam_or_event?: string
           exam_or_event_name?: string
-          first_name?: string
+          full_name?: string
           id?: string
           issue_date?: string
-          last_name?: string
           source_document_id?: string | null
           source_migrated_at?: string
           source_record_id?: string | null
@@ -256,6 +253,7 @@ export type Database = {
           exam_or_event_name_raw: string | null
           exam_or_event_raw: string | null
           first_name_raw: string | null
+          full_name_raw: string | null
           id: string
           import_batch_id: string
           imported_at: string
@@ -273,6 +271,7 @@ export type Database = {
           exam_or_event_name_raw?: string | null
           exam_or_event_raw?: string | null
           first_name_raw?: string | null
+          full_name_raw?: string | null
           id?: string
           import_batch_id: string
           imported_at?: string
@@ -290,6 +289,7 @@ export type Database = {
           exam_or_event_name_raw?: string | null
           exam_or_event_raw?: string | null
           first_name_raw?: string | null
+          full_name_raw?: string | null
           id?: string
           import_batch_id?: string
           imported_at?: string
@@ -1985,9 +1985,8 @@ export type Database = {
           details: string
           exam_or_event: string
           exam_or_event_name: string
-          first_name: string
+          full_name: string
           issue_date: string
-          last_name: string
         }
         Insert: never
         Update: never
@@ -2128,4 +2127,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

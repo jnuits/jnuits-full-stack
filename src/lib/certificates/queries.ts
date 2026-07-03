@@ -5,7 +5,7 @@ import {
 import { createPublicClient } from "@/lib/supabase/public";
 
 const certificateSelect =
-  "certificate_id, first_name, last_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url";
+  "certificate_id, full_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url";
 const MISSING_PUBLIC_CERTIFICATES_VIEW_TTL_MS = 60_000;
 
 let missingPublicCertificatesViewUntil = 0;
@@ -40,6 +40,18 @@ function clearMissingPublicCertificatesView() {
   missingPublicCertificatesViewUntil = 0;
 }
 
+function normalizeCertificateRecord(
+  certificate: PublicCertificateRecord | null
+): PublicCertificate | null {
+  return certificate;
+}
+
+function normalizeCertificateRecords(certificates: PublicCertificateRecord[]) {
+  return certificates.filter(
+    (certificate): certificate is PublicCertificate => Boolean(certificate)
+  );
+}
+
 export function resetPublicCertificateViewCacheForTests() {
   clearMissingPublicCertificatesView();
 }
@@ -65,7 +77,9 @@ export async function findCertificateById(rawId: string) {
       }
 
       clearMissingPublicCertificatesView();
-      return viewResult.data as PublicCertificate | null;
+      return normalizeCertificateRecord(
+        viewResult.data as PublicCertificateRecord | null
+      );
     }
 
     rememberMissingPublicCertificatesView();
@@ -81,7 +95,9 @@ export async function findCertificateById(rawId: string) {
     throw fallbackResult.error;
   }
 
-  return fallbackResult.data as PublicCertificate | null;
+  return normalizeCertificateRecord(
+    fallbackResult.data as PublicCertificateRecord | null
+  );
 }
 
 export async function findCertificatesByIds(rawIds: string[]) {
@@ -106,7 +122,9 @@ export async function findCertificatesByIds(rawIds: string[]) {
       }
 
       clearMissingPublicCertificatesView();
-      return (viewResult.data || []) as PublicCertificate[];
+      return normalizeCertificateRecords(
+        (viewResult.data || []) as PublicCertificateRecord[]
+      );
     }
 
     rememberMissingPublicCertificatesView();
@@ -121,5 +139,7 @@ export async function findCertificatesByIds(rawIds: string[]) {
     throw fallbackResult.error;
   }
 
-  return (fallbackResult.data || []) as PublicCertificate[];
+  return normalizeCertificateRecords(
+    (fallbackResult.data || []) as PublicCertificateRecord[]
+  );
 }

@@ -53,7 +53,7 @@ async function main() {
     const { data, error } = await supabase
       .from("certificates")
       .select(
-        "certificate_id, first_name, last_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url"
+        "certificate_id, full_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url"
       )
       .in("certificate_id", idChunk);
 
@@ -77,8 +77,7 @@ async function main() {
     }
 
     const fieldsToCheck = [
-      "first_name",
-      "last_name",
+      "full_name",
       "details",
       "exam_or_event",
       "exam_or_event_name",

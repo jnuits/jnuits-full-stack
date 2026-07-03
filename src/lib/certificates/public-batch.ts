@@ -38,8 +38,7 @@ export function toPublicCertificate<T extends PublicCertificateRecord>(certifica
     details: certificate.details,
     exam_or_event: certificate.exam_or_event,
     exam_or_event_name: certificate.exam_or_event_name,
-    first_name: certificate.first_name,
+    full_name: certificate.full_name,
     issue_date: certificate.issue_date,
-    last_name: certificate.last_name,
   };
 }

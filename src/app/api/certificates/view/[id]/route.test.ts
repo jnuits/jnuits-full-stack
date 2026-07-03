@@ -53,9 +53,8 @@ describe("certificate view route", () => {
       details: "Completed",
       exam_or_event: "Event",
       exam_or_event_name: "Workshop",
-      first_name: "Ayesha",
+      full_name: "Ayesha Rahman",
       issue_date: "2026-01-02",
-      last_name: "Rahman",
     });
 
     const response = await GET(request(), context("24007"));
@@ -67,9 +66,8 @@ describe("certificate view route", () => {
         details: "Completed",
         exam_or_event: "Event",
         exam_or_event_name: "Workshop",
-        first_name: "Ayesha",
+        full_name: "Ayesha Rahman",
         issue_date: "2026-01-02",
-        last_name: "Rahman",
       },
     });
     expect(response.status).toBe(200);

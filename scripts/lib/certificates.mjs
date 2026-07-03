@@ -13,6 +13,7 @@ const REPORT_ROOT = path.join(process.cwd(), "artifacts", "reports", "certificat
 
 const HEADER_ALIASES = {
   certificate_id: ["certificate_id", "certificateid", "certificateID"],
+  full_name: ["full_name", "fullname", "fullName", "name"],
   first_name: ["first_name", "firstname", "firstName"],
   last_name: ["last_name", "lastname", "lastName"],
   details: ["details"],
@@ -106,6 +107,9 @@ export function normalizeCertificateRow(record, rowNumber) {
   const certificateId = findField(record, HEADER_ALIASES.certificate_id).toUpperCase();
   const firstName = findField(record, HEADER_ALIASES.first_name);
   const lastName = findField(record, HEADER_ALIASES.last_name);
+  const fullName =
+    findField(record, HEADER_ALIASES.full_name) ||
+    [firstName, lastName].filter(Boolean).join(" ").trim();
   const details = findField(record, HEADER_ALIASES.details);
   const examOrEvent = findField(record, HEADER_ALIASES.exam_or_event);
   const examOrEventName = findField(record, HEADER_ALIASES.exam_or_event_name);
@@ -117,7 +121,7 @@ export function normalizeCertificateRow(record, rowNumber) {
   const errors = [];
 
   if (!certificateId) errors.push("certificate_id is required");
-  if (!firstName) errors.push("first_name is required");
+  if (!fullName) errors.push("full_name is required");
   if (!examOrEvent) errors.push("exam_or_event is required");
   if (!examOrEventName) errors.push("exam_or_event_name is required");
   if (!issueDate) errors.push("issue_date must be a valid date");
@@ -130,8 +134,7 @@ export function normalizeCertificateRow(record, rowNumber) {
       ? null
       : {
           certificate_id: certificateId,
-          first_name: firstName,
-          last_name: lastName,
+          full_name: fullName,
           details,
           exam_or_event: examOrEvent,
           exam_or_event_name: examOrEventName,

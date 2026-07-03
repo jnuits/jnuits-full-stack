@@ -23,7 +23,7 @@ function ensureSentence(value: string) {
 }
 
 export function getCertificateDisplayName(certificate: PublicCertificate) {
-  return [certificate.first_name, certificate.last_name].filter(Boolean).join(" ").trim();
+  return certificate.full_name.trim();
 }
 
 export function getCertificateType(certificate: PublicCertificate) {

@@ -125,6 +125,7 @@ async function main() {
         import_batch_id: batchRow.id,
         row_number: row.rowNumber,
         certificate_id_raw: row.raw.certificateID || row.raw.certificate_id || null,
+        full_name_raw: row.raw.fullName || row.raw.full_name || row.raw.name || null,
         first_name_raw: row.raw.firstName || row.raw.first_name || null,
         last_name_raw: row.raw.lastName || row.raw.last_name || null,
         details_raw: row.raw.details || null,

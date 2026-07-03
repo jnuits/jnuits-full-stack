@@ -156,8 +156,7 @@ create table if not exists public.certificate_import_batches (
 create table if not exists public.certificates (
   id uuid default extensions.gen_random_uuid() not null,
   certificate_id citext not null,
-  first_name text not null,
-  last_name text not null,
+  full_name text not null,
   details text default ''::text not null,
   exam_or_event text not null,
   exam_or_event_name text not null,
@@ -175,6 +174,7 @@ create table if not exists public.certificates_import_staging (
   import_batch_id uuid not null,
   row_number integer not null,
   certificate_id_raw text,
+  full_name_raw text,
   first_name_raw text,
   last_name_raw text,
   details_raw text,

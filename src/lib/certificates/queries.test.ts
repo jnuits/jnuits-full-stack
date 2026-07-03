@@ -54,9 +54,8 @@ describe("public certificate queries", () => {
       details: "Completed",
       exam_or_event: "Event",
       exam_or_event_name: "Workshop",
-      first_name: "Ayesha",
+      full_name: "Ayesha Rahman",
       issue_date: "2026-01-02",
-      last_name: "Rahman",
     };
     const supabase = makePublicClient({
       public_certificates: [{ data: certificate, error: null }],
@@ -80,9 +79,8 @@ describe("public certificate queries", () => {
       details: "Completed",
       exam_or_event: "Exam",
       exam_or_event_name: "Final",
-      first_name: "Nadia",
+      full_name: "Nadia Islam",
       issue_date: "2026-02-01",
-      last_name: "Islam",
     };
     const supabase = makePublicClient({
       public_certificates: [{ data: null, error: missingView }],
@@ -128,9 +126,8 @@ describe("public certificate queries", () => {
       details: "Completed",
       exam_or_event: "Event",
       exam_or_event_name: "Workshop",
-      first_name: "Rafi",
+      full_name: "Rafi Ahmed",
       issue_date: "2026-03-01",
-      last_name: "Ahmed",
     };
     const supabase = makePublicClient({
       public_certificates: [{ data: [certificate], error: null }],

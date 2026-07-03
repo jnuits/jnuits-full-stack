@@ -26,10 +26,9 @@ const upsertCertificateSchema = z.object({
   details: z.string().trim().max(3000).optional().default(""),
   exam_or_event: certificateTypeSchema,
   exam_or_event_name: z.string().trim().min(1).max(180),
-  first_name: z.string().trim().min(1).max(120),
+  full_name: z.string().trim().min(1).max(180),
   id: z.string().trim().max(80).optional().default(""),
   issue_date: z.string().trim().min(1).max(40),
-  last_name: z.string().trim().min(1).max(120),
 });
 
 const deleteCertificateSchema = z.object({
@@ -70,6 +69,67 @@ function safeCertificateError(error: unknown, context: string, fallback: string)
   });
 }
 
+function normalizeFullName(...parts: Array<string | null | undefined>) {
+  return parts
+    .map((part) => (part || "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+
+type CertificateWritePayload = {
+  asset_url: string | null;
+  certificate_id: string;
+  details: string;
+  exam_or_event: z.infer<typeof certificateTypeSchema>;
+  exam_or_event_name: string;
+  full_name: string;
+  issue_date: string;
+  source_migrated_at?: string;
+  updated_at: string;
+};
+
+
+function isCertificateType(value: string | undefined) {
+  return certificateTypeSchema.safeParse(value).success;
+}
+
+type ParsedCertificateCsvLine = {
+  assetUrl: string | null;
+  certId: string;
+  examOrEvent: string;
+  examOrEventName: string;
+  fullName: string;
+  issueDate: string | null;
+};
+
+function parseCertificateCsvLine(cols: string[]): ParsedCertificateCsvLine {
+  const rawCertId = cols[0] ?? "";
+  const looksLikeNewFormat = isCertificateType(cols[2]) && Boolean(isoDate(cols[4] ?? ""));
+
+  if (looksLikeNewFormat) {
+    return {
+      assetUrl: cols[5] || null,
+      certId: normId(rawCertId),
+      examOrEvent: cols[2] ?? "",
+      examOrEventName: cols[3] ?? "",
+      fullName: normalizeFullName(cols[1]),
+      issueDate: isoDate(cols[4] ?? ""),
+    };
+  }
+
+  return {
+    assetUrl: cols[6] || null,
+    certId: normId(rawCertId),
+    examOrEvent: cols[3] ?? "",
+    examOrEventName: cols[4] ?? "",
+    fullName: normalizeFullName(cols[1], cols[2]),
+    issueDate: isoDate(cols[5] ?? ""),
+  };
+}
+
 // ── Add / Update single certificate ─────────────────────────────────────────
 
 export async function upsertCertificateAction(formData: FormData) {
@@ -82,8 +142,7 @@ export async function upsertCertificateAction(formData: FormData) {
     pickFormFields(formData, [
       "id",
       "certificate_id",
-      "first_name",
-      "last_name",
+      "full_name",
       "details",
       "exam_or_event",
       "exam_or_event_name",
@@ -98,7 +157,7 @@ export async function upsertCertificateAction(formData: FormData) {
       title: "Validation failed",
       message:
         parsed.error.issues[0]?.message ||
-        "Certificate ID, first name, last name, type, event name, and issue date are all required.",
+        "Certificate ID, full name, type, event name, and issue date are all required.",
     });
     redirect("/admin/certificates");
   }
@@ -107,10 +166,9 @@ export async function upsertCertificateAction(formData: FormData) {
     details,
     exam_or_event: examOrEvent,
     exam_or_event_name: examOrEventName,
-    first_name: firstName,
+    full_name: fullName,
     id,
     issue_date: issueDateRaw,
-    last_name: lastName,
   } = parsed.data;
   const certificateId = normId(parsed.data.certificate_id);
   const assetUrl = parsed.data.asset_url || null;
@@ -129,8 +187,7 @@ export async function upsertCertificateAction(formData: FormData) {
 
   const payload = {
     certificate_id: certificateId,
-    first_name: firstName,
-    last_name: lastName,
+    full_name: fullName,
     details,
     exam_or_event: examOrEvent,
     exam_or_event_name: examOrEventName,
@@ -254,7 +311,7 @@ export async function fixCertTypeAction(formData: FormData) {
   redirect("/admin/certificates");
 }
 
-// ── Bulk CSV import (paste rows: certId,firstName,lastName,type,eventName,issueDate,assetUrl) ───
+// ── Bulk CSV import (new rows: certId,fullName,type,eventName,issueDate,assetUrl) ───
 
 export async function bulkImportCertificatesAction(formData: FormData) {
   const auth = await requireAdminPermission("admin.certificates.manage", {
@@ -280,10 +337,12 @@ export async function bulkImportCertificatesAction(formData: FormData) {
   const onConflict = parsed.data.on_conflict; // "skip" | "update"
 
   const lines = csvText.split("\n").map((l) => l.trim()).filter(Boolean);
-  // Skip header row if it starts with non-numeric/cert characters
-  const dataLines = lines[0]?.toLowerCase().includes("certid") ||
-    lines[0]?.toLowerCase().includes("certificate_id") ||
-    lines[0]?.toLowerCase().includes("first")
+  const headerLine = lines[0]?.toLowerCase() ?? "";
+  const dataLines = headerLine.includes("certid") ||
+    headerLine.includes("certificate_id") ||
+    headerLine.includes("fullname") ||
+    headerLine.includes("full_name") ||
+    headerLine.includes("first")
     ? lines.slice(1)
     : lines;
 
@@ -314,29 +373,35 @@ export async function bulkImportCertificatesAction(formData: FormData) {
 
   for (const [lineIdx, line] of dataLines.entries()) {
     const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
-    // Expected: certId, firstName, lastName, examOrEvent, examOrEventName, issueDate, assetUrl?
-    const [rawCertId, rawFirst, rawLast, rawType, rawEventName, rawDate, rawUrl] = cols;
+    // New: certId, fullName, type, eventName, issueDate, assetUrl?
+    // Legacy fallback: certId, firstName, lastName, type, eventName, issueDate, assetUrl?
+    const {
+      assetUrl,
+      certId,
+      examOrEvent,
+      examOrEventName,
+      fullName,
+      issueDate,
+    } = parseCertificateCsvLine(cols);
 
-    const certId = normId(rawCertId ?? "");
-    const firstName = rawFirst ?? "";
-    const lastName = rawLast ?? "";
-    const examOrEvent = rawType ?? "";
-    const examOrEventName = rawEventName ?? "";
-    const issueDate = isoDate(rawDate ?? "");
-    const assetUrl = rawUrl ?? null;
-
-    if (!certId || !firstName || !lastName || !examOrEvent || !examOrEventName || !issueDate) {
+    if (!certId || !fullName || !examOrEvent || !examOrEventName || !issueDate) {
       rejected++;
       errors.push(`Row ${lineIdx + 2}: missing required field(s) — "${line.slice(0, 60)}"`);
       continue;
     }
 
-    const payload = {
+    const parsedType = certificateTypeSchema.safeParse(examOrEvent);
+    if (!parsedType.success) {
+      rejected++;
+      errors.push(`Row ${lineIdx + 2}: type must be Event, Exam, or Course.`);
+      continue;
+    }
+
+    const payload: CertificateWritePayload = {
       certificate_id: certId,
-      first_name: firstName,
-      last_name: lastName,
+      full_name: fullName,
       details: "",
-      exam_or_event: examOrEvent,
+      exam_or_event: parsedType.data,
       exam_or_event_name: examOrEventName,
       issue_date: issueDate,
       asset_url: assetUrl || null,

@@ -34,8 +34,7 @@ import {
 type CertRow = {
   id: string;
   certificate_id: string;
-  first_name: string;
-  last_name: string;
+  full_name: string;
   details: string;
   exam_or_event: string;
   exam_or_event_name: string;
@@ -44,6 +43,7 @@ type CertRow = {
   created_at: string;
   updated_at: string;
 };
+
 
 type BatchRow = {
   id: string;
@@ -67,7 +67,6 @@ function fmtDate(iso: string) {
     year: "numeric",
   });
 }
-
 
 
 function batchStatusClass(status: string) {
@@ -100,29 +99,39 @@ export default async function AdminCertificatesPage({
   const offset = (page - 1) * pageSize;
 
   // ── Queries ──
-  let query = admin
+  let certQuery = admin
     .from("certificates")
-    .select("id, certificate_id, first_name, last_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url, created_at, updated_at", { count: "exact" });
+    .select(
+      "id, certificate_id, full_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url, created_at, updated_at",
+      { count: "exact" }
+    );
 
   if (q) {
-    query = query.or(
-      `certificate_id.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%,exam_or_event_name.ilike.%${q}%`
+    certQuery = certQuery.or(
+      `certificate_id.ilike.%${q}%,full_name.ilike.%${q}%,exam_or_event_name.ilike.%${q}%`
     );
   }
   if (filterType) {
-    query = query.ilike("exam_or_event", filterType);
+    certQuery = certQuery.ilike("exam_or_event", filterType);
   }
 
-  query = query.order("issue_date", { ascending: false }).range(offset, offset + pageSize - 1);
+  certQuery = certQuery.order("issue_date", { ascending: false }).range(offset, offset + pageSize - 1);
 
   const [certsResult, batchesResult] = await Promise.all([
-    query,
+    certQuery,
     admin
       .from("certificate_import_batches")
       .select("id, source_name, status, source_row_count, inserted_count, updated_count, rejected_count, started_at, finished_at, report")
       .order("started_at", { ascending: false })
       .limit(10),
   ]);
+
+  if (certsResult.error) {
+    console.error("Certificates load failed", certsResult.error);
+  }
+  if (batchesResult.error) {
+    console.error("Certificate import batches load failed", batchesResult.error);
+  }
 
   const certs = (certsResult.data || []) as CertRow[];
   const totalCount = certsResult.count ?? 0;
@@ -275,14 +284,9 @@ export default async function AdminCertificatesPage({
               </select>
             </label>
 
-            <label className="input-label" htmlFor="cert-first">
-              <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><User size={11} /> First name *</span>
-              <input id="cert-first" name="first_name" defaultValue={editRecord?.first_name ?? ""} placeholder="Mohammad" required />
-            </label>
-
-            <label className="input-label" htmlFor="cert-last">
-              <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><User size={11} /> Last name *</span>
-              <input id="cert-last" name="last_name" defaultValue={editRecord?.last_name ?? ""} placeholder="Rahman" required />
+            <label className="input-label sm:col-span-2" htmlFor="cert-full-name">
+              <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><User size={11} /> Full name *</span>
+              <input id="cert-full-name" name="full_name" defaultValue={editRecord?.full_name ?? ""} placeholder="Mohammad Rahman" required />
             </label>
 
             <label className="input-label sm:col-span-2" htmlFor="cert-event-name">
@@ -342,7 +346,7 @@ export default async function AdminCertificatesPage({
               <div className="portal-info-row" style={{ marginTop: "0.65rem" }}>
                 <span className="portal-info-row__label">Expected columns</span>
                 <code style={{ fontSize: "0.74rem", lineHeight: 1.6, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
-                  certId, firstName, lastName, type, eventName, issueDate, assetUrl?
+                  certId, fullName, type, eventName, issueDate, assetUrl?
                 </code>
               </div>
             </div>
@@ -371,7 +375,7 @@ export default async function AdminCertificatesPage({
                   id="import-csv"
                   name="csv_data"
                   rows={10}
-                  placeholder={"CERT-2026-001,Mohammad,Rahman,Event,Speak Up Workshop,2026-01-15\nCERT-2026-002,Ayesha,Khan,Exam,Basic Computer Course,2026-02-20,https://…/cert.pdf"}
+                  placeholder={"CERT-2026-001,Mohammad Rahman,Event,Speak Up Workshop,2026-01-15\nCERT-2026-002,Ayesha Khan,Exam,Basic Computer Course,2026-02-20,https://example.com/cert.pdf"}
                   required
                   style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}
                 />
@@ -457,7 +461,7 @@ export default async function AdminCertificatesPage({
               id="cert-search"
               name="q"
               defaultValue={q}
-              placeholder="Search by certificate ID, name, or event…"
+              placeholder="Search by certificate ID, full name, or event..."
               style={{ paddingLeft: "2.2rem" }}
             />
             <Search
@@ -532,7 +536,7 @@ export default async function AdminCertificatesPage({
 
                       {/* Name */}
                       <td data-label="Name" style={{ padding: "0.7rem 1rem", fontWeight: 600 }}>
-                        {cert.first_name} {cert.last_name}
+                        {cert.full_name}
                       </td>
 
                       {/* Type */}
@@ -732,11 +736,10 @@ export default async function AdminCertificatesPage({
         </div>
         <div className="route-tile">
           <h3 style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}><Database size={14} /> Import format reference</h3>
-          <p>CSV column order: <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>certId, firstName, lastName, type, eventName, issueDate, assetUrl?</code></p>
+          <p>CSV column order: <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>certId, fullName, type, eventName, issueDate, assetUrl?</code></p>
           <p style={{ marginTop: "0.4rem", fontSize: "0.82rem", color: "var(--muted-foreground)" }}>Types: Event · Exam · Course. Dates: YYYY-MM-DD.</p>
         </div>
       </section>
     </div>
   );
 }
-

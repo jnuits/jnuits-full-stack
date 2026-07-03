@@ -23,10 +23,9 @@ describe("certificate batch route helpers", () => {
       details: "Completed",
       exam_or_event: "Event",
       exam_or_event_name: "Workshop",
-      first_name: "Ayesha",
+      full_name: "Ayesha Rahman",
       id: "internal-id",
       issue_date: "2026-01-02",
-      last_name: "Rahman",
       source_document_id: "private-doc",
       source_migrated_at: "2026-01-03T00:00:00Z",
       source_record_id: "private-row",
@@ -39,9 +38,8 @@ describe("certificate batch route helpers", () => {
       "details",
       "exam_or_event",
       "exam_or_event_name",
-      "first_name",
+      "full_name",
       "issue_date",
-      "last_name",
     ]);
     expect(publicCertificate).not.toHaveProperty("source_document_id");
   });
