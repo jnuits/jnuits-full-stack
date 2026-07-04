@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import {
   BarChart3,
   BookOpen,
+  ChevronDown,
   FolderKanban,
   GraduationCap,
   KeyRound,
@@ -24,8 +25,6 @@ import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { portalNavigation } from "@/lib/site";
-
-// ── Nav structure ─────────────────────────────────────────────────────────────
 
 type NavItem = {
   href: string;
@@ -89,26 +88,18 @@ const ADVISOR_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-// ── Helper: active state (exact for / paths, prefix for sub-routes) ───────────
-
 function isActive(pathname: string, href: string): boolean {
   if (href === "/portal") return pathname === "/portal";
   return pathname.startsWith(href);
 }
 
-// ── Props ─────────────────────────────────────────────────────────────────────
-
 interface PortalShellProps {
   avatarUrl?: null | string;
   children: React.ReactNode;
-  /** Member's display name for the sidebar identity card */
   memberName?: string | null;
-  /** JNUITS ID for the sidebar identity card */
   jnuitsId?: string | null;
   portalRole?: null | string;
 }
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 function getPortalRoleLabel(portalRole: null | string) {
   if (!portalRole) {
@@ -116,6 +107,10 @@ function getPortalRoleLabel(portalRole: null | string) {
   }
 
   return `${portalRole.replaceAll("_", " ")} workspace`;
+}
+
+function getDefaultExpandedGroups(groups: NavGroup[]) {
+  return new Set(groups.map((group) => group.label));
 }
 
 export function PortalShell({
@@ -128,18 +123,43 @@ export function PortalShell({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navGroups = portalRole === "advisor" ? ADVISOR_NAV_GROUPS : NAV_GROUPS;
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() =>
+    getDefaultExpandedGroups(navGroups)
+  );
 
-  // Close sidebar on route change (mobile)
   useEffect(() => {
     if (sidebarOpen) setSidebarOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  useEffect(() => {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      for (const group of navGroups) {
+        next.add(group.label);
+      }
+      return next;
+    });
+  }, [navGroups]);
+
+  function toggleGroup(label: string) {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+
+      return next;
+    });
+  }
+
   const displayJnuitsId = formatMembershipIdForDisplay(jnuitsId);
 
   return (
     <>
-      {/* ── Mobile overlay ── */}
       <div
         className="portal-sidebar-overlay"
         data-open={sidebarOpen ? "true" : "false"}
@@ -148,24 +168,20 @@ export function PortalShell({
         style={{ display: sidebarOpen ? "block" : "none" }}
       />
 
-      {/* ── Sidebar ── */}
       <aside
         className="portal-sidebar"
         data-open={sidebarOpen ? "true" : "false"}
         aria-label={portalRole === "advisor" ? "Advisor portal navigation" : "Member portal navigation"}
         style={{
-          // On mobile hide off-screen; on desktop always visible
           transform: sidebarOpen ? "translateX(0)" : undefined,
         }}
       >
-        {/* Header: brand + identity */}
         <div className="portal-sidebar__header">
           <div className="portal-sidebar__brand">
             <SiteBrand compact href="/portal" />
             <ThemeToggle />
           </div>
 
-          {/* Identity card */}
           <div className="portal-id-card">
             <ProfileAvatar
               className="portal-id-card__profile-avatar"
@@ -182,33 +198,59 @@ export function PortalShell({
           </div>
         </div>
 
-        {/* Nav groups */}
         <nav className="portal-sidebar__nav">
-          {navGroups.map((group) => (
-            <div key={group.label} className="portal-nav-group">
-              <p className="portal-nav-group__label">{group.label}</p>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(pathname, item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="portal-nav-link"
-                    data-active={active ? "true" : "false"}
-                  >
-                    <span className="portal-nav-link__icon" aria-hidden="true">
-                      <Icon size={13} />
-                    </span>
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
+          {navGroups.map((group) => {
+            const expanded = expandedGroups.has(group.label);
+            const groupId = `portal-nav-group-${group.label
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")}`;
+
+            return (
+              <div key={group.label} className="portal-nav-group">
+                <button
+                  aria-controls={groupId}
+                  aria-expanded={expanded}
+                  className="portal-nav-group__trigger"
+                  onClick={() => toggleGroup(group.label)}
+                  type="button"
+                >
+                  <span>{group.label}</span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="portal-nav-group__chevron"
+                    size={14}
+                  />
+                </button>
+                <div
+                  aria-hidden={!expanded}
+                  className="portal-nav-group__items"
+                  data-open={expanded ? "true" : "false"}
+                  id={groupId}
+                >
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(pathname, item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="portal-nav-link"
+                        data-active={active ? "true" : "false"}
+                        tabIndex={expanded ? undefined : -1}
+                      >
+                        <span className="portal-nav-link__icon" aria-hidden="true">
+                          <Icon size={13} />
+                        </span>
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
-        {/* Footer */}
         <div className="portal-sidebar__footer">
           <Link
             href="/"
@@ -221,9 +263,7 @@ export function PortalShell({
         </div>
       </aside>
 
-      {/* ── Content area (offset from fixed sidebar) ── */}
       <div className="portal-content">
-        {/* Top-bar (mobile toggle + breadcrumb) */}
         <div className="portal-topbar">
           <button
             className="portal-sidebar-toggle"
@@ -244,7 +284,6 @@ export function PortalShell({
           </div>
         </div>
 
-        {/* Main scrollable area */}
         <main className="portal-main" id="portal-main-content">
           {children}
         </main>

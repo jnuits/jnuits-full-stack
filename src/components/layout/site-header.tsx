@@ -50,11 +50,13 @@ function PublicNavLink({
 function NavDropdownMenu({
   items,
   label,
+  mode = "desktop",
   onNavigate,
   pathname,
 }: {
   items: NavItem[];
   label: string;
+  mode?: "desktop" | "mobile";
   onNavigate?: () => void;
   pathname: string;
 }) {
@@ -64,6 +66,10 @@ function NavDropdownMenu({
   const active = items.some((item) => isActivePath(pathname, item.href));
 
   useEffect(() => {
+    if (mode !== "desktop") {
+      return;
+    }
+
     function handlePointerDown(event: PointerEvent) {
       if (!menuRef.current?.contains(event.target as Node)) {
         setOpen(false);
@@ -72,11 +78,12 @@ function NavDropdownMenu({
 
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, []);
+  }, [mode]);
 
   return (
     <div
       className="site-resource-menu"
+      data-mode={mode}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           setOpen(false);
@@ -87,20 +94,20 @@ function NavDropdownMenu({
       <button
         aria-controls={menuId}
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-haspopup={mode === "desktop" ? "menu" : undefined}
         className="site-nav-link site-resource-menu__trigger"
         data-active={active ? "true" : "false"}
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
         {label}
-        <ChevronDown aria-hidden="true" size={15} />
+        <ChevronDown aria-hidden="true" className="site-resource-menu__chevron" size={15} />
       </button>
       <div
         className="site-resource-menu__panel"
         data-open={open ? "true" : "false"}
         id={menuId}
-        role="menu"
+        role={mode === "desktop" ? "menu" : "group"}
       >
         {items.map((item) => (
           <Link
@@ -111,8 +118,8 @@ function NavDropdownMenu({
               setOpen(false);
               onNavigate?.();
             }}
-            role="menuitem"
-            tabIndex={open ? 0 : -1}
+            role={mode === "desktop" ? "menuitem" : undefined}
+            tabIndex={open || mode === "desktop" ? 0 : -1}
           >
             <span>{item.label}</span>
             {item.description ? <small>{item.description}</small> : null}
@@ -124,9 +131,11 @@ function NavDropdownMenu({
 }
 
 function PublicNav({
+  mode = "desktop",
   onNavigate,
   pathname,
 }: {
+  mode?: "desktop" | "mobile";
   onNavigate?: () => void;
   pathname: string;
 }) {
@@ -138,6 +147,7 @@ function PublicNav({
             <NavDropdownMenu
               items={publicMemberNavigation}
               label="Members"
+              mode={mode}
               onNavigate={onNavigate}
               pathname={pathname}
             />
@@ -152,6 +162,7 @@ function PublicNav({
             <NavDropdownMenu
               items={publicResourceNavigation}
               label="Resources"
+              mode={mode}
               onNavigate={onNavigate}
               pathname={pathname}
             />
@@ -173,19 +184,28 @@ export function SiteHeader() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
+
   useEffect(() => {
     if (!mobileOpen) {
       return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+      }
     }
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousRootOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousRootOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [mobileOpen]);
 
@@ -212,6 +232,7 @@ export function SiteHeader() {
           <X aria-hidden="true" size={22} />
         </button>
         <PublicNav
+          mode="mobile"
           onNavigate={() => setMobileOpen(false)}
           pathname={pathname}
         />

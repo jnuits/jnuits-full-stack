@@ -18328,3 +18328,177 @@ a[href="/admin/content/notices/new"].admin-btn--primary:focus-visible,
     min-height: auto;
   }
 }
+
+/* Collapsible navigation groups: admin, portal, and public mobile drawers */
+.admin-nav-group__trigger,
+.portal-nav-group__trigger {
+  width: 100%;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border-radius: 0.7rem;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.admin-nav-group__trigger {
+  padding: 0.35rem 0.55rem;
+}
+
+.portal-nav-group__trigger {
+  padding: 0.25rem 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.admin-nav-group__trigger:hover,
+.admin-nav-group__trigger:focus-visible,
+.portal-nav-group__trigger:hover,
+.portal-nav-group__trigger:focus-visible {
+  background: color-mix(in oklab, var(--accent) 54%, transparent);
+  color: var(--foreground);
+  outline: none;
+}
+
+.admin-nav-group__trigger:focus-visible,
+.portal-nav-group__trigger:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand-blue) 34%, transparent);
+}
+
+.admin-nav-group__trigger[data-active="true"],
+.portal-nav-group__trigger[data-active="true"] {
+  color: var(--brand-blue);
+}
+
+.admin-nav-group__badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--brand-rust);
+  color: #fff;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.admin-nav-group__chevron,
+.portal-nav-group__chevron,
+.site-resource-menu__chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: transform 160ms ease;
+}
+
+.admin-nav-group__trigger[aria-expanded="true"] .admin-nav-group__chevron,
+.portal-nav-group__trigger[aria-expanded="true"] .portal-nav-group__chevron,
+.site-resource-menu__trigger[aria-expanded="true"] .site-resource-menu__chevron {
+  transform: rotate(180deg);
+}
+
+.admin-nav-group__items,
+.portal-nav-group__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: max-height 220ms ease, opacity 160ms ease;
+}
+
+.admin-nav-group__items[data-open="true"],
+.portal-nav-group__items[data-open="true"] {
+  max-height: 42rem;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.admin-sidebar__nav,
+.portal-sidebar__nav {
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 860px) {
+  .admin-nav-group__trigger,
+  .portal-nav-group__trigger,
+  .admin-nav-link,
+  .portal-nav-link {
+    min-height: 2.75rem;
+  }
+}
+
+.site-resource-menu[data-mode="mobile"] {
+  width: 100%;
+}
+
+.site-resource-menu[data-mode="mobile"] .site-resource-menu__trigger {
+  width: 100%;
+  justify-content: space-between;
+  min-height: 2.9rem;
+}
+
+.site-resource-menu[data-mode="mobile"] .site-resource-menu__panel {
+  position: static;
+  width: 100%;
+  min-width: 0;
+  margin-top: 0.35rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: none;
+  pointer-events: none;
+  transition: max-height 220ms ease, opacity 160ms ease;
+}
+
+.site-resource-menu[data-mode="mobile"] .site-resource-menu__panel[data-open="true"] {
+  max-height: 28rem;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.site-resource-menu[data-mode="mobile"] .site-resource-menu__item {
+  min-height: 2.75rem;
+  margin-left: 0.5rem;
+  border-left: 2px solid color-mix(in oklab, var(--brand-blue) 20%, transparent);
+  border-radius: 0.65rem;
+}
+
+.admin-sidebar-toggle-slot {
+  display: none;
+  flex-shrink: 0;
+}
+
+@media (max-width: 860px) {
+  .admin-sidebar-toggle-slot {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .admin-topbar__left {
+    gap: 0.6rem;
+    flex: 1;
+  }
+
+  .admin-sidebar-toggle {
+    display: inline-flex;
+    position: static;
+  }
+}

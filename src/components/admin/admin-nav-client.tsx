@@ -4,10 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   BarChart2,
   BellRing,
   BookOpen,
+  ChevronDown,
   ClipboardList,
   FileCode2,
   FileText,
@@ -32,8 +34,6 @@ import type {
   AdminShellNavigationItem,
 } from "./admin-shell";
 
-// ── Nav structure (defined client-side to avoid RSC serialization issues) ─────
-
 type NavItem = {
   href: string;
   label: string;
@@ -45,6 +45,13 @@ type NavGroup = {
   label: string;
   items: NavItem[];
 };
+
+const collapsibleGroups = new Set([
+  "Membership",
+  "Content",
+  "Organization",
+  "Settings",
+]);
 
 const iconByKey: Record<AdminShellNavigationItem["iconKey"], NavItem["icon"]> = {
   barChart: BarChart2,
@@ -91,9 +98,6 @@ function buildNavGroups(
   return groups;
 }
 
-
-// ── Component ──────────────────────────────────────────────────────────────────
-
 interface Props {
   badgeCounts: AdminBadgeCounts;
   navigationItems: AdminShellNavigationItem[];
@@ -102,26 +106,88 @@ interface Props {
 export function AdminNavClient({ badgeCounts, navigationItems }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [toggleSlot, setToggleSlot] = useState<HTMLElement | null>(null);
+  const groups = buildNavGroups(badgeCounts, navigationItems);
 
-  // Close sidebar when route changes (mobile) ─ gated so it doesn't cascade
+  useEffect(() => {
+    setToggleSlot(document.getElementById("admin-sidebar-toggle-slot"));
+  }, []);
+
+  function isActive(href: string): boolean {
+    if (href === "/admin") return pathname === "/admin";
+    return pathname.startsWith(href);
+  }
+
+  const activeGroupLabel = groups.find((group) =>
+    group.items.some((item) => isActive(item.href))
+  )?.label;
+
   useEffect(() => {
     if (open) setOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  const groups = buildNavGroups(badgeCounts, navigationItems);
+  useEffect(() => {
+    if (!activeGroupLabel || !collapsibleGroups.has(activeGroupLabel)) {
+      return;
+    }
 
-  function isActive(href: string): boolean {
-    // "/admin" should only match exactly (not every admin sub-route)
-    if (href === "/admin") return pathname === "/admin";
-    // all other routes: match if pathname starts with the href
-    return pathname.startsWith(href);
+    setExpandedGroups((current) => {
+      if (current.has(activeGroupLabel)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.add(activeGroupLabel);
+      return next;
+    });
+  }, [activeGroupLabel]);
+
+  function toggleGroup(label: string) {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+
+      return next;
+    });
   }
 
+  function renderItems(group: NavGroup, expanded = true) {
+    return group.items.map((item) => {
+      const Icon = item.icon;
+      const active = isActive(item.href);
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          className="admin-nav-link"
+          data-active={active ? "true" : "false"}
+          tabIndex={expanded ? undefined : -1}
+        >
+          <span className="admin-nav-link__icon" aria-hidden="true">
+            <Icon size={15} />
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>{item.label}</span>
+          {item.badge != null && item.badge > 0 ? (
+            <span className="admin-nav-link__badge">
+              {item.badge > 99 ? "99+" : item.badge}
+            </span>
+          ) : null}
+        </Link>
+      );
+    });
+  }
 
   return (
     <>
-      {/* Backdrop overlay — closes sidebar on mobile */}
       <div
         className="admin-sidebar-overlay"
         data-open={open ? "true" : "false"}
@@ -129,50 +195,72 @@ export function AdminNavClient({ badgeCounts, navigationItems }: Props) {
         aria-hidden="true"
       />
 
-      {/* ── Sidebar ── */}
       <aside
         className="admin-sidebar"
         data-open={open ? "true" : "false"}
         aria-label="Admin navigation"
       >
-        {/* Brand */}
         <div className="admin-sidebar__brand">
           <SiteBrand compact href="/admin" />
           <span className="admin-sidebar__brand-badge">Admin</span>
         </div>
 
-        {/* Nav groups */}
         <nav className="admin-sidebar__nav">
-          {groups.map((group) => (
-            <div key={group.label} className="admin-nav-group">
-              <p className="admin-nav-group__label">{group.label}</p>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="admin-nav-link"
-                    data-active={active ? "true" : "false"}
-                  >
-                    <span className="admin-nav-link__icon">
-                      <Icon size={15} />
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0 }}>{item.label}</span>
-                    {item.badge != null && item.badge > 0 ? (
-                      <span className="admin-nav-link__badge">
-                        {item.badge > 99 ? "99+" : item.badge}
-                      </span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
+          {groups.map((group) => {
+            const collapsible = collapsibleGroups.has(group.label);
+            const expanded = !collapsible || expandedGroups.has(group.label);
+            const groupBadgeCount = group.items.reduce(
+              (total, item) => total + (item.badge || 0),
+              0
+            );
+            const groupId = `admin-nav-group-${group.label
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")}`;
+
+            return (
+              <div key={group.label} className="admin-nav-group">
+                {collapsible ? (
+                  <>
+                    <button
+                      aria-controls={groupId}
+                      aria-expanded={expanded}
+                      className="admin-nav-group__trigger"
+                      data-active={group.label === activeGroupLabel ? "true" : "false"}
+                      onClick={() => toggleGroup(group.label)}
+                      type="button"
+                    >
+                      <span>{group.label}</span>
+                      {groupBadgeCount > 0 ? (
+                        <span className="admin-nav-group__badge">
+                          {groupBadgeCount > 99 ? "99+" : groupBadgeCount}
+                        </span>
+                      ) : null}
+                      <ChevronDown
+                        aria-hidden="true"
+                        className="admin-nav-group__chevron"
+                        size={14}
+                      />
+                    </button>
+                    <div
+                      aria-hidden={!expanded}
+                      className="admin-nav-group__items"
+                      data-open={expanded ? "true" : "false"}
+                      id={groupId}
+                    >
+                      {renderItems(group, expanded)}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="admin-nav-group__label">{group.label}</p>
+                    {renderItems(group)}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
-        {/* Footer */}
         <div className="admin-sidebar__footer">
           <ThemeToggle />
           <Link
@@ -186,16 +274,30 @@ export function AdminNavClient({ badgeCounts, navigationItems }: Props) {
         </div>
       </aside>
 
-      {/* ── Mobile hamburger (CSS-positioned into topbar) ── */}
-      <button
-        id="admin-sidebar-toggle"
-        className="admin-sidebar-toggle"
-        aria-label={open ? "Close sidebar" : "Open sidebar"}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        {open ? <X size={16} /> : <Menu size={16} />}
-      </button>
+      {toggleSlot ? createPortal(
+        <button
+          id="admin-sidebar-toggle"
+          className="admin-sidebar-toggle"
+          aria-label={open ? "Close sidebar" : "Open sidebar"}
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          type="button"
+        >
+          {open ? <X size={16} /> : <Menu size={16} />}
+        </button>,
+        toggleSlot
+      ) : (
+        <button
+          id="admin-sidebar-toggle"
+          className="admin-sidebar-toggle"
+          aria-label={open ? "Close sidebar" : "Open sidebar"}
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          type="button"
+        >
+          {open ? <X size={16} /> : <Menu size={16} />}
+        </button>
+      )}
     </>
   );
 }

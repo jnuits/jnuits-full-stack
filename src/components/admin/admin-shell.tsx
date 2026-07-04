@@ -139,7 +139,7 @@ export async function AdminShell({
         {/* Sticky topbar */}
         <header className="admin-topbar">
           <div className="admin-topbar__left">
-            {/* Mobile toggle is rendered by AdminNavClient and CSS-positioned here */}
+            <span id="admin-sidebar-toggle-slot" className="admin-sidebar-toggle-slot" />
             <span className="admin-topbar__title">
               JnUITS — Operator Workspace
             </span>
