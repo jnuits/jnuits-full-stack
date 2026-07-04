@@ -8,6 +8,8 @@ import {
   getCertificateType,
 } from "@/lib/certificates/presentation";
 
+export const dynamic = "force-dynamic";
+
 function VerificationStateIcon({ tone }: { tone: "missing" | "valid" }) {
   return (
     <span className="certificate-state__icon" data-tone={tone} aria-hidden="true">
@@ -25,6 +27,24 @@ function VerificationStateIcon({ tone }: { tone: "missing" | "valid" }) {
   );
 }
 
+async function loadCertificateForSearch(certificateId: string) {
+  try {
+    return {
+      certificate: await findCertificateById(certificateId),
+      error: null,
+    };
+  } catch (error) {
+    console.error("Public certificate lookup failed", {
+      certificateId,
+      error,
+    });
+    return {
+      certificate: null,
+      error,
+    };
+  }
+}
+
 export default async function CertificatesPage({
   searchParams,
 }: {
@@ -40,7 +60,10 @@ export default async function CertificatesPage({
   const certificateId = rawCertificateQuery
     ? normalizeCertificateId(rawCertificateQuery)
     : "";
-  const certificate = certificateId ? await findCertificateById(certificateId) : null;
+  const lookupResult = certificateId
+    ? await loadCertificateForSearch(certificateId)
+    : { certificate: null, error: null };
+  const certificate = lookupResult.certificate;
   const certificateName = certificate ? getCertificateDisplayName(certificate) : "";
   const certificateType = certificate ? getCertificateType(certificate) : null;
   const certificateNarrative = certificate ? getCertificateNarrative(certificate) : "";
@@ -123,6 +146,27 @@ export default async function CertificatesPage({
                   </div>
                 </dl>
 
+              </div>
+            ) : lookupResult.error ? (
+              <div className="certificate-result-card">
+                <div className="certificate-state" data-tone="missing">
+                  <VerificationStateIcon tone="missing" />
+                  <div>
+                    <p className="certificate-state__title">
+                      Certificate verification is temporarily unavailable
+                    </p>
+                    <p className="certificate-state__copy">
+                      We could not complete the database lookup for{" "}
+                      <strong>{certificateId}</strong>. Please try again shortly.
+                    </p>
+                  </div>
+                </div>
+
+                <p className="certificate-missing-copy mt-6">
+                  If this keeps happening, contact us at{" "}
+                  <a href="mailto:info@jnuits.org.bd">info@jnuits.org.bd</a> with
+                  the certificate ID.
+                </p>
               </div>
             ) : (
               <div className="certificate-result-card">

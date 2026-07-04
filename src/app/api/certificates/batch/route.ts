@@ -34,7 +34,17 @@ async function handlePost(request: NextRequest) {
     );
   }
 
-  const certificates = await findCertificatesByIds(ids);
+  const certificates = await findCertificatesByIds(ids).catch((error) => {
+    console.error("Certificate batch lookup failed", { error });
+    return null;
+  });
+
+  if (!certificates) {
+    return NextResponse.json(
+      { message: "Certificate lookup is temporarily unavailable." },
+      { status: 503 }
+    );
+  }
   const byId = new Map(
     certificates.map((certificate) => [certificate.certificate_id, certificate])
   );

@@ -10,6 +10,8 @@ import {
   getCertificateType,
 } from "@/lib/certificates/presentation";
 
+export const dynamic = "force-dynamic";
+
 function VerificationStateIcon() {
   return (
     <span className="certificate-state__icon" data-tone="valid" aria-hidden="true">
@@ -27,7 +29,13 @@ export default async function CertificateDetailsPage({
 }) {
   const { certificateId: rawCertificateId } = await params;
   const certificateId = normalizeCertificateId(rawCertificateId);
-  const certificate = await findCertificateById(certificateId);
+  const certificate = await findCertificateById(certificateId).catch((error) => {
+    console.error("Public certificate detail lookup failed", {
+      certificateId,
+      error,
+    });
+    return null;
+  });
 
   if (!certificate) {
     notFound();

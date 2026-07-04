@@ -21,7 +21,20 @@ async function handleGet(
     );
   }
 
-  const certificate = await findCertificateById(certificateId);
+  const certificate = await findCertificateById(certificateId).catch((error) => {
+    console.error("Certificate view lookup failed", {
+      certificateId,
+      error,
+    });
+    return undefined;
+  });
+
+  if (certificate === undefined) {
+    return NextResponse.json(
+      { message: "Certificate lookup is temporarily unavailable." },
+      { status: 503 }
+    );
+  }
 
   if (!certificate) {
     return NextResponse.json({ message: "Certificate not found." }, { status: 404 });

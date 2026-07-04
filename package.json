@@ -42,7 +42,8 @@
     "test:e2e:install:all": "playwright install chromium firefox webkit",
     "test:e2e:matrix": "node scripts/run-playwright-matrix.cjs",
     "test:runtime-probe": "node scripts/runtime-smoke-probe.mjs",
-    "db:verify-admin-invite-search": "node scripts/verify-admin-invite-search-migration.cjs"
+    "db:verify-admin-invite-search": "node scripts/verify-admin-invite-search-migration.cjs",
+    "db:audit-cleanup": "node scripts/verify-supabase-cleanup-readiness.cjs"
   },
   "dependencies": {
     "@react-email/components": "1.0.12",

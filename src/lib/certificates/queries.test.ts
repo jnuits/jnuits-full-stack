@@ -140,4 +140,105 @@ describe("public certificate queries", () => {
     ]);
     expect(supabase.fromCalls).toEqual(["public_certificates"]);
   });
+  it("falls back to split-name public certificate view when full_name is missing", async () => {
+    const missingFullName = {
+      code: "42703",
+      message: "column public_certificates.full_name does not exist",
+    };
+    const legacyCertificate = {
+      asset_url: null,
+      certificate_id: "CERT-5",
+      details: "Completed",
+      exam_or_event: "Event",
+      exam_or_event_name: "Workshop",
+      first_name: "BAYAZID",
+      issue_date: "2026-03-02",
+      last_name: "SARKAR",
+    };
+    const supabase = makePublicClient({
+      public_certificates: [
+        { data: null, error: missingFullName },
+        { data: legacyCertificate, error: null },
+      ],
+    });
+    createPublicClientMock.mockReturnValue(supabase.client);
+    const { findCertificateById } = await importQueries();
+
+    await expect(findCertificateById("cert-5")).resolves.toMatchObject({
+      certificate_id: "CERT-5",
+      full_name: "BAYAZID SARKAR",
+    });
+    expect(supabase.fromCalls).toEqual(["public_certificates", "public_certificates"]);
+  });
+
+  it("falls back to split-name raw certificate rows when the view is missing and full_name is absent", async () => {
+    const missingView = {
+      code: "PGRST205",
+      message:
+        "Could not find the table 'public.public_certificates' in the schema cache",
+    };
+    const missingFullName = {
+      code: "42703",
+      message: "column certificates.full_name does not exist",
+    };
+    const legacyCertificate = {
+      asset_url: null,
+      certificate_id: "CERT-6",
+      details: "Completed",
+      exam_or_event: "Exam",
+      exam_or_event_name: "Final",
+      first_name: "Nadia",
+      issue_date: "2026-04-01",
+      last_name: "Islam",
+    };
+    const supabase = makePublicClient({
+      public_certificates: [{ data: null, error: missingView }],
+      certificates: [
+        { data: null, error: missingFullName },
+        { data: legacyCertificate, error: null },
+      ],
+    });
+    createPublicClientMock.mockReturnValue(supabase.client);
+    const { findCertificateById } = await importQueries();
+
+    await expect(findCertificateById("cert-6")).resolves.toMatchObject({
+      certificate_id: "CERT-6",
+      full_name: "Nadia Islam",
+    });
+    expect(supabase.fromCalls).toEqual([
+      "public_certificates",
+      "certificates",
+      "certificates",
+    ]);
+  });
+
+  it("falls back to split-name public view for batch lookups when full_name is missing", async () => {
+    const missingFullName = {
+      code: "42703",
+      message: "column public_certificates.full_name does not exist",
+    };
+    const legacyCertificate = {
+      asset_url: null,
+      certificate_id: "CERT-7",
+      details: "Completed",
+      exam_or_event: "Course",
+      exam_or_event_name: "Basic Computer Course",
+      first_name: "Rafi",
+      issue_date: "2026-05-01",
+      last_name: "Ahmed",
+    };
+    const supabase = makePublicClient({
+      public_certificates: [
+        { data: null, error: missingFullName },
+        { data: [legacyCertificate], error: null },
+      ],
+    });
+    createPublicClientMock.mockReturnValue(supabase.client);
+    const { findCertificatesByIds } = await importQueries();
+
+    await expect(findCertificatesByIds(["cert-7"])).resolves.toEqual([
+      expect.objectContaining({ certificate_id: "CERT-7", full_name: "Rafi Ahmed" }),
+    ]);
+    expect(supabase.fromCalls).toEqual(["public_certificates", "public_certificates"]);
+  });
 });

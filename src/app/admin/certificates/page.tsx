@@ -179,7 +179,7 @@ async function loadCertificates(params: {
     };
   }
 
-  const certs = ((legacyResult.data || []) as LegacyCertRow[]).map((row) => ({
+  const certs = ((legacyResult.data || []) as unknown as LegacyCertRow[]).map((row) => ({
     id: row.id,
     certificate_id: row.certificate_id,
     full_name: deriveLegacyFullName(row),
