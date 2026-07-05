@@ -75,9 +75,10 @@ export async function buildOperationalSnapshot(admin: AdminClient) {
       .eq("content_type", "notice")
       .eq("status", "published"),
     admin
-      .from("gallery_entries")
+      .from("gallery_album_items")
       .select("*", { count: "exact", head: true })
-      .eq("status", "published"),
+      .eq("status", "published")
+      .is("deleted_at", null),
     admin
       .from("developer_profiles")
       .select("*", { count: "exact", head: true })

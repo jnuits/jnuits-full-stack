@@ -72,6 +72,27 @@ describe("admin invite search DB verification", () => {
     expect(calls[0].args[4]).toMatch(/jnuits-admin-invite-verify-/);
   });
 
+  it("uses Windows-safe npx invocation for SUPABASE_CLI_COMMAND", () => {
+    const calls = [];
+
+    runSupabaseDbQuery({
+      env: { SUPABASE_CLI_COMMAND: "npx --yes supabase" },
+      platform: "win32",
+      runner: (command, args) => {
+        calls.push({ args, command });
+        return {
+          status: 0,
+          stdout:
+            '__JNUITS_ADMIN_INVITE_VERIFY__{"migrationApplied":true,"claimInvitationIdExists":true,"pgTrgmInstalled":true,"presentIndexes":[],"missingIndexes":[]}__END_JNUITS_ADMIN_INVITE_VERIFY__',
+        };
+      },
+      sql: "select 1;",
+    });
+
+    expect(calls[0].command).toBe("cmd.exe");
+    expect(calls[0].args[0]).toBe("/d");
+    expect(calls[0].args[2]).toContain("npx.cmd --yes supabase db query --linked --file");
+  });
   it("fails clearly when Supabase CLI is unavailable", () => {
     expect(() =>
       runSupabaseDbQuery({

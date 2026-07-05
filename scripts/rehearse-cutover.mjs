@@ -34,6 +34,10 @@ async function countRows(supabase, table, options = {}) {
     query = query.eq(field, value);
   }
 
+  for (const field of options.isNull || []) {
+    query = query.is(field, null);
+  }
+
   const { count, error } = await query;
 
   if (error) {
@@ -80,7 +84,10 @@ async function main() {
       .maybeSingle(),
     countRows(supabase, "content_pages", { equals: { status: "published" } }),
     countRows(supabase, "content_posts", { equals: { status: "published" } }),
-    countRows(supabase, "gallery_entries", { equals: { status: "published" } }),
+    countRows(supabase, "gallery_album_items", {
+      equals: { status: "published" },
+      isNull: ["deleted_at"],
+    }),
     countRows(supabase, "developer_profiles", { equals: { status: "published" } }),
     countRows(supabase, "media_assets", { equals: { is_public: true } }),
     supabase

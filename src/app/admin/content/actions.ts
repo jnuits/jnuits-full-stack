@@ -102,14 +102,6 @@ const blogReviewFormSchema = z.object({
   reviewNote: optionalText(1500),
 });
 
-const galleryEntryFormSchema = z.object({
-  caption: optionalText(1000),
-  entryId: optionalText(80),
-  mediaAssetId: z.string().trim().min(1, "Media asset is required.").max(80),
-  sortOrder: optionalInteger(100, 9999),
-  status: optionalText(40).default("draft"),
-  title: z.string().trim().min(1, "Title is required.").max(180),
-});
 
 const developerProfileFormSchema = z.object({
   bio: z.string().trim().min(1, "Bio is required.").max(3000),
@@ -854,93 +846,6 @@ export async function returnMemberBlogSubmission(formData: FormData) {
   redirect("/admin/content/blogs");
 }
 
-export async function saveGalleryEntry(formData: FormData) {
-  const auth = await requireAdminPermission("cms.gallery.manage", {
-    fallbackPath: "/admin/content/gallery",
-  });
-  const actorUserId = auth.user?.id;
-
-  if (!actorUserId) {
-    redirect("/login");
-  }
-
-  const admin = createAdminClient();
-  const parsed = galleryEntryFormSchema.safeParse(
-    pickFormFields(formData, [
-      "caption",
-      "entryId",
-      "mediaAssetId",
-      "sortOrder",
-      "status",
-      "title",
-    ])
-  );
-
-  if (!parsed.success) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Gallery entry not saved",
-      message:
-        parsed.error.issues[0]?.message ||
-        "Title and media asset are required for the gallery.",
-    });
-    redirect("/admin/content");
-  }
-
-  const { caption, entryId, mediaAssetId, sortOrder, status, title } = parsed.data;
-
-  try {
-    const payload = {
-      caption: caption || null,
-      created_by_user_id: actorUserId,
-      media_asset_id: mediaAssetId,
-      sort_order: sortOrder,
-      status,
-      title,
-    };
-
-    const query = entryId
-      ? admin.from("gallery_entries").update(payload).eq("id", entryId).select("id").single()
-      : admin.from("gallery_entries").insert(payload).select("id").single();
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw error;
-    }
-
-    if (!data) {
-      throw new SafeAdminActionError("Unable to save the gallery entry.");
-    }
-
-    await insertAuditEvent({
-      action: entryId ? "content.gallery_entry_updated" : "content.gallery_entry_created",
-      actorUserId,
-      entityId: data.id,
-      entityType: "gallery_entry",
-      metadata: {
-        mediaAssetId,
-        status,
-      },
-    });
-
-    revalidatePath("/admin/content");
-    revalidatePath("/gallery");
-    await setAdminFlash({
-      tone: "success",
-      title: "Gallery entry saved",
-      message: `${title} is now part of the Cloudinary-backed gallery registry.`,
-    });
-  } catch (error) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Gallery entry not saved",
-      message: safeContentError(error, "saveGalleryEntry", "The gallery entry could not be saved."),
-    });
-  }
-
-  redirect("/admin/content");
-}
 
 export async function saveDeveloperProfile(formData: FormData) {
   const auth = await requireAdminPermission("cms.projects.manage", {

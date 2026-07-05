@@ -44,12 +44,6 @@ type CertRow = {
   updated_at: string;
 };
 
-
-type LegacyCertRow = Omit<CertRow, "full_name"> & {
-  first_name: string | null;
-  last_name: string | null;
-};
-
 type CertificateLoadResult = {
   certs: CertRow[];
   totalCount: number;
@@ -78,7 +72,6 @@ function fmtDate(iso: string) {
   });
 }
 
-
 function batchStatusClass(status: string) {
   if (status === "completed") return "portal-badge--verified";
   if (status === "processing") return "portal-badge--pending";
@@ -86,23 +79,8 @@ function batchStatusClass(status: string) {
   return "portal-badge--draft";
 }
 
-function isMissingColumnError(error: unknown, columnName: string) {
-  if (!error || typeof error !== "object") return false;
-  const maybeError = error as { code?: string; message?: string };
-  return maybeError.code === "42703" && (maybeError.message ?? "").includes(columnName);
-}
-
 function escapePostgrestPattern(value: string) {
   return value.replace(/[%_,]/g, " ").trim();
-}
-
-function deriveLegacyFullName(row: Pick<LegacyCertRow, "first_name" | "last_name" | "certificate_id">) {
-  const name = [row.first_name, row.last_name]
-    .map((part) => part?.trim())
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-  return name || row.certificate_id;
 }
 
 async function loadCertificates(params: {
@@ -119,12 +97,12 @@ async function loadCertificates(params: {
     .from("certificates")
     .select(
       "id, certificate_id, full_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url, created_at, updated_at",
-      { count: "exact" }
+      { count: "exact" },
     );
 
   if (search) {
     certQuery = certQuery.or(
-      `certificate_id.ilike.%${search}%,full_name.ilike.%${search}%,exam_or_event_name.ilike.%${search}%`
+      `certificate_id.ilike.%${search}%,full_name.ilike.%${search}%,exam_or_event_name.ilike.%${search}%`,
     );
   }
   if (filterType) {
@@ -135,67 +113,19 @@ async function loadCertificates(params: {
     .order("issue_date", { ascending: false })
     .range(offset, offset + pageSize - 1);
 
-  if (!certsResult.error) {
-    return {
-      certs: (certsResult.data || []) as CertRow[],
-      totalCount: certsResult.count ?? 0,
-      warning: null,
-    };
-  }
-
-  if (!isMissingColumnError(certsResult.error, "full_name")) {
+  if (certsResult.error) {
     return {
       certs: [],
       totalCount: 0,
-      warning: "Certificate records could not be loaded. Server details were kept out of the operator UI.",
+      warning:
+        "Certificate records could not be loaded. Server details were kept out of the operator UI.",
     };
   }
-
-  let legacyQuery = admin
-    .from("certificates")
-    .select(
-      "id, certificate_id, first_name, last_name, details, exam_or_event, exam_or_event_name, issue_date, asset_url, created_at, updated_at",
-      { count: "exact" }
-    );
-
-  if (search) {
-    legacyQuery = legacyQuery.or(
-      `certificate_id.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,exam_or_event_name.ilike.%${search}%`
-    );
-  }
-  if (filterType) {
-    legacyQuery = legacyQuery.ilike("exam_or_event", filterType);
-  }
-
-  const legacyResult = await legacyQuery
-    .order("issue_date", { ascending: false })
-    .range(offset, offset + pageSize - 1);
-
-  if (legacyResult.error) {
-    return {
-      certs: [],
-      totalCount: 0,
-      warning: "Certificate records could not be loaded from the current database schema.",
-    };
-  }
-
-  const certs = ((legacyResult.data || []) as unknown as LegacyCertRow[]).map((row) => ({
-    id: row.id,
-    certificate_id: row.certificate_id,
-    full_name: deriveLegacyFullName(row),
-    details: row.details,
-    exam_or_event: row.exam_or_event,
-    exam_or_event_name: row.exam_or_event_name,
-    issue_date: row.issue_date,
-    asset_url: row.asset_url,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  }));
 
   return {
-    certs,
-    totalCount: legacyResult.count ?? certs.length,
-    warning: "Showing legacy certificate records. Apply the certificate full-name migration when ready to make full_name canonical in Supabase.",
+    certs: (certsResult.data || []) as CertRow[],
+    totalCount: certsResult.count ?? 0,
+    warning: null,
   };
 }
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -209,13 +139,18 @@ export default async function AdminCertificatesPage({
 }) {
   const admin = createAdminClient();
   const cookieStore = await cookies();
-  const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
+  const flash = parseAdminFlash(
+    cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value,
+  );
   const sp = await searchParams;
 
   // ── Filters from URL ──
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const filterType = typeof sp.type === "string" ? sp.type.trim() : "";
-  const page = Math.max(1, Number.parseInt(typeof sp.page === "string" ? sp.page : "1", 10) || 1);
+  const page = Math.max(
+    1,
+    Number.parseInt(typeof sp.page === "string" ? sp.page : "1", 10) || 1,
+  );
   const editId = typeof sp.edit === "string" ? sp.edit : "";
   const pageSize = 30;
   const offset = (page - 1) * pageSize;
@@ -225,7 +160,9 @@ export default async function AdminCertificatesPage({
     loadCertificates({ admin, q, filterType, offset, pageSize }),
     admin
       .from("certificate_import_batches")
-      .select("id, source_name, status, source_row_count, inserted_count, updated_count, rejected_count, started_at, finished_at, report")
+      .select(
+        "id, source_name, status, source_row_count, inserted_count, updated_count, rejected_count, started_at, finished_at, report",
+      )
       .order("started_at", { ascending: false })
       .limit(10),
   ]);
@@ -234,18 +171,23 @@ export default async function AdminCertificatesPage({
   const totalCount = certificateLoad.totalCount;
   const loadWarnings = [
     certificateLoad.warning,
-    batchesResult.error ? "Certificate import batch history could not be loaded." : null,
+    batchesResult.error
+      ? "Certificate import batch history could not be loaded."
+      : null,
   ].filter(Boolean);
   const batches = (batchesResult.data || []) as BatchRow[];
   // Stats: counts by type
   const { data: typeStats } = await admin
     .from("certificates")
     .select("exam_or_event");
-  const typeCounts = (typeStats || []).reduce<Record<string, number>>((acc, r) => {
-    const k = (r.exam_or_event || "other").toLowerCase();
-    acc[k] = (acc[k] ?? 0) + 1;
-    return acc;
-  }, {});
+  const typeCounts = (typeStats || []).reduce<Record<string, number>>(
+    (acc, r) => {
+      const k = (r.exam_or_event || "other").toLowerCase();
+      acc[k] = (acc[k] ?? 0) + 1;
+      return acc;
+    },
+    {},
+  );
 
   // Dirty cert types (not Exam/Event/Course)
   const dirtyCount = Object.entries(typeCounts)
@@ -254,7 +196,7 @@ export default async function AdminCertificatesPage({
 
   // Record selected for edit
   const editRecord = editId
-    ? certs.find((c) => c.id === editId) ?? null
+    ? (certs.find((c) => c.id === editId) ?? null)
     : null;
 
   const totalPages = Math.ceil(totalCount / pageSize);
@@ -267,13 +209,15 @@ export default async function AdminCertificatesPage({
           <p className="admin-page-header__breadcrumb">Admin / Certificates</p>
           <h1 className="admin-page-header__title">Certificate Registry</h1>
           <p className="admin-page-header__desc">
-            Issue, search, edit, and bulk-import member certificates. Manage import batches and fix data quality issues.
+            Issue, search, edit, and bulk-import member certificates. Manage
+            import batches and fix data quality issues.
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
           {dirtyCount > 0 && (
             <span className="portal-badge portal-badge--pending">
-              <ShieldAlert size={10} /> {dirtyCount} type fix{dirtyCount !== 1 ? "es" : ""} needed
+              <ShieldAlert size={10} /> {dirtyCount} type fix
+              {dirtyCount !== 1 ? "es" : ""} needed
             </span>
           )}
           <span className="portal-badge portal-badge--verified">
@@ -285,25 +229,74 @@ export default async function AdminCertificatesPage({
       {/* ── Flash ───────────────────────────────────────────────────────────── */}
       {flash && (
         <section className="flash-panel" data-tone={flash.tone}>
-          <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.2em", color: "var(--muted-foreground)" }}>
+          <p
+            style={{
+              fontSize: "0.7rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.2em",
+              color: "var(--muted-foreground)",
+            }}
+          >
             Operator feedback
           </p>
-          <h2 style={{ marginTop: "0.35rem", fontFamily: "var(--font-heading)", fontSize: "1.35rem", fontWeight: 700, letterSpacing: "-0.03em" }}>
+          <h2
+            style={{
+              marginTop: "0.35rem",
+              fontFamily: "var(--font-heading)",
+              fontSize: "1.35rem",
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+            }}
+          >
             {flash.title}
           </h2>
-          <p style={{ marginTop: "0.3rem", fontSize: "0.88rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>{flash.message}</p>
+          <p
+            style={{
+              marginTop: "0.3rem",
+              fontSize: "0.88rem",
+              color: "var(--muted-foreground)",
+              lineHeight: 1.7,
+            }}
+          >
+            {flash.message}
+          </p>
         </section>
       )}
 
       {loadWarnings.length > 0 && (
         <section className="flash-panel" data-tone="warning">
-          <p style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.2em", color: "var(--muted-foreground)" }}>
+          <p
+            style={{
+              fontSize: "0.7rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.2em",
+              color: "var(--muted-foreground)",
+            }}
+          >
             Certificate registry notice
           </p>
-          <h2 style={{ marginTop: "0.35rem", fontFamily: "var(--font-heading)", fontSize: "1.15rem", fontWeight: 700, letterSpacing: "-0.03em" }}>
-            Some certificate data used a compatibility path
+          <h2
+            style={{
+              marginTop: "0.35rem",
+              fontFamily: "var(--font-heading)",
+              fontSize: "1.15rem",
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+            }}
+          >
+            Some certificate data could not be fully loaded
           </h2>
-          <ul style={{ marginTop: "0.5rem", paddingLeft: "1.1rem", fontSize: "0.86rem", color: "var(--muted-foreground)", lineHeight: 1.7 }}>
+          <ul
+            style={{
+              marginTop: "0.5rem",
+              paddingLeft: "1.1rem",
+              fontSize: "0.86rem",
+              color: "var(--muted-foreground)",
+              lineHeight: 1.7,
+            }}
+          >
             {loadWarnings.map((message) => (
               <li key={message}>{message}</li>
             ))}
@@ -313,72 +306,258 @@ export default async function AdminCertificatesPage({
       {/* ── Stat cards ──────────────────────────────────────────────────────── */}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <article className="metric-card">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.7rem" }}>
-            <div className="portal-stat-card__icon" style={{ width: "1.75rem", height: "1.75rem" }}><Award size={13} /></div>
-            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)" }}>Total</p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              marginBottom: "0.7rem",
+            }}
+          >
+            <div
+              className="portal-stat-card__icon"
+              style={{ width: "1.75rem", height: "1.75rem" }}
+            >
+              <Award size={13} />
+            </div>
+            <p
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                color: "var(--muted-foreground)",
+              }}
+            >
+              Total
+            </p>
           </div>
           <p className="metric-card__value">{totalCount}</p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted-foreground)" }}>All certificate records</p>
+          <p
+            style={{
+              marginTop: "0.4rem",
+              fontSize: "0.78rem",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            All certificate records
+          </p>
         </article>
 
         <article className="metric-card">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.7rem" }}>
-            <div className="portal-stat-card__icon" style={{ width: "1.75rem", height: "1.75rem" }}><BookOpen size={13} /></div>
-            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)" }}>Events</p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              marginBottom: "0.7rem",
+            }}
+          >
+            <div
+              className="portal-stat-card__icon"
+              style={{ width: "1.75rem", height: "1.75rem" }}
+            >
+              <BookOpen size={13} />
+            </div>
+            <p
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                color: "var(--muted-foreground)",
+              }}
+            >
+              Events
+            </p>
           </div>
           <p className="metric-card__value">{typeCounts["event"] ?? 0}</p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted-foreground)" }}>Event attendance certs</p>
+          <p
+            style={{
+              marginTop: "0.4rem",
+              fontSize: "0.78rem",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            Event attendance certs
+          </p>
         </article>
 
         <article className="metric-card">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.7rem" }}>
-            <div className="portal-stat-card__icon" style={{ width: "1.75rem", height: "1.75rem" }}><FileCheck2 size={13} /></div>
-            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)" }}>Exams</p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              marginBottom: "0.7rem",
+            }}
+          >
+            <div
+              className="portal-stat-card__icon"
+              style={{ width: "1.75rem", height: "1.75rem" }}
+            >
+              <FileCheck2 size={13} />
+            </div>
+            <p
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                color: "var(--muted-foreground)",
+              }}
+            >
+              Exams
+            </p>
           </div>
           <p className="metric-card__value">{typeCounts["exam"] ?? 0}</p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted-foreground)" }}>Exam completion certs</p>
+          <p
+            style={{
+              marginTop: "0.4rem",
+              fontSize: "0.78rem",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            Exam completion certs
+          </p>
         </article>
 
         <article className="metric-card">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.7rem" }}>
-            <div className="portal-stat-card__icon" style={{ width: "1.75rem", height: "1.75rem" }}><Layers size={13} /></div>
-            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)" }}>Courses</p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              marginBottom: "0.7rem",
+            }}
+          >
+            <div
+              className="portal-stat-card__icon"
+              style={{ width: "1.75rem", height: "1.75rem" }}
+            >
+              <Layers size={13} />
+            </div>
+            <p
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                color: "var(--muted-foreground)",
+              }}
+            >
+              Courses
+            </p>
           </div>
           <p className="metric-card__value">{typeCounts["course"] ?? 0}</p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted-foreground)" }}>Course completion certs</p>
+          <p
+            style={{
+              marginTop: "0.4rem",
+              fontSize: "0.78rem",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            Course completion certs
+          </p>
         </article>
 
-        <article className="metric-card" data-tone={dirtyCount > 0 ? "warn" : undefined}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.7rem" }}>
-            <div className="portal-stat-card__icon" style={{ width: "1.75rem", height: "1.75rem" }}><ShieldAlert size={13} /></div>
-            <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)" }}>Data issues</p>
+        <article
+          className="metric-card"
+          data-tone={dirtyCount > 0 ? "warn" : undefined}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              marginBottom: "0.7rem",
+            }}
+          >
+            <div
+              className="portal-stat-card__icon"
+              style={{ width: "1.75rem", height: "1.75rem" }}
+            >
+              <ShieldAlert size={13} />
+            </div>
+            <p
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                color: "var(--muted-foreground)",
+              }}
+            >
+              Data issues
+            </p>
           </div>
           <p className="metric-card__value">{dirtyCount}</p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--muted-foreground)" }}>Unrecognised type values</p>
+          <p
+            style={{
+              marginTop: "0.4rem",
+              fontSize: "0.78rem",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            Unrecognised type values
+          </p>
         </article>
       </section>
 
       {/* ── Forms row: Add cert + Bulk import ───────────────────────────────── */}
       <section className="grid items-start gap-6 xl:grid-cols-2">
         {/* Add / edit certificate */}
-        <form action={upsertCertificateAction} className="section-band grid gap-4">
+        <form
+          action={upsertCertificateAction}
+          className="section-band grid gap-4"
+        >
           <div>
-            <span className="eyebrow">{editRecord ? "Edit certificate" : "Add certificate"}</span>
-            <h2 style={{ marginTop: "0.75rem", fontFamily: "var(--font-heading)", fontSize: "clamp(1.6rem,3vw,2.1rem)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.05 }}>
-              {editRecord ? `Editing ${editRecord.certificate_id}` : "Issue a new certificate"}
+            <span className="eyebrow">
+              {editRecord ? "Edit certificate" : "Add certificate"}
+            </span>
+            <h2
+              style={{
+                marginTop: "0.75rem",
+                fontFamily: "var(--font-heading)",
+                fontSize: "clamp(1.6rem,3vw,2.1rem)",
+                fontWeight: 800,
+                letterSpacing: "-0.04em",
+                lineHeight: 1.05,
+              }}
+            >
+              {editRecord
+                ? `Editing ${editRecord.certificate_id}`
+                : "Issue a new certificate"}
             </h2>
-            <p style={{ marginTop: "0.4rem", fontSize: "0.84rem", color: "var(--muted-foreground)", lineHeight: 1.65 }}>
+            <p
+              style={{
+                marginTop: "0.4rem",
+                fontSize: "0.84rem",
+                color: "var(--muted-foreground)",
+                lineHeight: 1.65,
+              }}
+            >
               {editRecord
                 ? "Modify any field below. The certificate ID cannot be changed — delete and re-add if needed."
                 : "Create a single certificate record manually. For bulk imports, use the CSV panel."}
             </p>
           </div>
 
-          {editRecord && <input name="id" type="hidden" value={editRecord.id} />}
+          {editRecord && (
+            <input name="id" type="hidden" value={editRecord.id} />
+          )}
 
           <div className="portal-form-grid">
             <label className="input-label" htmlFor="cert-id">
-              <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><Hash size={11} /> Certificate ID *</span>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <Hash size={11} /> Certificate ID *
+              </span>
               <input
                 id="cert-id"
                 name="certificate_id"
@@ -386,26 +565,71 @@ export default async function AdminCertificatesPage({
                 placeholder="CERT-2026-001"
                 required
                 readOnly={!!editRecord}
-                style={editRecord ? { opacity: 0.65, cursor: "not-allowed" } : undefined}
+                style={
+                  editRecord
+                    ? { opacity: 0.65, cursor: "not-allowed" }
+                    : undefined
+                }
               />
             </label>
 
             <label className="input-label" htmlFor="cert-type">
-              <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><FileText size={11} /> Type *</span>
-              <select id="cert-type" name="exam_or_event" defaultValue={editRecord?.exam_or_event ?? "Event"} required>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <FileText size={11} /> Type *
+              </span>
+              <select
+                id="cert-type"
+                name="exam_or_event"
+                defaultValue={editRecord?.exam_or_event ?? "Event"}
+                required
+              >
                 <option value="Event">Event</option>
                 <option value="Exam">Exam</option>
                 <option value="Course">Course</option>
               </select>
             </label>
 
-            <label className="input-label sm:col-span-2" htmlFor="cert-full-name">
-              <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><User size={11} /> Full name *</span>
-              <input id="cert-full-name" name="full_name" defaultValue={editRecord?.full_name ?? ""} placeholder="Mohammad Rahman" required />
+            <label
+              className="input-label sm:col-span-2"
+              htmlFor="cert-full-name"
+            >
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <User size={11} /> Full name *
+              </span>
+              <input
+                id="cert-full-name"
+                name="full_name"
+                defaultValue={editRecord?.full_name ?? ""}
+                placeholder="Mohammad Rahman"
+                required
+              />
             </label>
 
-            <label className="input-label sm:col-span-2" htmlFor="cert-event-name">
-              <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><BookOpen size={11} /> Event / Exam / Course name *</span>
+            <label
+              className="input-label sm:col-span-2"
+              htmlFor="cert-event-name"
+            >
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <BookOpen size={11} /> Event / Exam / Course name *
+              </span>
               <input
                 id="cert-event-name"
                 name="exam_or_event_name"
@@ -416,51 +640,122 @@ export default async function AdminCertificatesPage({
             </label>
 
             <label className="input-label" htmlFor="cert-date">
-              <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><Calendar size={11} /> Issue date *</span>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <Calendar size={11} /> Issue date *
+              </span>
               <input
                 id="cert-date"
                 name="issue_date"
                 type="date"
-                defaultValue={editRecord?.issue_date ? editRecord.issue_date.slice(0, 10) : ""}
+                defaultValue={
+                  editRecord?.issue_date
+                    ? editRecord.issue_date.slice(0, 10)
+                    : ""
+                }
                 required
               />
             </label>
 
             <label className="input-label" htmlFor="cert-details">
-              <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><FileText size={11} /> Details</span>
-              <input id="cert-details" name="details" defaultValue={editRecord?.details ?? ""} placeholder="Optional additional info" />
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <FileText size={11} /> Details
+              </span>
+              <input
+                id="cert-details"
+                name="details"
+                defaultValue={editRecord?.details ?? ""}
+                placeholder="Optional additional info"
+              />
             </label>
 
             <label className="input-label sm:col-span-2" htmlFor="cert-asset">
-              <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><Link2 size={11} /> Asset URL</span>
-              <input id="cert-asset" name="asset_url" defaultValue={editRecord?.asset_url ?? ""} placeholder="https://…/cert.pdf" type="url" />
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <Link2 size={11} /> Asset URL
+              </span>
+              <input
+                id="cert-asset"
+                name="asset_url"
+                defaultValue={editRecord?.asset_url ?? ""}
+                placeholder="https://…/cert.pdf"
+                type="url"
+              />
             </label>
           </div>
 
           <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
             <button className="primary-button" type="submit">
-              <Plus size={14} /> {editRecord ? "Save changes" : "Create certificate"}
+              <Plus size={14} />{" "}
+              {editRecord ? "Save changes" : "Create certificate"}
             </button>
             {editRecord && (
-              <Link href="/admin/certificates" className="secondary-button">Cancel edit</Link>
+              <Link href="/admin/certificates" className="secondary-button">
+                Cancel edit
+              </Link>
             )}
           </div>
         </form>
 
         {/* Bulk CSV import */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          <form action={bulkImportCertificatesAction} className="section-band grid gap-4">
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
+        >
+          <form
+            action={bulkImportCertificatesAction}
+            className="section-band grid gap-4"
+          >
             <div>
               <span className="eyebrow">Bulk import</span>
-              <h2 style={{ marginTop: "0.75rem", fontFamily: "var(--font-heading)", fontSize: "clamp(1.5rem,3vw,2rem)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.05 }}>
+              <h2
+                style={{
+                  marginTop: "0.75rem",
+                  fontFamily: "var(--font-heading)",
+                  fontSize: "clamp(1.5rem,3vw,2rem)",
+                  fontWeight: 800,
+                  letterSpacing: "-0.04em",
+                  lineHeight: 1.05,
+                }}
+              >
                 CSV certificate import
               </h2>
-              <p style={{ marginTop: "0.4rem", fontSize: "0.84rem", color: "var(--muted-foreground)", lineHeight: 1.65 }}>
-                Paste CSV rows below. Each row must contain 6–7 columns in this order:
+              <p
+                style={{
+                  marginTop: "0.4rem",
+                  fontSize: "0.84rem",
+                  color: "var(--muted-foreground)",
+                  lineHeight: 1.65,
+                }}
+              >
+                Paste CSV rows below. Each row must contain 6–7 columns in this
+                order:
               </p>
               <div className="portal-info-row" style={{ marginTop: "0.65rem" }}>
                 <span className="portal-info-row__label">Expected columns</span>
-                <code style={{ fontSize: "0.74rem", lineHeight: 1.6, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+                <code
+                  style={{
+                    fontSize: "0.74rem",
+                    lineHeight: 1.6,
+                    color: "var(--foreground)",
+                    fontFamily: "var(--font-mono)",
+                  }}
+                >
                   certId, fullName, type, eventName, issueDate, assetUrl?
                 </code>
               </div>
@@ -468,7 +763,15 @@ export default async function AdminCertificatesPage({
 
             <div className="portal-form-grid">
               <label className="input-label" htmlFor="import-source">
-                <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}><Database size={11} /> Batch source name</span>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                  }}
+                >
+                  <Database size={11} /> Batch source name
+                </span>
                 <input
                   id="import-source"
                   name="source_name"
@@ -478,7 +781,11 @@ export default async function AdminCertificatesPage({
 
               <label className="input-label" htmlFor="import-conflict">
                 On duplicate cert ID
-                <select id="import-conflict" name="on_conflict" defaultValue="skip">
+                <select
+                  id="import-conflict"
+                  name="on_conflict"
+                  defaultValue="skip"
+                >
                   <option value="skip">Skip (keep existing)</option>
                   <option value="update">Overwrite existing</option>
                 </select>
@@ -490,9 +797,14 @@ export default async function AdminCertificatesPage({
                   id="import-csv"
                   name="csv_data"
                   rows={10}
-                  placeholder={"CERT-2026-001,Mohammad Rahman,Event,Speak Up Workshop,2026-01-15\nCERT-2026-002,Ayesha Khan,Exam,Basic Computer Course,2026-02-20,https://example.com/cert.pdf"}
+                  placeholder={
+                    "CERT-2026-001,Mohammad Rahman,Event,Speak Up Workshop,2026-01-15\nCERT-2026-002,Ayesha Khan,Exam,Basic Computer Course,2026-02-20,https://example.com/cert.pdf"
+                  }
                   required
-                  style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "0.78rem",
+                  }}
                 />
               </label>
             </div>
@@ -506,7 +818,15 @@ export default async function AdminCertificatesPage({
           <div className="section-band grid gap-3">
             <div>
               <span className="eyebrow">Import history</span>
-              <h2 style={{ marginTop: "0.65rem", fontFamily: "var(--font-heading)", fontSize: "1.5rem", fontWeight: 800, letterSpacing: "-0.04em" }}>
+              <h2
+                style={{
+                  marginTop: "0.65rem",
+                  fontFamily: "var(--font-heading)",
+                  fontSize: "1.5rem",
+                  fontWeight: 800,
+                  letterSpacing: "-0.04em",
+                }}
+              >
                 Recent batches
               </h2>
             </div>
@@ -518,19 +838,54 @@ export default async function AdminCertificatesPage({
                 {batches.map((batch) => (
                   <div key={batch.id} className="portal-draft-card">
                     <div className="portal-draft-card__header">
-                      <p className="portal-draft-card__title" style={{ fontSize: "0.82rem" }}>{batch.source_name}</p>
-                      <span className={`portal-badge ${batchStatusClass(batch.status)}`}>{batch.status}</span>
+                      <p
+                        className="portal-draft-card__title"
+                        style={{ fontSize: "0.82rem" }}
+                      >
+                        {batch.source_name}
+                      </p>
+                      <span
+                        className={`portal-badge ${batchStatusClass(batch.status)}`}
+                      >
+                        {batch.status}
+                      </span>
                     </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.4rem" }}>
-                      <span className="detail-chip"><Download size={9} /> {batch.inserted_count} inserted</span>
-                      {batch.updated_count > 0 && <span className="detail-chip">{batch.updated_count} updated</span>}
-                      {batch.rejected_count > 0 && <span className="detail-chip" style={{ color: "var(--brand-rust)" }}>{batch.rejected_count} rejected</span>}
-                      <span className="detail-chip">{batch.source_row_count} rows</span>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "0.4rem",
+                        marginTop: "0.4rem",
+                      }}
+                    >
+                      <span className="detail-chip">
+                        <Download size={9} /> {batch.inserted_count} inserted
+                      </span>
+                      {batch.updated_count > 0 && (
+                        <span className="detail-chip">
+                          {batch.updated_count} updated
+                        </span>
+                      )}
+                      {batch.rejected_count > 0 && (
+                        <span
+                          className="detail-chip"
+                          style={{ color: "var(--brand-rust)" }}
+                        >
+                          {batch.rejected_count} rejected
+                        </span>
+                      )}
+                      <span className="detail-chip">
+                        {batch.source_row_count} rows
+                      </span>
                     </div>
                     <div className="portal-draft-card__footer">
-                      <span className="portal-draft-card__date">{fmtDate(batch.started_at)}</span>
+                      <span className="portal-draft-card__date">
+                        {fmtDate(batch.started_at)}
+                      </span>
                       {batch.finished_at && (
-                        <span className="portal-draft-card__date">{fmtDate(batch.finished_at)}</span>
+                        <span className="portal-draft-card__date">
+                          {fmtDate(batch.finished_at)}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -543,14 +898,38 @@ export default async function AdminCertificatesPage({
 
       {/* ── Search + Filter bar ──────────────────────────────────────────────── */}
       <section className="section-band">
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: "1rem",
+            flexWrap: "wrap",
+            marginBottom: "1.25rem",
+          }}
+        >
           <div>
             <span className="eyebrow">Certificate registry</span>
-            <h2 style={{ marginTop: "0.65rem", fontFamily: "var(--font-heading)", fontSize: "clamp(1.7rem,3vw,2.2rem)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.05 }}>
+            <h2
+              style={{
+                marginTop: "0.65rem",
+                fontFamily: "var(--font-heading)",
+                fontSize: "clamp(1.7rem,3vw,2.2rem)",
+                fontWeight: 800,
+                letterSpacing: "-0.04em",
+                lineHeight: 1.05,
+              }}
+            >
               Browse &amp; manage certificates
             </h2>
             {(q || filterType) && (
-              <p style={{ marginTop: "0.4rem", fontSize: "0.82rem", color: "var(--muted-foreground)" }}>
+              <p
+                style={{
+                  marginTop: "0.4rem",
+                  fontSize: "0.82rem",
+                  color: "var(--muted-foreground)",
+                }}
+              >
                 Showing {certs.length} of {totalCount} results
                 {q ? ` matching "${q}"` : ""}
                 {filterType ? ` — type: ${filterType}` : ""}
@@ -562,59 +941,116 @@ export default async function AdminCertificatesPage({
             target="_blank"
             rel="noopener noreferrer"
             className="secondary-button"
-            style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+            }}
           >
             <ExternalLink size={13} /> Public verification
           </Link>
         </div>
 
         {/* Search & filter form */}
-        <AutoSubmitForm action="/admin/certificates" className="admin-filter-form">
+        <AutoSubmitForm
+          action="/admin/certificates"
+          className="admin-filter-form"
+        >
           <div className="admin-filter-grid">
-          <label className="input-label" htmlFor="cert-search" style={{ position: "relative" }}>
-            <input
-              id="cert-search"
-              name="q"
-              defaultValue={q}
-              placeholder="Search by certificate ID, full name, or event..."
-              style={{ paddingLeft: "2.2rem" }}
-            />
-            <Search
-              size={13}
-              style={{ position: "absolute", left: "0.7rem", top: "50%", transform: "translateY(-50%)", color: "var(--muted-foreground)", pointerEvents: "none" }}
-            />
-          </label>
+            <label
+              className="input-label"
+              htmlFor="cert-search"
+              style={{ position: "relative" }}
+            >
+              <input
+                id="cert-search"
+                name="q"
+                defaultValue={q}
+                placeholder="Search by certificate ID, full name, or event..."
+                style={{ paddingLeft: "2.2rem" }}
+              />
+              <Search
+                size={13}
+                style={{
+                  position: "absolute",
+                  left: "0.7rem",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--muted-foreground)",
+                  pointerEvents: "none",
+                }}
+              />
+            </label>
 
-          <label className="input-label" htmlFor="type-filter">
-            <select id="type-filter" name="type" defaultValue={filterType}>
-              <option value="">All types</option>
-              <option value="Event">Event</option>
-              <option value="Exam">Exam</option>
-              <option value="Course">Course</option>
-            </select>
-          </label>
+            <label className="input-label" htmlFor="type-filter">
+              <select id="type-filter" name="type" defaultValue={filterType}>
+                <option value="">All types</option>
+                <option value="Event">Event</option>
+                <option value="Exam">Exam</option>
+                <option value="Course">Course</option>
+              </select>
+            </label>
 
-          {(q || filterType) && (
-            <Link href="/admin/certificates" className="ghost-button" style={{ textAlign: "center", fontSize: "0.82rem" }}>
-              Clear filters
-            </Link>
-          )}
+            {(q || filterType) && (
+              <Link
+                href="/admin/certificates"
+                className="ghost-button"
+                style={{ textAlign: "center", fontSize: "0.82rem" }}
+              >
+                Clear filters
+              </Link>
+            )}
           </div>
         </AutoSubmitForm>
       </section>
 
       {/* ── Certificate table ────────────────────────────────────────────────── */}
-      <section className="section-band" style={{ padding: 0, overflow: "hidden" }}>
-        <div className="admin-responsive-table-shell" style={{ overflowX: "auto" }}>
-          <table className="admin-responsive-table" style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: "0.82rem",
-          }}>
+      <section
+        className="section-band"
+        style={{ padding: 0, overflow: "hidden" }}
+      >
+        <div
+          className="admin-responsive-table-shell"
+          style={{ overflowX: "auto" }}
+        >
+          <table
+            className="admin-responsive-table"
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "0.82rem",
+            }}
+          >
             <thead>
-              <tr style={{ background: "color-mix(in oklab, var(--panel) 72%, transparent)", borderBottom: "1px solid var(--line)" }}>
-                {["Certificate ID", "Name", "Type", "Event / Exam", "Issue Date", "Asset", "Actions"].map((h) => (
-                  <th key={h} style={{ padding: "0.75rem 1rem", textAlign: "left", fontWeight: 700, fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.16em", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
+              <tr
+                style={{
+                  background:
+                    "color-mix(in oklab, var(--panel) 72%, transparent)",
+                  borderBottom: "1px solid var(--line)",
+                }}
+              >
+                {[
+                  "Certificate ID",
+                  "Name",
+                  "Type",
+                  "Event / Exam",
+                  "Issue Date",
+                  "Asset",
+                  "Actions",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: "0.75rem 1rem",
+                      textAlign: "left",
+                      fontWeight: 700,
+                      fontSize: "0.68rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.16em",
+                      color: "var(--muted-foreground)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {h}
                   </th>
                 ))}
@@ -623,14 +1059,26 @@ export default async function AdminCertificatesPage({
             <tbody>
               {certs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: "3rem 1.5rem", textAlign: "center", color: "var(--muted-foreground)", fontSize: "0.88rem" }}>
-                    {q || filterType ? "No certificates match your search criteria." : "No certificates found in the database."}
+                  <td
+                    colSpan={7}
+                    style={{
+                      padding: "3rem 1.5rem",
+                      textAlign: "center",
+                      color: "var(--muted-foreground)",
+                      fontSize: "0.88rem",
+                    }}
+                  >
+                    {q || filterType
+                      ? "No certificates match your search criteria."
+                      : "No certificates found in the database."}
                   </td>
                 </tr>
               ) : (
                 certs.map((cert, idx) => {
                   const isOdd = idx % 2 === 0;
-                  const isDirty = !["exam", "event", "course"].includes(cert.exam_or_event.toLowerCase());
+                  const isDirty = !["exam", "event", "course"].includes(
+                    cert.exam_or_event.toLowerCase(),
+                  );
                   return (
                     <tr
                       key={cert.id}
@@ -643,26 +1091,50 @@ export default async function AdminCertificatesPage({
                       }}
                     >
                       {/* Cert ID */}
-                      <td data-label="Certificate ID" style={{ padding: "0.7rem 1rem" }}>
-                        <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", fontWeight: 700, color: "var(--brand-blue)" }}>
+                      <td
+                        data-label="Certificate ID"
+                        style={{ padding: "0.7rem 1rem" }}
+                      >
+                        <code
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                            color: "var(--brand-blue)",
+                          }}
+                        >
                           {cert.certificate_id}
                         </code>
                       </td>
 
                       {/* Name */}
-                      <td data-label="Name" style={{ padding: "0.7rem 1rem", fontWeight: 600 }}>
+                      <td
+                        data-label="Name"
+                        style={{ padding: "0.7rem 1rem", fontWeight: 600 }}
+                      >
                         {cert.full_name}
                       </td>
 
                       {/* Type */}
                       <td data-label="Type" style={{ padding: "0.7rem 1rem" }}>
                         {isDirty ? (
-                          <form action={fixCertTypeAction} style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                          <form
+                            action={fixCertTypeAction}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.35rem",
+                            }}
+                          >
                             <input type="hidden" name="id" value={cert.id} />
                             <select
                               name="exam_or_event"
                               defaultValue="Event"
-                              style={{ fontSize: "0.72rem", padding: "0.2rem 0.4rem", borderRadius: "0.4rem" }}
+                              style={{
+                                fontSize: "0.72rem",
+                                padding: "0.2rem 0.4rem",
+                                borderRadius: "0.4rem",
+                              }}
                             >
                               <option value="Event">Event</option>
                               <option value="Exam">Exam</option>
@@ -671,7 +1143,14 @@ export default async function AdminCertificatesPage({
                             <button
                               type="submit"
                               title="Fix type"
-                              style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--brand-rust)", background: "none", border: "none", cursor: "pointer" }}
+                              style={{
+                                fontSize: "0.7rem",
+                                fontWeight: 700,
+                                color: "var(--brand-rust)",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                              }}
                             >
                               Fix
                             </button>
@@ -680,16 +1159,18 @@ export default async function AdminCertificatesPage({
                           <span
                             className="portal-badge"
                             style={{
-                              background: cert.exam_or_event.toLowerCase() === "event"
-                                ? "color-mix(in oklab, var(--brand-blue) 10%, transparent)"
-                                : cert.exam_or_event.toLowerCase() === "exam"
-                                  ? "color-mix(in oklab, var(--brand-green) 10%, transparent)"
-                                  : "color-mix(in oklab, var(--brand-gold) 10%, transparent)",
-                              color: cert.exam_or_event.toLowerCase() === "event"
-                                ? "var(--brand-blue)"
-                                : cert.exam_or_event.toLowerCase() === "exam"
-                                  ? "var(--brand-green)"
-                                  : "color-mix(in oklab, var(--brand-gold) 80%, var(--foreground))",
+                              background:
+                                cert.exam_or_event.toLowerCase() === "event"
+                                  ? "color-mix(in oklab, var(--brand-blue) 10%, transparent)"
+                                  : cert.exam_or_event.toLowerCase() === "exam"
+                                    ? "color-mix(in oklab, var(--brand-green) 10%, transparent)"
+                                    : "color-mix(in oklab, var(--brand-gold) 10%, transparent)",
+                              color:
+                                cert.exam_or_event.toLowerCase() === "event"
+                                  ? "var(--brand-blue)"
+                                  : cert.exam_or_event.toLowerCase() === "exam"
+                                    ? "var(--brand-green)"
+                                    : "color-mix(in oklab, var(--brand-gold) 80%, var(--foreground))",
                               borderColor: "transparent",
                             }}
                           >
@@ -699,15 +1180,40 @@ export default async function AdminCertificatesPage({
                       </td>
 
                       {/* Event name */}
-                      <td data-label="Event / Exam" style={{ padding: "0.7rem 1rem", maxWidth: "18rem" }}>
-                        <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.5, color: "var(--muted-foreground)" }}>
+                      <td
+                        data-label="Event / Exam"
+                        style={{ padding: "0.7rem 1rem", maxWidth: "18rem" }}
+                      >
+                        <span
+                          style={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            lineHeight: 1.5,
+                            color: "var(--muted-foreground)",
+                          }}
+                        >
                           {cert.exam_or_event_name}
                         </span>
                       </td>
 
                       {/* Issue date */}
-                      <td data-label="Issue Date" style={{ padding: "0.7rem 1rem", whiteSpace: "nowrap", color: "var(--muted-foreground)" }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                      <td
+                        data-label="Issue Date"
+                        style={{
+                          padding: "0.7rem 1rem",
+                          whiteSpace: "nowrap",
+                          color: "var(--muted-foreground)",
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.3rem",
+                          }}
+                        >
                           <Calendar size={11} /> {fmtDate(cert.issue_date)}
                         </span>
                       </td>
@@ -721,22 +1227,44 @@ export default async function AdminCertificatesPage({
                             rel="noopener noreferrer"
                             className="queue-link"
                             title={cert.asset_url}
-                            style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.3rem",
+                            }}
                           >
                             <ExternalLink size={11} /> PDF
                           </a>
                         ) : (
-                          <span style={{ color: "var(--muted-foreground)", fontSize: "0.75rem" }}>—</span>
+                          <span
+                            style={{
+                              color: "var(--muted-foreground)",
+                              fontSize: "0.75rem",
+                            }}
+                          >
+                            —
+                          </span>
                         )}
                       </td>
 
                       {/* Actions */}
-                      <td data-label="Actions" style={{ padding: "0.7rem 1rem" }}>
-                        <div className="admin-action-row" style={{ gap: "0.5rem" }}>
+                      <td
+                        data-label="Actions"
+                        style={{ padding: "0.7rem 1rem" }}
+                      >
+                        <div
+                          className="admin-action-row"
+                          style={{ gap: "0.5rem" }}
+                        >
                           <Link
                             href={`/admin/certificates?edit=${cert.id}#add-form`}
                             className="ghost-button"
-                            style={{ padding: "0.3rem 0.65rem", fontSize: "0.74rem", minHeight: "auto", borderRadius: "0.5rem" }}
+                            style={{
+                              padding: "0.3rem 0.65rem",
+                              fontSize: "0.74rem",
+                              minHeight: "auto",
+                              borderRadius: "0.5rem",
+                            }}
                           >
                             Edit
                           </Link>
@@ -744,7 +1272,12 @@ export default async function AdminCertificatesPage({
                             href={`/certificates?id=${cert.certificate_id}`}
                             target="_blank"
                             className="ghost-button"
-                            style={{ padding: "0.3rem 0.5rem", fontSize: "0.74rem", minHeight: "auto", borderRadius: "0.5rem" }}
+                            style={{
+                              padding: "0.3rem 0.5rem",
+                              fontSize: "0.74rem",
+                              minHeight: "auto",
+                              borderRadius: "0.5rem",
+                            }}
                             title="Verify publicly"
                           >
                             <ExternalLink size={11} />
@@ -766,16 +1299,24 @@ export default async function AdminCertificatesPage({
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "1rem",
-            padding: "0.8rem 1.25rem",
-            borderTop: "1px solid var(--line)",
-            background: "color-mix(in oklab, var(--panel) 55%, transparent)",
-          }}>
-            <span style={{ fontSize: "0.78rem", color: "var(--muted-foreground)", fontWeight: 600 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "1rem",
+              padding: "0.8rem 1.25rem",
+              borderTop: "1px solid var(--line)",
+              background: "color-mix(in oklab, var(--panel) 55%, transparent)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "0.78rem",
+                color: "var(--muted-foreground)",
+                fontWeight: 600,
+              }}
+            >
               Page {page} of {totalPages} · {totalCount} total records
             </span>
             <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -783,7 +1324,11 @@ export default async function AdminCertificatesPage({
                 <Link
                   href={`/admin/certificates?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}${filterType ? `&type=${filterType}` : ""}`}
                   className="ghost-button"
-                  style={{ padding: "0.3rem 0.75rem", fontSize: "0.8rem", minHeight: "auto" }}
+                  style={{
+                    padding: "0.3rem 0.75rem",
+                    fontSize: "0.8rem",
+                    minHeight: "auto",
+                  }}
                 >
                   ← Prev
                 </Link>
@@ -792,7 +1337,11 @@ export default async function AdminCertificatesPage({
                 <Link
                   href={`/admin/certificates?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}${filterType ? `&type=${filterType}` : ""}`}
                   className="ghost-button"
-                  style={{ padding: "0.3rem 0.75rem", fontSize: "0.8rem", minHeight: "auto" }}
+                  style={{
+                    padding: "0.3rem 0.75rem",
+                    fontSize: "0.8rem",
+                    minHeight: "auto",
+                  }}
                 >
                   Next →
                 </Link>
@@ -807,24 +1356,71 @@ export default async function AdminCertificatesPage({
         <section className="section-band">
           <div>
             <span className="eyebrow">Data quality</span>
-            <h2 style={{ marginTop: "0.65rem", fontFamily: "var(--font-heading)", fontSize: "1.7rem", fontWeight: 800, letterSpacing: "-0.04em" }}>
+            <h2
+              style={{
+                marginTop: "0.65rem",
+                fontFamily: "var(--font-heading)",
+                fontSize: "1.7rem",
+                fontWeight: 800,
+                letterSpacing: "-0.04em",
+              }}
+            >
               Unrecognised certificate types
             </h2>
-            <p style={{ marginTop: "0.4rem", fontSize: "0.84rem", color: "var(--muted-foreground)", lineHeight: 1.65 }}>
-              {dirtyCount} certificates have an <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>exam_or_event</code> value
-              that is not <strong>Event</strong>, <strong>Exam</strong>, or <strong>Course</strong>. Use the inline fix controls in the table above, or filter by type to batch-review them.
+            <p
+              style={{
+                marginTop: "0.4rem",
+                fontSize: "0.84rem",
+                color: "var(--muted-foreground)",
+                lineHeight: 1.65,
+              }}
+            >
+              {dirtyCount} certificates have an{" "}
+              <code
+                style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}
+              >
+                exam_or_event
+              </code>{" "}
+              value that is not <strong>Event</strong>, <strong>Exam</strong>,
+              or <strong>Course</strong>. Use the inline fix controls in the
+              table above, or filter by type to batch-review them.
             </p>
           </div>
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem", marginTop: "0.5rem" }}>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.6rem",
+              marginTop: "0.5rem",
+            }}
+          >
             {Object.entries(typeCounts)
               .filter(([k]) => !["exam", "event", "course"].includes(k))
               .map(([k, v]) => (
-                <div key={k} className="portal-info-row" style={{ padding: "0.55rem 0.85rem" }}>
+                <div
+                  key={k}
+                  className="portal-info-row"
+                  style={{ padding: "0.55rem 0.85rem" }}
+                >
                   <span className="portal-info-row__label">type value</span>
                   <span className="portal-info-row__value">
-                    <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>&quot;{k}&quot;</code>{" "}
-                    <span style={{ color: "var(--muted-foreground)", fontSize: "0.78rem" }}>({v} records)</span>
+                    <code
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      &quot;{k}&quot;
+                    </code>{" "}
+                    <span
+                      style={{
+                        color: "var(--muted-foreground)",
+                        fontSize: "0.78rem",
+                      }}
+                    >
+                      ({v} records)
+                    </span>
                   </span>
                 </div>
               ))}
@@ -843,16 +1439,42 @@ export default async function AdminCertificatesPage({
       {/* ── Quick links ─────────────────────────────────────────────────────── */}
       <section className="grid gap-4 md:grid-cols-2">
         <div className="route-tile">
-          <h3 style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}><ExternalLink size={14} /> Public certificate verification</h3>
-          <p>Members and employers can verify certificates at the public portal.</p>
-          <Link href="/certificates" target="_blank" className="queue-link" style={{ marginTop: "0.5rem", display: "inline-flex" }}>
+          <h3 style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+            <ExternalLink size={14} /> Public certificate verification
+          </h3>
+          <p>
+            Members and employers can verify certificates at the public portal.
+          </p>
+          <Link
+            href="/certificates"
+            target="_blank"
+            className="queue-link"
+            style={{ marginTop: "0.5rem", display: "inline-flex" }}
+          >
             Open verification page ↗
           </Link>
         </div>
         <div className="route-tile">
-          <h3 style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}><Database size={14} /> Import format reference</h3>
-          <p>CSV column order: <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>certId, fullName, type, eventName, issueDate, assetUrl?</code></p>
-          <p style={{ marginTop: "0.4rem", fontSize: "0.82rem", color: "var(--muted-foreground)" }}>Types: Event · Exam · Course. Dates: YYYY-MM-DD.</p>
+          <h3 style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+            <Database size={14} /> Import format reference
+          </h3>
+          <p>
+            CSV column order:{" "}
+            <code
+              style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}
+            >
+              certId, fullName, type, eventName, issueDate, assetUrl?
+            </code>
+          </p>
+          <p
+            style={{
+              marginTop: "0.4rem",
+              fontSize: "0.82rem",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            Types: Event · Exam · Course. Dates: YYYY-MM-DD.
+          </p>
         </div>
       </section>
     </div>

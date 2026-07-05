@@ -21,6 +21,9 @@ const EXPECTED_MIGRATIONS = [
   ["20260705013928", "public_certificate_view_access"],
   ["20260705020732", "public_certificate_security_invoker_view"],
   ["20260705022356", "revoke_anon_admin_totp_helper"],
+  ["20260705151405", "restrict_authenticated_security_definer_exec"],
+  ["20260705202621", "tighten_public_certificate_view_grants"],
+  ["20260705205024", "add_operational_foreign_key_indexes"],
 ];
 
 const WATCHED_TABLES = [
@@ -517,9 +520,9 @@ function formatAuditMarkdown({ codeUsage, data, evaluation, generatedAt = new Da
     "",
     "## Staged Cleanup Recommendations",
     "",
-    "- Apply the two July certificate migrations in a later approved DB-change phase, then remove certificate split-name fallbacks from app code.",
-    "- Keep `gallery_entries` until the 6 legacy rows are confirmed mirrored, archival, or intentionally removed; move active code/reporting to `gallery_album_items` first.",
-    "- Narrow broad `anon` and `authenticated` grants only after route-level smoke checks confirm PostgREST/RLS behavior remains intact.",
+    "- Keep certificate full-name migrations applied before release; if this audit reports them pending, block certificate launch until production schema matches the app.",
+    "- Keep `gallery_entries` until the 6 legacy rows are confirmed mirrored, archival, or intentionally removed; active app reporting should stay on `gallery_album_items`, with only legacy scripts/media-reference safety retaining `gallery_entries`.",
+    "- Narrow broad `anon` and `authenticated` grants with table/view-specific migrations after route-level smoke checks confirm PostgREST/RLS behavior remains intact.",
     "- Classify exposed `SECURITY DEFINER` functions before revoking execution; do not blindly revoke helpers used by RLS/auth claims.",
     "- Preserve historical `operator_reports` rows; simplify UI copy rather than deleting history.",
     "",

@@ -175,12 +175,6 @@ export type EventDetail = EventPreview & {
   id: string;
 };
 
-export type GalleryDetail = GalleryPreview & {
-  id: string;
-  mediaKind: "image" | "video";
-  secureUrl: string;
-  thumbnailUrl: null | string;
-};
 
 export type DeveloperPreview = {
   name: string;
@@ -219,8 +213,6 @@ const contentPostSelect =
   "id, slug, title, category, summary, excerpt, body, published_at, read_time, location, starts_at, ends_at, cta_href, content_type, status, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)";
 const blogContentPostSelect =
   `${contentPostSelect}, author_member_id, author_advisor_profile_id, members!content_posts_author_member_id_fkey(full_name, member_type), advisor_profiles!content_posts_author_advisor_profile_id_fkey(full_name, title, is_public)`;
-const galleryEntrySelect =
-  "id, title, caption, sort_order, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)";
 
 const fallbackBlogImage = "/images/home-group.jpg";
 const fallbackEventImage = "/images/workshop.jpg";
@@ -734,7 +726,6 @@ export const aboutContent = fallbackAboutContent;
 export const publicBlogs = fallbackPublicBlogs;
 export const publicEvents = fallbackPublicEvents;
 export const publicNotices = fallbackPublicNotices;
-export const publicGallery = fallbackPublicGallery;
 export const developerCredits = fallbackDeveloperCredits;
 
 const shortDate = new Intl.DateTimeFormat("en-US", {

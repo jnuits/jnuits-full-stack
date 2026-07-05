@@ -2,7 +2,12 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
-const { buildSupabaseCliEnv, loadDotEnvLocal } = require("./migration-parity.cjs");
+const {
+  buildSpawnInvocation,
+  buildSupabaseCliEnv,
+  loadDotEnvLocal,
+  resolveSpawnCommand,
+} = require("./migration-parity.cjs");
 
 const TARGET_MIGRATION_VERSION = "20260630191141";
 const REQUIRED_TRGM_INDEXES = [
@@ -104,7 +109,7 @@ function parseVerificationOutput(stdout) {
   return JSON.parse(raw);
 }
 
-function runSupabaseDbQuery({ cwd = process.cwd(), env = process.env, runner, sql } = {}) {
+function runSupabaseDbQuery({ cwd = process.cwd(), env = process.env, platform = process.platform, runner, sql } = {}) {
   const run = runner || ((command, args, options) => spawnSync(command, args, options));
   const cli = parseCliCommand(env.SUPABASE_CLI_COMMAND);
   const sqlPath = path.join(
@@ -115,15 +120,14 @@ function runSupabaseDbQuery({ cwd = process.cwd(), env = process.env, runner, sq
   fs.writeFileSync(sqlPath, sql || buildVerificationSql(), "utf8");
 
   try {
-    const result = run(
-      cli.command,
-      [...cli.argsPrefix, "db", "query", "--linked", "--file", sqlPath],
-      {
-        cwd,
-        encoding: "utf8",
-        env: buildSupabaseCliEnv(env),
-      }
-    );
+    const cliCommand = resolveSpawnCommand(cli.command, platform);
+    const cliArgs = [...cli.argsPrefix, "db", "query", "--linked", "--file", sqlPath];
+    const invocation = buildSpawnInvocation(cliCommand, cliArgs, platform);
+    const result = run(invocation.command, invocation.args, {
+      cwd,
+      encoding: "utf8",
+      env: buildSupabaseCliEnv(env),
+    });
 
     if (result.error?.code === "ENOENT") {
       throw new Error(
