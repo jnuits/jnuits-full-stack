@@ -33,10 +33,10 @@ Use `AutoSubmitForm` for non-destructive admin filters. Text inputs debounce, se
 
 ## Guardrail Script
 
-Run this report-only check during UI work:
+Run this blocking check during UI work:
 
 ```bash
 npm run audit:admin-ui
 ```
 
-The script intentionally exits successfully while the cleanup is in progress. Treat findings as review prompts, not build blockers.
+The default finding budget is `0`. New risky patterns fail the check unless a reviewer intentionally raises `ADMIN_UI_AUDIT_MAX_FINDINGS` for a temporary, documented exception.

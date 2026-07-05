@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { ExternalLink } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import {
@@ -141,19 +139,13 @@ export async function AdminShell({
           <div className="admin-topbar__left">
             <span id="admin-sidebar-toggle-slot" className="admin-sidebar-toggle-slot" />
             <span className="admin-topbar__title">
-              JnUITS — Operator Workspace
+              <span className="admin-topbar__title-desktop">
+                JnUITS — Operator Workspace
+              </span>
+              <span className="admin-topbar__title-mobile">Operator Workspace</span>
             </span>
           </div>
           <div className="admin-topbar__right">
-            <Link
-              href="/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="admin-sidebar__view-site"
-              style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
-            >
-              View site <ExternalLink size={11} />
-            </Link>
             <LogoutButton
               className="secondary-button inline-flex items-center gap-2 text-sm"
               redirectTo="/admin/login"

@@ -204,6 +204,28 @@ function parseCliCommand(value) {
   };
 }
 
+function resolveSpawnCommand(command, platform = process.platform) {
+  if (platform !== "win32" || path.extname(command)) {
+    return command;
+  }
+
+  if (command === "npx" || command === "npm" || command === "supabase") {
+    return `${command}.cmd`;
+  }
+
+  return command;
+}
+
+function buildSpawnInvocation(command, args, platform = process.platform) {
+  if (platform === "win32" && [".bat", ".cmd"].includes(path.extname(command).toLowerCase())) {
+    return {
+      args: ["/d", "/c", [command, ...args].join(" ")],
+      command: "cmd.exe",
+    };
+  }
+
+  return { args, command };
+}
 function runSupabaseMigrationList({ cwd = process.cwd(), env = process.env, runner } = {}) {
   const run =
     runner ??
@@ -214,9 +236,12 @@ function runSupabaseMigrationList({ cwd = process.cwd(), env = process.env, runn
       }));
 
   const cli = parseCliCommand(env.SUPABASE_CLI_COMMAND);
+  const cliCommand = resolveSpawnCommand(cli.command);
+  const cliArgs = [...cli.argsPrefix, "migration", "list", "--linked", "--output", "json"];
+  const invocation = buildSpawnInvocation(cliCommand, cliArgs);
   const result = run(
-    cli.command,
-    [...cli.argsPrefix, "migration", "list", "--linked", "--output", "json"],
+    invocation.command,
+    invocation.args,
     {
       cwd,
       env: buildSupabaseCliEnv(env),
@@ -238,6 +263,14 @@ function runSupabaseMigrationList({ cwd = process.cwd(), env = process.env, runn
 
   if (result.status !== 0) {
     const output = `${result.stderr || result.stdout || ""}`.trim();
+    if (/access token not provided/i.test(output)) {
+      throw new Error(
+        "Supabase CLI migration list failed because no access token was available.\n" +
+          "Run `supabase login`, set SUPABASE_ACCESS_TOKEN, or set SUPABASE_PAT in .env.local/CI.\n" +
+          "No token value was printed."
+      );
+    }
+
     throw new Error(
       "Supabase CLI migration list failed.\n" +
         (output ? `Output: ${output.slice(0, 1000)}` : "No output was returned.")
@@ -339,6 +372,8 @@ module.exports = {
   loadDotEnvLocal,
   parseRemoteVersionsFromMigrationTable,
   parseRemoteVersionsFromMigrationList,
+  buildSpawnInvocation,
+  resolveSpawnCommand,
   runMigrationParityCheck,
   runSupabaseMigrationList,
 };

@@ -7437,6 +7437,10 @@ footer {
   letter-spacing: -0.01em;
 }
 
+.admin-topbar__title-mobile {
+  display: none;
+}
+
 .admin-sidebar-toggle {
   display: none;
   align-items: center;
@@ -7860,6 +7864,14 @@ footer {
 @media (max-width: 640px) {
   .admin-topbar__title {
     max-width: min(48vw, 13rem);
+  }
+
+  .admin-topbar__title-desktop {
+    display: none;
+  }
+
+  .admin-topbar__title-mobile {
+    display: inline;
   }
 
   .admin-topbar__right .admin-user-badge {

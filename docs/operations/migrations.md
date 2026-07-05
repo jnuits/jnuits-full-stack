@@ -38,3 +38,27 @@ The current audit dump should cover:
 - `certificates` and `public_certificates` policies;
 - public certificate columns;
 - anon/authenticated/public grants for high-risk public tables.
+
+## Certificate Full-Name Migration Gate
+
+The app code expects `certificates.full_name` and the public-safe `public_certificates.full_name` view shape. Production must apply these reviewed migrations in order before removing any remaining compatibility code:
+
+1. `20260703020515_certificate_full_name.sql`
+2. `20260703040706_cleanup_certificate_legacy_names.sql`
+
+After approval and application, reload PostgREST with `NOTIFY pgrst, 'reload schema'`, then verify:
+
+- `certificates.full_name` exists and is populated;
+- `public_certificates` exposes `full_name` and does not expose split names or source IDs;
+- raw `certificates` is not publicly readable;
+- `/certificates?q=24007`, `/api/certificates/batch`, and `/api/certificates/view/<id>` return the public-safe shape.
+
+## Supabase CLI Parity Notes
+
+Use the supported CLI path for migration parity:
+
+```bash
+SUPABASE_CLI_COMMAND="npx --yes supabase" npm run migration:check
+```
+
+On Windows the script resolves npm-family shims such as `npx`, `npm`, and `supabase` to `.cmd` automatically. If the CLI reports that no token is available, sign in with `supabase login` or set `SUPABASE_ACCESS_TOKEN`/`SUPABASE_PAT` in the execution environment. Never print token values in logs or reports.

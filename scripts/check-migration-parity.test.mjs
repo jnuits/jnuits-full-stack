@@ -7,6 +7,8 @@ const {
   buildSupabaseCliEnv,
   parseRemoteVersionsFromMigrationTable,
   parseRemoteVersionsFromMigrationList,
+  buildSpawnInvocation,
+  resolveSpawnCommand,
   runSupabaseMigrationList,
 } = require("./lib/migration-parity.cjs");
 
@@ -120,5 +122,73 @@ describe("migration parity checker", () => {
       args: ["migration", "list", "--linked", "--output", "json"],
       command: "custom-supabase",
     });
+  });
+  it("resolves npm-family commands to .cmd on Windows", () => {
+    expect(resolveSpawnCommand("npx", "win32")).toBe("npx.cmd");
+    expect(resolveSpawnCommand("npm", "win32")).toBe("npm.cmd");
+    expect(resolveSpawnCommand("supabase", "win32")).toBe("supabase.cmd");
+    expect(resolveSpawnCommand("custom-supabase", "win32")).toBe("custom-supabase");
+    expect(resolveSpawnCommand("npx", "linux")).toBe("npx");
+  });
+
+  it("builds an explicit cmd.exe invocation for Windows cmd and bat shims", () => {
+    expect(buildSpawnInvocation("npx.cmd", ["--yes", "supabase"], "win32")).toEqual({
+      args: ["/d", "/c", "npx.cmd --yes supabase"],
+      command: "cmd.exe",
+    });
+    expect(buildSpawnInvocation("supabase", ["migration"], "win32")).toEqual({
+      args: ["migration"],
+      command: "supabase",
+    });
+    expect(buildSpawnInvocation("npx.cmd", ["--yes"], "linux")).toEqual({
+      args: ["--yes"],
+      command: "npx.cmd",
+    });
+  });
+
+  it("passes a cmd.exe command line when the resolved command is a Windows cmd shim", () => {
+    const calls = [];
+
+    runSupabaseMigrationList({
+      env: { SUPABASE_CLI_COMMAND: "npx --yes supabase" },
+      runner: (command, args, options) => {
+        calls.push({ args, command, options });
+        return {
+          status: 0,
+          stdout: JSON.stringify([{ remote: "20260101000000" }]),
+        };
+      },
+    });
+
+    if (process.platform === "win32") {
+      expect(calls[0].command).toBe("cmd.exe");
+      expect(calls[0].args).toEqual([
+        "/d",
+        "/c",
+        "npx.cmd --yes supabase migration list --linked --output json",
+      ]);
+    } else {
+      expect(calls[0].command).toBe("npx");
+      expect(calls[0].args).toEqual([
+        "--yes",
+        "supabase",
+        "migration",
+        "list",
+        "--linked",
+        "--output",
+        "json",
+      ]);
+    }
+  });
+
+  it("fails clearly when the CLI reports a missing access token", () => {
+    expect(() =>
+      runSupabaseMigrationList({
+        runner: () => ({
+          status: 1,
+          stderr: "Access token not provided.",
+        }),
+      })
+    ).toThrow(/no access token was available/);
   });
 });

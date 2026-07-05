@@ -1603,7 +1603,7 @@ function DrawerPanel({
   children,
   onClose,
   title,
-  width = "lg:max-w-[480px]",
+  width = "lg:max-w-lg",
 }: {
   children: ReactNode;
   onClose: () => void;
@@ -1663,7 +1663,7 @@ function DrawerPanel({
       <section
         aria-modal="true"
         className={cx(
-          "absolute inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto rounded-t-2xl border border-border bg-card shadow-2xl transition-transform lg:inset-y-0 lg:left-auto lg:right-0 lg:max-h-none lg:w-full lg:rounded-none lg:border-y-0 lg:border-r-0",
+          "absolute inset-x-0 bottom-0 max-h-screen overflow-y-auto rounded-t-2xl border border-border bg-card shadow-2xl transition-transform lg:inset-y-0 lg:left-auto lg:right-0 lg:max-h-none lg:w-full lg:rounded-none lg:border-y-0 lg:border-r-0",
           width
         )}
         ref={panelRef}
@@ -2721,7 +2721,7 @@ export function CommitteeWorkspaceClient({
   const flashId = flash ? `${flash.title}:${flash.message}` : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-[1560px] flex-col gap-8 px-6 py-9 lg:px-10">
+    <main className="mx-auto flex w-full max-w-screen-2xl flex-col gap-8 px-6 py-9 lg:px-10">
       <header className="border-b border-border pb-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -2748,7 +2748,7 @@ export function CommitteeWorkspaceClient({
       {flash && flashId !== dismissedFlashId ? (
         <div
           className={cx(
-            "fixed right-6 top-20 z-50 w-[min(380px,calc(100vw-3rem))] rounded-xl border bg-card p-4 shadow-2xl",
+            "fixed left-6 right-6 top-20 z-50 rounded-xl border bg-card p-4 shadow-2xl sm:left-auto sm:w-96",
             flash.tone === "success" && "border-emerald-500/30 bg-emerald-50 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-50",
             flash.tone === "error" && "border-destructive/30 bg-destructive/10"
           )}
@@ -2810,7 +2810,7 @@ export function CommitteeWorkspaceClient({
             title="Executive committee terms"
           >
             <TableCard>
-              <table className="admin-responsive-table w-full min-w-[980px] text-left text-sm">
+              <table className="admin-responsive-table w-full min-w-max text-left text-sm">
                 <thead className="border-b border-border bg-muted/50 text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   <tr className="h-12">
                     <th className="px-4 font-semibold" scope="col">Term</th>
@@ -2913,7 +2913,7 @@ export function CommitteeWorkspaceClient({
               <>
                 <PanelSelect
                   aria-label="Committee term"
-                  className="w-full sm:w-[220px]"
+                  className="w-full sm:w-56"
                   onChange={(event) => setSelectedTermId(event.target.value || null)}
                   value={selectedTerm?.id || ""}
                 >
@@ -2942,7 +2942,7 @@ export function CommitteeWorkspaceClient({
             <RoleSlotGrid roles={executiveRoles} selectedRoleCounts={selectedRoleCounts} />
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
-              <label className="relative min-w-[220px] flex-1">
+              <label className="relative min-w-56 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <PanelInput
                   className="w-full pl-9"
@@ -2995,7 +2995,7 @@ export function CommitteeWorkspaceClient({
                   title="No public executive assignments in this term"
                 />
               ) : (
-                <table className="admin-responsive-table w-full min-w-[860px] text-left text-sm">
+                <table className="admin-responsive-table w-full min-w-max text-left text-sm">
                   <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                     <tr className="h-10">
                       <th className="w-10 px-4" scope="col">
@@ -3113,13 +3113,13 @@ export function CommitteeWorkspaceClient({
                   value={advisorSearch}
                 />
               </label>
-              <PanelSelect aria-label="Filter advisors by type" className="w-[190px]" onChange={(event) => setAdvisorTypeFilter(event.target.value)} value={advisorTypeFilter}>
+              <PanelSelect aria-label="Filter advisors by type" className="w-full sm:w-48" onChange={(event) => setAdvisorTypeFilter(event.target.value)} value={advisorTypeFilter}>
                 <option value="">All advisor types</option>
                 {advisorTypeOptions.map((advisorType) => (
                   <option key={advisorType} value={advisorType}>{humanize(advisorType)}</option>
                 ))}
               </PanelSelect>
-              <PanelSelect aria-label="Filter advisors by status" className="w-[130px]" onChange={(event) => setAdvisorStatusFilter(event.target.value)} value={advisorStatusFilter}>
+              <PanelSelect aria-label="Filter advisors by status" className="w-full sm:w-36" onChange={(event) => setAdvisorStatusFilter(event.target.value)} value={advisorStatusFilter}>
                 <option value="">All</option>
                 <option value="current">Current</option>
                 <option value="former">Former</option>
@@ -3145,7 +3145,7 @@ export function CommitteeWorkspaceClient({
                   title="No advisors match this view"
                 />
               ) : (
-                <table className="admin-responsive-table w-full min-w-[840px] text-left text-sm">
+                <table className="admin-responsive-table w-full min-w-max text-left text-sm">
                   <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                     <tr className="h-10">
                       <th className="px-4 font-semibold" scope="col">Advisor</th>
@@ -3178,7 +3178,7 @@ export function CommitteeWorkspaceClient({
                         </td>
                         <td className="px-4">{advisor.department || <span className="italic text-muted-foreground">Not set</span>}</td>
                         <td className="px-4 font-mono text-xs tabular-nums text-muted-foreground" title={advisor.tenureDisplay || `${formatDate(advisor.joinedOn)} - ${formatDate(advisor.leftOn)}`}>
-                          <span className="inline-block max-w-[14ch] truncate">{formatShortDateRange(advisor.joinedOn, advisor.leftOn, advisor.tenureDisplay)}</span>
+                          <span className="inline-block max-w-28 truncate">{formatShortDateRange(advisor.joinedOn, advisor.leftOn, advisor.tenureDisplay)}</span>
                         </td>
                         <td className="px-4">
                           <form action={saveAdvisorProfile} className="flex items-center gap-2">
@@ -3304,8 +3304,8 @@ export function CommitteeWorkspaceClient({
                   title="No import previews yet"
                 />
               ) : (
-                <div className="max-h-[320px] overflow-auto">
-                  <table className="admin-responsive-table w-full min-w-[720px] text-left text-sm">
+                <div className="max-h-80 overflow-auto">
+                  <table className="admin-responsive-table w-full min-w-max text-left text-sm">
                     <thead className="sticky top-0 border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                       <tr className="h-10">
                         <th className="px-4 font-semibold" scope="col">Row #</th>
@@ -3422,7 +3422,7 @@ export function CommitteeWorkspaceClient({
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="admin-responsive-table w-full min-w-[720px] text-left text-sm">
+                <table className="admin-responsive-table w-full min-w-max text-left text-sm">
                     <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                       <tr className="h-10">
                         <th className="px-4 font-semibold" scope="col">Role</th>
@@ -3460,7 +3460,7 @@ export function CommitteeWorkspaceClient({
 
           <SectionShell id="committee-history" label="History" title="Recent committee audit events">
             <div className="flex flex-wrap gap-2">
-              <PanelSelect aria-label="Filter history category" className="w-[160px]" onChange={(event) => setHistoryFilter(event.target.value)} value={historyFilter}>
+              <PanelSelect aria-label="Filter history category" className="w-full sm:w-40" onChange={(event) => setHistoryFilter(event.target.value)} value={historyFilter}>
                 <option value="">All categories</option>
                 <option value="Terms">Terms</option>
                 <option value="Roster">Roster</option>
@@ -3468,7 +3468,7 @@ export function CommitteeWorkspaceClient({
                 <option value="Imports">Imports</option>
                 <option value="Publication">Publication</option>
               </PanelSelect>
-              <label className="relative min-w-[220px] flex-1">
+              <label className="relative min-w-56 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <PanelInput className="w-full pl-9" onChange={(event) => setHistorySearch(event.target.value)} placeholder="Search audit events" value={historySearch} />
               </label>
@@ -3481,7 +3481,7 @@ export function CommitteeWorkspaceClient({
                   title="No committee audit events in this view"
                 />
               ) : (
-                <table className="admin-responsive-table w-full min-w-[840px] text-left text-sm">
+                <table className="admin-responsive-table w-full min-w-max text-left text-sm">
                   <thead className="border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                     <tr className="h-10">
                       <th className="px-4 font-semibold" scope="col">Event</th>
