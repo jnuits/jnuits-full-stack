@@ -41,10 +41,14 @@ The current audit dump should cover:
 
 ## Certificate Full-Name Migration Gate
 
-The app code expects `certificates.full_name` and the public-safe `public_certificates.full_name` view shape. Production must apply these reviewed migrations in order before removing any remaining compatibility code:
+The app code expects `certificates.full_name` and the public-safe `public_certificates.full_name` view shape. Production must apply these reviewed migrations in order before removing any remaining compatibility code. As of July 5, 2026, these have been applied to `jnuits.org.bd`:
 
 1. `20260703020515_certificate_full_name.sql`
 2. `20260703040706_cleanup_certificate_legacy_names.sql`
+3. `20260705013614_tighten_certificate_public_access.sql`
+4. `20260705013928_public_certificate_view_access.sql`
+5. `20260705020732_public_certificate_security_invoker_view.sql`
+6. `20260705022356_revoke_anon_admin_totp_helper.sql`
 
 After approval and application, reload PostgREST with `NOTIFY pgrst, 'reload schema'`, then verify:
 
@@ -62,3 +66,7 @@ SUPABASE_CLI_COMMAND="npx --yes supabase" npm run migration:check
 ```
 
 On Windows the script resolves npm-family shims such as `npx`, `npm`, and `supabase` to `.cmd` automatically. If the CLI reports that no token is available, sign in with `supabase login` or set `SUPABASE_ACCESS_TOKEN`/`SUPABASE_PAT` in the execution environment. Never print token values in logs or reports.
+
+
+
+

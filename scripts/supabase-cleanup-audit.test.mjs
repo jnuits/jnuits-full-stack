@@ -9,6 +9,7 @@ const {
   parseAuditOutput,
   parseCliCommand,
   resolveSpawnCommand,
+  runSupabaseAuditQuery,
 } = require("./lib/supabase-cleanup-audit.cjs");
 
 describe("supabase cleanup audit", () => {
@@ -85,6 +86,48 @@ describe("supabase cleanup audit", () => {
       command: "npx",
     });
   });
+
+
+  it("runs cleanup audit through the shared Windows-safe CLI invocation", () => {
+    const calls = [];
+    const result = runSupabaseAuditQuery({
+      env: { SUPABASE_CLI_COMMAND: "npx --yes supabase" },
+      runner: (command, args, options) => {
+        calls.push({ args, command, options });
+        return {
+          status: 0,
+          stdout: "noise __JNUITS_SUPABASE_CLEANUP_AUDIT__{\"ok\":true}__END_JNUITS_SUPABASE_CLEANUP_AUDIT__",
+        };
+      },
+      sql: "select 1 as verification_json;",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(calls[0].options.shell).toBeUndefined();
+
+    if (process.platform === "win32") {
+      expect(calls[0].command).toBe("cmd.exe");
+      expect(calls[0].args[0]).toBe("/d");
+      expect(calls[0].args[1]).toBe("/c");
+      expect(calls[0].args[2]).toContain("npx.cmd --yes supabase db query --linked --file");
+    } else {
+      expect(calls[0].command).toBe("npx");
+      expect(calls[0].args.slice(0, 6)).toEqual(["--yes", "supabase", "db", "query", "--linked", "--file"]);
+    }
+  });
+
+  it("fails clearly when cleanup audit lacks a Supabase access token", () => {
+    expect(() =>
+      runSupabaseAuditQuery({
+        runner: () => ({
+          status: 1,
+          stderr: "{\"message\":\"Access token not provided.\"}",
+        }),
+        sql: "select 1 as verification_json;",
+      })
+    ).toThrow(/no access token was available/);
+  });
+
   it("uses Windows command shims for npm-style executables", () => {
     expect(resolveSpawnCommand("npx", "win32")).toBe("npx.cmd");
     expect(resolveSpawnCommand("custom-supabase", "linux")).toBe("custom-supabase");

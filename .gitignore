@@ -52,3 +52,4 @@ next-env.d.ts
 .agents
 .playwright-mcp
 skills-lock.json
+artifacts/backups/

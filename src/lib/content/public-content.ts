@@ -197,12 +197,6 @@ type MediaAssetRecord = Pick<
   Tables<"media_assets">,
   "alt_text" | "media_kind" | "secure_url" | "thumbnail_url" | "title"
 >;
-type GalleryEntryPublicRecord = Pick<
-  Tables<"gallery_entries">,
-  "caption" | "id" | "sort_order" | "title"
-> & {
-  media_assets?: MediaAssetRecord | MediaAssetRecord[] | null;
-};
 
 type BlogMemberAuthorRecord = {
   full_name?: null | string;
@@ -1478,36 +1472,6 @@ export const getPublishedNotices = cache(async (
   };
 });
 
-export const getPublishedGallery = cache(async () => {
-  const supabase = createPublicClient();
-  const { data } = await supabase
-    .from("gallery_entries")
-    .select(galleryEntrySelect)
-    .eq("status", "published")
-    .order("sort_order", { ascending: true })
-    .limit(24);
-
-  if (!data || data.length === 0) {
-    return fallbackPublicGallery;
-  }
-
-  const galleryRows = (data || []) as GalleryEntryPublicRecord[];
-
-  return galleryRows.map((record, index) => {
-    const media = record.media_assets;
-
-    return {
-      identifier: record.id,
-      title: record.title,
-      caption: record.caption || fallbackPublicGallery[index]?.caption || "",
-      imageSrc: resolveImage(
-        media,
-        fallbackPublicGallery[index]?.imageSrc || fallbackPublicGallery[0].imageSrc
-      ),
-    } satisfies GalleryPreview;
-  });
-});
-
 export const getPublishedDevelopers = cache(async () => {
   const supabase = createPublicClient();
   const { data } = await supabase
@@ -1588,24 +1552,6 @@ function mapEventDetail(
   };
 }
 
-function mapGalleryDetail(
-  record: GalleryEntryPublicRecord
-): GalleryDetail {
-  const resolvedMedia = resolveRelation(record.media_assets);
-  const mediaKind = resolvedMedia?.media_kind === "video" ? "video" : "image";
-
-  return {
-    caption: record.caption || "",
-    id: record.id,
-    identifier: record.id,
-    imageSrc: resolveImage(record.media_assets, fallbackPublicGallery[0].imageSrc),
-    mediaKind,
-    secureUrl: resolvedMedia?.secure_url || fallbackPublicGallery[0].imageSrc,
-    thumbnailUrl: resolvedMedia?.thumbnail_url || null,
-    title: record.title,
-  };
-}
-
 async function getPublishedPostByIdentifier(
   contentType: "blog" | "event" | "notice",
   identifier: string
@@ -1682,47 +1628,4 @@ export const getPublishedNoticeByIdentifier = cache(async (identifier: string) =
   } satisfies NoticeDetail;
 });
 
-export const getPublishedGalleryByIdentifier = cache(async (identifier: string) => {
-  const normalizedIdentifier = normalizeIdentifier(identifier);
 
-  if (!normalizedIdentifier) {
-    return null;
-  }
-
-  const supabase = createPublicClient();
-
-  if (isUuid(normalizedIdentifier)) {
-    const { data: byId } = await supabase
-      .from("gallery_entries")
-      .select(galleryEntrySelect)
-      .eq("status", "published")
-      .eq("id", normalizedIdentifier)
-      .maybeSingle();
-
-    if (byId) {
-      return mapGalleryDetail(byId as GalleryEntryPublicRecord);
-    }
-  }
-
-  const { data: publishedGallery } = await supabase
-    .from("gallery_entries")
-    .select(galleryEntrySelect)
-    .eq("status", "published")
-    .order("sort_order", { ascending: true })
-    .limit(200);
-
-  if (!publishedGallery?.length) {
-    return null;
-  }
-
-  const matched = (publishedGallery as GalleryEntryPublicRecord[]).find((record) => {
-    const titleSlug = slugifyValue(record.title);
-    return titleSlug === normalizedIdentifier;
-  });
-
-  if (!matched) {
-    return null;
-  }
-
-  return mapGalleryDetail(matched as GalleryEntryPublicRecord);
-});

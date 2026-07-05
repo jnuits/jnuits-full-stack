@@ -3,10 +3,12 @@ const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 const {
+  buildSpawnInvocation,
   buildSupabaseCliEnv,
   extractMigrationVersion,
   getLocalMigrationFiles,
   loadDotEnvLocal,
+  resolveSpawnCommand,
 } = require("./migration-parity.cjs");
 
 const RESULT_PREFIX = "__JNUITS_SUPABASE_CLEANUP_AUDIT__";
@@ -15,6 +17,10 @@ const RESULT_SUFFIX = "__END_JNUITS_SUPABASE_CLEANUP_AUDIT__";
 const EXPECTED_MIGRATIONS = [
   ["20260703020515", "certificate_full_name"],
   ["20260703040706", "cleanup_certificate_legacy_names"],
+  ["20260705013614", "tighten_certificate_public_access"],
+  ["20260705013928", "public_certificate_view_access"],
+  ["20260705020732", "public_certificate_security_invoker_view"],
+  ["20260705022356", "revoke_anon_admin_totp_helper"],
 ];
 
 const WATCHED_TABLES = [
@@ -75,18 +81,6 @@ function parseCliCommand(value) {
     command: parts[0],
   };
 }
-function resolveSpawnCommand(command, platform = process.platform) {
-  if (platform !== "win32" || path.extname(command)) {
-    return command;
-  }
-
-  if (command === "npx" || command === "npm" || command === "supabase") {
-    return `${command}.cmd`;
-  }
-
-  return command;
-}
-
 function sqlString(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
@@ -288,14 +282,15 @@ function runSupabaseAuditQuery({ cwd = process.cwd(), env = process.env, runner,
 
   try {
     const command = resolveSpawnCommand(cli.command);
+    const args = [...cli.argsPrefix, "db", "query", "--linked", "--file", sqlPath];
+    const invocation = buildSpawnInvocation(command, args);
     const result = run(
-      command,
-      [...cli.argsPrefix, "db", "query", "--linked", "--file", sqlPath],
+      invocation.command,
+      invocation.args,
       {
         cwd,
         encoding: "utf8",
         env: buildSupabaseCliEnv(env),
-        shell: process.platform === "win32",
       }
     );
 
@@ -312,6 +307,14 @@ function runSupabaseAuditQuery({ cwd = process.cwd(), env = process.env, runner,
 
     if (result.status !== 0) {
       const output = `${result.stderr || result.stdout || ""}`.trim();
+      if (/access token not provided/i.test(output)) {
+        throw new Error(
+          "Supabase CLI db query failed because no access token was available.\n" +
+            "Run `supabase login`, set SUPABASE_ACCESS_TOKEN, or set SUPABASE_PAT in .env.local/CI.\n" +
+            "No token value was printed."
+        );
+      }
+
       throw new Error(
         "Supabase CLI db query failed. " +
           (output ? `Output: ${output.slice(0, 1000)}` : "No output was returned.")
@@ -592,3 +595,6 @@ if (require.main === module) {
       process.exitCode = 1;
     });
 }
+
+
+
