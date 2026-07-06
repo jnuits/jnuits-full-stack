@@ -13,6 +13,8 @@
 # testing
 /coverage
 .playwright-cli/
+.tmp-login-*.mjs
+.tmp-login-*.pid
 
 # next.js
 /.next/
