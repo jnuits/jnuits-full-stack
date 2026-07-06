@@ -24,6 +24,11 @@ const EXPECTED_MIGRATIONS = [
   ["20260705151405", "restrict_authenticated_security_definer_exec"],
   ["20260705202621", "tighten_public_certificate_view_grants"],
   ["20260705205024", "add_operational_foreign_key_indexes"],
+  ["20260706025103", "tighten_admin_operational_grants"],
+  ["20260706030908", "drop_duplicate_fk_indexes"],
+  ["20260706031032", "add_remaining_advisor_fk_indexes"],
+  ["20260706035422", "drop_duplicate_content_post_indexes"],
+  ["20260706074012", "phase2_rls_policy_advisor_cleanup"],
 ];
 
 const WATCHED_TABLES = [
@@ -518,6 +523,13 @@ function formatAuditMarkdown({ codeUsage, data, evaluation, generatedAt = new Da
       ["table", "files", "examples"]
     ),
     "",
+    "## Remaining Advisor Classification",
+    "",
+    "- `security_rate_limits` is private: anon/auth table grants are revoked, and a service-role-only policy exists only to satisfy RLS policy posture checks.",
+    "- Authenticated `SECURITY DEFINER` helper warnings are intentional until a dedicated private-schema/RLS redesign is approved; current app and RLS policies depend on these helpers.",
+    "- RLS initplan and multiple permissive policy warnings require explicit policy rewrite approval because they touch auth-sensitive access rules across portal/admin tables.",
+    "- Supabase Auth leaked-password protection must be enabled in the Supabase dashboard; it is not controlled by repo migrations.",
+    "",
     "## Staged Cleanup Recommendations",
     "",
     "- Keep certificate full-name migrations applied before release; if this audit reports them pending, block certificate launch until production schema matches the app.",
@@ -598,6 +610,4 @@ if (require.main === module) {
       process.exitCode = 1;
     });
 }
-
-
 

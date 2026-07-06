@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { requireAdminPermission } from "@/lib/auth/session";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
 
@@ -95,8 +96,8 @@ export async function saveAdminSecuritySettings(formData: FormData) {
     redirect("/admin/settings/security?error=super-admin-required");
   }
 
-  const supabase = asFlexibleClient(await createClient());
-  const { error } = await supabase
+  const admin = asFlexibleClient(createAdminClient());
+  const { error } = await admin
     .from("security_settings" as string)
     .update({
       admin_totp_enforced: parsed.data.adminTotpEnforced,
