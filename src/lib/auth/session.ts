@@ -27,10 +27,12 @@ export type PortalAccessStatus =
   | "suspended";
 
 export type MemberLifecycleStatus = "alumni" | "current" | "deleted" | "former";
+export type MemberType = "alumni" | "current";
 
 export type PortalAccessState = {
   lifecycleStatus: MemberLifecycleStatus | null;
   memberId: string | null;
+  memberType?: MemberType | null;
   portalAccessStatus: PortalAccessStatus | null;
 };
 
@@ -125,6 +127,10 @@ function asMemberLifecycleStatus(value: unknown): MemberLifecycleStatus | null {
     value === "former"
     ? value
     : null;
+}
+
+function asMemberType(value: unknown): MemberType | null {
+  return value === "alumni" || value === "current" ? value : null;
 }
 
 function extractClaimSnapshot(claims: Record<string, unknown> | undefined) {
@@ -308,9 +314,17 @@ async function resolveDatabaseAdvisorProfileId(
 }
 
 export function isMutablePortalAccess(access: PortalAccessState) {
+  const effectiveLifecycleStatus =
+    access.lifecycleStatus === "current" || access.lifecycleStatus === "alumni"
+      ? access.lifecycleStatus
+      : access.lifecycleStatus === "former" || access.lifecycleStatus === null
+        ? access.memberType
+        : access.lifecycleStatus;
+
   return (
     access.portalAccessStatus === "active" &&
-    (access.lifecycleStatus === "current" || access.lifecycleStatus === "alumni")
+    (effectiveLifecycleStatus === "current" ||
+      effectiveLifecycleStatus === "alumni")
   );
 }
 
@@ -320,7 +334,7 @@ async function resolvePortalAccessState(
 ): Promise<PortalAccessState> {
   const { data } = await asFlexibleClient(supabase)
     .from("members" as string)
-    .select("id, lifecycle_status, portal_access_status")
+    .select("id, lifecycle_status, member_type, portal_access_status")
     .eq("user_id", userId)
     .maybeSingle();
   const record = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
@@ -328,6 +342,7 @@ async function resolvePortalAccessState(
   return {
     lifecycleStatus: asMemberLifecycleStatus(record.lifecycle_status),
     memberId: asClaimString(record.id),
+    memberType: asMemberType(record.member_type),
     portalAccessStatus: asPortalAccessStatus(record.portal_access_status),
   };
 }

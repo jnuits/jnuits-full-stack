@@ -17,12 +17,18 @@ describe("portal access helpers", () => {
       ...activeCurrent,
       portalAccessStatus: "suspended",
     } satisfies PortalAccessState;
+    const legacyFormerCurrent = {
+      ...activeCurrent,
+      lifecycleStatus: "former",
+      memberType: "current",
+    } satisfies PortalAccessState;
     const deleted = {
       ...activeCurrent,
       lifecycleStatus: "deleted",
     } satisfies PortalAccessState;
 
     expect(isMutablePortalAccess(activeCurrent)).toBe(true);
+    expect(isMutablePortalAccess(legacyFormerCurrent)).toBe(true);
     expect(isMutablePortalAccess(suspended)).toBe(false);
     expect(isMutablePortalAccess(deleted)).toBe(false);
   });
