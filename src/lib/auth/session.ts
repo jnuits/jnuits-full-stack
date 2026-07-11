@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { checkAdminMFA } from "@/lib/auth/mfa";
+import { loadAdminLifecycleAccessState } from "@/lib/auth/admin-lifecycle";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
 
@@ -411,6 +412,12 @@ export async function requireAdminUser(options?: {
 
   if (!hasAdminRole(auth.roles)) {
     redirect("/portal/dashboard");
+  }
+
+  const lifecycle = await loadAdminLifecycleAccessState(auth.user?.id || "");
+
+  if (lifecycle !== "active") {
+    redirect(`/admin/access-pending?access=${encodeURIComponent(lifecycle)}`);
   }
 
   return auth;

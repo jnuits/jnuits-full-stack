@@ -6,11 +6,11 @@ describe("buildPasswordSignInPayload", () => {
     vi.unstubAllEnvs();
   });
 
-  it("omits Supabase CAPTCHA options when local auth CAPTCHA is disabled", () => {
+  it("omits Supabase CAPTCHA options when non-production CAPTCHA is explicitly disabled", () => {
     vi.stubEnv("AUTH_CAPTCHA_REQUIRED", "false");
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("VERCEL_ENV", "preview");
-    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:54321");
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("VERCEL_ENV", "development");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://project-ref.supabase.co");
 
     expect(
       buildPasswordSignInPayload({
@@ -24,9 +24,8 @@ describe("buildPasswordSignInPayload", () => {
     });
   });
 
-
-  it("includes the CAPTCHA token when a hosted Supabase project is used locally", () => {
-    vi.stubEnv("AUTH_CAPTCHA_REQUIRED", "false");
+  it("includes the CAPTCHA token when local or preview CAPTCHA is enabled", () => {
+    vi.stubEnv("AUTH_CAPTCHA_REQUIRED", "true");
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("VERCEL_ENV", "development");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://project-ref.supabase.co");
@@ -45,6 +44,7 @@ describe("buildPasswordSignInPayload", () => {
       password: "password",
     });
   });
+
   it("includes the CAPTCHA token when deployed production requires CAPTCHA", () => {
     vi.stubEnv("AUTH_CAPTCHA_REQUIRED", "false");
     vi.stubEnv("NODE_ENV", "production");

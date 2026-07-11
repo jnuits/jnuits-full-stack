@@ -23,6 +23,8 @@ export default async function AdminLayout({
       fallbackPath: "/admin/dashboard",
       requireAal2: routeAccess.requireAal2,
     });
+  } else {
+    await requireAdminUser({ fallbackPath: "/admin" });
   }
 
   return <AdminShell>{children}</AdminShell>;

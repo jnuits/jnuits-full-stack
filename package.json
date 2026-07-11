@@ -37,6 +37,7 @@
     "ops:relocate-cloudinary": "node scripts/relocate-cloudinary-assets.mjs",
     "ops:verify-sentry": "node scripts/verify-sentry-ingest.mjs",
     "test:e2e": "playwright test --project=chromium",
+    "test:e2e:auth": "playwright test e2e/authenticated-workflows.spec.ts --project=chromium",
     "test:e2e:ci": "playwright test --project=chromium",
     "test:e2e:install": "playwright install chromium",
     "test:e2e:install:all": "playwright install chromium firefox webkit",

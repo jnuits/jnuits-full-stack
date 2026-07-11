@@ -1,7 +1,7 @@
 import "server-only";
 
-import { getAuthContext } from "@/lib/auth/session";
 import { checkAdminMFA } from "@/lib/auth/mfa";
+import { requireAdminUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
@@ -39,6 +39,11 @@ type RoleAssignmentRecord = {
   scope: string;
 };
 
+type SettingsLoadError = {
+  code?: null | string;
+  message?: null | string;
+};
+
 function resolveRoleRecord(
   roleValue: RoleAssignmentRecord["rbac_platform_roles"]
 ) {
@@ -49,14 +54,27 @@ function resolveRoleRecord(
   return roleValue || null;
 }
 
+function throwSettingsLoadError(context: string, error: SettingsLoadError | null) {
+  console.error("Admin settings snapshot load failed", {
+    code: error?.code,
+    context,
+    message: error?.message,
+  });
+  throw new Error("Admin settings could not be loaded.");
+}
+
 export async function getAdminSettingsSnapshot() {
-  const auth = await getAuthContext();
+  // This helper is server-only and is shared by protected admin settings pages.
+  // Service-role reads keep browser grants closed while every query remains scoped
+  // to the authenticated operator's own user ID.
+  const auth = await requireAdminUser({ fallbackPath: "/admin/settings" });
 
   if (!auth.user) {
     return null;
   }
 
-  const supabase = asFlexibleClient(await createClient());
+  const sessionClient = asFlexibleClient(await createClient());
+  const admin = asFlexibleClient(createAdminClient());
   const [
     userResult,
     mfaState,
@@ -64,65 +82,67 @@ export async function getAdminSettingsSnapshot() {
     securityEventsResult,
     settingsResult,
     securitySettingsResult,
-  ] =
-    await Promise.all([
-      supabase.auth.getUser(),
-      checkAdminMFA(supabase),
-      supabase
-        .from("rbac_user_platform_roles" as string)
-        .select("scope, granted_at, note, rbac_platform_roles(code, display_name)")
-        .eq("user_id", auth.user.id)
-        .is("revoked_at", null)
-        .order("granted_at", { ascending: false }),
-      supabase
-        .from("security_events" as string)
-        .select("id, actor_user_id, target_user_id, event_type, severity, payload, created_at")
-        .or(`actor_user_id.eq.${auth.user.id},target_user_id.eq.${auth.user.id}`)
-        .order("created_at", { ascending: false })
-        .limit(12),
-      supabase
-        .from("portal_user_settings" as string)
-        .select("notification_email_opt_in, ticket_digest_opt_in, preferred_theme, mentorship_opt_in")
-        .eq("user_id", auth.user.id)
-        .maybeSingle(),
-      supabase
-        .from("security_settings" as string)
-        .select("admin_totp_enforced, updated_by_user_id, updated_at")
-        .eq("id", true)
-        .maybeSingle(),
-    ]);
+    linkedMemberResult,
+  ] = await Promise.all([
+    sessionClient.auth.getUser(),
+    checkAdminMFA(sessionClient),
+    admin
+      .from("rbac_user_platform_roles" as string)
+      .select("scope, granted_at, note, rbac_platform_roles(code, display_name)")
+      .eq("user_id", auth.user.id)
+      .is("revoked_at", null)
+      .order("granted_at", { ascending: false }),
+    admin
+      .from("security_events" as string)
+      .select("id, actor_user_id, target_user_id, event_type, severity, payload, created_at")
+      .or(`actor_user_id.eq.${auth.user.id},target_user_id.eq.${auth.user.id}`)
+      .order("created_at", { ascending: false })
+      .limit(12),
+    admin
+      .from("portal_user_settings" as string)
+      .select("notification_email_opt_in, ticket_digest_opt_in, preferred_theme, mentorship_opt_in")
+      .eq("user_id", auth.user.id)
+      .maybeSingle(),
+    admin
+      .from("security_settings" as string)
+      .select("admin_totp_enforced, updated_by_user_id, updated_at")
+      .eq("id", true)
+      .maybeSingle(),
+    admin
+      .from("members" as string)
+      .select("id, full_name, jnuits_id, member_type, email")
+      .eq("user_id", auth.user.id)
+      .maybeSingle(),
+  ]);
+
+  if (userResult.error) {
+    throwSettingsLoadError("auth-user", userResult.error);
+  }
 
   if (roleAssignmentsResult.error) {
-    throw new Error(roleAssignmentsResult.error.message);
+    throwSettingsLoadError("role-assignments", roleAssignmentsResult.error);
   }
 
   if (securityEventsResult.error) {
-    throw new Error(securityEventsResult.error.message);
+    throwSettingsLoadError("security-events", securityEventsResult.error);
   }
 
   if (settingsResult.error) {
-    throw new Error(settingsResult.error.message);
+    throwSettingsLoadError("notification-settings", settingsResult.error);
   }
 
   if (securitySettingsResult.error) {
-    throw new Error(securitySettingsResult.error.message);
+    throwSettingsLoadError("security-settings", securitySettingsResult.error);
   }
 
-  const admin = createAdminClient();
-  const { data: linkedMember, error: linkedMemberError } = await admin
-    .from("members")
-    .select("id, full_name, jnuits_id, member_type, email")
-    .eq("user_id", auth.user.id)
-    .maybeSingle();
-
-  if (linkedMemberError) {
-    throw new Error(linkedMemberError.message);
+  if (linkedMemberResult.error) {
+    throwSettingsLoadError("linked-member", linkedMemberResult.error);
   }
 
   return {
     auth: auth.user,
     authUser: userResult.data.user,
-    linkedMember,
+    linkedMember: linkedMemberResult.data,
     mfaState,
     notificationSettings:
       ((settingsResult.data as unknown) as NotificationSettingsRecord | null) ?? null,

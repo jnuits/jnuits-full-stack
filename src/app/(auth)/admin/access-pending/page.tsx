@@ -6,12 +6,12 @@ export default function AdminAccessPendingPage() {
     <div>
       <span className="eyebrow">Access pending</span>
       <h1 className="section-title mt-4 text-[2.25rem]">
-        Admin access is not active for this account.
+        Admin access is unavailable for this account.
       </h1>
       <p className="section-copy mt-3">
-        You are signed in, but this account does not currently have an operator
-        role. Ask a JnUITS super admin to assign the correct access, then sign
-        in again after the role update is complete.
+        You are signed in, but this admin identity is pending, frozen, removed,
+        or missing the required access. Ask a JnUITS super admin to review the
+        account, then sign in again after any role or lifecycle change.
       </p>
       <div className="mt-8 flex flex-wrap gap-3">
         <LogoutButton

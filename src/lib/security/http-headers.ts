@@ -20,6 +20,7 @@ export function buildContentSecurityPolicy({
     "frame-ancestors 'self'",
     "object-src 'none'",
     scriptSrc,
+    "worker-src 'self' blob:",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://res.cloudinary.com",
     "font-src 'self' data:",

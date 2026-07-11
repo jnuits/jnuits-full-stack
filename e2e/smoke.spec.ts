@@ -67,6 +67,21 @@ test.describe("public and auth smoke", () => {
     await expectStablePage(page, "/membership-form");
     await expect(page.locator("body")).toContainText(/membership/i);
   });
+  test("public core routes load without runtime errors", async ({ page }) => {
+    for (const route of [
+      "/about",
+      "/alumni",
+      "/blogs",
+      "/certificates",
+      "/committee",
+      "/contact",
+      "/notices",
+      "/projects",
+    ]) {
+      await expectStablePage(page, route);
+    }
+  });
+
 
   test("admin and portal login pages render accessible fields responsively", async ({ page }) => {
     for (const viewport of responsiveViewports) {

@@ -17,6 +17,7 @@ import {
   shouldAttemptPostClaimAutoLogin,
 } from "@/lib/auth/action-protection";
 import { checkAdminMFA } from "@/lib/auth/mfa";
+import { findAuthUserByEmail } from "@/lib/auth/auth-user-lookup";
 import { buildPasswordSignInPayload } from "@/lib/auth/password-sign-in";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
@@ -173,26 +174,6 @@ function asMetadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? { ...(value as Record<string, unknown>) }
     : {};
-}
-
-async function findAuthUserByEmail(admin: AdminClient, email: string) {
-  const targetEmail = normalizeEmail(email);
-  const perPage = 200;
-
-  if (!targetEmail) return null;
-
-  for (let page = 1; page <= 25; page += 1) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
-
-    if (error) throw error;
-
-    const match = data.users.find((user) => normalizeEmail(user.email) === targetEmail);
-    if (match) return match;
-
-    if (data.users.length < perPage) break;
-  }
-
-  return null;
 }
 
 async function findMemberByAuthUserId(admin: AdminClient, userId: string) {
