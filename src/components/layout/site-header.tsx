@@ -63,6 +63,7 @@ function NavDropdownMenu({
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
+  const suppressKeyboardClickRef = useRef(false);
   const active = items.some((item) => isActivePath(pathname, item.href));
 
   useEffect(() => {
@@ -97,13 +98,31 @@ function NavDropdownMenu({
         aria-haspopup={mode === "desktop" ? "menu" : undefined}
         className="site-nav-link site-resource-menu__trigger"
         data-active={active ? "true" : "false"}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (suppressKeyboardClickRef.current) {
+            suppressKeyboardClickRef.current = false;
+            return;
+          }
+
+          setOpen((value) => !value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            suppressKeyboardClickRef.current = true;
+            window.setTimeout(() => {
+              suppressKeyboardClickRef.current = false;
+            }, 0);
+            setOpen((value) => !value);
+          }
+        }}
         type="button"
       >
         {label}
         <ChevronDown aria-hidden="true" className="site-resource-menu__chevron" size={15} />
       </button>
       <div
+        aria-hidden={!open}
         className="site-resource-menu__panel"
         data-open={open ? "true" : "false"}
         id={menuId}
@@ -119,7 +138,7 @@ function NavDropdownMenu({
               onNavigate?.();
             }}
             role={mode === "desktop" ? "menuitem" : undefined}
-            tabIndex={open || mode === "desktop" ? 0 : -1}
+            tabIndex={open ? 0 : -1}
           >
             <span>{item.label}</span>
             {item.description ? <small>{item.description}</small> : null}

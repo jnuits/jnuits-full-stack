@@ -64,7 +64,7 @@ export async function AdminSecuritySettingsScreen() {
             {snapshot.mfaState.currentLevel || "aal1"}
           </p>
           <p className="section-copy">
-            Target assurance: {snapshot.mfaState.nextLevel || "aal2"}
+            Target assurance: AAL2 (required for protected admin routes)
           </p>
         </article>
 
@@ -89,7 +89,7 @@ export async function AdminSecuritySettingsScreen() {
           <p className="text-2xl font-semibold tracking-[-0.03em]">
             {snapshot.securityEvents.length}
           </p>
-          <p className="section-copy">Recent rows visible through current RLS.</p>
+          <p className="section-copy">Recent activity recorded for this operator account.</p>
         </article>
       </div>
 
@@ -179,7 +179,7 @@ export async function AdminSecuritySettingsScreen() {
         <p className="text-sm font-semibold">Recent security activity</p>
         {snapshot.securityEvents.length === 0 ? (
           <p className="section-copy">
-            No security events are visible for this account yet.
+            No security events are recorded for this operator account yet.
           </p>
         ) : (
           <div className="grid gap-3">

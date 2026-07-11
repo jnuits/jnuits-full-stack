@@ -51,9 +51,10 @@ export default async function RegisterPage({
           autoComplete="new-password"
           name="password"
           type="password"
-          placeholder="Create password"
+          placeholder="Create a 12+ character password"
           required
         />
+        <p className="text-xs leading-5 text-[var(--muted-foreground)]">Use a long, unique passphrase. Common passwords and passwords based on your email are rejected.</p>
         {captcha.required ? <TurnstileField siteKey={captcha.siteKey} /> : null}
         <button className="primary-button" formAction={claimProfile}>
           Claim profile

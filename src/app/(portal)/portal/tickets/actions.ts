@@ -9,6 +9,7 @@ import {
   requirePortalPermission,
   requirePortalUser,
 } from "@/lib/auth/session";
+import { notifySupportTicketParticipant } from "@/lib/portal/ticket-notifications";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
 
@@ -170,6 +171,12 @@ export async function replyToSupportTicket(formData: FormData) {
     ticket_id: parsed.data.ticketId,
   });
 
+  await notifySupportTicketParticipant({
+    actorUserId: auth.user.id,
+    event: "reply",
+    ticketId: parsed.data.ticketId,
+  });
+
   revalidatePath("/portal/tickets");
   redirect("/portal/tickets?message=ticket-replied");
 }
@@ -232,6 +239,12 @@ export async function assignSupportTicketToSelf(formData: FormData) {
       assignedRoleScope,
     },
     ticket_id: parsed.data.ticketId,
+  });
+
+  await notifySupportTicketParticipant({
+    actorUserId: auth.user.id,
+    event: "assignment",
+    ticketId: parsed.data.ticketId,
   });
 
   revalidatePath("/portal/tickets");
@@ -298,6 +311,12 @@ export async function updateSupportTicketLifecycle(formData: FormData) {
       status,
     },
     ticket_id: parsed.data.ticketId,
+  });
+
+  await notifySupportTicketParticipant({
+    actorUserId: auth.user.id,
+    event: "status",
+    ticketId: parsed.data.ticketId,
   });
 
   revalidatePath("/portal/tickets");

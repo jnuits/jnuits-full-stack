@@ -1,5 +1,7 @@
 "use client";
 
+import { updateCurrentPassword } from "@/app/(auth)/actions";
+import { getPasswordPolicyError } from "@/lib/security/password-policy";
 import { startTransition, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -17,8 +19,9 @@ export function ChangePasswordForm() {
     setError(null);
     setMessage(null);
 
-    if (password.length < 8) {
-      setError("Use a password with at least 8 characters.");
+    const policyError = getPasswordPolicyError(password);
+    if (policyError) {
+      setError(policyError);
       return;
     }
 
@@ -28,20 +31,19 @@ export function ChangePasswordForm() {
     }
 
     setPending(true);
-
-    const supabase = createClient();
-    const { error: updateError } = await supabase.auth.updateUser({
+    const result = await updateCurrentPassword({
+      confirmPassword,
+      nonce,
       password,
-      nonce: nonce || undefined,
     });
 
-    if (updateError) {
-      setError(updateError.message);
+    if (!result.ok) {
+      setError(result.message);
       setPending(false);
       return;
     }
 
-    setMessage("Password updated successfully for the current signed-in session.");
+    setMessage(result.message);
     setPending(false);
   }
 
@@ -78,10 +80,14 @@ export function ChangePasswordForm() {
             id="cp-new-password"
             autoComplete="new-password"
             name="password"
-            placeholder="Enter a strong new password (min. 8 characters)"
+            placeholder="Use 12 or more characters"
             type="password"
           />
         </label>
+        <p className="-mt-2 text-xs leading-5 text-[var(--muted-foreground)] sm:col-span-2">
+          Use a long, unique passphrase. Common passwords and passwords based on
+          your email are rejected.
+        </p>
         <label className="input-label sm:col-span-2" htmlFor="cp-confirm-password">
           Confirm new password
           <input

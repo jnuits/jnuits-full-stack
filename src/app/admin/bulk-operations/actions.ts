@@ -23,6 +23,7 @@ import {
   buildDeletionRequestStatusEmail,
   buildMemberInvitationEmail,
 } from "@/lib/notifications/email-builders";
+import { allowsOptionalEmail } from "@/lib/notifications/preferences";
 import { sendEmail } from "@/lib/notifications/send-email";
 import { recordSecurityEvent } from "@/lib/security/security-events";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -919,8 +920,11 @@ export async function commitBulkOperationAction(formData: FormData) {
     },
   });
 
-  if (auth.user?.email) {
-    void sendEmail({
+  if (
+    auth.user?.email &&
+    (await allowsOptionalEmail(actorUserId, "notification_email_opt_in"))
+  ) {
+    await sendEmail({
       html: buildBulkOperationSummaryEmail({
         committedRows,
         errorRows: typeof operation.error_rows === "number" ? operation.error_rows : 0,

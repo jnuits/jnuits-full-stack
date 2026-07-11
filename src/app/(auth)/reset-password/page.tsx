@@ -27,9 +27,10 @@ export default async function ResetPasswordPage({
           autoComplete="new-password"
           name="password"
           type="password"
-          placeholder="New password"
+          placeholder="New 12+ character password"
           required
         />
+        <p className="text-xs leading-5 text-[var(--muted-foreground)]">Use a long, unique passphrase. Common passwords are rejected.</p>
         <input
           autoComplete="new-password"
           name="confirmPassword"

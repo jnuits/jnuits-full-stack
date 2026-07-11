@@ -32,16 +32,19 @@ function groupChecks(checks: SystemHealthCheck[]) {
 export default async function AdminSystemHealthPage() {
   const snapshot = await buildSystemHealthSnapshot();
   const groups = groupChecks(snapshot.checks);
+  const parityReview = snapshot.checks.find(
+    (check) => check.label === "Migration parity review"
+  );
 
   return (
-    <div className="grid gap-8">
+    <div className="grid gap-6">
       <div className="admin-page-header">
         <div>
           <p className="admin-page-header__breadcrumb">Admin / Security</p>
           <h1 className="admin-page-header__title">System Health</h1>
           <p className="admin-page-header__desc">
-            Read-only operational checks for Supabase, email delivery, Cloudinary,
-            Sentry, environment configuration, and migration parity status.
+            Read-only runtime checks for the application&rsquo;s active services.
+            Migration parity is intentionally shown as a separate review step.
           </p>
         </div>
         <span className="abadge abadge--info">
@@ -49,39 +52,63 @@ export default async function AdminSystemHealthPage() {
         </span>
       </div>
 
-      <section className="admin-metric-grid">
+      {parityReview ? (
+        <section className="flash-panel" data-tone="warning" role="status">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Migration parity review required</p>
+              <p className="section-copy mt-1">{parityReview.detail}</p>
+            </div>
+            <span className="status-pill">Operator review</span>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="admin-metric-grid" aria-label="System health totals">
         <article className="admin-metric-card" data-tone="success">
           <p className="admin-metric-card__label">Healthy</p>
           <p className="admin-metric-card__value">{snapshot.counts.ok}</p>
-          <p className="admin-metric-card__sub">Checks currently passing</p>
+          <p className="admin-metric-card__sub">Live runtime checks passing</p>
         </article>
         <article className="admin-metric-card" data-tone="warning">
           <p className="admin-metric-card__label">Review</p>
           <p className="admin-metric-card__value">{snapshot.counts.warn}</p>
-          <p className="admin-metric-card__sub">Operational follow-up advised</p>
+          <p className="admin-metric-card__sub">Intentional operator follow-up or queue review</p>
         </article>
         <article className="admin-metric-card" data-tone="danger">
           <p className="admin-metric-card__label">Action needed</p>
           <p className="admin-metric-card__value">{snapshot.counts.fail}</p>
-          <p className="admin-metric-card__sub">Blocking or misconfigured checks</p>
+          <p className="admin-metric-card__sub">Required service or schema dependency unavailable</p>
         </article>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
         {Object.entries(groups).map(([group, checks]) => (
           <article className="section-band" key={group}>
-            <p className="section-divider">{group}</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="section-divider">{group}</p>
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                {checks.length} checks
+              </span>
+            </div>
             <div className="mt-5 grid gap-3">
               {checks.map((check) => (
                 <div className="route-tile" key={`${check.group}-${check.label}`}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3>{check.label}</h3>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3>{check.label}</h3>
+                        <span className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                          {check.source === "runtime" ? "Live check" : "Review step"}
+                        </span>
+                      </div>
                       <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
                         {check.detail}
                       </p>
                     </div>
-                    <span className={`portal-badge portal-badge--${check.status === "ok" ? "verified" : check.status === "warn" ? "pending" : "returned"}`}>
+                    <span
+                      className={`portal-badge portal-badge--${check.status === "ok" ? "verified" : check.status === "warn" ? "pending" : "returned"}`}
+                    >
                       {statusIcon(check.status)} {statusLabel(check.status)}
                     </span>
                   </div>

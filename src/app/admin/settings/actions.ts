@@ -7,7 +7,7 @@ import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
-import { createClient } from "@/lib/supabase/server";
+
 
 const notificationSettingsSchema = z.object({
   notificationEmailOptIn: z
@@ -49,8 +49,11 @@ export async function saveAdminNotificationSettings(formData: FormData) {
     redirect("/admin/settings/notifications?error=settings-invalid");
   }
 
-  const supabase = asFlexibleClient(await createClient());
-  const { error } = await supabase.from("portal_user_settings").upsert(
+  // Preferences are private server-owned records. The action has already
+  // verified the signed-in operator, so keep browser table grants closed and
+  // scope the service-role write to that operator's own user ID.
+  const admin = asFlexibleClient(createAdminClient());
+  const { error } = await admin.from("portal_user_settings").upsert(
     {
       member_id: auth.user.memberId,
       notification_email_opt_in: parsed.data.notificationEmailOptIn,

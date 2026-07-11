@@ -24,6 +24,7 @@ import type { Database } from "@/lib/db/types";
 import { logServerError } from "@/lib/errors/api-error";
 import { hashInvitationCode } from "@/lib/members/invitation-code";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
+import { getPasswordPolicyError } from "@/lib/security/password-policy";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
@@ -65,7 +66,18 @@ const resendConfirmationSchema = z.object({
 const updatePasswordSchema = z
   .object({
     confirmPassword: z.string().min(1, "Confirm your new password."),
-    password: z.string().min(8, "Password must be at least 8 characters."),
+    password: z.string().min(1, "Password is required."),
+  })
+  .superRefine((value, context) => {
+    const policyError = getPasswordPolicyError(value.password);
+
+    if (policyError) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: policyError,
+        path: ["password"],
+      });
+    }
   })
   .refine((value) => value.password === value.confirmPassword, {
     message: "Passwords do not match.",
@@ -101,8 +113,18 @@ const claimProfileSchema = z.object({
 
       return normalized;
     }),
-  password: z.string().min(8, "Password must be at least 8 characters."),
+  password: z.string().min(1, "Password is required."),
   captchaToken: z.string().trim().optional().default(""),
+}).superRefine((value, context) => {
+  const policyError = getPasswordPolicyError(value.password, { email: value.email });
+
+  if (policyError) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: policyError,
+      path: ["password"],
+    });
+  }
 });
 
 function pickFormFields(formData: FormData, fields: string[]) {
@@ -564,6 +586,49 @@ export async function updatePassword(formData: FormData) {
   redirect(
     "/portal/login?message=Password updated. Sign in with your new password."
   );
+}
+
+export async function updateCurrentPassword(input: {
+  confirmPassword: string;
+  nonce?: string;
+  password: string;
+}) {
+  const parsed = updatePasswordSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return {
+      message: parsed.error.issues[0]?.message || "Choose a stronger password.",
+      ok: false as const,
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !userData.user) {
+    return {
+      message: "Your session has expired. Please sign in again.",
+      ok: false as const,
+    };
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    nonce: input.nonce?.trim() || undefined,
+    password: parsed.data.password,
+  });
+
+  if (error) {
+    logServerError("updateCurrentPassword", error);
+    return {
+      message: getSafeAuthErrorMessage(error, "Unable to update your password. Try again."),
+      ok: false as const,
+    };
+  }
+
+  return {
+    message: "Password updated for the current signed-in session.",
+    ok: true as const,
+  };
 }
 
 export async function claimProfile(formData: FormData) {

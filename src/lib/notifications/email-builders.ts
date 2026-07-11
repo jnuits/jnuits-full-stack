@@ -508,6 +508,40 @@ export function buildBulkOperationSummaryEmail(
   return wrap(`Bulk operation ${operationType} committed ${committedRows} rows.`, content);
 }
 
+export interface SupportTicketUpdateEmailProps {
+  actionLabel: string;
+  ticketStatus: string;
+  ticketSubject: string;
+  ticketUrl: string;
+}
+
+/**
+ * Deliberately omits reply contents: email is a notification channel, not a
+ * second copy of a private support conversation.
+ */
+export function buildSupportTicketUpdateEmail(
+  props: SupportTicketUpdateEmailProps
+): string {
+  const content = [
+    h1("Support ticket updated"),
+    p("There is a new update on a JnUITS support ticket you are participating in."),
+    card([
+      ["Ticket", props.ticketSubject],
+      ["Current status", props.ticketStatus.replaceAll("_", " ")],
+    ]),
+    p("Open the secure ticket workspace to read the update and respond if needed."),
+    button("Open support ticket", props.ticketUrl),
+    fallbackLink(props.ticketUrl),
+    hr(),
+    p(
+      `You received this because ticket updates are enabled in your JnUITS notification settings. ${esc(props.actionLabel)}.`,
+      "font-size:13px;margin:0;"
+    ),
+  ].join("");
+
+  return wrap(`Support ticket updated: ${props.ticketSubject}`, content);
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 
 export interface MembershipRejectedEmailProps {

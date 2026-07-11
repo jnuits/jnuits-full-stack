@@ -8,11 +8,7 @@ type AdminNotificationSettingsScreenProps = {
 };
 
 function resolveMessage(value: null | string) {
-  if (value === "settings-saved") {
-    return "Notification preferences saved.";
-  }
-
-  return value;
+  return value === "settings-saved" ? "Notification preferences saved." : value;
 }
 
 function resolveError(value: null | string) {
@@ -43,8 +39,8 @@ export async function AdminNotificationSettingsScreen({
           <p className="admin-page-header__breadcrumb">Admin settings</p>
           <h1 className="admin-page-header__title">Notification Settings</h1>
           <p className="admin-page-header__desc">
-            Delivery preferences for operator emails, queue digests, and
-            branded auth notifications.
+            Choose which optional operational emails reach this admin account.
+            Required sign-in, recovery, and security messages remain enabled.
           </p>
         </div>
         <span className="status-pill w-fit">
@@ -53,74 +49,96 @@ export async function AdminNotificationSettingsScreen({
       </div>
 
       {feedbackMessage ? (
-        <div className="flash-panel" data-tone="success">
+        <div className="flash-panel" data-tone="success" role="status">
           <p style={{ fontSize: "0.84rem", lineHeight: 1.6 }}>{feedbackMessage}</p>
         </div>
       ) : null}
       {feedbackError ? (
-        <div className="flash-panel" data-tone="error">
+        <div className="flash-panel" data-tone="error" role="alert">
           <p style={{ fontSize: "0.84rem", lineHeight: 1.6 }}>{feedbackError}</p>
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(21rem,0.9fr)]">
-        <article className="glass-card grid gap-4 p-6">
-          <div className="flex items-center gap-3">
-            <BellRing size={18} />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(21rem,0.86fr)]">
+        <article className="glass-card grid gap-5 p-6">
+          <div className="flex items-start gap-3">
+            <BellRing className="mt-0.5 shrink-0" size={18} />
             <div>
-              <p className="text-sm font-semibold">Delivery preferences</p>
+              <p className="text-sm font-semibold">Optional operational email</p>
               <p className="section-copy">
-                These toggles control the operator-facing digest and alert lane
-                persisted for your authenticated account.
+                These preferences are saved to your authenticated account and
+                apply only to noncritical product updates.
               </p>
             </div>
           </div>
 
-          <form action={saveAdminNotificationSettings} className="grid gap-4">
-            <label className="input-label" style={{ gap: "0.7rem" }}>
-              <span>Security and operator alerts</span>
-              <label style={{ alignItems: "center", display: "flex", gap: "0.6rem" }}>
+          <form action={saveAdminNotificationSettings} className="grid gap-3">
+            <fieldset className="grid gap-3">
+              <legend className="sr-only">Optional email preferences</legend>
+              <label
+                className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-4 transition-colors hover:bg-[var(--card)]"
+                htmlFor="notification-email-opt-in"
+              >
                 <input
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--line)]"
                   defaultChecked={
                     snapshot.notificationSettings?.notification_email_opt_in ?? true
                   }
+                  id="notification-email-opt-in"
                   name="notificationEmailOptIn"
                   type="checkbox"
                   value="true"
                 />
-                <span>Receive admin notices and security alerts by email.</span>
+                <span className="grid gap-1">
+                  <span className="text-sm font-semibold">Operational summaries</span>
+                  <span className="section-copy">
+                    Receive the summary email after a bulk operation you start
+                    finishes successfully.
+                  </span>
+                </span>
               </label>
-            </label>
 
-            <label className="input-label" style={{ gap: "0.7rem" }}>
-              <span>Queue digests</span>
-              <label style={{ alignItems: "center", display: "flex", gap: "0.6rem" }}>
+              <label
+                className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-4 transition-colors hover:bg-[var(--card)]"
+                htmlFor="ticket-digest-opt-in"
+              >
                 <input
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--line)]"
                   defaultChecked={
                     snapshot.notificationSettings?.ticket_digest_opt_in ?? true
                   }
+                  id="ticket-digest-opt-in"
                   name="ticketDigestOptIn"
                   type="checkbox"
                   value="true"
                 />
-                <span>Receive digest summaries for ticket and moderation queues.</span>
+                <span className="grid gap-1">
+                  <span className="text-sm font-semibold">Ticket updates</span>
+                  <span className="section-copy">
+                    Receive update notices for support tickets you open or are
+                    assigned to. Email never includes the reply content.
+                  </span>
+                </span>
               </label>
-            </label>
+            </fieldset>
 
-            <button className="primary-button" type="submit">
-              Save notification settings
-            </button>
+            <div className="admin-action-row mt-1">
+              <button className="primary-button w-fit" type="submit">
+                Save notification settings
+              </button>
+            </div>
           </form>
         </article>
 
-        <article className="glass-card grid gap-4 p-6">
-          <div className="flex items-center gap-3">
-            <Mail size={18} />
+        <article className="glass-card grid content-start gap-4 p-6">
+          <div className="flex items-start gap-3">
+            <Mail className="mt-0.5 shrink-0" size={18} />
             <div>
-              <p className="text-sm font-semibold">Delivery channels</p>
+              <p className="text-sm font-semibold">Delivery destination</p>
               <p className="section-copy">
-                Supabase auth emails and app-owned security notices share the
-                same verified operator destination.
+                Optional app emails use this operator account&rsquo;s verified
+                address. Required account-protection messages are managed by
+                Supabase Auth and are not controlled by these toggles.
               </p>
             </div>
           </div>
@@ -128,15 +146,17 @@ export async function AdminNotificationSettingsScreen({
           <div className="grid gap-3">
             <div className="portal-info-row">
               <span className="portal-info-row__label">Primary email</span>
-              <span className="portal-info-row__value">
+              <span className="portal-info-row__value admin-wrap-anywhere">
                 {snapshot.auth.email || "Unavailable"}
               </span>
             </div>
             <div className="portal-info-row">
-              <span className="portal-info-row__label">Auth delivery</span>
-              <span className="portal-info-row__value">
-                Supabase + Resend
-              </span>
+              <span className="portal-info-row__label">Optional delivery</span>
+              <span className="portal-info-row__value">Resend</span>
+            </div>
+            <div className="portal-info-row">
+              <span className="portal-info-row__label">Account protection</span>
+              <span className="portal-info-row__value">Supabase Auth</span>
             </div>
             <div className="portal-info-row">
               <span className="portal-info-row__label">Email status</span>
@@ -148,11 +168,12 @@ export async function AdminNotificationSettingsScreen({
             </div>
           </div>
 
-          <div className="flex items-start gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4">
-            <ShieldCheck size={16} className="mt-0.5" />
+          <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-4">
+            <ShieldCheck className="mt-0.5 shrink-0" size={16} />
             <p className="section-copy">
-              High-risk security events still depend on an `aal2` session even
-              when email delivery is enabled.
+              MFA, password recovery, verification, and high-risk account
+              protection workflows stay available even when optional email is
+              disabled.
             </p>
           </div>
         </article>
