@@ -6,6 +6,12 @@ const sentryRelease =
   process.env.SENTRY_RELEASE ?? process.env.VERCEL_GIT_COMMIT_SHA;
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      // A CSV import is capped at 2 MB in the action. Leave room for multipart form overhead.
+      bodySizeLimit: "3mb",
+    },
+  },
   env: sentryRelease
     ? {
         NEXT_PUBLIC_SENTRY_RELEASE: sentryRelease,

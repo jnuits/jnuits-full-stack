@@ -1,0 +1,4 @@
+certId,fullName,type,eventName,issueDate,assetUrl,details
+EXAMPLE-CERT-001,Sample Recipient One,Event,"JnUITS Tech Workshop, Dhaka",2026-01-15,,Replace this example row before import
+EXAMPLE-CERT-002,Sample Recipient Two,Exam,Basic Computer Course,2026-02-20,https://example.com/certificates/EXAMPLE-CERT-002.pdf,Replace this example row before import
+EXAMPLE-CERT-003,Sample Recipient Three,Course,Web Development Bootcamp,2026-03-10,,Replace this example row before import

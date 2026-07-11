@@ -4,12 +4,12 @@ import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import {
-  bulkImportCertificatesAction,
   deleteCertificateAction,
   fixCertTypeAction,
   upsertCertificateAction,
 } from "@/app/admin/certificates/actions";
 import { DeleteCertButton } from "@/app/admin/certificates/delete-cert-button";
+import { CertificateCsvImportPanel } from "@/components/admin/certificate-csv-import-panel";
 import {
   Award,
   BookOpen,
@@ -25,7 +25,6 @@ import {
   Plus,
   Search,
   ShieldAlert,
-  Upload,
   User,
 } from "lucide-react";
 
@@ -717,103 +716,7 @@ export default async function AdminCertificatesPage({
         <div
           style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
         >
-          <form
-            action={bulkImportCertificatesAction}
-            className="section-band grid gap-4"
-          >
-            <div>
-              <span className="eyebrow">Bulk import</span>
-              <h2
-                style={{
-                  marginTop: "0.75rem",
-                  fontFamily: "var(--font-heading)",
-                  fontSize: "clamp(1.5rem,3vw,2rem)",
-                  fontWeight: 800,
-                  letterSpacing: "-0.04em",
-                  lineHeight: 1.05,
-                }}
-              >
-                CSV certificate import
-              </h2>
-              <p
-                style={{
-                  marginTop: "0.4rem",
-                  fontSize: "0.84rem",
-                  color: "var(--muted-foreground)",
-                  lineHeight: 1.65,
-                }}
-              >
-                Paste CSV rows below. Each row must contain 6–7 columns in this
-                order:
-              </p>
-              <div className="portal-info-row" style={{ marginTop: "0.65rem" }}>
-                <span className="portal-info-row__label">Expected columns</span>
-                <code
-                  style={{
-                    fontSize: "0.74rem",
-                    lineHeight: 1.6,
-                    color: "var(--foreground)",
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
-                  certId, fullName, type, eventName, issueDate, assetUrl?
-                </code>
-              </div>
-            </div>
-
-            <div className="portal-form-grid">
-              <label className="input-label" htmlFor="import-source">
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                  }}
-                >
-                  <Database size={11} /> Batch source name
-                </span>
-                <input
-                  id="import-source"
-                  name="source_name"
-                  placeholder={`manual-import-${new Date().toISOString().slice(0, 10)}`}
-                />
-              </label>
-
-              <label className="input-label" htmlFor="import-conflict">
-                On duplicate cert ID
-                <select
-                  id="import-conflict"
-                  name="on_conflict"
-                  defaultValue="skip"
-                >
-                  <option value="skip">Skip (keep existing)</option>
-                  <option value="update">Overwrite existing</option>
-                </select>
-              </label>
-
-              <label className="input-label sm:col-span-2" htmlFor="import-csv">
-                CSV data *
-                <textarea
-                  id="import-csv"
-                  name="csv_data"
-                  rows={10}
-                  placeholder={
-                    "CERT-2026-001,Mohammad Rahman,Event,Speak Up Workshop,2026-01-15\nCERT-2026-002,Ayesha Khan,Exam,Basic Computer Course,2026-02-20,https://example.com/cert.pdf"
-                  }
-                  required
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "0.78rem",
-                  }}
-                />
-              </label>
-            </div>
-
-            <button className="primary-button" type="submit">
-              <Upload size={14} /> Import certificates
-            </button>
-          </form>
-
+          <CertificateCsvImportPanel />
           {/* Import batches history */}
           <div className="section-band grid gap-3">
             <div>

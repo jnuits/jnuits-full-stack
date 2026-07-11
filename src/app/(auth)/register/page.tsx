@@ -1,4 +1,5 @@
 import { claimProfile } from "@/app/(auth)/actions";
+import { PasswordSecurityField } from "@/components/auth/password-security-field";
 import { TurnstileField } from "@/components/auth/turnstile-field";
 import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
 
@@ -47,14 +48,13 @@ export default async function RegisterPage({
           placeholder="Email address"
           required
         />
-        <input
-          autoComplete="new-password"
+        <PasswordSecurityField
+          id="register-password"
           name="password"
-          type="password"
           placeholder="Create a 12+ character password"
           required
         />
-        <p className="text-xs leading-5 text-[var(--muted-foreground)]">Use a long, unique passphrase. Common passwords and passwords based on your email are rejected.</p>
+        <p className="text-xs leading-5 text-[var(--muted-foreground)]">Use a long, unique passphrase. Common, predictable, and breached passwords are rejected.</p>
         {captcha.required ? <TurnstileField siteKey={captcha.siteKey} /> : null}
         <button className="primary-button" formAction={claimProfile}>
           Claim profile

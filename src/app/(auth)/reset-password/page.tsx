@@ -1,4 +1,5 @@
 import { updatePassword } from "@/app/(auth)/actions";
+import { PasswordSecurityField } from "@/components/auth/password-security-field";
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -23,14 +24,13 @@ export default async function ResetPasswordPage({
         <p className="mt-4 text-sm font-semibold text-[var(--brand-rust)]">{error}</p>
       ) : null}
       <form className="mt-8 grid gap-4">
-        <input
-          autoComplete="new-password"
+        <PasswordSecurityField
+          id="reset-password"
           name="password"
-          type="password"
           placeholder="New 12+ character password"
           required
         />
-        <p className="text-xs leading-5 text-[var(--muted-foreground)]">Use a long, unique passphrase. Common passwords are rejected.</p>
+        <p className="text-xs leading-5 text-[var(--muted-foreground)]">Use a long, unique passphrase. Common, predictable, and breached passwords are rejected.</p>
         <input
           autoComplete="new-password"
           name="confirmPassword"

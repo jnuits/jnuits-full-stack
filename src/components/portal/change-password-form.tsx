@@ -2,6 +2,7 @@
 
 import { updateCurrentPassword } from "@/app/(auth)/actions";
 import { getPasswordPolicyError } from "@/lib/security/password-policy";
+import { getPasswordExposureError } from "@/lib/security/pwned-passwords";
 import { startTransition, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -31,6 +32,13 @@ export function ChangePasswordForm() {
     }
 
     setPending(true);
+    const exposureError = await getPasswordExposureError(password);
+    if (exposureError) {
+      setError(exposureError);
+      setPending(false);
+      return;
+    }
+
     const result = await updateCurrentPassword({
       confirmPassword,
       nonce,

@@ -26,6 +26,7 @@ import { logServerError } from "@/lib/errors/api-error";
 import { hashInvitationCode } from "@/lib/members/invitation-code";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import { getPasswordPolicyError } from "@/lib/security/password-policy";
+import { getPasswordExposureError } from "@/lib/security/pwned-passwords";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
@@ -564,6 +565,11 @@ export async function updatePassword(formData: FormData) {
     );
   }
 
+  const exposureError = await getPasswordExposureError(parsed.data.password);
+  if (exposureError) {
+    redirect(`/reset-password?error=${encodeMessage(exposureError)}`);
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
 
@@ -591,6 +597,14 @@ export async function updateCurrentPassword(input: {
   if (!parsed.success) {
     return {
       message: parsed.error.issues[0]?.message || "Choose a stronger password.",
+      ok: false as const,
+    };
+  }
+
+  const exposureError = await getPasswordExposureError(parsed.data.password);
+  if (exposureError) {
+    return {
+      message: exposureError,
       ok: false as const,
     };
   }
@@ -653,6 +667,11 @@ export async function claimProfile(formData: FormData) {
 
   if (protectionError) {
     redirectToRegisterError(protectionError);
+  }
+
+  const exposureError = await getPasswordExposureError(password);
+  if (exposureError) {
+    redirectToRegisterError(exposureError);
   }
 
   const admin = createAdminClient();

@@ -8,6 +8,14 @@ import {
   getSafeAdminActionErrorMessage,
   isUniqueConstraintError,
 } from "@/lib/admin/action-error";
+import {
+  CERTIFICATE_IMPORT_CHUNK_SIZE,
+  CertificateImportInputError,
+  getDefaultCertificateImportSourceName,
+  parseCertificateImportCsv,
+  readCertificateImportSource,
+  type CertificateImportRecord,
+} from "@/lib/certificates/admin-import";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -41,7 +49,6 @@ const fixCertTypeSchema = z.object({
 });
 
 const bulkImportSchema = z.object({
-  csv_data: z.string().trim().min(1, "No CSV data provided.").max(5_000_000),
   on_conflict: z.enum(["skip", "update"]).optional().default("skip"),
   source_name: z.string().trim().max(180).optional().default(""),
 });
@@ -69,67 +76,20 @@ function safeCertificateError(error: unknown, context: string, fallback: string)
   });
 }
 
-function normalizeFullName(...parts: Array<string | null | undefined>) {
-  return parts
-    .map((part) => (part || "").trim())
-    .filter(Boolean)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-
-type CertificateWritePayload = {
-  asset_url: string | null;
-  certificate_id: string;
-  details: string;
-  exam_or_event: z.infer<typeof certificateTypeSchema>;
-  exam_or_event_name: string;
-  full_name: string;
-  issue_date: string;
+type CertificateWritePayload = CertificateImportRecord & {
   source_migrated_at?: string;
   updated_at: string;
 };
 
+function chunkValues<T>(values: T[], size: number) {
+  const chunks: T[][] = [];
 
-function isCertificateType(value: string | undefined) {
-  return certificateTypeSchema.safeParse(value).success;
-}
-
-type ParsedCertificateCsvLine = {
-  assetUrl: string | null;
-  certId: string;
-  examOrEvent: string;
-  examOrEventName: string;
-  fullName: string;
-  issueDate: string | null;
-};
-
-function parseCertificateCsvLine(cols: string[]): ParsedCertificateCsvLine {
-  const rawCertId = cols[0] ?? "";
-  const looksLikeNewFormat = isCertificateType(cols[2]) && Boolean(isoDate(cols[4] ?? ""));
-
-  if (looksLikeNewFormat) {
-    return {
-      assetUrl: cols[5] || null,
-      certId: normId(rawCertId),
-      examOrEvent: cols[2] ?? "",
-      examOrEventName: cols[3] ?? "",
-      fullName: normalizeFullName(cols[1]),
-      issueDate: isoDate(cols[4] ?? ""),
-    };
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
   }
 
-  return {
-    assetUrl: cols[6] || null,
-    certId: normId(rawCertId),
-    examOrEvent: cols[3] ?? "",
-    examOrEventName: cols[4] ?? "",
-    fullName: normalizeFullName(cols[1], cols[2]),
-    issueDate: isoDate(cols[5] ?? ""),
-  };
+  return chunks;
 }
-
 // ── Add / Update single certificate ─────────────────────────────────────────
 
 export async function upsertCertificateAction(formData: FormData) {
@@ -311,7 +271,7 @@ export async function fixCertTypeAction(formData: FormData) {
   redirect("/admin/certificates");
 }
 
-// ── Bulk CSV import (new rows: certId,fullName,type,eventName,issueDate,assetUrl) ───
+// ── Bulk CSV import ───────────────────────────────────────────────────────────
 
 export async function bulkImportCertificatesAction(formData: FormData) {
   const auth = await requireAdminPermission("admin.certificates.manage", {
@@ -320,41 +280,47 @@ export async function bulkImportCertificatesAction(formData: FormData) {
   if (!auth.user) redirect("/admin");
 
   const parsed = bulkImportSchema.safeParse(
-    pickFormFields(formData, ["csv_data", "source_name", "on_conflict"])
+    pickFormFields(formData, ["source_name", "on_conflict"])
   );
 
   if (!parsed.success) {
     await setAdminFlash({
       tone: "error",
       title: "Import failed",
-      message: parsed.error.issues[0]?.message || "No CSV data provided.",
+      message: parsed.error.issues[0]?.message || "Check the import settings and try again.",
     });
     redirect("/admin/certificates");
   }
 
-  const csvText = parsed.data.csv_data;
-  const sourceName = parsed.data.source_name || `manual-import-${Date.now()}`;
-  const onConflict = parsed.data.on_conflict; // "skip" | "update"
+  let source: Awaited<ReturnType<typeof readCertificateImportSource>>;
+  let csv: ReturnType<typeof parseCertificateImportCsv>;
 
-  const lines = csvText.split("\n").map((l) => l.trim()).filter(Boolean);
-  const headerLine = lines[0]?.toLowerCase() ?? "";
-  const dataLines = headerLine.includes("certid") ||
-    headerLine.includes("certificate_id") ||
-    headerLine.includes("fullname") ||
-    headerLine.includes("full_name") ||
-    headerLine.includes("first")
-    ? lines.slice(1)
-    : lines;
+  try {
+    source = await readCertificateImportSource(formData);
+    csv = parseCertificateImportCsv(source.csvText);
+  } catch (error) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Import could not start",
+      message:
+        error instanceof CertificateImportInputError
+          ? error.message
+          : "The CSV could not be read. Download the template and try again.",
+    });
+    redirect("/admin/certificates");
+  }
 
+  const onConflict = parsed.data.on_conflict;
+  const sourceName =
+    parsed.data.source_name || getDefaultCertificateImportSourceName(source.fileName);
+  const now = new Date().toISOString();
   const admin = createAdminClient();
 
-  // Create a batch record
-  const now = new Date().toISOString();
   const { data: batch, error: batchError } = await admin
     .from("certificate_import_batches")
     .insert({
       source_name: sourceName,
-      source_row_count: dataLines.length,
+      source_row_count: csv.dataRowCount,
       status: "processing",
       started_at: now,
     })
@@ -362,106 +328,136 @@ export async function bulkImportCertificatesAction(formData: FormData) {
     .single();
 
   if (batchError || !batch) {
-    await setAdminFlash({ tone: "error", title: "Import failed", message: "Could not create import batch." });
+    await setAdminFlash({
+      tone: "error",
+      title: "Import failed",
+      message: "The import batch could not be prepared. Please try again.",
+    });
     redirect("/admin/certificates");
   }
 
   let inserted = 0;
   let updated = 0;
-  let rejected = 0;
-  const errors: string[] = [];
+  let rejected = csv.rows.length - csv.validRows.length;
+  let skipped = 0;
+  const errors = csv.rows.flatMap((row) =>
+    row.errors.map((message) => `Row ${row.rowNumber}: ${message}.`)
+  );
+  const latestRowByCertificateId = new Map<
+    string,
+    { certificate: CertificateImportRecord; rowNumber: number }
+  >();
 
-  for (const [lineIdx, line] of dataLines.entries()) {
-    const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
-    // New: certId, fullName, type, eventName, issueDate, assetUrl?
-    // Legacy fallback: certId, firstName, lastName, type, eventName, issueDate, assetUrl?
-    const {
-      assetUrl,
-      certId,
-      examOrEvent,
-      examOrEventName,
-      fullName,
-      issueDate,
-    } = parseCertificateCsvLine(cols);
+  for (const row of csv.validRows) {
+    const certificate = row.certificate;
+    const previous = latestRowByCertificateId.get(certificate.certificate_id);
 
-    if (!certId || !fullName || !examOrEvent || !examOrEventName || !issueDate) {
-      rejected++;
-      errors.push(`Row ${lineIdx + 2}: missing required field(s) — "${line.slice(0, 60)}"`);
-      continue;
+    if (previous) {
+      skipped += 1;
+      errors.push(
+        onConflict === "update"
+          ? `Row ${previous.rowNumber}: replaced by the later duplicate certificate ID on row ${row.rowNumber}.`
+          : `Row ${row.rowNumber}: duplicate certificate ID in this file was skipped.`
+      );
+
+      if (onConflict !== "update") continue;
     }
 
-    const parsedType = certificateTypeSchema.safeParse(examOrEvent);
-    if (!parsedType.success) {
-      rejected++;
-      errors.push(`Row ${lineIdx + 2}: type must be Event, Exam, or Course.`);
-      continue;
-    }
+    latestRowByCertificateId.set(certificate.certificate_id, {
+      certificate,
+      rowNumber: row.rowNumber,
+    });
+  }
 
-    const payload: CertificateWritePayload = {
-      certificate_id: certId,
-      full_name: fullName,
-      details: "",
-      exam_or_event: parsedType.data,
-      exam_or_event_name: examOrEventName,
-      issue_date: issueDate,
-      asset_url: assetUrl || null,
-      source_migrated_at: now,
-      updated_at: now,
-    };
+  const selectedRows = Array.from(latestRowByCertificateId.values());
+  const existingCertificateIds = new Set<string>();
 
-    if (onConflict === "update") {
-      const { data: existing } = await admin
-        .from("certificates")
-        .select("id")
-        .eq("certificate_id", certId)
-        .maybeSingle();
+  for (const chunk of chunkValues(
+    selectedRows.map((row) => row.certificate.certificate_id),
+    CERTIFICATE_IMPORT_CHUNK_SIZE
+  )) {
+    const { data, error } = await admin
+      .from("certificates")
+      .select("certificate_id")
+      .in("certificate_id", chunk);
 
-      if (existing) {
-        const { error } = await admin.from("certificates").update(payload).eq("id", existing.id);
-        if (error) {
-          rejected++;
-          errors.push(
-            `Row ${lineIdx + 2}: update failed - ${safeCertificateError(
-              error,
-              "bulkImport.update",
-              "certificate could not be updated"
-            )}`
-          );
-        }
-        else updated++;
-        continue;
-      }
-    }
-
-    const { error } = await admin.from("certificates").insert(payload);
     if (error) {
-      if (isUniqueConstraintError(error)) {
-        // Skip duplicate
-        errors.push(`Row ${lineIdx + 2}: skipped (${certId} already exists)`);
-      } else {
-        rejected++;
-        errors.push(
-          `Row ${lineIdx + 2}: insert failed - ${safeCertificateError(
-            error,
-            "bulkImport.insert",
-            "certificate could not be inserted"
-          )}`
-        );
-      }
-    } else {
-      inserted++;
+      await admin
+        .from("certificate_import_batches")
+        .update({
+          finished_at: new Date().toISOString(),
+          rejected_count: csv.dataRowCount,
+          report: { errors: ["Existing certificate records could not be checked safely."] },
+          status: "failed",
+        })
+        .eq("id", batch.id);
+
+      await setAdminFlash({
+        tone: "error",
+        title: "Import could not continue",
+        message: "Existing certificate records could not be checked. No rows were imported.",
+      });
+      redirect("/admin/certificates");
+    }
+
+    for (const record of data || []) {
+      existingCertificateIds.add(record.certificate_id);
     }
   }
 
-  // Finalise batch
-  await admin.from("certificate_import_batches").update({
-    status: "completed",
-    inserted_count: inserted,
-    updated_count: updated,
-    rejected_count: rejected,
-    finished_at: new Date().toISOString(),
-    report: { errors: errors.slice(0, 50) },
-  }).eq("id", batch.id);
+  const rowsToWrite = selectedRows.filter((row) => {
+    if (onConflict === "update" || !existingCertificateIds.has(row.certificate.certificate_id)) {
+      return true;
+    }
+
+    skipped += 1;
+    errors.push(`Row ${row.rowNumber}: certificate ID already exists and was skipped.`);
+    return false;
+  });
+
+  for (const chunk of chunkValues(rowsToWrite, CERTIFICATE_IMPORT_CHUNK_SIZE)) {
+    const payloads: CertificateWritePayload[] = chunk.map(({ certificate }) => ({
+      ...certificate,
+      source_migrated_at: now,
+      updated_at: now,
+    }));
+    const { error } = await admin.from("certificates").upsert(payloads, {
+      ignoreDuplicates: onConflict === "skip",
+      onConflict: "certificate_id",
+    });
+
+    if (error) {
+      rejected += chunk.length;
+      const firstRow = chunk[0]?.rowNumber ?? 0;
+      const lastRow = chunk.at(-1)?.rowNumber ?? firstRow;
+      errors.push(
+        firstRow === lastRow
+          ? `Row ${firstRow}: could not be saved. Try that row again.`
+          : `Rows ${firstRow}-${lastRow}: could not be saved. Split the file and try again.`
+      );
+      continue;
+    }
+
+    for (const row of chunk) {
+      if (existingCertificateIds.has(row.certificate.certificate_id)) {
+        updated += 1;
+      } else {
+        inserted += 1;
+      }
+    }
+  }
+
+  await admin
+    .from("certificate_import_batches")
+    .update({
+      finished_at: new Date().toISOString(),
+      inserted_count: inserted,
+      rejected_count: rejected,
+      report: { errors: errors.slice(0, 50), skipped_count: skipped },
+      status: "completed",
+      updated_count: updated,
+    })
+    .eq("id", batch.id);
 
   revalidatePath("/admin/certificates");
 
@@ -469,13 +465,13 @@ export async function bulkImportCertificatesAction(formData: FormData) {
     await setAdminFlash({
       tone: "success",
       title: "Import complete",
-      message: `${inserted} inserted, ${updated} updated from ${dataLines.length} rows.`,
+      message: `${inserted} added, ${updated} updated, and ${skipped} skipped from ${csv.dataRowCount} rows.`,
     });
   } else {
     await setAdminFlash({
       tone: "error",
-      title: `Import complete with ${rejected} error(s)`,
-      message: `${inserted} inserted, ${updated} updated, ${rejected} rejected. First error: ${errors[0] ?? "unknown"}.`,
+      title: "Import completed with review needed",
+      message: `${inserted} added, ${updated} updated, ${skipped} skipped, and ${rejected} rejected. Review the batch history for the first issues.`,
     });
   }
 

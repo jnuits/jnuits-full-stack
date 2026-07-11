@@ -2,7 +2,7 @@ export const MIN_PASSWORD_LENGTH = 12;
 export const MAX_PASSWORD_LENGTH = 128;
 
 // This is deliberately small and maintainable. It blocks the most predictable
-// choices without claiming to be a breached-password database.
+// choices. The separate Pwned Passwords range check handles known breached passwords.
 const COMMON_PASSWORDS = new Set([
   "123456789012",
   "admin123456",

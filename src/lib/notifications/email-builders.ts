@@ -235,7 +235,7 @@ export function buildMembershipApprovedEmail(props: MembershipApprovedEmailProps
       applicantEmail
         ? `Enter this email address: <strong class="email-value" style="color:${TEXT};">${esc(applicantEmail)}</strong>.`
         : "Enter the email address used for your approved application.",
-      "Enter the claim code above and choose a password of at least 8 characters.",
+      "Enter the claim code above and choose a password of at least 12 characters.",
       "Submit the form. If the claim succeeds, your portal account is created immediately; you do not need to wait for a second confirmation email.",
     ]),
     p(
@@ -298,7 +298,7 @@ export function buildMemberInvitationEmail(props: MemberInvitationEmailProps): s
       memberEmail
         ? `Enter this email address: <strong class="email-value" style="color:${TEXT};">${esc(memberEmail)}</strong>.`
         : "Enter the email address that received this invitation.",
-      "Enter the claim code above and choose a password of at least 8 characters.",
+      "Enter the claim code above and choose a password of at least 12 characters.",
       "Submit the form. If the claim succeeds, your portal account is created immediately; you do not need to wait for a second confirmation email.",
     ]),
     p("Keep this email open while completing the form. The code is valid only until the expiry date above.", "font-size:13px;"),
@@ -357,7 +357,7 @@ export function buildAlumniInvitationEmail(props: AlumniInvitationEmailProps): s
       alumniEmail
         ? `Enter this email address: <strong class="email-value" style="color:${TEXT};">${esc(alumniEmail)}</strong>.`
         : "Enter the email address that received this invitation.",
-      "Enter the claim code above and choose a password of at least 8 characters.",
+      "Enter the claim code above and choose a password of at least 12 characters.",
       "Submit the form. If the claim succeeds, your alumni portal account is created immediately; you do not need to wait for a second confirmation email.",
     ]),
     p("Keep this email open while completing the form. The code is valid only until the expiry date above.", "font-size:13px;"),

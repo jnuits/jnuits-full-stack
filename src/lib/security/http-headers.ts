@@ -24,7 +24,7 @@ export function buildContentSecurityPolicy({
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://res.cloudinary.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co https://challenges.cloudflare.com https://*.sentry.io",
+    "connect-src 'self' https://*.supabase.co https://api.pwnedpasswords.com https://challenges.cloudflare.com https://*.sentry.io",
     "frame-src 'self' https://challenges.cloudflare.com",
     "form-action 'self'",
   ].join("; ");

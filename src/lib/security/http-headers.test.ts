@@ -8,6 +8,7 @@ describe("security headers", () => {
     expect(csp).toContain("script-src 'self' 'unsafe-inline'");
     expect(csp).not.toContain("'unsafe-eval'");
     expect(csp).toContain("https://challenges.cloudflare.com");
+    expect(csp).toContain("https://api.pwnedpasswords.com");
     expect(csp).toContain("worker-src 'self' blob:");
   });
 
