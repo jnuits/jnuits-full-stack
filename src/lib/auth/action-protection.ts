@@ -6,7 +6,7 @@ import {
   verifyCaptchaToken,
 } from "@/lib/security/captcha";
 import {
-  checkRateLimit,
+  checkRateLimitForApi,
   getRequestIp,
   type RateLimitConfig,
 } from "@/lib/security/rate-limit";
@@ -30,7 +30,7 @@ export async function enforceAuthActionProtection(options: {
 }) {
   const ip = getRequestIp(options.requestHeaders);
   const key = `${options.rateLimitPrefix}:${ip}:${options.email || "unknown"}`;
-  const rateLimit = checkRateLimit(key, options.rateLimit);
+  const rateLimit = await checkRateLimitForApi(key, options.rateLimit);
 
   if (!rateLimit.success) {
     return "Too many attempts. Try again later.";

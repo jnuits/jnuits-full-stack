@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 
 const captchaMocks = vi.hoisted(() => ({
@@ -7,7 +7,19 @@ const captchaMocks = vi.hoisted(() => ({
   verifyCaptchaToken: vi.fn(),
 }));
 
+const rateLimitMocks = vi.hoisted(() => ({
+  checkRateLimitForApi: vi.fn(),
+}));
+
 vi.mock("@/lib/security/captcha", () => captchaMocks);
+vi.mock("@/lib/security/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/security/rate-limit")>();
+
+  return {
+    ...actual,
+    checkRateLimitForApi: rateLimitMocks.checkRateLimitForApi,
+  };
+});
 
 import {
   AUTH_ACTION_CAPTCHA_MODES,
@@ -20,6 +32,14 @@ function headers(ip = "203.0.113.10") {
 }
 
 describe("auth action protection", () => {
+  beforeEach(() => {
+    rateLimitMocks.checkRateLimitForApi.mockResolvedValue({
+      remaining: 4,
+      resetAt: Date.now() + 60_000,
+      success: true,
+    });
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -40,6 +60,10 @@ describe("auth action protection", () => {
     ).resolves.toBeNull();
 
     expect(captchaMocks.verifyCaptchaToken).not.toHaveBeenCalled();
+    expect(rateLimitMocks.checkRateLimitForApi).toHaveBeenCalledWith(
+      expect.stringContaining("test-auth-login-"),
+      RATE_LIMITS.authLogin
+    );
   });
 
   it("directly verifies Turnstile for protected claim mutations", async () => {

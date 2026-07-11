@@ -3,10 +3,21 @@ import {
   hasMemberPortalAccessRole,
   isMutablePortalAccess,
   portalAccessRedirectPath,
+  resolveSafeNextPath,
   type PortalAccessState,
 } from "@/lib/auth/session";
 
 describe("portal access helpers", () => {
+  it("keeps post-authentication redirects on a local path", () => {
+    expect(resolveSafeNextPath("/portal/dashboard", "/portal")).toBe(
+      "/portal/dashboard"
+    );
+    expect(resolveSafeNextPath("https://example.com", "/portal")).toBe(
+      "/portal"
+    );
+    expect(resolveSafeNextPath("//example.com", "/portal")).toBe("/portal");
+  });
+
   it("treats only active current or alumni members as mutable portal users", () => {
     const activeCurrent = {
       lifecycleStatus: "current",

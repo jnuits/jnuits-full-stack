@@ -19,6 +19,7 @@ import {
 import { checkAdminMFA } from "@/lib/auth/mfa";
 import { findAuthUserByEmail } from "@/lib/auth/auth-user-lookup";
 import { buildPasswordSignInPayload } from "@/lib/auth/password-sign-in";
+import { getSafeAuthErrorMessage } from "@/lib/auth/safe-auth-error";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
 import { logServerError } from "@/lib/errors/api-error";
@@ -135,25 +136,6 @@ function pickFormFields(formData: FormData, fields: string[]) {
 
 function encodeMessage(message: string) {
   return encodeURIComponent(message);
-}
-
-function getSafeAuthErrorMessage(error: unknown, fallback: string) {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "";
-
-  if (/captcha|captcha_token|turnstile|request disallowed/i.test(message)) {
-    return "Complete the verification challenge and try again.";
-  }
-
-  if (/invalid login credentials/i.test(message)) {
-    return "Invalid email or password.";
-  }
-
-  return message || fallback;
 }
 
 
@@ -418,6 +400,7 @@ async function loginForPortal(portal: LoginPortal, formData: FormData) {
   );
 
   if (error) {
+    logServerError("loginForPortal.signIn", error);
     redirectToLoginPage(portal, {
       error: getSafeAuthErrorMessage(error, "Unable to sign in. Try again."),
       next: nextPath,
@@ -436,8 +419,12 @@ async function loginForPortal(portal: LoginPortal, formData: FormData) {
 
   if (refreshError) {
     await supabase.auth.signOut();
+    logServerError("loginForPortal.refreshSession", refreshError);
     redirectToLoginPage(portal, {
-      error: refreshError.message,
+      error: getSafeAuthErrorMessage(
+        refreshError,
+        "Unable to sign in. Try again."
+      ),
       next: nextPath,
     });
   }
@@ -511,6 +498,7 @@ export async function requestPasswordReset(formData: FormData) {
   });
 
   if (error) {
+    logServerError("requestPasswordReset", error);
     redirect(`/forgot-password?error=${encodeMessage(getSafeAuthErrorMessage(error, "Unable to request a password reset. Try again."))}`);
   }
 
@@ -580,7 +568,12 @@ export async function updatePassword(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
 
   if (error) {
-    redirect(`/reset-password?error=${encodeMessage(error.message)}`);
+    logServerError("updatePassword", error);
+    redirect(
+      `/reset-password?error=${encodeMessage(
+        getSafeAuthErrorMessage(error, "Unable to update your password. Try again.")
+      )}`
+    );
   }
 
   redirect(
