@@ -167,6 +167,11 @@ function toIsoDate(year: number, month: number, day: number) {
   ].join("-");
 }
 
+function expandTwoDigitYear(year: number) {
+  // Keep two-digit spreadsheet dates deterministic: 00-69 are 2000-2069 and
+  // 70-99 are 1970-1999, matching the conventional POSIX century pivot.
+  return year <= 69 ? 2000 + year : 1900 + year;
+}
 function normalizeDate(value: string) {
   const trimmed = cleanCsvValue(value);
 
@@ -187,6 +192,18 @@ function normalizeDate(value: string) {
     );
   }
 
+  // Bangladesh spreadsheet exports commonly abbreviate the year, for example
+  // 05-11-26 for 5 November 2026. Treat that form as day-first only.
+  const dayFirstShortYearMatch = trimmed.match(
+    /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})$/
+  );
+  if (dayFirstShortYearMatch) {
+    return toIsoDate(
+      expandTwoDigitYear(Number(dayFirstShortYearMatch[3])),
+      Number(dayFirstShortYearMatch[2]),
+      Number(dayFirstShortYearMatch[1])
+    );
+  }
   if (/^\d{5}$/.test(trimmed)) {
     const serial = Number(trimmed);
     if (serial >= 20_000 && serial <= 80_000) {
@@ -455,9 +472,17 @@ export function parseCertificateImportCsv(rawCsv: string): CertificateImportPars
   );
   const ignoredRowCount = rows.filter((row) => row.ignored).length;
 
-  if (validRows.length === 0 && ignoredRowCount === rows.length) {
+  if (validRows.length === 0) {
+    if (ignoredRowCount === rows.length) {
+      throw new CertificateImportInputError(
+        "The CSV only contains template example rows. Replace or add at least one real certificate before importing."
+      );
+    }
+
+    const firstError = rows.find((row) => row.errors.length > 0)?.errors[0];
     throw new CertificateImportInputError(
-      "The CSV only contains template example rows. Replace or add at least one real certificate before importing."
+      "No valid certificate rows were found. First issue: " +
+        (firstError || "check the required fields and try again.")
     );
   }
 

@@ -75,6 +75,26 @@ describe("certificate admin CSV import parser", () => {
     });
   });
 
+  it("accepts Bangladesh day-first dates with a two-digit year", () => {
+    const result = parseCertificateImportCsv(
+      [
+        "certId,fullName,type,eventName,issueDate,assetUrl,details",
+        "2610001BCC0001,Bristy Akter Moreom,Exam,BCC Season 8.0 Basic Computer Structural Knowledge and IT,05-11-26,,Completed the examination",
+      ].join("\n")
+    );
+
+    expect(result.validRows[0]?.certificate).toMatchObject({
+      certificate_id: "2610001BCC0001",
+      issue_date: "2026-11-05",
+    });
+  });
+  it("rejects an all-invalid file before an import batch is created", () => {
+    expect(() =>
+      parseCertificateImportCsv(
+        "certId,fullName,type,eventName,issueDate\nCERT-2026-006,Ayesha Khan,Exam,Basic Computer Course,not-a-date"
+      )
+    ).toThrow(/No valid certificate rows were found.*issue date must be a valid date/i);
+  });
   it("rejects a malformed required header before a batch is created", () => {
     expect(() =>
       parseCertificateImportCsv("certId,fullName,type\nCERT-1,Ayesha Khan,Event")
