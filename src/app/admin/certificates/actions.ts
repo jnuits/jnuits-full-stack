@@ -321,7 +321,9 @@ export async function bulkImportCertificatesAction(formData: FormData) {
     .insert({
       source_name: sourceName,
       source_row_count: csv.dataRowCount,
-      status: "processing",
+      // The persisted batch lifecycle is pending -> completed | failed.
+      // Imports are synchronous, so a separate processing state is not needed.
+      status: "pending",
       started_at: now,
     })
     .select("id")
@@ -338,11 +340,23 @@ export async function bulkImportCertificatesAction(formData: FormData) {
 
   let inserted = 0;
   let updated = 0;
-  let rejected = csv.rows.length - csv.validRows.length;
-  let skipped = 0;
+  let rejected = csv.rows.filter(
+    (row) => row.certificate === null && !row.ignored
+  ).length;
+  let skipped = csv.ignoredRowCount;
   const errors = csv.rows.flatMap((row) =>
-    row.errors.map((message) => `Row ${row.rowNumber}: ${message}.`)
+    row.errors.map((message) => "Row " + row.rowNumber + ": " + message + ".")
   );
+
+  if (csv.ignoredRowCount > 0) {
+    errors.push(
+      String(csv.ignoredRowCount) +
+        " template example " +
+        (csv.ignoredRowCount === 1 ? "row was" : "rows were") +
+        " ignored."
+    );
+  }
+
   const latestRowByCertificateId = new Map<
     string,
     { certificate: CertificateImportRecord; rowNumber: number }

@@ -71,7 +71,8 @@ export function CertificateCsvImportPanel() {
             CSV certificate import
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-            Download the template, replace the three sample rows, then choose the file.
+            Download the template, replace or add to the three sample rows, then choose the file.
+            Template rows are ignored automatically. Common headers, spaces, type labels, and Excel-style dates are normalized before import.
             You can still paste CSV rows instead.
           </p>
         </div>

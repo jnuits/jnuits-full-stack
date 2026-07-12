@@ -29,6 +29,7 @@ const EXPECTED_MIGRATIONS = [
   ["20260706031032", "add_remaining_advisor_fk_indexes"],
   ["20260706035422", "drop_duplicate_content_post_indexes"],
   ["20260706074012", "phase2_rls_policy_advisor_cleanup"],
+  ["20260710074151", "archive_legacy_gallery_entries"],
 ];
 
 const WATCHED_TABLES = [
@@ -533,7 +534,7 @@ function formatAuditMarkdown({ codeUsage, data, evaluation, generatedAt = new Da
     "## Staged Cleanup Recommendations",
     "",
     "- Keep certificate full-name migrations applied before release; if this audit reports them pending, block certificate launch until production schema matches the app.",
-    "- Keep `gallery_entries` until the 6 legacy rows are confirmed mirrored, archival, or intentionally removed; active app reporting should stay on `gallery_album_items`, with only legacy scripts/media-reference safety retaining `gallery_entries`.",
+    "- Keep archived `gallery_entries` as historical evidence only. Migration `20260710074151` mirrors all legacy media into the canonical archive album; application code must use `gallery_albums` and `gallery_album_items`.",
     "- Narrow broad `anon` and `authenticated` grants with table/view-specific migrations after route-level smoke checks confirm PostgREST/RLS behavior remains intact.",
     "- Classify exposed `SECURITY DEFINER` functions before revoking execution; do not blindly revoke helpers used by RLS/auth claims.",
     "- Preserve historical `operator_reports` rows; simplify UI copy rather than deleting history.",

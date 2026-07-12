@@ -4,6 +4,7 @@ import {
   isMutablePortalAccess,
   portalAccessRedirectPath,
   resolveSafeNextPath,
+  resolveScopedNextPath,
   type PortalAccessState,
 } from "@/lib/auth/session";
 
@@ -57,5 +58,22 @@ describe("portal access helpers", () => {
   it("does not treat advisor-only accounts as member access-status scoped", () => {
     expect(hasMemberPortalAccessRole(["advisor"])).toBe(false);
     expect(hasMemberPortalAccessRole(["advisor", "member"])).toBe(true);
+  });
+
+  it("keeps query parameters on explicitly allowlisted handoff routes", () => {
+    expect(
+      resolveScopedNextPath(
+        "/admin/invite/accept?claimed=1",
+        ["/portal", "/profile", "/admin/invite/accept"],
+        "/portal/dashboard",
+      ),
+    ).toBe("/admin/invite/accept?claimed=1");
+    expect(
+      resolveScopedNextPath(
+        "/admin/dashboard?claimed=1",
+        ["/portal", "/profile", "/admin/invite/accept"],
+        "/portal/dashboard",
+      ),
+    ).toBe("/portal/dashboard");
   });
 });

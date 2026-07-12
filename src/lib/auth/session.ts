@@ -91,7 +91,7 @@ export function resolveScopedNextPath(
 ) {
   const safePath = resolveSafeNextPath(nextPath, fallbackPath);
   const matchesAllowedPrefix = allowedPrefixes.some(
-    (prefix) => safePath === prefix || safePath.startsWith(`${prefix}/`)
+    (prefix) => safePath === prefix || safePath.startsWith(`${prefix}/`) || safePath.startsWith(`${prefix}?`)
   );
 
   return matchesAllowedPrefix ? safePath : fallbackPath;

@@ -818,25 +818,40 @@ export interface AdminInvitationEmailProps {
   expiresInDays: number;
   recipientEmail: string;
   recipientName: string;
+  requiresMemberClaim?: boolean;
 }
 
 export function buildAdminInvitationEmail(props: AdminInvitationEmailProps): string {
+  const requiresMemberClaim = props.requiresMemberClaim === true;
   const content = [
     h1("Admin workspace invitation"),
     p(
-      `Hi ${esc(props.recipientName)}, you have been invited to the JnUITS operator workspace as <strong class="email-value" style="color:${TEXT};">${esc(props.adminRoleLabel)}</strong>.`,
+      requiresMemberClaim
+        ? `Hi ${esc(props.recipientName)}, JnUITS has reserved <strong class="email-value" style="color:${TEXT};">${esc(props.adminRoleLabel)}</strong> admin access for you. Claim your linked member profile first, then you will be guided to the final access confirmation.`
+        : `Hi ${esc(props.recipientName)}, you have been invited to the JnUITS operator workspace as <strong class="email-value" style="color:${TEXT};">${esc(props.adminRoleLabel)}</strong>.`,
     ),
     card([
       ["Admin role", props.adminRoleLabel],
       ["Invited email", props.recipientEmail],
       ["Expires", `${props.expiresInDays} days from issue`],
     ]),
-    orderedSteps([
-      "Open the invitation link using the email address shown above.",
-      "Set or confirm your Supabase account session. If you already use this email on JnUITS, sign in with that same account when prompted.",
-      "Accept the admin invitation, then complete MFA setup before entering the workspace.",
-    ]),
-    button("Accept admin invitation", props.actionLink),
+    orderedSteps(
+      requiresMemberClaim
+        ? [
+            "Open the member profile claim link below.",
+            "Enter the JnUITS ID and claim code from the companion member invitation email, then create your password.",
+            "Sign in with that same account and confirm the pending admin access. Complete MFA before entering the workspace.",
+          ]
+        : [
+            "Open the invitation link using the email address shown above.",
+            "Sign in with your existing JnUITS account, or set up the account session when prompted.",
+            "Confirm the admin invitation, then complete MFA before entering the workspace.",
+          ],
+    ),
+    button(
+      requiresMemberClaim ? "Claim member profile" : "Accept admin invitation",
+      props.actionLink,
+    ),
     fallbackLink(props.actionLink),
     hr(),
     p(
@@ -845,5 +860,10 @@ export function buildAdminInvitationEmail(props: AdminInvitationEmailProps): str
     ),
   ].join("");
 
-  return wrap("You have been invited to the JnUITS admin workspace.", content);
+  return wrap(
+    requiresMemberClaim
+      ? "Claim your linked JnUITS profile before activating admin access."
+      : "You have been invited to the JnUITS admin workspace.",
+    content,
+  );
 }

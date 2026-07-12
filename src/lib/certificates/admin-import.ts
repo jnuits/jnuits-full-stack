@@ -14,22 +14,50 @@ const ALLOWED_CSV_MIME_TYPES = new Set([
   "text/plain",
 ]);
 
-const TEMPLATE_EXAMPLE_CERTIFICATE_IDS = new Set([
-  "EXAMPLE-CERT-001",
-  "EXAMPLE-CERT-002",
-  "EXAMPLE-CERT-003",
-]);
+const TEMPLATE_EXAMPLE_CERTIFICATE_ID_PREFIXES = [
+  "EXAMPLE-CERT-",
+  "SAMPLE-CERT-",
+  "REPLACE-CERT-",
+];
 
 const HEADER_ALIASES = {
-  assetUrl: ["asseturl", "asset_url"],
-  certificateId: ["certid", "certificateid", "certificate_id"],
-  details: ["details", "description"],
-  eventName: ["eventname", "examoreventname", "exam_or_event_name", "subject"],
-  firstName: ["firstname", "first_name"],
-  fullName: ["fullname", "full_name", "name"],
-  issueDate: ["issuedate", "issue_date"],
-  lastName: ["lastname", "last_name"],
-  type: ["type", "examorevent", "exam_or_event"],
+  assetUrl: ["asset url", "asseturl", "certificate url", "download url", "pdf url"],
+  certificateId: [
+    "certificate id",
+    "certificate no",
+    "certificate number",
+    "certificateid",
+    "certid",
+  ],
+  details: ["description", "details", "note", "notes", "remarks"],
+  eventName: [
+    "event / exam / course name",
+    "event exam course name",
+    "event name",
+    "event or exam name",
+    "eventname",
+    "exam or event name",
+    "examoreventname",
+    "subject",
+  ],
+  firstName: ["first name", "firstname"],
+  fullName: [
+    "full name",
+    "fullname",
+    "name",
+    "participant name",
+    "recipient name",
+    "student name",
+  ],
+  issueDate: ["date", "issue date", "issued date", "issued on", "issuedate"],
+  lastName: ["last name", "lastname"],
+  type: [
+    "certificate type",
+    "event / exam / course type",
+    "exam or event",
+    "examorevent",
+    "type",
+  ],
 } as const;
 
 export type CertificateImportType = "Course" | "Event" | "Exam";
@@ -47,11 +75,13 @@ export type CertificateImportRecord = {
 export type CertificateImportRow = {
   certificate: CertificateImportRecord | null;
   errors: string[];
+  ignored: boolean;
   rowNumber: number;
 };
 
 export type CertificateImportParseResult = {
   dataRowCount: number;
+  ignoredRowCount: number;
   rows: CertificateImportRow[];
   validRows: Array<CertificateImportRow & { certificate: CertificateImportRecord }>;
 };
@@ -67,18 +97,42 @@ function byteLength(value: string) {
   return new TextEncoder().encode(value).byteLength;
 }
 
-function canonicalType(value: string): CertificateImportType | null {
-  const normalized = value.trim().toLowerCase();
+function cleanCsvValue(value: string) {
+  const cleaned = value
+    .replace(/[\u00a0\u2007\u202f]/g, " ")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  if (normalized === "event") return "Event";
-  if (normalized === "exam") return "Exam";
-  if (normalized === "course") return "Course";
+  if (
+    cleaned.length >= 2 &&
+    ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+      (cleaned.startsWith("'") && cleaned.endsWith("'")) ||
+      (cleaned.startsWith("\u201c") && cleaned.endsWith("\u201d")) ||
+      (cleaned.startsWith("\u2018") && cleaned.endsWith("\u2019")))
+  ) {
+    return cleaned.slice(1, -1).trim();
+  }
+
+  return cleaned;
+}
+
+function canonicalType(value: string): CertificateImportType | null {
+  const normalized = normalizeHeader(value);
+
+  if (["event", "eventcertificate", "hackathon", "seminar", "workshop"].includes(normalized)) {
+    return "Event";
+  }
+  if (["exam", "examcertificate", "examination"].includes(normalized)) return "Exam";
+  if (["bootcamp", "course", "coursecertificate", "training"].includes(normalized)) {
+    return "Course";
+  }
   return null;
 }
 
 function findHeaderIndex(headers: Map<string, number>, aliases: readonly string[]) {
   for (const alias of aliases) {
-    const index = headers.get(alias);
+    const index = headers.get(normalizeHeader(alias));
     if (index !== undefined) return index;
   }
 
@@ -86,44 +140,80 @@ function findHeaderIndex(headers: Map<string, number>, aliases: readonly string[
 }
 
 function getCell(values: string[], index: number | null) {
-  return index === null ? "" : (values[index] || "").trim();
+  return index === null ? "" : cleanCsvValue(values[index] || "");
 }
 
 function hasTemplateExampleId(certificateId: string) {
-  return TEMPLATE_EXAMPLE_CERTIFICATE_IDS.has(certificateId);
+  return TEMPLATE_EXAMPLE_CERTIFICATE_ID_PREFIXES.some((prefix) =>
+    certificateId.startsWith(prefix)
+  );
 }
 
-function isDateLike(value: string) {
-  return /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(value.trim());
-}
+function toIsoDate(year: number, month: number, day: number) {
+  const date = new Date(Date.UTC(year, month - 1, day));
 
-function normalizeDate(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) return null;
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    const [year, month, day] = trimmed.split("-").map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
-
-    if (
-      date.getUTCFullYear() === year &&
-      date.getUTCMonth() === month - 1 &&
-      date.getUTCDate() === day
-    ) {
-      return trimmed;
-    }
-
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
     return null;
   }
 
+  return [
+    year.toString().padStart(4, "0"),
+    month.toString().padStart(2, "0"),
+    day.toString().padStart(2, "0"),
+  ].join("-");
+}
+
+function normalizeDate(value: string) {
+  const trimmed = cleanCsvValue(value);
+
+  if (!trimmed) return null;
+
+  const isoMatch = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (isoMatch) {
+    return toIsoDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
+  }
+
+  // CSVs exported by Excel in Bangladesh commonly use day/month/year.
+  const dayFirstMatch = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (dayFirstMatch) {
+    return toIsoDate(
+      Number(dayFirstMatch[3]),
+      Number(dayFirstMatch[2]),
+      Number(dayFirstMatch[1])
+    );
+  }
+
+  if (/^\d{5}$/.test(trimmed)) {
+    const serial = Number(trimmed);
+    if (serial >= 20_000 && serial <= 80_000) {
+      const excelDate = new Date(Date.UTC(1899, 11, 30) + serial * 86_400_000);
+      return toIsoDate(
+        excelDate.getUTCFullYear(),
+        excelDate.getUTCMonth() + 1,
+        excelDate.getUTCDate()
+      );
+    }
+  }
+
+  if (!/[a-z]/i.test(trimmed)) return null;
+
   const parsed = new Date(trimmed);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+  return Number.isNaN(parsed.getTime())
+    ? null
+    : toIsoDate(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, parsed.getUTCDate());
+}
+
+function isDateLike(value: string) {
+  return normalizeDate(value) !== null;
 }
 
 function normalizeFullName(...parts: string[]) {
   return parts
-    .map((part) => part.trim())
+    .map((part) => cleanCsvValue(part))
     .filter(Boolean)
     .join(" ")
     .replace(/\s+/g, " ")
@@ -131,11 +221,11 @@ function normalizeFullName(...parts: string[]) {
 }
 
 function normalizeHeader(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return cleanCsvValue(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 function normalizeHttpUrl(value: string) {
-  const trimmed = value.trim();
+  const trimmed = cleanCsvValue(value);
   if (!trimmed) return { error: null, value: null };
 
   if (trimmed.length > 2_000) {
@@ -202,20 +292,27 @@ function validateRecord(
   raw: ReturnType<typeof parseHeaderRecord>,
   rowNumber: number
 ): CertificateImportRow {
+  const certificateId = cleanCsvValue(raw.certificateId).toUpperCase();
+
+  if (hasTemplateExampleId(certificateId)) {
+    return {
+      certificate: null,
+      errors: [],
+      ignored: true,
+      rowNumber,
+    };
+  }
+
   const errors: string[] = [];
-  const certificateId = raw.certificateId.trim().toUpperCase();
   const fullName = normalizeFullName(raw.fullName);
   const type = canonicalType(raw.type);
-  const eventName = raw.eventName.trim();
+  const eventName = cleanCsvValue(raw.eventName);
   const issueDate = normalizeDate(raw.issueDate);
-  const details = raw.details.trim();
+  const details = cleanCsvValue(raw.details);
   const asset = normalizeHttpUrl(raw.assetUrl);
 
   if (!certificateId) errors.push("certificate ID is required");
   if (certificateId.length > 80) errors.push("certificate ID is too long");
-  if (hasTemplateExampleId(certificateId)) {
-    errors.push("replace the example certificate ID before importing");
-  }
   if (!fullName) errors.push("full name is required");
   if (fullName.length > 180) errors.push("full name is too long");
   if (!type) errors.push("type must be Event, Exam, or Course");
@@ -239,6 +336,7 @@ function validateRecord(
           }
         : null,
     errors,
+    ignored: false,
     rowNumber,
   };
 }
@@ -322,7 +420,9 @@ export function parseCertificateImportCsv(rawCsv: string): CertificateImportPars
   });
 
   const headerPresent = Array.from(headers.keys()).some((header) =>
-    Object.values(HEADER_ALIASES).some((aliases) => aliases.includes(header as never))
+    Object.values(HEADER_ALIASES).some((aliases) =>
+      aliases.some((alias) => normalizeHeader(alias) === header)
+    )
   );
 
   if (headerPresent) {
@@ -353,9 +453,17 @@ export function parseCertificateImportCsv(rawCsv: string): CertificateImportPars
     (row): row is CertificateImportRow & { certificate: CertificateImportRecord } =>
       row.certificate !== null
   );
+  const ignoredRowCount = rows.filter((row) => row.ignored).length;
+
+  if (validRows.length === 0 && ignoredRowCount === rows.length) {
+    throw new CertificateImportInputError(
+      "The CSV only contains template example rows. Replace or add at least one real certificate before importing."
+    );
+  }
 
   return {
     dataRowCount: dataRows.length,
+    ignoredRowCount,
     rows,
     validRows,
   };

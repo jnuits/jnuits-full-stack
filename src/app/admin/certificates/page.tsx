@@ -1172,7 +1172,7 @@ export default async function AdminCertificatesPage({
                             Edit
                           </Link>
                           <Link
-                            href={`/certificates?id=${cert.certificate_id}`}
+                            href={`/certificates?q=${encodeURIComponent(cert.certificate_id)}`}
                             target="_blank"
                             className="ghost-button"
                             style={{

@@ -13,6 +13,10 @@ import {
   type AdminAccountLifecycleStatus,
   type AdminAccountRoleCode,
 } from "@/lib/admin/admin-account-policy";
+import {
+  buildAdminInvitationAcceptPath,
+  resolveAdminInvitationAcceptanceState,
+} from "@/lib/admin/admin-invitation-flow";
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { issueInvitationForMember } from "@/lib/admin/invitations";
@@ -24,6 +28,7 @@ import {
 } from "@/lib/auth/session";
 import { getAppBaseUrl } from "@/lib/env";
 import { logServerError } from "@/lib/errors/api-error";
+import { buildClaimProfileUrl } from "@/lib/members/claim-url";
 import { buildAdminInvitationEmail } from "@/lib/notifications/email-builders";
 import { sendEmail } from "@/lib/notifications/send-email";
 import { recordSecurityEvent } from "@/lib/security/security-events";
@@ -363,17 +368,42 @@ async function insertAdminRoleGrant(
     throw roleResult.error || new Error("Target admin role is not configured.");
   }
 
+  const targetRoleId = (roleResult.data as { id: string }).id;
+  const loadActiveGrant = async () => {
+    const result = await asFlexibleClient(admin)
+      .from("rbac_user_platform_roles" as string)
+      .select("id, role_id")
+      .eq("user_id", options.targetUserId)
+      .eq("scope", "admin")
+      .is("revoked_at", null)
+      .maybeSingle();
+
+    if (result.error) throw result.error;
+    return (result.data || null) as { id: string; role_id: string } | null;
+  };
+
+  const existingGrant = await loadActiveGrant();
+  if (existingGrant) {
+    if (existingGrant.role_id === targetRoleId) return;
+    throw new Error("This account already has a different active admin role.");
+  }
+
   const insertResult = await asFlexibleClient(admin)
     .from("rbac_user_platform_roles" as string)
     .insert({
       granted_by: options.actorUserId,
       note: options.note,
-      role_id: (roleResult.data as { id: string }).id,
+      role_id: targetRoleId,
       scope: "admin",
       user_id: options.targetUserId,
     });
 
-  if (insertResult.error) throw insertResult.error;
+  if (!insertResult.error) return;
+  if (!isUniqueConstraintError(insertResult.error)) throw insertResult.error;
+
+  const concurrentGrant = await loadActiveGrant();
+  if (concurrentGrant?.role_id === targetRoleId) return;
+  throw insertResult.error;
 }
 
 async function auditAdminAccountEvent(
@@ -1074,6 +1104,7 @@ export async function inviteAdminAction(formData: FormData) {
 
     let actionLink = `${getAppBaseUrl()}/admin/invite/accept`;
     let claimInvitationId: null | string = null;
+    let requiresMemberClaim = false;
     let email = parsed.data.email;
     let displayName = parsed.data.displayName;
     let linkedMemberId: null | string = null;
@@ -1111,6 +1142,11 @@ export async function inviteAdminAction(formData: FormData) {
           note: parsed.data.note || "Issued before admin invitation activation.",
         });
         claimInvitationId = claimInvite.invitationId;
+        requiresMemberClaim = true;
+        actionLink = buildClaimProfileUrl({
+          invitationCode: claimInvite.code,
+          jnuitsId: member.jnuits_id || "JnUITS member",
+        });
       }
     } else {
       const matchingMember = await findMemberByEmail(admin, parsed.data.email);
@@ -1193,6 +1229,7 @@ export async function inviteAdminAction(formData: FormData) {
         expiresInDays: 7,
         recipientEmail: email,
         recipientName: displayName || email,
+        requiresMemberClaim,
       }),
       subject: "Your JnUITS admin workspace invitation",
       to: email,
@@ -1357,7 +1394,8 @@ export async function acceptAdminInvitationAction() {
     const invitation = invitationData as AdminInvitationRecord & { expires_at?: string };
     const roleCode = normalizeAdminRoleCode(invitation.invited_role_code);
     if (!roleCode) throw new Error("The invited admin role is not valid.");
-    if (new Date(invitation.expires_at || "").getTime() < Date.now()) {
+    const expiresAt = Date.parse(invitation.expires_at || "");
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
       await asFlexibleClient(admin).from("admin_invitations" as string).update({ status: "expired" }).eq("id", invitation.id);
       throw new Error("This admin invitation has expired.");
     }
@@ -1440,7 +1478,7 @@ export async function acceptAdminInvitationAction() {
     });
   } catch (error) {
     logServerError("adminInvitation.accept", error);
-    redirect(`/admin/access-pending?error=${encodeURIComponent(error instanceof Error ? error.message : "Admin invitation could not be accepted.")}`);
+    redirect(buildAdminInvitationAcceptPath({ state: resolveAdminInvitationAcceptanceState(error) }));
   }
 
   revalidatePath("/", "layout");

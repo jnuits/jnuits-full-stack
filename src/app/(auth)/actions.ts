@@ -11,6 +11,7 @@ import {
   hasPortalRole,
   resolveScopedNextPath,
 } from "@/lib/auth/session";
+import { resolvePostClaimDestination } from "@/lib/admin/admin-invitation-flow";
 import {
   AUTH_ACTION_CAPTCHA_MODES,
   enforceAuthActionProtection,
@@ -277,9 +278,31 @@ async function finalizeInvitationClaim(options: {
 
   if (error) throw error;
 }
+async function resolvePostClaimContinuation(options: {
+  admin: AdminClient;
+  invitationId: string;
+  userId: string;
+}) {
+  const { data, error } = await asFlexibleClient(options.admin)
+    .from("admin_invitations")
+    .select("id")
+    .eq("claim_invitation_id", options.invitationId)
+    .eq("status", "pending")
+    .eq("target_user_id", options.userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    logServerError("claimProfile.pendingAdminInvitation", error);
+    return resolvePostClaimDestination(false);
+  }
+
+  return resolvePostClaimDestination(Boolean(data));
+}
+
 
 const ADMIN_LOGIN_PREFIXES = ["/admin"];
-const PORTAL_LOGIN_PREFIXES = ["/portal", "/profile"];
+const PORTAL_LOGIN_PREFIXES = ["/portal", "/profile", "/admin/invite/accept"];
 
 function getLoginPagePath(portal: LoginPortal) {
   return portal === "admin" ? "/admin/login" : "/portal/login";
@@ -763,6 +786,13 @@ export async function claimProfile(formData: FormData) {
     redirectToRegisterError(CLAIM_GENERIC_ERROR);
   }
 
+  const postClaimPath = await resolvePostClaimContinuation({
+    admin,
+    invitationId: invitationRow.id,
+    userId: authUser.id,
+  });
+  const hasPendingAdminInvitation = postClaimPath.startsWith("/admin/invite/accept");
+
   const { error: auditError } = await admin.from("audit_events").insert({
     actor_user_id: authUser.id,
     action: "member.profile_claim_finalized",
@@ -780,7 +810,7 @@ export async function claimProfile(formData: FormData) {
 
   if (!shouldAttemptPostClaimAutoLogin()) {
     redirect(
-      `/portal/login?message=${encodeMessage("Profile claimed. Sign in with the password you just created.")}`
+      `/portal/login?message=${encodeMessage(hasPendingAdminInvitation ? "Profile claimed. Sign in, then confirm your pending admin access." : "Profile claimed. Sign in with the password you just created.")}&next=${encodeMessage(postClaimPath)}`
     );
   }
 
@@ -797,7 +827,7 @@ export async function claimProfile(formData: FormData) {
   if (signInError || !signInData.user) {
     logServerError("claimProfile.signIn", signInError);
     redirect(
-      `/portal/login?message=${encodeMessage("Profile claimed. Sign in with the password you just created.")}`
+      `/portal/login?message=${encodeMessage(hasPendingAdminInvitation ? "Profile claimed. Sign in, then confirm your pending admin access." : "Profile claimed. Sign in with the password you just created.")}&next=${encodeMessage(postClaimPath)}`
     );
   }
 
@@ -805,7 +835,7 @@ export async function claimProfile(formData: FormData) {
   await supabase.auth.getClaims();
 
   revalidatePath("/", "layout");
-  redirect("/portal/dashboard?claimed=1");
+  redirect(postClaimPath);
 }
 
 

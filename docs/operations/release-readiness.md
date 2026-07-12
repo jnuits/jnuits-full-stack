@@ -115,3 +115,4 @@ A release is ready only when:
 - responsive QA passes at 375px, 768px, 1280px, and wide desktop;
 - onboarding invite and member claim flows work end to end;
 - unresolved legacy code/data is documented as compatibility, not accidental drift.
+- docs/operations/legacy-tooling-register.md and docs/operations/admin-workflow-ownership.md have been reviewed for the release.

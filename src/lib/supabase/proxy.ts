@@ -1,5 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  ADMIN_INVITATION_ACCEPT_PATH,
+  isAdminInvitationAcceptNextPath,
+  isAdminInvitationAcceptPath,
+} from "@/lib/admin/admin-invitation-flow";
 import { checkAdminMFA } from "@/lib/auth/mfa";
 import type { Database } from "@/lib/db/types";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/config";
@@ -8,6 +13,7 @@ const adminMfaExemptPaths = new Set([
   "/admin/login",
   "/admin/mfa/setup",
   "/admin/mfa/challenge",
+  ADMIN_INVITATION_ACCEPT_PATH,
 ]);
 const publicAuthPaths = new Set(["/login", "/admin/login", "/portal/login"]);
 const accessPendingPaths = new Set([
@@ -121,7 +127,11 @@ async function resolveAdminMfaRedirect(
   supabase: ReturnType<typeof createServerClient<Database>>,
   pathname: string
 ) {
-  if (!isAdminPath(pathname) || adminMfaExemptPaths.has(pathname)) {
+  if (
+    !isAdminPath(pathname) ||
+    adminMfaExemptPaths.has(pathname) ||
+    isAdminInvitationAcceptPath(pathname)
+  ) {
     return null;
   }
 
@@ -188,7 +198,11 @@ export async function updateSession(request: NextRequest) {
     return redirectWithCookies(
       request,
       supabaseResponse,
-      isAdminPath(pathname) ? "/admin/login" : "/portal/login",
+      isAdminInvitationAcceptPath(pathname)
+        ? "/portal/login"
+        : isAdminPath(pathname)
+          ? "/admin/login"
+          : "/portal/login",
       { next: `${pathname}${request.nextUrl.search}` }
     );
   }
@@ -235,6 +249,14 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (hasSession && pathname === "/admin/login") {
+    if (isAdminInvitationAcceptNextPath(request.nextUrl.searchParams.get("next"))) {
+      return redirectWithCookies(
+        request,
+        supabaseResponse,
+        ADMIN_INVITATION_ACCEPT_PATH
+      );
+    }
+
     if (adminRole) {
       const mfaRedirect = await resolveAdminMfaRedirect(
         supabase,
@@ -256,6 +278,14 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (hasSession && pathname === "/portal/login") {
+    if (isAdminInvitationAcceptNextPath(request.nextUrl.searchParams.get("next"))) {
+      return redirectWithCookies(
+        request,
+        supabaseResponse,
+        ADMIN_INVITATION_ACCEPT_PATH
+      );
+    }
+
     if (portalRole) {
       return redirectWithCookies(request, supabaseResponse, "/portal/dashboard");
     }
@@ -271,7 +301,8 @@ export async function updateSession(request: NextRequest) {
     hasSession &&
     isAdminPath(pathname) &&
     !adminRole &&
-    !isAccessPendingPath(pathname)
+    !isAccessPendingPath(pathname) &&
+    !isAdminInvitationAcceptPath(pathname)
   ) {
     return redirectWithCookies(
       request,

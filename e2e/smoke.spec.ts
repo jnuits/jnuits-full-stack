@@ -114,6 +114,13 @@ test.describe("public and auth smoke", () => {
     }
   });
 
+  test("admin invitation acceptance uses portal sign-in before an admin role exists", async ({ page }) => {
+    await page.goto("/admin/invite/accept", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/portal\/login\?next=%2Fadmin%2Finvite%2Faccept/);
+    await expect(page.locator("body")).toContainText(/portal/i);
+    await expectNoRuntimeError(page);
+  });
+
   test("keyboard navigation reaches public controls and login fields", async ({ page }) => {
     await page.goto("/");
 

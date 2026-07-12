@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const require = createRequire(import.meta.url);
 const {
   buildAuditSql,
+  EXPECTED_MIGRATIONS,
   evaluateAudit,
   formatAuditMarkdown,
   parseAuditOutput,
@@ -22,6 +23,12 @@ describe("supabase cleanup audit", () => {
     expect(sql).not.toMatch(/\b(update|insert|delete|alter|drop|create)\s+table\b/i);
   });
 
+  it("tracks the canonical gallery archive migration", () => {
+    expect(EXPECTED_MIGRATIONS).toContainEqual([
+      "20260710074151",
+      "archive_legacy_gallery_entries",
+    ]);
+  });
   it("parses marked audit JSON from Supabase CLI output", () => {
     expect(
       parseAuditOutput(

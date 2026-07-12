@@ -226,14 +226,6 @@ export async function getMediaAssetReferenceSummary(
         .is("deleted_at", null)
     ),
     resolveCount(
-      "legacy gallery entries",
-      admin
-        .from("gallery_entries")
-        .select("id", { count: "exact", head: true })
-        .eq("media_asset_id", assetId)
-        .neq("status", "archived")
-    ),
-    resolveCount(
       "content posts",
       admin
         .from("content_posts")
