@@ -16,6 +16,7 @@ import {
   readCertificateImportSource,
   type CertificateImportRecord,
 } from "@/lib/certificates/admin-import";
+import { normalizeCertificateIssueDate } from "@/lib/certificates/date";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -61,12 +62,6 @@ function pickFormFields(formData: FormData, fields: string[]) {
 
 function normId(raw: string): string {
   return raw.trim().toUpperCase();
-}
-
-function isoDate(raw: string): string | null {
-  if (!raw) return null;
-  const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
 function safeCertificateError(error: unknown, context: string, fallback: string) {
@@ -133,12 +128,12 @@ export async function upsertCertificateAction(formData: FormData) {
   const certificateId = normId(parsed.data.certificate_id);
   const assetUrl = parsed.data.asset_url || null;
 
-  const issueDate = isoDate(issueDateRaw);
+  const issueDate = normalizeCertificateIssueDate(issueDateRaw);
   if (!issueDate) {
     await setAdminFlash({
       tone: "error",
       title: "Invalid date",
-      message: "The issue date could not be parsed. Use YYYY-MM-DD format.",
+      message: "Use a valid day-first date, for example 05-11-26 or 05/11/26.",
     });
     redirect("/admin/certificates");
   }
