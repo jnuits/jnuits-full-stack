@@ -1,8 +1,23 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const port = Number.parseInt(process.env.PLAYWRIGHT_PORT || "3100", 10);
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${port}`;
+const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
+const baseURL = externalBaseURL || `http://127.0.0.1:${port}`;
 const fullMatrix = process.env.PLAYWRIGHT_FULL_MATRIX === "1";
+
+const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === "1";
+const localWebServer = externalBaseURL
+  ? undefined
+  : {
+      command: process.env.CI
+        ? `npm run start -- -p ${port}`
+        : `npm run build && npm run start -- -p ${port}`,
+      // Reusing a server while another build replaces .next can leave the page
+      // pointing at missing client chunks. Opt in only for deliberate local QA.
+      reuseExistingServer,
+      timeout: 180_000,
+      url: baseURL,
+    };
 
 export default defineConfig({
   expect: {
@@ -35,13 +50,6 @@ export default defineConfig({
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },
-  webServer: {
-    command: process.env.CI
-      ? `npm run start -- -p ${port}`
-      : `npm run build && npm run start -- -p ${port}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-    url: baseURL,
-  },
+  webServer: localWebServer,
   workers: process.env.CI ? 1 : undefined,
 });

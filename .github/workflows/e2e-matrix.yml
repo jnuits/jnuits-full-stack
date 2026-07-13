@@ -10,6 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_BASE_URL: https://jnuits.org.bd
+      AUTH_CAPTCHA_REQUIRED: "true"
+      CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
+      CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret
+      CLOUDINARY_CLOUD_NAME: ci-placeholder-cloudinary-cloud
+      NEXT_PUBLIC_SENTRY_DSN: https://public@example.ingest.sentry.io/123
+      RESEND_API_KEY: re_ci_placeholder
+      RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>"
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: ci-placeholder-turnstile-site-key

@@ -8,6 +8,21 @@ const baseEnv = {
   SUPABASE_SECRET_KEY: "sb_secret_test",
 };
 
+const completeProductionEnv = {
+  ...baseEnv,
+  AUTH_CAPTCHA_REQUIRED: "true",
+  CLOUDINARY_API_KEY: "cloudinary-api-key",
+  CLOUDINARY_API_SECRET: "cloudinary-api-secret",
+  CLOUDINARY_CLOUD_NAME: "jnuits-test",
+  NEXT_PUBLIC_SENTRY_DSN: "https://public@example.ingest.sentry.io/123",
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: "turnstile-site",
+  RATE_LIMIT_BACKEND: "supabase",
+  RATE_LIMIT_SECRET_SALT: "12345678901234567890123456789012",
+  RESEND_API_KEY: "re_test_api_key",
+  RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>",
+  TURNSTILE_SECRET_KEY: "turnstile-secret",
+};
+
 describe("validateEnv", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -43,7 +58,7 @@ describe("validateEnv", () => {
     );
   });
 
-  it("accepts a complete production environment", () => {
+  it("requires delivery, media, telemetry, and explicit CAPTCHA production configuration", () => {
     const result = validateEnv(
       {
         ...baseEnv,
@@ -54,6 +69,40 @@ describe("validateEnv", () => {
       },
       { production: true }
     );
+
+    expect(result.missing).toEqual(
+      expect.arrayContaining([
+        "AUTH_CAPTCHA_REQUIRED",
+        "CLOUDINARY_API_KEY",
+        "CLOUDINARY_API_SECRET",
+        "CLOUDINARY_CLOUD_NAME",
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "RESEND_API_KEY",
+        "RESEND_FROM_EMAIL",
+      ])
+    );
+  });
+
+  it("rejects disabled CAPTCHA and malformed public Sentry DSNs in production", () => {
+    const disabledCaptcha = validateEnv(
+      { ...completeProductionEnv, AUTH_CAPTCHA_REQUIRED: "false" },
+      { production: true }
+    );
+    const malformedDsn = validateEnv(
+      { ...completeProductionEnv, NEXT_PUBLIC_SENTRY_DSN: "not-a-url" },
+      { production: true }
+    );
+
+    expect(disabledCaptcha.invalid).toContain(
+      "AUTH_CAPTCHA_REQUIRED must be explicitly enabled for production builds."
+    );
+    expect(malformedDsn.invalid).toContain(
+      "NEXT_PUBLIC_SENTRY_DSN must be a valid https URL."
+    );
+  });
+
+  it("accepts a complete production environment", () => {
+    const result = validateEnv(completeProductionEnv, { production: true });
 
     expect(result).toEqual({ invalid: [], missing: [], ok: true });
   });

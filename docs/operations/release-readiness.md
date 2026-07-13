@@ -23,6 +23,12 @@ Run the full browser matrix when validating a release candidate:
 npm run test:e2e:matrix
 ```
 
+Local Playwright runs use a fresh build and server by default. To target a
+pre-production deployment, set `PLAYWRIGHT_BASE_URL` to that deployment; the
+test runner will not start or reuse a local server.
+`PLAYWRIGHT_REUSE_EXISTING_SERVER=1` is only for deliberate local QA when no
+build will replace `.next`.
+
 Run the runtime probe against a production-like server:
 
 ```bash

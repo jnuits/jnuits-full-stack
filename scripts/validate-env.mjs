@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { createRequire } from "node:module";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -15,10 +13,17 @@ export const baseRequiredEnv = [
 ];
 
 export const productionRequiredEnv = [
+  "AUTH_CAPTCHA_REQUIRED",
+  "CLOUDINARY_CLOUD_NAME",
+  "CLOUDINARY_API_KEY",
+  "CLOUDINARY_API_SECRET",
   "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+  "NEXT_PUBLIC_SENTRY_DSN",
   "TURNSTILE_SECRET_KEY",
   "RATE_LIMIT_BACKEND",
   "RATE_LIMIT_SECRET_SALT",
+  "RESEND_API_KEY",
+  "RESEND_FROM_EMAIL",
 ];
 
 function isBlank(value) {
@@ -32,6 +37,10 @@ function isValidUrl(value, { requireHttps }) {
   } catch {
     return false;
   }
+}
+
+function isEnabled(value) {
+  return ["1", "on", "true"].includes(String(value || "").trim().toLowerCase());
 }
 
 export function validateEnv(env, options = {}) {
@@ -66,6 +75,18 @@ export function validateEnv(env, options = {}) {
 
   if (production && env.RATE_LIMIT_BACKEND !== "supabase") {
     invalid.push("RATE_LIMIT_BACKEND must be set to 'supabase' for production builds.");
+  }
+
+  if (production && !isBlank(env.AUTH_CAPTCHA_REQUIRED) && !isEnabled(env.AUTH_CAPTCHA_REQUIRED)) {
+    invalid.push("AUTH_CAPTCHA_REQUIRED must be explicitly enabled for production builds.");
+  }
+
+  if (
+    production &&
+    !isBlank(env.NEXT_PUBLIC_SENTRY_DSN) &&
+    !isValidUrl(env.NEXT_PUBLIC_SENTRY_DSN, { requireHttps: true })
+  ) {
+    invalid.push("NEXT_PUBLIC_SENTRY_DSN must be a valid https URL.");
   }
 
   if (
