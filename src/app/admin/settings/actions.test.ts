@@ -67,4 +67,19 @@ describe("saveAdminNotificationSettings", () => {
       "/admin/settings/notifications"
     );
   });
+  it("persists explicit opt-outs when optional checkboxes are omitted", async () => {
+    await expect(saveAdminNotificationSettings(new FormData())).rejects.toThrow(
+      "redirect:/admin/settings/notifications?message=settings-saved"
+    );
+
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      {
+        member_id: null,
+        notification_email_opt_in: false,
+        ticket_digest_opt_in: false,
+        user_id: "operator-1",
+      },
+      { onConflict: "user_id" }
+    );
+  });
 });
