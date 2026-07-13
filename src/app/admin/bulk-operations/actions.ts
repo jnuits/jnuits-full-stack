@@ -7,21 +7,14 @@ import { z } from "zod";
 
 import { setAdminFlash } from "@/lib/admin/flash";
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
+import { issueInvitationForMember } from "@/lib/admin/invitations";
 import { requireAdminPermission } from "@/lib/auth/session";
-import {
-  DEFAULT_INVITATION_EXPIRY_DAYS,
-  generateInvitationCode,
-  getInvitationExpiryIso,
-  hashInvitationCode,
-} from "@/lib/members/invitation-code";
-import { buildClaimProfileUrl } from "@/lib/members/claim-url";
+import { DEFAULT_INVITATION_EXPIRY_DAYS } from "@/lib/members/invitation-code";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import {
   buildAlumniConversionDecisionEmail,
-  buildAlumniInvitationEmail,
   buildBulkOperationSummaryEmail,
   buildDeletionRequestStatusEmail,
-  buildMemberInvitationEmail,
 } from "@/lib/notifications/email-builders";
 import { allowsOptionalEmail } from "@/lib/notifications/preferences";
 import { sendEmail } from "@/lib/notifications/send-email";
@@ -168,101 +161,32 @@ async function getExistingMemberLookups(ids: string[], emails: string[]) {
   return { byEmail, byId };
 }
 
-async function getNextInvitationCode(admin: ReturnType<typeof createAdminClient>) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const code = generateInvitationCode();
-    const codeHash = hashInvitationCode(code);
-    const { data } = await admin
-      .from("member_invitations")
-      .select("id")
-      .eq("code_hash", codeHash)
-      .maybeSingle();
-
-    if (!data) {
-      return { code, codeHash };
-    }
-  }
-
-  throw new Error("Unable to generate a unique invitation code.");
-}
-
 async function createInvitation(options: {
   actorUserId: string;
   admin: ReturnType<typeof createAdminClient>;
-  memberId: string;
-  note: string;
-}) {
-  const invitation = await getNextInvitationCode(options.admin);
-  const expiresAt = getInvitationExpiryIso(DEFAULT_INVITATION_EXPIRY_DAYS);
-  const { data, error } = await options.admin
-    .from("member_invitations")
-    .insert({
-      code_hash: invitation.codeHash,
-      created_by_user_id: options.actorUserId,
-      expires_at: expiresAt,
-      max_uses: 1,
-      member_id: options.memberId,
-      notes: options.note,
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) {
-    throw new Error(error?.message || "Unable to create invitation.");
-  }
-
-  return { code: invitation.code, expiresAt, invitationId: data.id };
-}
-
-function sendBulkInvitationEmail(options: {
   email: unknown;
-  invitationCode: string;
-  invitationExpiresAt: string;
   jnuitsId: unknown;
+  memberId: string;
   name: unknown;
+  note: string;
   type: "alumni" | "member";
 }) {
-  const email = normalizeEmail(options.email);
-  const jnuitsId = clean(options.jnuitsId);
-  const name = clean(options.name) || "JnUITS member";
-
-  if (!email || !jnuitsId) {
-    return;
-  }
-
-  const claimUrl = buildClaimProfileUrl({
-    email,
-    invitationCode: options.invitationCode,
-    jnuitsId,
-  });
-
-  void sendEmail({
-    html:
-      options.type === "alumni"
-        ? buildAlumniInvitationEmail({
-            alumniName: name,
-            alumniEmail: email,
-            claimUrl,
-            invitationCode: options.invitationCode,
-            invitationExpiresAt: options.invitationExpiresAt,
-            jnuitsId,
-          })
-        : buildMemberInvitationEmail({
-            claimUrl,
-            invitationCode: options.invitationCode,
-            invitationExpiresAt: options.invitationExpiresAt,
-            jnuitsId,
-            memberEmail: email,
-            memberName: name,
-          }),
-    subject:
-      options.type === "alumni"
-        ? "Your JnUITS alumni portal invitation"
-        : "Claim your JnUITS member account",
-    to: email,
+  return issueInvitationForMember({
+    actorUserId: options.actorUserId,
+    admin: options.admin,
+    emailVariant: options.type,
+    expiresInDays: DEFAULT_INVITATION_EXPIRY_DAYS,
+    invitationType: "bulk_csv",
+    maxUses: 1,
+    member: {
+      email: normalizeEmail(options.email) || null,
+      full_name: clean(options.name) || null,
+      id: options.memberId,
+      jnuits_id: clean(options.jnuitsId) || null,
+    },
+    note: options.note,
   });
 }
-
 function sendBulkDecisionEmail(options: {
   decision: "approved" | "rejected";
   email: unknown;
@@ -646,18 +570,18 @@ async function commitBulkRow(options: {
       const invitation = await createInvitation({
         actorUserId: options.actorUserId,
         admin: options.admin,
-        memberId: member.id,
-        note,
-      });
-      sendBulkInvitationEmail({
         email: data.email,
-        invitationCode: invitation.code,
-        invitationExpiresAt: invitation.expiresAt,
         jnuitsId: data.jnuitsId,
+        memberId: member.id,
         name: data.fullName,
+        note,
         type: "alumni",
       });
-      return { invitationId: invitation.invitationId, memberId: member.id };
+      return {
+        deliveryStatus: invitation.deliveryStatus,
+        invitationId: invitation.invitationId,
+        memberId: member.id,
+      };
     }
 
     return { memberId: member.id };
@@ -667,18 +591,18 @@ async function commitBulkRow(options: {
     const invitation = await createInvitation({
       actorUserId: options.actorUserId,
       admin: options.admin,
-      memberId: clean(data.memberId),
-      note,
-    });
-    sendBulkInvitationEmail({
       email: data.email,
-      invitationCode: invitation.code,
-      invitationExpiresAt: invitation.expiresAt,
       jnuitsId: data.jnuitsId,
+      memberId: clean(data.memberId),
       name: data.fullName,
+      note,
       type: "member",
     });
-    return { invitationId: invitation.invitationId, memberId: data.memberId };
+    return {
+      deliveryStatus: invitation.deliveryStatus,
+      invitationId: invitation.invitationId,
+      memberId: data.memberId,
+    };
   }
 
   if (options.operationType === "lifecycle_update") {

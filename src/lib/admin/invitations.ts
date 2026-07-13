@@ -24,6 +24,8 @@ export type InvitationType =
   | "renewal"
   | "replacement";
 
+export type InvitationEmailVariant = "alumni" | "member";
+
 export type InvitationMember = {
   email: null | string;
   full_name: null | string;
@@ -109,6 +111,7 @@ export async function issueInvitationForMember(options: {
   actorUserId: string;
   admin: AdminClient;
   batchId?: null | string;
+  emailVariant?: InvitationEmailVariant;
   expiresInDays: number;
   invitationType: InvitationType;
   maxUses: number;
@@ -121,6 +124,9 @@ export async function issueInvitationForMember(options: {
   const email = options.member.email?.trim().toLowerCase() || "";
   const memberName = options.member.full_name || "JnUITS member";
   const jnuitsId = options.member.jnuits_id || "JnUITS member";
+  const emailVariant =
+    options.emailVariant ??
+    (options.invitationType === "alumni_direct" ? "alumni" : "member");
 
   const { data, error } = await flexibleAdmin
     .from("member_invitations" as string)
@@ -160,7 +166,7 @@ export async function issueInvitationForMember(options: {
     });
     const emailResult = await sendEmail({
       html:
-        options.invitationType === "alumni_direct"
+        emailVariant === "alumni"
           ? buildAlumniInvitationEmail({
               alumniName: memberName,
               alumniEmail: email,
@@ -178,10 +184,11 @@ export async function issueInvitationForMember(options: {
               memberName,
             }),
       subject:
-        options.invitationType === "alumni_direct"
+        emailVariant === "alumni"
           ? "Your JnUITS alumni portal invitation"
           : "Claim your JnUITS member account",
       to: email,
+      idempotencyKey: `member-invitation/${data.id}`,
     });
 
     deliveryStatus = emailResult.success ? "sent" : "failed";
@@ -244,23 +251,31 @@ export async function revokeInvitationRecord(options: {
 
 export async function syncInvitationBatchMetrics(admin: AdminClient, batchId: string) {
   const flexibleAdmin = asFlexibleClient(admin);
-  const { data, error } = await flexibleAdmin
-    .from("member_invitations" as string)
-    .select("id, used_count, delivery_status")
-    .eq("batch_id", batchId);
+  const [issuedResult, claimedResult, failedResult] = await Promise.all([
+    flexibleAdmin
+      .from("member_invitations" as string)
+      .select("id", { count: "exact", head: true })
+      .eq("batch_id", batchId),
+    flexibleAdmin
+      .from("member_invitations" as string)
+      .select("id", { count: "exact", head: true })
+      .eq("batch_id", batchId)
+      .gt("used_count", 0),
+    flexibleAdmin
+      .from("member_invitations" as string)
+      .select("id", { count: "exact", head: true })
+      .eq("batch_id", batchId)
+      .eq("delivery_status", "failed"),
+  ]);
 
-  if (error) {
-    throw new Error(error.message);
+  const countError = issuedResult.error || claimedResult.error || failedResult.error;
+  if (countError) {
+    throw new Error(countError.message);
   }
 
-  const rows = (data || []) as {
-    delivery_status?: string | null;
-    id: string;
-    used_count?: number | null;
-  }[];
-  const issuedCount = rows.length;
-  const claimedCount = rows.filter((row) => (row.used_count || 0) > 0).length;
-  const failedCount = rows.filter((row) => row.delivery_status === "failed").length;
+  const issuedCount = issuedResult.count || 0;
+  const claimedCount = claimedResult.count || 0;
+  const failedCount = failedResult.count || 0;
 
   const { error: updateError } = await flexibleAdmin
     .from("invitation_batches" as string)
