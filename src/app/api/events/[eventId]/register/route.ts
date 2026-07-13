@@ -82,7 +82,7 @@ export const POST = withApiGuard(
       );
     }
 
-    if (event.registrationState === "closed") {
+    if (event.registrationClosed) {
       return NextResponse.json(
         { error: "Registration has closed for this event." },
         { status: 409 }

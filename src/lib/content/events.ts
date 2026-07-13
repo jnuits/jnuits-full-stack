@@ -212,10 +212,27 @@ export type EventEditorData = {
   event: EventDetail | null;
 };
 
+export type EventAdminMutationTarget = {
+  id: string;
+  legacyContentPostId: string | null;
+};
+
+export type EventRegistrationMutationTarget = EventAdminMutationTarget & {
+  locationLabel: string;
+  registrationClosed: boolean;
+  registrationMode: string;
+  registrationOpen: boolean;
+  startsAt: string;
+  title: string;
+};
+
 const EVENT_SELECT =
   "id, slug, title, summary, body_markdown, category, delivery_mode, status, starts_at, ends_at, timezone, location_mode, location_label, venue_name, venue_address, online_url, registration_mode, registration_url, registration_open, registration_closes_at, capacity, cta_label, cta_url, cover_media_asset_id, cover_alt_text_override, legacy_content_post_id, published_at, source, source_metadata, created_at, created_by_user_id, updated_at, media_assets(id, public_id, secure_url, thumbnail_url, alt_text, title, width, height, media_kind)";
 const EVENT_LIST_SELECT =
   "id, slug, title, summary, category, delivery_mode, status, starts_at, ends_at, timezone, location_mode, location_label, venue_name, venue_address, online_url, registration_mode, registration_url, registration_open, registration_closes_at, capacity, cta_label, cta_url, cover_media_asset_id, cover_alt_text_override, legacy_content_post_id, published_at, source, source_metadata, created_at, created_by_user_id, updated_at, media_assets(id, public_id, secure_url, thumbnail_url, alt_text, title, width, height, media_kind)";
+const EVENT_ADMIN_MUTATION_SELECT = "id, legacy_content_post_id";
+const EVENT_REGISTRATION_MUTATION_SELECT =
+  "id, legacy_content_post_id, title, starts_at, ends_at, location_label, location_mode, online_url, venue_address, venue_name, registration_mode, registration_open, registration_closes_at";
 
 const EVENT_FALLBACK_IMAGE = "/images/workshop.jpg";
 
@@ -351,6 +368,25 @@ function getRegistrationState(
   }
 
   return "open" satisfies EventRegistrationState;
+}
+
+function isEventRegistrationWindowClosed(
+  row: Pick<
+    EventRow,
+    "ends_at" | "registration_closes_at" | "registration_open" | "starts_at"
+  >
+) {
+  const now = new Date();
+  const closesAt = row.registration_closes_at
+    ? new Date(row.registration_closes_at)
+    : null;
+  const endsAt = new Date(row.ends_at || row.starts_at);
+
+  return (
+    !row.registration_open ||
+    (closesAt && closesAt.getTime() < now.getTime()) ||
+    endsAt.getTime() < now.getTime()
+  );
 }
 
 function getRegistrationLabel(state: EventRegistrationState) {
@@ -945,7 +981,9 @@ export async function getEventEditorData(eventId?: string | null): Promise<Event
   };
 }
 
-export async function resolveEventForAdminMutation(identifier: string) {
+export async function resolveEventForAdminMutation(
+  identifier: string
+): Promise<EventAdminMutationTarget | null> {
   const normalizedIdentifier = normalizeIdentifier(identifier);
 
   if (!normalizedIdentifier) {
@@ -953,7 +991,10 @@ export async function resolveEventForAdminMutation(identifier: string) {
   }
 
   const admin = createAdminClient();
-  let query = admin.from("events").select(EVENT_SELECT).limit(1);
+  let query = admin
+    .from("events")
+    .select(EVENT_ADMIN_MUTATION_SELECT)
+    .limit(1);
   const uuidMatch =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       normalizedIdentifier
@@ -973,13 +1014,17 @@ export async function resolveEventForAdminMutation(identifier: string) {
     return null;
   }
 
-  const row = data as EventRow;
-  const counts = await getRegistrationCountMap([row]);
+  const row = data as Pick<EventRow, "id" | "legacy_content_post_id">;
 
-  return mapEventDetail(row, counts.get(row.id) || 0);
+  return {
+    id: row.id,
+    legacyContentPostId: row.legacy_content_post_id,
+  };
 }
 
-export async function resolvePublishedEventForMutation(identifier: string) {
+export async function resolvePublishedEventForMutation(
+  identifier: string
+): Promise<EventRegistrationMutationTarget | null> {
   const normalizedIdentifier = normalizeIdentifier(identifier);
 
   if (!normalizedIdentifier) {
@@ -989,7 +1034,7 @@ export async function resolvePublishedEventForMutation(identifier: string) {
   const admin = createAdminClient();
   let query = admin
     .from("events")
-    .select(EVENT_SELECT)
+    .select(EVENT_REGISTRATION_MUTATION_SELECT)
     .eq("status", "published")
     .limit(1);
 
@@ -1012,10 +1057,33 @@ export async function resolvePublishedEventForMutation(identifier: string) {
     return null;
   }
 
-  const row = data as EventRow;
-  const counts = await getRegistrationCountMap([row]);
+  const row = data as Pick<
+    EventRow,
+    | "ends_at"
+    | "id"
+    | "legacy_content_post_id"
+    | "location_label"
+    | "location_mode"
+    | "online_url"
+    | "registration_closes_at"
+    | "registration_mode"
+    | "registration_open"
+    | "starts_at"
+    | "title"
+    | "venue_address"
+    | "venue_name"
+  >;
 
-  return mapEventDetail(row, counts.get(row.id) || 0);
+  return {
+    id: row.id,
+    legacyContentPostId: row.legacy_content_post_id,
+    locationLabel: getLocationLabel(row),
+    registrationClosed: isEventRegistrationWindowClosed(row),
+    registrationMode: row.registration_mode,
+    registrationOpen: row.registration_open,
+    startsAt: row.starts_at,
+    title: row.title,
+  };
 }
 
 export function formatEventDateRange(
