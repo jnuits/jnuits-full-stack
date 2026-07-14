@@ -2,25 +2,46 @@ name: Quality Gate
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
+    name: Application quality
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
-      HAS_SUPABASE_CLI_TOKEN: ${{ (secrets.SUPABASE_ACCESS_TOKEN != '' || secrets.SUPABASE_PAT != '') && 'true' || 'false' }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_PAT: ${{ secrets.SUPABASE_PAT }}
+      APP_BASE_URL: https://jnuits.org.bd
+      AUTH_CAPTCHA_REQUIRED: "true"
+      CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
+      CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret
+      CLOUDINARY_CLOUD_NAME: ci-placeholder-cloudinary-cloud
+      NEXT_PUBLIC_SENTRY_DSN: https://public@example.ingest.sentry.io/123
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ci-placeholder-turnstile-site-key
+      PLAYWRIGHT_PORT: 3100
+      RATE_LIMIT_BACKEND: supabase
+      RATE_LIMIT_SECRET_SALT: ci-placeholder-rate-limit-secret-salt-000000
+      RESEND_API_KEY: re_ci_placeholder
+      RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>"
+      SUPABASE_SECRET_KEY: ci-placeholder-supabase-secret-key
+      TURNSTILE_SECRET_KEY: ci-placeholder-turnstile-secret-key
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24.14.1
           cache: npm
@@ -34,8 +55,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Tests
+      - name: Unit and integration tests
         run: npm test
+
+      - name: Credential material guard
+        run: npx --no-install vitest run scripts/committed-credential-material.test.mjs
+
+      - name: Migration parity unit checks
+        run: npx --no-install vitest run scripts/check-migration-parity.test.mjs
 
       - name: Admin access audit
         run: npm run audit:admin-access
@@ -46,68 +73,39 @@ jobs:
       - name: Dependency audit
         run: npm audit --audit-level=moderate
 
-      - name: Setup Supabase CLI
-        if: env.HAS_SUPABASE_CLI_TOKEN == 'true'
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Migration parity
-        if: env.HAS_SUPABASE_CLI_TOKEN == 'true'
-        run: npm run migration:check
-
-      - name: Admin invite DB verification
-        if: env.HAS_SUPABASE_CLI_TOKEN == 'true'
-        run: npm run db:verify-admin-invite-search
-
-      - name: Build
-        env:
-          # CI verifies that the app compiles. Vercel production still supplies
-          # real deployment secrets and is protected by scripts/validate-env.mjs.
-          APP_BASE_URL: https://jnuits.org.bd
-          AUTH_CAPTCHA_REQUIRED: "true"
-          CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
-          CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret
-          CLOUDINARY_CLOUD_NAME: ci-placeholder-cloudinary-cloud
-          NEXT_PUBLIC_SENTRY_DSN: https://public@example.ingest.sentry.io/123
-          RESEND_API_KEY: re_ci_placeholder
-          RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>"
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
-          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ci-placeholder-turnstile-site-key
-          RATE_LIMIT_BACKEND: supabase
-          RATE_LIMIT_SECRET_SALT: ci-placeholder-rate-limit-secret-salt-000000
-          SUPABASE_SECRET_KEY: ci-placeholder-supabase-secret-key
-          TURNSTILE_SECRET_KEY: ci-placeholder-turnstile-secret-key
+      - name: Production build
         run: npm run build
 
       - name: Install Playwright Chromium
         run: npm run test:e2e:install
 
       - name: Playwright Chromium smoke
-        env:
-          APP_BASE_URL: https://jnuits.org.bd
-          AUTH_CAPTCHA_REQUIRED: "true"
-          CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
-          CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret
-          CLOUDINARY_CLOUD_NAME: ci-placeholder-cloudinary-cloud
-          NEXT_PUBLIC_SENTRY_DSN: https://public@example.ingest.sentry.io/123
-          RESEND_API_KEY: re_ci_placeholder
-          RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>"
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
-          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ci-placeholder-turnstile-site-key
-          PLAYWRIGHT_PORT: 3100
-          RATE_LIMIT_BACKEND: supabase
-          RATE_LIMIT_SECRET_SALT: ci-placeholder-rate-limit-secret-salt-000000
-          SUPABASE_SECRET_KEY: ci-placeholder-supabase-secret-key
-          TURNSTILE_SECRET_KEY: ci-placeholder-turnstile-secret-key
         run: npm run test:e2e:ci
 
       - name: Upload Playwright traces
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-results
           path: test-results/playwright
           if-no-files-found: ignore
+          retention-days: 7
+
+  secret-scan:
+    name: Secret scan
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Scan committed history
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}

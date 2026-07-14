@@ -88,15 +88,20 @@ type MediaAssetRow = Pick<
   | "width"
 >;
 
-type RegistrationRow = Pick<
-  Tables<"event_registrations">,
-  "event_id" | "event_post_id" | "id"
->;
+
+type SupabaseQueryError = {
+  message?: string;
+};
 
 type EventArchiveFilterable<T> = T & {
   ilike: (column: string, pattern: string) => EventArchiveFilterable<T>;
   lt: (column: string, value: string) => EventArchiveFilterable<T>;
   or: (filters: string) => EventArchiveFilterable<T>;
+};
+
+type EventDashboardFilterable<T> = T & {
+  eq: (column: string, value: string) => EventDashboardFilterable<T>;
+  or: (filters: string) => EventDashboardFilterable<T>;
 };
 
 export type EventLifecycleState = "upcoming" | "today" | "completed";
@@ -261,6 +266,30 @@ function normalizeText(value: string | null | undefined) {
     .trim()
     .toLowerCase()
     .slice(0, 100);
+}
+
+function assertSupabaseSuccess<T extends { error: SupabaseQueryError | null }>(
+  result: T,
+  operation: string
+) {
+  if (result.error) {
+    throw new Error(`${operation}: ${result.error.message || "Unknown database error."}`);
+  }
+
+  return result;
+}
+
+function getExactCount(
+  result: { count?: number | null; error: SupabaseQueryError | null },
+  operation: string
+) {
+  const successful = assertSupabaseSuccess(result, operation);
+
+  if (typeof successful.count !== "number") {
+    throw new Error(`${operation}: an exact count was not returned.`);
+  }
+
+  return successful.count;
 }
 
 function formatDateKey(value: Date | string, timeZone: string) {
@@ -455,52 +484,6 @@ function mapCoverImage(row: EventRow): EventCoverImage | null {
   };
 }
 
-function buildSearchText(row: EventRow) {
-  return [
-    row.slug,
-    row.title,
-    row.summary,
-    row.body_markdown,
-    row.category,
-    row.location_label,
-    row.venue_name,
-    row.venue_address,
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: safeTimeZone(row.timezone),
-      year: "numeric",
-    }).format(new Date(row.starts_at)),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function sortByStartsAtAscending(left: EventRow, right: EventRow) {
-  return (
-    new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime()
-  );
-}
-
-function sortByStartsAtDescending(left: EventRow, right: EventRow) {
-  return (
-    new Date(right.starts_at).getTime() - new Date(left.starts_at).getTime()
-  );
-}
-
-function buildPagedSlice<T>(items: T[], page: number, perPage = EVENTS_PER_PAGE) {
-  const totalItems = items.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
-  const normalizedPage = Math.min(Math.max(page, 1), totalPages);
-  const start = (normalizedPage - 1) * perPage;
-
-  return {
-    items: items.slice(start, start + perPage),
-    page: normalizedPage,
-    totalItems,
-    totalPages,
-  };
-}
-
 function getBangladeshDayStartIso() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     day: "2-digit",
@@ -545,64 +528,83 @@ function applyPublicEventArchiveFilters<T>(
 
   return result;
 }
+function applyAdminEventDashboardFilters<T>(
+  request: EventDashboardFilterable<T>,
+  options: {
+    category: string;
+    cutoffIso: string;
+    query: string;
+    status: string;
+    timeframe: "all" | "past" | "upcoming";
+  }
+) {
+  let result = request;
+
+  if (options.timeframe === "past") {
+    result = result.or(
+      `ends_at.lt.${options.cutoffIso},and(ends_at.is.null,starts_at.lt.${options.cutoffIso})`
+    );
+  }
+
+  if (options.timeframe === "upcoming") {
+    result = result.or(
+      `ends_at.gte.${options.cutoffIso},starts_at.gte.${options.cutoffIso}`
+    );
+  }
+
+  if (options.status) {
+    result = result.eq("status", options.status);
+  }
+
+  if (options.category) {
+    result = result.eq("category", options.category);
+  }
+
+  if (options.query) {
+    const pattern = `%${options.query}%`;
+    result = result.or(
+      `slug.ilike.${pattern},title.ilike.${pattern},summary.ilike.${pattern},body_markdown.ilike.${pattern},category.ilike.${pattern},location_label.ilike.${pattern},venue_name.ilike.${pattern},venue_address.ilike.${pattern}`
+    );
+  }
+
+  return result;
+}
+
 
 async function getRegistrationCountMap(rows: EventRow[]) {
   const eventIds = Array.from(new Set(rows.map((row) => row.id)));
-  const legacyEventIds = Array.from(
-    new Set(
-      rows
-        .map((row) => row.legacy_content_post_id)
-        .filter((value): value is string => Boolean(value))
-    )
-  );
 
-  const admin = createAdminClient();
-  const [byEventId, byLegacyId] = await Promise.all([
-    eventIds.length > 0
-      ? admin
-          .from("event_registrations")
-          .select("id, event_id, event_post_id")
-          .in("event_id", eventIds)
-          .is("cancelled_at", null)
-      : Promise.resolve({ data: [] as RegistrationRow[], error: null }),
-    legacyEventIds.length > 0
-      ? admin
-          .from("event_registrations")
-          .select("id, event_id, event_post_id")
-          .in("event_post_id", legacyEventIds)
-          .is("cancelled_at", null)
-      : Promise.resolve({ data: [] as RegistrationRow[], error: null }),
-  ]);
-  const legacyToEventId = new Map<string, string>();
-  const counts = new Map<string, number>();
-  const seenRegistrationIds = new Set<string>();
-
-  for (const row of rows) {
-    if (row.legacy_content_post_id) {
-      legacyToEventId.set(row.legacy_content_post_id, row.id);
-    }
+  if (eventIds.length === 0) {
+    return new Map<string, number>();
   }
 
-  for (const registration of [
-    ...((byEventId.data || []) as RegistrationRow[]),
-    ...((byLegacyId.data || []) as RegistrationRow[]),
-  ]) {
-    if (seenRegistrationIds.has(registration.id)) {
-      continue;
+  const result = await createAdminClient().rpc(
+    "get_event_registration_counts",
+    { p_event_ids: eventIds }
+  );
+  const successful = assertSupabaseSuccess(
+    result,
+    "Event registration count lookup failed"
+  );
+
+  if (!Array.isArray(successful.data)) {
+    throw new Error("Event registration count lookup failed: no aggregate rows returned.");
+  }
+
+  const counts = new Map<string, number>();
+
+  for (const row of successful.data) {
+    const registrationCount = Number(row.registration_count);
+
+    if (
+      !row.event_id ||
+      !Number.isSafeInteger(registrationCount) ||
+      registrationCount < 0
+    ) {
+      throw new Error("Event registration count lookup failed: invalid aggregate row.");
     }
 
-    seenRegistrationIds.add(registration.id);
-    const eventId =
-      registration.event_id ||
-      (registration.event_post_id
-        ? legacyToEventId.get(registration.event_post_id)
-        : null);
-
-    if (!eventId) {
-      continue;
-    }
-
-    counts.set(eventId, (counts.get(eventId) || 0) + 1);
+    counts.set(row.event_id, registrationCount);
   }
 
   return counts;
@@ -671,25 +673,48 @@ function mapEventDetail(
   };
 }
 
-const getAllPublishedEventRows = cache(async () => {
+const getFeaturedPublishedEventRow = cache(async () => {
   const supabase = createPublicClient();
-  const { data } = await supabase
+  const cutoffIso = getBangladeshDayStartIso();
+  const upcomingResult = await applyPublicEventArchiveFilters(
+    supabase
+      .from("events")
+      .select(EVENT_LIST_SELECT)
+      .eq("status", "published"),
+    {
+      category: "",
+      cutoffIso,
+      query: "",
+      view: "upcoming",
+    }
+  )
+    .order("starts_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const upcoming = assertSupabaseSuccess(
+    upcomingResult,
+    "Featured event lookup failed"
+  );
+
+  if (upcoming.data) {
+    return upcoming.data as EventRow;
+  }
+
+  const fallbackResult = await supabase
     .from("events")
     .select(EVENT_LIST_SELECT)
     .eq("status", "published")
-    .order("starts_at", { ascending: true });
+    .order("starts_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const fallback = assertSupabaseSuccess(
+    fallbackResult,
+    "Featured event lookup failed"
+  );
 
-  return (data || []) as EventRow[];
-});
-
-const getAllAdminEventRows = cache(async () => {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("events")
-    .select(EVENT_SELECT)
-    .order("starts_at", { ascending: false });
-
-  return (data || []) as EventRow[];
+  return (fallback.data || null) as EventRow | null;
 });
 
 export const getPublicEventFilterOptions = cache(async () => {
@@ -716,7 +741,7 @@ export async function getPublicEventsPage(
   const category = normalizeIdentifier(filters.category);
   const cutoffIso = getBangladeshDayStartIso();
   const supabase = createPublicClient();
-  const [categoryRowsResult, categoryCountRowsResult, featuredResult] =
+  const [categoryRowsResult, categoryCountRowsResult, featuredRow] =
     await Promise.all([
       supabase
         .from("events")
@@ -733,31 +758,16 @@ export async function getPublicEventsPage(
           view,
         }
       ).limit(500),
-      applyPublicEventArchiveFilters(
-        supabase
-          .from("events")
-          .select(EVENT_LIST_SELECT)
-          .eq("status", "published"),
-        {
-          category: "",
-          cutoffIso,
-          query: "",
-          view: "upcoming",
-        }
-      )
-        .order("starts_at", { ascending: true })
-        .limit(1)
-        .maybeSingle(),
+      getFeaturedPublishedEventRow(),
     ]);
-  const fallbackFeaturedResult = featuredResult.data
-    ? null
-    : await supabase
-        .from("events")
-        .select(EVENT_LIST_SELECT)
-        .eq("status", "published")
-        .order("starts_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  const categoryRowsResponse = assertSupabaseSuccess(
+    categoryRowsResult,
+    "Public event filter lookup failed"
+  );
+  const categoryCountRowsResponse = assertSupabaseSuccess(
+    categoryCountRowsResult,
+    "Public event category count lookup failed"
+  );
 
   const buildPageQuery = () => {
     const request = applyPublicEventArchiveFilters(
@@ -773,7 +783,9 @@ export async function getPublicEventsPage(
       }
     );
 
-    return request.order("starts_at", { ascending: view !== "past" });
+    return request
+      .order("starts_at", { ascending: view !== "past" })
+      .order("id", { ascending: view !== "past" });
   };
 
   const fetchPage = async (targetPage: number) => {
@@ -781,26 +793,29 @@ export async function getPublicEventsPage(
     return buildPageQuery().range(start, start + EVENTS_PER_PAGE - 1);
   };
 
-  let pageResult = await fetchPage(page);
-  let totalItems = pageResult.count || 0;
+  let pageResult = assertSupabaseSuccess(
+    await fetchPage(page),
+    "Public event page lookup failed"
+  );
+  let totalItems = getExactCount(pageResult, "Public event page lookup failed");
   let totalPages = Math.max(1, Math.ceil(totalItems / EVENTS_PER_PAGE));
   let normalizedPage = Math.min(Math.max(page, 1), totalPages);
 
   if (normalizedPage !== page && totalItems > 0) {
-    pageResult = await fetchPage(normalizedPage);
-    totalItems = pageResult.count || 0;
+    pageResult = assertSupabaseSuccess(
+      await fetchPage(normalizedPage),
+      "Public event page lookup failed"
+    );
+    totalItems = getExactCount(pageResult, "Public event page lookup failed");
     totalPages = Math.max(1, Math.ceil(totalItems / EVENTS_PER_PAGE));
     normalizedPage = Math.min(Math.max(normalizedPage, 1), totalPages);
   }
 
   const pageRows = (pageResult.data || []) as EventRow[];
-  const featuredRow = (featuredResult.data ||
-    fallbackFeaturedResult?.data ||
-    null) as EventRow | null;
-  const categoryRows = (categoryRowsResult.data || []) as Array<{
+  const categoryRows = (categoryRowsResponse.data || []) as Array<{
     category: string;
   }>;
-  const categoryCounts = ((categoryCountRowsResult.data || []) as Array<{
+  const categoryCounts = ((categoryCountRowsResponse.data || []) as Array<{
     category: string;
   }>).reduce((counts, row) => {
     counts.set(row.category, (counts.get(row.category) || 0) + 1);
@@ -822,7 +837,9 @@ export async function getPublicEventsPage(
     categoryCounts: Array.from(categoryCounts.entries())
       .map(([category, count]) => ({ category, count }))
       .sort((left, right) => left.category.localeCompare(right.category)),
-    featuredEvent: featuredRow ? mapEventRow(featuredRow, counts.get(featuredRow.id) || 0) : null,
+    featuredEvent: featuredRow
+      ? mapEventRow(featuredRow, counts.get(featuredRow.id) || 0)
+      : null,
     items: pageRows.map((row) => mapEventRow(row, counts.get(row.id) || 0)),
     page: normalizedPage,
     totalItems,
@@ -832,13 +849,7 @@ export async function getPublicEventsPage(
 }
 
 export const getFeaturedPublicEvent = cache(async () => {
-  const rows = await getAllPublishedEventRows();
-  const featured =
-    rows
-      .filter((row) => getLifecycleState(row) !== "completed")
-      .sort(sortByStartsAtAscending)[0] ||
-    [...rows].sort(sortByStartsAtDescending)[0] ||
-    null;
+  const featured = await getFeaturedPublishedEventRow();
 
   if (!featured) {
     return null;
@@ -897,53 +908,107 @@ export async function getAdminEventsDashboard(
   const query = normalizeText(filters.query);
   const category = normalizeIdentifier(filters.category);
   const status = normalizeIdentifier(filters.status);
-  const timeframe = filters.timeframe || "all";
-  const rows = await getAllAdminEventRows();
-  const counts = await getRegistrationCountMap(rows);
-  const metrics = {
-    drafts: rows.filter((row) => row.status === "draft").length,
-    past: rows.filter((row) => getLifecycleState(row) === "completed").length,
-    total: rows.length,
-    upcoming: rows.filter((row) => getLifecycleState(row) !== "completed").length,
+  const timeframe =
+    filters.timeframe === "past" || filters.timeframe === "upcoming"
+      ? filters.timeframe
+      : "all";
+  const cutoffIso = getBangladeshDayStartIso();
+  const admin = createAdminClient();
+  const metricResultsPromise = Promise.all([
+    admin.from("events").select("id", { count: "exact", head: true }),
+    admin
+      .from("events")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "draft"),
+    applyAdminEventDashboardFilters(
+      admin.from("events").select("id", { count: "exact", head: true }),
+      {
+        category: "",
+        cutoffIso,
+        query: "",
+        status: "",
+        timeframe: "past",
+      }
+    ),
+    applyAdminEventDashboardFilters(
+      admin.from("events").select("id", { count: "exact", head: true }),
+      {
+        category: "",
+        cutoffIso,
+        query: "",
+        status: "",
+        timeframe: "upcoming",
+      }
+    ),
+  ]);
+
+  const buildPageQuery = () =>
+    applyAdminEventDashboardFilters(
+      admin
+        .from("events")
+        .select(EVENT_LIST_SELECT, { count: "exact" }),
+      {
+        category,
+        cutoffIso,
+        query,
+        status,
+        timeframe,
+      }
+    )
+      .order("starts_at", { ascending: false })
+      .order("id", { ascending: false });
+
+  const fetchPage = async (targetPage: number) => {
+    const start = (targetPage - 1) * EVENTS_PER_PAGE;
+    return buildPageQuery().range(start, start + EVENTS_PER_PAGE - 1);
   };
-  const filteredRows = rows.filter((row) => {
-    const lifecycle = getLifecycleState(row);
 
-    if (timeframe === "upcoming" && lifecycle === "completed") {
-      return false;
-    }
+  const [initialPageResult, metricResults] = await Promise.all([
+    fetchPage(page),
+    metricResultsPromise,
+  ]);
+  let pageResult = assertSupabaseSuccess(
+    initialPageResult,
+    "Admin event page lookup failed"
+  );
+  let totalItems = getExactCount(pageResult, "Admin event page lookup failed");
+  let totalPages = Math.max(1, Math.ceil(totalItems / EVENTS_PER_PAGE));
+  let normalizedPage = Math.min(Math.max(page, 1), totalPages);
 
-    if (timeframe === "past" && lifecycle !== "completed") {
-      return false;
-    }
+  if (normalizedPage !== page && totalItems > 0) {
+    pageResult = assertSupabaseSuccess(
+      await fetchPage(normalizedPage),
+      "Admin event page lookup failed"
+    );
+    totalItems = getExactCount(pageResult, "Admin event page lookup failed");
+    totalPages = Math.max(1, Math.ceil(totalItems / EVENTS_PER_PAGE));
+    normalizedPage = Math.min(Math.max(normalizedPage, 1), totalPages);
+  }
 
-    if (status && row.status !== status) {
-      return false;
-    }
-
-    if (category && row.category !== category) {
-      return false;
-    }
-
-    if (query && !buildSearchText(row).includes(query)) {
-      return false;
-    }
-
-    return true;
-  });
-  const paged = buildPagedSlice(filteredRows, page);
+  const [totalResult, draftsResult, pastResult, upcomingResult] = metricResults;
+  const metrics = {
+    drafts: getExactCount(draftsResult, "Admin event draft metric lookup failed"),
+    past: getExactCount(pastResult, "Admin event past metric lookup failed"),
+    total: getExactCount(totalResult, "Admin event total metric lookup failed"),
+    upcoming: getExactCount(
+      upcomingResult,
+      "Admin event upcoming metric lookup failed"
+    ),
+  };
+  const pageRows = (pageResult.data || []) as EventRow[];
+  const counts = await getRegistrationCountMap(pageRows);
 
   return {
-    categories: Array.from(new Set(rows.map((row) => row.category))).sort(),
-    items: paged.items.map((row) => ({
+    categories: Array.from(EVENT_CATEGORIES),
+    items: pageRows.map((row) => ({
       ...mapEventRow(row, counts.get(row.id) || 0),
       createdAt: row.created_at,
       registrationMode: row.registration_mode,
     })),
     metrics,
-    page: paged.page,
-    totalItems: paged.totalItems,
-    totalPages: paged.totalPages,
+    page: normalizedPage,
+    totalItems,
+    totalPages,
   };
 }
 

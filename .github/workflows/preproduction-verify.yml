@@ -1,0 +1,138 @@
+name: Pre-production Verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_authenticated_e2e:
+        description: Run credential-backed browser checks after the CAPTCHA test strategy is configured.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preproduction-verification
+  cancel-in-progress: false
+
+jobs:
+  require-main:
+    name: Verify trusted ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require main
+        run: |
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "Pre-production verification must run from main."
+            exit 1
+          }
+
+  database-readiness:
+    name: Read-only database parity
+    needs: require-main
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: preproduction
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: 2.101.0
+          github-token: ${{ github.token }}
+
+      - name: Initialize Supabase CLI workspace
+        run: supabase init
+
+      - name: Link protected pre-production project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ vars.PREPRODUCTION_SUPABASE_PROJECT_REF }}
+        run: |
+          test -n "$SUPABASE_PROJECT_REF" || {
+            echo "PREPRODUCTION_SUPABASE_PROJECT_REF is required."
+            exit 1
+          }
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Verify migration parity
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run migration:check
+
+      - name: Verify admin invitation search schema
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run db:verify-admin-invite-search
+
+  browser-and-runtime:
+    name: Browser and runtime smoke
+    needs: require-main
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: preproduction
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Require pre-production application URL
+        env:
+          PREPRODUCTION_APP_URL: ${{ vars.PREPRODUCTION_APP_URL }}
+        run: |
+          test -n "$PREPRODUCTION_APP_URL" || {
+            echo "PREPRODUCTION_APP_URL is required."
+            exit 1
+          }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npm run test:e2e:install
+
+      - name: Run public browser smoke against pre-production
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ vars.PREPRODUCTION_APP_URL }}
+        run: npm run test:e2e
+
+      - name: Run authenticated browser smoke against pre-production
+        if: inputs.run_authenticated_e2e
+        env:
+          E2E_ALUMNI_MEMBER_EMAIL: ${{ secrets.E2E_ALUMNI_MEMBER_EMAIL }}
+          E2E_ALUMNI_MEMBER_PASSWORD: ${{ secrets.E2E_ALUMNI_MEMBER_PASSWORD }}
+          E2E_AUTH_SMOKE: "1"
+          E2E_CONTENT_ADMIN_EMAIL: ${{ secrets.E2E_CONTENT_ADMIN_EMAIL }}
+          E2E_CONTENT_ADMIN_PASSWORD: ${{ secrets.E2E_CONTENT_ADMIN_PASSWORD }}
+          E2E_CURRENT_MEMBER_EMAIL: ${{ secrets.E2E_CURRENT_MEMBER_EMAIL }}
+          E2E_CURRENT_MEMBER_PASSWORD: ${{ secrets.E2E_CURRENT_MEMBER_PASSWORD }}
+          E2E_NORMAL_ADMIN_EMAIL: ${{ secrets.E2E_NORMAL_ADMIN_EMAIL }}
+          E2E_NORMAL_ADMIN_PASSWORD: ${{ secrets.E2E_NORMAL_ADMIN_PASSWORD }}
+          PLAYWRIGHT_BASE_URL: ${{ vars.PREPRODUCTION_APP_URL }}
+        run: npm run test:e2e:auth
+
+      - name: Run pre-production runtime probe
+        env:
+          RUNTIME_PROBE_BASE_URL: ${{ vars.PREPRODUCTION_APP_URL }}
+        run: npm run test:runtime-probe
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: preproduction-playwright-results-${{ github.run_id }}
+          path: test-results/playwright
+          if-no-files-found: ignore
+          retention-days: 7

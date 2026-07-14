@@ -1994,6 +1994,13 @@ export type Database = {
       }
     }
     Functions: {
+      get_event_registration_counts: {
+        Args: { p_event_ids: string[] }
+        Returns: {
+          event_id: string
+          registration_count: number
+        }[]
+      }
       has_platform_role: { Args: { role_code: string }; Returns: boolean }
     }
     Enums: {
