@@ -5,10 +5,24 @@ import { resolveEventForAdminMutation } from "@/lib/content/events";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 
 const checkInSchema = z.object({
   code: z.string().min(4).max(20).transform((value) => value.toUpperCase().trim()),
 });
+
+type CheckInRegistration = {
+  cancelled_at: null | string;
+  checked_in_at: null | string;
+  id: string;
+  members:
+    | { jnuits_id: null | string; member_type: null | string }
+    | Array<{ jnuits_id: null | string; member_type: null | string }>
+    | null;
+  registration_status: null | string;
+  registrant_email: string;
+  registrant_name: string;
+};
 
 function getEventIdentifier(request: Request) {
   const segments = new URL(request.url).pathname.split("/");
@@ -59,11 +73,11 @@ export const POST = withApiGuard(
       return NextResponse.json({ error: "Event not found." }, { status: 404 });
     }
 
-    const admin = createAdminClient();
+    const admin = asFlexibleClient(createAdminClient());
     let registrationQuery = admin
       .from("event_registrations")
       .select(
-        "id, registrant_name, registrant_email, member_id, checked_in_at, cancelled_at, members(jnuits_id, member_type)"
+        "id, registrant_name, registrant_email, member_id, checked_in_at, cancelled_at, registration_status, members(jnuits_id, member_type)"
       )
       .eq("registration_code", parsed.data.code)
       .limit(1);
@@ -76,8 +90,14 @@ export const POST = withApiGuard(
       registrationQuery = registrationQuery.eq("event_id", event.id);
     }
 
-    const { data: registration, error: registrationError } =
-      await registrationQuery.maybeSingle();
+    const registrationResult = await (registrationQuery as unknown as {
+      maybeSingle: () => Promise<{
+        data: CheckInRegistration | null;
+        error: unknown;
+      }>;
+    }).maybeSingle();
+    const registration = registrationResult.data;
+    const registrationError = registrationResult.error;
 
     if (registrationError || !registration) {
       return NextResponse.json(
@@ -89,6 +109,16 @@ export const POST = withApiGuard(
     if (registration.cancelled_at) {
       return NextResponse.json(
         { cancelled: true, error: "This registration has been cancelled." },
+        { status: 409 }
+      );
+    }
+
+    if (registration.registration_status === "waitlisted") {
+      return NextResponse.json(
+        {
+          error: "This registration is still on the waitlist.",
+          waitlisted: true,
+        },
         { status: 409 }
       );
     }

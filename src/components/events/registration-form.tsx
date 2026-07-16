@@ -5,6 +5,7 @@ import { useState } from "react";
 interface RegistrationFormProps {
   eventId: string;
   eventTitle: string;
+  formHref?: string;
   spotsRemaining: number | null; // null = unlimited
   registrationOpen: boolean;
 }
@@ -13,6 +14,7 @@ type FormState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "success"; code: string }
+  | { status: "waitlisted"; code: string }
   | { status: "duplicate"; code: string }
   | { status: "full" }
   | { status: "closed" }
@@ -21,6 +23,7 @@ type FormState =
 export function RegistrationForm({
   eventId,
   eventTitle,
+  formHref,
   spotsRemaining,
   registrationOpen,
 }: RegistrationFormProps) {
@@ -49,6 +52,7 @@ export function RegistrationForm({
         success?: boolean;
         code?: string;
         error?: string;
+        waitlisted?: boolean;
       };
 
       if (res.status === 409 && data.code) {
@@ -76,6 +80,11 @@ export function RegistrationForm({
         return;
       }
 
+      if (data.waitlisted) {
+        setState({ status: "waitlisted", code: data.code! });
+        return;
+      }
+
       setState({ status: "success", code: data.code! });
     } catch {
       setState({ status: "error", message: "A network error occurred. Please check your connection." });
@@ -94,6 +103,25 @@ export function RegistrationForm({
         </p>
         <div className="mt-4">
           <span className="input-label">Your check-in code</span>
+          <code className="mt-1 block rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3 text-center font-mono text-xl font-bold tracking-[0.2em] text-[var(--brand-blue)]">
+            {state.code}
+          </code>
+        </div>
+      </div>
+    );
+  }
+
+  if (state.status === "waitlisted") {
+    return (
+      <div className="glass-card p-6" role="alert" aria-live="polite">
+        <span className="eyebrow text-[var(--brand-blue)]">Waitlist confirmed</span>
+        <h3 className="section-title mt-3 text-2xl">You&apos;re on the waitlist</h3>
+        <p className="section-copy mt-2 text-sm">
+          The event is currently full. We&apos;ll email you if a place becomes
+          available. This reference code is not a check-in pass.
+        </p>
+        <div className="mt-4">
+          <span className="input-label">Your waitlist reference</span>
           <code className="mt-1 block rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3 text-center font-mono text-xl font-bold tracking-[0.2em] text-[var(--brand-blue)]">
             {state.code}
           </code>
@@ -155,6 +183,26 @@ export function RegistrationForm({
         : spotsRemaining > 0
           ? `Only ${spotsRemaining} ${spotsRemaining === 1 ? "spot" : "spots"} left!`
           : "Fully booked";
+
+  if (formHref) {
+    return (
+      <div className="glass-card p-6">
+        <span className="eyebrow text-[var(--brand-blue)]">Register for this event</span>
+        <h3 className="section-title mt-3 text-2xl">{eventTitle}</h3>
+        {spotsLabel ? (
+          <p className="mt-1 text-xs font-semibold tracking-wide text-[var(--muted-foreground)] uppercase">
+            {spotsLabel}
+          </p>
+        ) : null}
+        <p className="section-copy mt-4 text-sm">
+          Complete this event&apos;s registration form to reserve your place.
+        </p>
+        <a className="primary-button mt-5 inline-flex w-full justify-center" href={formHref}>
+          Continue to registration form
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="glass-card p-6">

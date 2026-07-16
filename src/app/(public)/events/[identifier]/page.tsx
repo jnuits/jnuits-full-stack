@@ -18,10 +18,12 @@ import {
   formatEventDateRange,
   getPublicEventsPage,
   getPublishedEventBySlug,
+  resolvePublishedEventForMutation,
   stripEventMetadataTrailer,
   toEventCategoryLabel,
   toEventDeliveryModeLabel,
 } from "@/lib/content/events";
+import { loadPublishedFormByVersionId } from "@/lib/forms/repository";
 import { getAppBaseUrl } from "@/lib/env";
 
 type PageParams = {
@@ -31,6 +33,22 @@ type PageParams = {
 async function getEventOrNull(identifier: string) {
   return getPublishedEventBySlug(identifier);
 }
+
+async function getLinkedRegistrationForm(eventId: string) {
+  try {
+    const target = await resolvePublishedEventForMutation(eventId);
+    if (!target?.registrationFormVersionId) {
+      return null;
+    }
+
+    const form = await loadPublishedFormByVersionId(target.registrationFormVersionId);
+    return form?.kind === "event_registration" ? form : null;
+  } catch {
+    // Preserve current public event registration when form migrations are not installed yet.
+    return null;
+  }
+}
+
 
 function hasSpecificLocation(value: string | null | undefined) {
   const normalized = String(value || "").trim().toLowerCase();
@@ -183,6 +201,9 @@ export default async function EventDetailPage({
   const eventDeliveryModeLabel = toEventDeliveryModeLabel(event.deliveryMode);
   const totalParticipants = getTotalParticipants(event);
   const eventUrl = `${getAppBaseUrl()}/events/${event.slug}`;
+  const linkedRegistrationForm = event.registrationMode === "internal"
+    ? await getLinkedRegistrationForm(event.id)
+    : null;
   const recentPastEvents = await getPublicEventsPage({ page: 1, view: "past" });
   // UX-FIX-R3: more events row
   const moreEvents = recentPastEvents.items
@@ -374,6 +395,7 @@ export default async function EventDetailPage({
             <RegistrationForm
               eventId={event.id}
               eventTitle={event.title}
+              formHref={linkedRegistrationForm ? `/forms/${linkedRegistrationForm.slug}` : undefined}
               registrationOpen={event.registrationOpen}
               spotsRemaining={event.spotsRemaining}
             />

@@ -20,6 +20,7 @@ import {
 import { sanitizeEventHtml } from "@/lib/content/sanitize-event-html";
 import type { Tables } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createPublicClient } from "@/lib/supabase/public";
 
 export {
@@ -224,6 +225,7 @@ export type EventAdminMutationTarget = {
 
 export type EventRegistrationMutationTarget = EventAdminMutationTarget & {
   locationLabel: string;
+  registrationFormVersionId: string | null;
   registrationClosed: boolean;
   registrationMode: string;
   registrationOpen: boolean;
@@ -1138,11 +1140,33 @@ export async function resolvePublishedEventForMutation(
     | "venue_address"
     | "venue_name"
   >;
+  let registrationFormVersionId: string | null = null;
+
+  try {
+    const formLinkResult = (await asFlexibleClient(admin)
+      .from("events")
+      .select("registration_form_version_id")
+      .eq("id", row.id)
+      .limit(1)
+      .maybeSingle()) as {
+      data: { registration_form_version_id?: unknown } | null;
+      error: unknown;
+    };
+    const { data: formLink, error: formLinkError } = formLinkResult;
+
+    if (!formLinkError && typeof formLink?.registration_form_version_id === "string") {
+      registrationFormVersionId = formLink.registration_form_version_id;
+    }
+  } catch {
+    // The versioned forms migration may not be installed yet; preserve legacy registration.
+  }
+
 
   return {
     id: row.id,
     legacyContentPostId: row.legacy_content_post_id,
     locationLabel: getLocationLabel(row),
+    registrationFormVersionId,
     registrationClosed: isEventRegistrationWindowClosed(row),
     registrationMode: row.registration_mode,
     registrationOpen: row.registration_open,

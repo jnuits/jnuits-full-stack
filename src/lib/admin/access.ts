@@ -6,6 +6,8 @@ export type AdminPermission =
   | "admin.committee.manage"
   | "admin.dashboard.read"
   | "admin.decisions.read"
+  | "admin.forms.export"
+  | "admin.forms.review"
   | "admin.membership.manage"
   | "admin.reconcile.manage"
   | "admin.reports.read"
@@ -13,6 +15,7 @@ export type AdminPermission =
   | "admin.roles.manage_portal"
   | "admin.roles.read"
   | "admin.security.read"
+  | "admin.retention.manage"
   | "admin.security.write"
   | "admin.settings.read"
   | "admin.settings.write"
@@ -22,6 +25,8 @@ export type AdminPermission =
   | "cms.contacts.manage"
   | "cms.email_marketing.manage"
   | "cms.events.manage"
+  | "cms.forms.manage"
+  | "cms.forms.publish"
   | "cms.gallery.manage"
   | "cms.media.manage"
   | "cms.notices.manage"
@@ -168,6 +173,13 @@ export const adminAccessItems: readonly AdminAccessItem[] = [
     iconKey: "book",
     label: "Events",
     requiredPermission: "cms.events.manage",
+  },
+  {
+    group: "Content",
+    href: "/admin/content/forms",
+    iconKey: "clipboard",
+    label: "Forms",
+    requiredPermission: "cms.forms.manage",
   },
   {
     group: "Content",

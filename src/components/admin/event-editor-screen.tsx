@@ -670,6 +670,15 @@ export function EventEditorScreen({ event }: EventEditorScreenProps) {
           </p>
         </div>
         <div className="admin-page-header__actions">
+          {event?.registrationMode === "internal" ? (
+            <Link
+              className="admin-btn admin-btn--ghost"
+              href={`/admin/content/events/${event.id}/operations`}
+            >
+              <CalendarClock aria-hidden="true" size={15} />
+              Attendee operations
+            </Link>
+          ) : null}
           {event?.status === "published" ? (
             <Link
               className="admin-btn admin-btn--ghost"

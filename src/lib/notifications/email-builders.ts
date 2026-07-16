@@ -812,6 +812,37 @@ export function buildEventConfirmationEmail(props: EventConfirmationEmailProps):
   return wrap(`You're registered for ${eventTitle}. Your check-in code: ${registrationCode}`, content);
 }
 
+export interface EventWaitlistEmailProps {
+  registrantName: string;
+  eventTitle: string;
+  eventStart: string;
+  eventLocation: string;
+  registrationCode: string;
+}
+
+export function buildEventWaitlistEmail(props: EventWaitlistEmailProps): string {
+  const { registrantName, eventTitle, eventStart, eventLocation, registrationCode } = props;
+  const formattedDate = DATE_FMT.format(new Date(eventStart));
+  const content = [
+    h1("You’re on the waitlist"),
+    p(`Hi ${esc(registrantName)}, <strong style="color:${TEXT};">${esc(eventTitle)}</strong> is currently full, so we’ve placed you on the waitlist.`),
+    card([
+      ["Event", eventTitle],
+      ["Date & time", formattedDate],
+      ["Location", eventLocation],
+    ]),
+    p("We’ll email you if a place becomes available. Your reference below is not a check-in pass."),
+    `<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">Waitlist reference</p>`,
+    codeBlock(registrationCode),
+    button("View event details", "https://jnuits.org.bd/events"),
+  ].join("");
+
+  return wrap(
+    `You’re on the waitlist for ${eventTitle}. Reference: ${registrationCode}`,
+    content
+  );
+}
+
 export interface AdminInvitationEmailProps {
   actionLink: string;
   adminRoleLabel: string;
@@ -866,4 +897,40 @@ export function buildAdminInvitationEmail(props: AdminInvitationEmailProps): str
       : "You have been invited to the JnUITS admin workspace.",
     content,
   );
+}
+
+export interface FormConfirmationEmailProps {
+  applicantName: string;
+  confirmationUrl: string;
+  expiresAt: string;
+  formTitle: string;
+}
+
+export function buildFormConfirmationEmail(props: FormConfirmationEmailProps): string {
+  const expiry = new Date(props.expiresAt).toLocaleString("en-GB", {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  const content = [
+    h1("Confirm your email address"),
+    p(
+      `Hi ${esc(props.applicantName)}, confirm your email address to send your <strong style="color:${TEXT};">${esc(props.formTitle)}</strong> submission to the JnUITS review team.`
+    ),
+    card([
+      ["Form", props.formTitle],
+      ["Link expires", expiry],
+    ]),
+    button("Confirm email address", props.confirmationUrl),
+    fallbackLink(props.confirmationUrl),
+    hr(),
+    p(
+      `If you did not submit this form, you can safely ignore this email or ${link("contact JnUITS support", "https://jnuits.org.bd/contact")}.`,
+      "font-size:13px;margin:0;"
+    ),
+  ].join("");
+
+  return wrap(`Confirm your email for ${props.formTitle}.`, content);
 }

@@ -178,6 +178,12 @@ export const RATE_LIMITS = {
   /** Event registration — 3 per 10 minutes per IP */
   eventRegister: { limit: 3, windowSeconds: 600 } satisfies RateLimitConfig,
 
+  /** Public form submission — 3 per 10 minutes per IP */
+  formSubmit: { limit: 3, windowSeconds: 600 } satisfies RateLimitConfig,
+
+  /** Form confirmation attempts — 8 per 10 minutes per IP */
+  formConfirm: { limit: 8, windowSeconds: 600 } satisfies RateLimitConfig,
+
   /** Event check-in (admin only) — 60 per minute per IP */
   eventCheckin: { limit: 60, windowSeconds: 60 } satisfies RateLimitConfig,
 

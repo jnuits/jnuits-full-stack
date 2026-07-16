@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 type MembershipStatus = "pending" | "approved" | "rejected";
+
+type PublicIntake = {
+  href: string;
+  title: string;
+};
 
 const statusColors: Record<MembershipStatus, string> = {
   pending: "text-[var(--brand-gold)]",
@@ -25,6 +30,25 @@ export default function MembershipFormPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusValue, setStatusValue] = useState<MembershipStatus | null>(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [intake, setIntake] = useState<PublicIntake | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    void fetch("/api/forms/intake/membership")
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return (await response.json()) as PublicIntake;
+      })
+      .then((payload) => {
+        if (active && payload?.href && payload?.title) setIntake(payload);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleStatusCheck(e: React.FormEvent) {
     e.preventDefault();
@@ -72,15 +96,24 @@ export default function MembershipFormPage() {
         <div>
           <span className="eyebrow">Membership policy</span>
           <h1 className="section-title mt-4">
-            New public membership applications are currently closed
+            {intake ? "Apply for JnUITS membership" : "New public membership applications are currently closed"}
           </h1>
           <p className="section-copy mt-4">
-            Membership is currently granted through an invitation-first onboarding
-            process. Previous applicants can check their status below and current
-            invited members can claim their profile from the registration page.
+            {intake
+              ? `Start the ${intake.title} below. Confirm your email first, then the JnUITS review team will review your application.`
+              : "Membership is currently granted through an invitation-first onboarding process. Previous applicants can check their status below and current invited members can claim their profile from the registration page."}
           </p>
 
           <div className="mt-8 route-grid">
+            {intake ? (
+              <article className="route-tile">
+                <h3>Start a new application</h3>
+                <p>Submit your details through the current secure membership intake form.</p>
+                <Link href={intake.href} className="primary-button mt-4 inline-flex">
+                  Open application form
+                </Link>
+              </article>
+            ) : null}
             <article className="route-tile">
               <h3>Already invited?</h3>
               <p>Use your invitation code to claim your member profile and access the portal.</p>
