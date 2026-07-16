@@ -26,8 +26,8 @@ export default async function PublicFormPage({
     <div className="shell py-12">
       <PublicFormScreen
         captcha={getAuthCaptchaUiConfig()}
-          kind: form.kind,
-          linkedEventId: form.linkedEventId,
+        kind={form.kind}
+        linkedEventId={form.linkedEventId}
         form={{
           definition: form.definition,
           description: form.description,

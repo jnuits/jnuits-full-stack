@@ -11,9 +11,9 @@ type PublicFormScreenProps = {
     required: boolean;
     siteKey: string;
   };
-  form: {
   kind: FormKind;
   linkedEventId?: null | string;
+  form: {
     definition: FormDefinition;
     description: null | string;
     slug: string;
@@ -273,11 +273,11 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
         <p className="mt-6 rounded-lg border border-[var(--brand-gold)]/30 bg-[var(--brand-gold)]/10 px-4 py-3 text-sm text-[var(--brand-ink)]" role="alert">
           This form requires secure file uploads, which are not enabled yet. Please contact JnUITS before submitting.
         </p>
+      ) : null}
       {!submissionTarget ? (
         <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700" role="alert">
           This event registration form is unavailable. Please return to the event page.
         </p>
-      ) : null}
       ) : null}
       {captchaUnavailable ? (
         <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700" role="alert">

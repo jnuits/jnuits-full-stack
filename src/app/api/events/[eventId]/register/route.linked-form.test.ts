@@ -4,10 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   createClient: vi.fn(),
+  enforceAuthActionProtection: vi.fn(),
   loadPublishedFormByVersionId: vi.fn(),
   resolvePublishedEventForMutation: vi.fn(),
   rpc: vi.fn(),
   sendEmail: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/action-protection", () => ({
+  enforceAuthActionProtection: mocks.enforceAuthActionProtection,
 }));
 
 vi.mock("@/lib/content/events", () => ({
@@ -34,6 +39,7 @@ import { POST } from "./route";
 describe("linked event registration form", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.enforceAuthActionProtection.mockResolvedValue(null);
     mocks.createAdminClient.mockReturnValue({ rpc: mocks.rpc });
     mocks.createClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
@@ -84,6 +90,7 @@ describe("linked event registration form", () => {
             meal: "veg",
             phone: "+8801700000000",
           },
+          captchaToken: "captcha-token",
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -92,6 +99,14 @@ describe("linked event registration form", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(mocks.enforceAuthActionProtection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        captchaToken: "captcha-token",
+        captchaValidation: "turnstile",
+        email: "attendee@example.test",
+        rateLimitPrefix: "event-register:event-1",
+      })
+    );
     expect(mocks.rpc).toHaveBeenCalledWith(
       "register_for_event_with_form_atomic",
       expect.objectContaining({
@@ -109,5 +124,32 @@ describe("linked event registration form", () => {
         p_registrant_phone: "+8801700000000",
       })
     );
+  });
+
+  it("stops a linked-form registration before its atomic RPC when CAPTCHA fails", async () => {
+    mocks.enforceAuthActionProtection.mockResolvedValue("Complete the verification challenge.");
+
+    const response = await POST(
+      new NextRequest("https://jnuits.org.bd/api/events/event-1/register", {
+        body: JSON.stringify({
+          answers: {
+            email: "attendee@example.test",
+            full_name: "Event Attendee",
+            meal: "veg",
+          },
+          captchaToken: "invalid-token",
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+      { params: Promise.resolve({ eventId: "event-1" }) }
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({
+      error: "Complete the verification challenge.",
+    });
+    expect(mocks.enforceAuthActionProtection).toHaveBeenCalledOnce();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
