@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const migrationPath = resolve(
   process.cwd(),
-  "supabase/migrations/20260716160000_event_form_atomic_registration.sql"
+  "supabase/migrations/20260718131634_event_form_atomic_registration.sql"
 );
 
 describe("event form atomic registration migration", () => {

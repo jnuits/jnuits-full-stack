@@ -53,18 +53,21 @@ declare
   full_name text;
   case_id uuid;
 begin
-  select submission_row, definition.kind, definition.application_behavior
-  into submission, definition_kind, application_behavior
+  select submission_row.*
+  into submission
   from public.form_submissions as submission_row
-  join public.form_definitions as definition
-    on definition.id = submission_row.form_definition_id
   where submission_row.id = p_submission_id
-  for update of submission_row;
+  for update;
 
   if not found then
     return query select 'invalid'::text, null::text, null::uuid, null::uuid;
     return;
   end if;
+
+  select definition.kind, definition.application_behavior
+  into definition_kind, application_behavior
+  from public.form_definitions as definition
+  where definition.id = submission.form_definition_id;
 
   if submission.confirmation_status = 'confirmed' then
     return query select 'already_confirmed'::text, definition_kind, submission.id, null::uuid;
