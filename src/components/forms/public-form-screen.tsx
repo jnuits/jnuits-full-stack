@@ -27,6 +27,161 @@ type SubmissionState =
   | { status: "success" }
   | { message: string; status: "error" };
 
+type PendingFormUpload = {
+  fieldId: string;
+  file: File;
+  mimeType: "application/pdf" | "image/jpeg" | "image/png" | "image/webp";
+  sha256: string;
+  size: number;
+};
+
+type FormUploadInstruction = Omit<PendingFormUpload, "file"> & {
+  allowedFormats: string;
+  apiKey: string;
+  assetFolder: string;
+  context: string;
+  publicId: string;
+  resourceType: "image" | "raw";
+  signature: string;
+  timestamp: number;
+  uploadId: string;
+  uploadUrl: string;
+};
+
+type StoredFormUploadAsset = {
+  bytes: number;
+  cloudinaryAssetId: string;
+  cloudinaryFolder: string;
+  cloudinaryPublicId: string;
+  cloudinaryVersion: string;
+  contentType: PendingFormUpload["mimeType"];
+  fieldId: string;
+  resourceType: "image" | "raw";
+  sha256: string;
+  uploadId: string;
+};
+
+const MAX_FORM_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+function supportedUploadMimeType(field: Extract<FormField, { type: "image" | "pdf" }>, mimeType: string): mimeType is PendingFormUpload["mimeType"] {
+  return field.type === "pdf"
+    ? mimeType === "application/pdf"
+    : mimeType === "image/jpeg" || mimeType === "image/png" || mimeType === "image/webp";
+}
+
+async function sha256(file: File) {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function collectFormUploads(formData: FormData, definition: FormDefinition) {
+  const uploads: PendingFormUpload[] = [];
+
+  for (const field of definition.fields) {
+    if (field.type !== "image" && field.type !== "pdf") {
+      continue;
+    }
+
+    const files = formData
+      .getAll(field.id)
+      .filter((value): value is File => value instanceof File && value.size > 0);
+
+    if (field.required && !files.length) {
+      throw new Error(`${field.label} is required.`);
+    }
+
+    if (files.length > field.maxFiles) {
+      throw new Error(`${field.label} accepts at most ${field.maxFiles} file(s).`);
+    }
+
+    for (const file of files) {
+      if (file.size > MAX_FORM_UPLOAD_BYTES) {
+        throw new Error(`${field.label} must be 10 MB or smaller.`);
+      }
+
+      if (!supportedUploadMimeType(field, file.type)) {
+        throw new Error(`${field.label} has an unsupported file type.`);
+      }
+
+      uploads.push({
+        fieldId: field.id,
+        file,
+        mimeType: file.type,
+        sha256: await sha256(file),
+        size: file.size,
+      });
+    }
+  }
+
+  return uploads;
+}
+
+function assertUploadInstruction(upload: PendingFormUpload, instruction: FormUploadInstruction) {
+  if (
+    instruction.fieldId !== upload.fieldId ||
+    instruction.mimeType !== upload.mimeType ||
+    instruction.sha256 !== upload.sha256 ||
+    instruction.size !== upload.size
+  ) {
+    throw new Error("Secure upload preparation failed. Please try again.");
+  }
+}
+
+async function uploadToCloudinary(upload: PendingFormUpload, instruction: FormUploadInstruction): Promise<StoredFormUploadAsset> {
+  const body = new FormData();
+  body.set("file", upload.file);
+  body.set("api_key", instruction.apiKey);
+  body.set("allowed_formats", instruction.allowedFormats);
+  body.set("asset_folder", instruction.assetFolder);
+  body.set("context", instruction.context);
+  body.set("discard_original_filename", "true");
+  body.set("overwrite", "false");
+  body.set("public_id", instruction.publicId);
+  body.set("signature", instruction.signature);
+  body.set("timestamp", String(instruction.timestamp));
+  body.set("unique_filename", "false");
+  body.set("use_filename", "false");
+
+  const response = await fetch(instruction.uploadUrl, { body, method: "POST" });
+  const result = (await response.json().catch(() => null)) as
+    | {
+        asset_id?: unknown;
+        bytes?: unknown;
+        public_id?: unknown;
+        resource_type?: unknown;
+        version?: unknown;
+      }
+    | null;
+  const assetId = typeof result?.asset_id === "string" ? result.asset_id.toLowerCase() : "";
+  const version = typeof result?.version === "number" || typeof result?.version === "string"
+    ? String(result.version)
+    : "";
+
+  if (
+    !response.ok ||
+    !/^[a-f0-9]{32}$/.test(assetId) ||
+    !/^\d+$/.test(version) ||
+    result?.bytes !== upload.size ||
+    result?.public_id !== instruction.publicId ||
+    result?.resource_type !== instruction.resourceType
+  ) {
+    throw new Error("Secure file upload failed. Please try again.");
+  }
+
+  return {
+    bytes: upload.size,
+    cloudinaryAssetId: assetId,
+    cloudinaryFolder: instruction.assetFolder,
+    cloudinaryPublicId: instruction.publicId,
+    cloudinaryVersion: version,
+    contentType: upload.mimeType,
+    fieldId: upload.fieldId,
+    resourceType: instruction.resourceType,
+    sha256: upload.sha256,
+    uploadId: instruction.uploadId,
+  };
+}
+
 function FieldHelp({ field }: { field: FormField }) {
   return field.helpText ? (
     <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{field.helpText}</p>
@@ -162,19 +317,42 @@ function FormFieldControl({ field, formSlug }: { field: FormField; formSlug: str
   }
 
   return (
-    <div className="rounded-lg border border-dashed border-[var(--line)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--muted-foreground)]">
-      <strong className="block text-[var(--brand-ink)]">{field.label}</strong>
-      Secure file uploads are not enabled for this form yet.
+    <div>
+      <FieldLabel field={field} inputId={inputId} />
+      <input
+        accept={field.type === "pdf" ? "application/pdf" : "image/jpeg,image/png,image/webp"}
+        className="input-field mt-1 w-full"
+        id={inputId}
+        multiple={field.maxFiles > 1}
+        name={field.id}
+        required={field.required}
+        type="file"
+      />
+      <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+        PDF, JPEG, PNG, or WebP only. Maximum 10 MB per file. Files are stored privately.
+      </p>
       <FieldHelp field={field} />
     </div>
   );
 }
 
-function toAnswers(formData: FormData, definition: FormDefinition) {
+function toAnswers(
+  formData: FormData,
+  definition: FormDefinition,
+  uploadedIdsByField: Record<string, string[]> = {}
+) {
   const answers: Record<string, boolean | string | string[]> = {};
 
   for (const field of definition.fields) {
-    if (field.type === "section" || field.type === "image" || field.type === "pdf") {
+    if (field.type === "section") {
+      continue;
+    }
+
+    if (field.type === "image" || field.type === "pdf") {
+      const assetIds = uploadedIdsByField[field.id];
+      if (assetIds?.length) {
+        answers[field.id] = assetIds;
+      }
       continue;
     }
 
@@ -205,9 +383,10 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
   );
   const submissionTarget = resolvePublicFormSubmissionTarget({ kind, linkedEventId, slug: form.slug });
   const isEventRegistration = kind === "event_registration";
-  const captchaRequired = !isEventRegistration && captcha.required;
+  const eventFileUploadsUnsupported = isEventRegistration && hasFileFields;
+  const captchaRequired = captcha.required;
   const captchaUnavailable = captchaRequired && !captcha.siteKey;
-  const cannotSubmit = !submissionTarget || hasFileFields || captchaUnavailable;
+  const cannotSubmit = !submissionTarget || eventFileUploadsUnsupported || captchaUnavailable;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -220,12 +399,56 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
     const formData = new FormData(event.currentTarget);
 
     try {
+      const captchaToken = String(formData.get("captchaToken") || "");
+      const website = String(formData.get("website") || "");
+      const pendingUploads = website ? [] : await collectFormUploads(formData, form.definition);
+      const storedAssets: StoredFormUploadAsset[] = [];
+      const uploadedIdsByField: Record<string, string[]> = {};
+      let uploadProof = "";
+
+      if (pendingUploads.length) {
+        const signerResponse = await fetch(`/api/forms/${encodeURIComponent(form.slug)}/uploads/sign`, {
+          body: JSON.stringify({
+            captchaToken,
+            uploads: pendingUploads.map(({ fieldId, mimeType, sha256: checksum, size }) => ({
+              fieldId,
+              mimeType,
+              sha256: checksum,
+              size,
+            })),
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+        const signerPayload = (await signerResponse.json().catch(() => null)) as
+          | { error?: string; proof?: string; uploads?: FormUploadInstruction[] }
+          | null;
+
+        if (
+          !signerResponse.ok ||
+          !signerPayload?.proof ||
+          !Array.isArray(signerPayload.uploads) ||
+          signerPayload.uploads.length !== pendingUploads.length
+        ) {
+          throw new Error(signerPayload?.error || "We could not prepare secure file uploads. Please try again.");
+        }
+
+        for (const [index, pendingUpload] of pendingUploads.entries()) {
+          const instruction = signerPayload.uploads[index];
+          assertUploadInstruction(pendingUpload, instruction);
+          const storedAsset = await uploadToCloudinary(pendingUpload, instruction);
+          storedAssets.push(storedAsset);
+          (uploadedIdsByField[storedAsset.fieldId] ||= []).push(storedAsset.uploadId);
+        }
+
+        uploadProof = signerPayload.proof;
+      }
+
       const requestBody = {
-        answers: toAnswers(formData, form.definition),
-        ...(submissionTarget.confirmationRequired
-          ? { captchaToken: String(formData.get("captchaToken") || "") }
-          : {}),
-        website: String(formData.get("website") || ""),
+        answers: toAnswers(formData, form.definition, uploadedIdsByField),
+        captchaToken: storedAssets.length ? "" : captchaToken,
+        ...(storedAssets.length ? { assets: storedAssets, uploadProof } : {}),
+        website,
       };
       const response = await fetch(submissionTarget.endpoint, {
         body: JSON.stringify(requestBody),
@@ -269,9 +492,9 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
       <h1 className="section-title">{form.title}</h1>
       {form.description ? <p className="section-copy mt-4">{form.description}</p> : null}
 
-      {hasFileFields ? (
+      {eventFileUploadsUnsupported ? (
         <p className="mt-6 rounded-lg border border-[var(--brand-gold)]/30 bg-[var(--brand-gold)]/10 px-4 py-3 text-sm text-[var(--brand-ink)]" role="alert">
-          This form requires secure file uploads, which are not enabled yet. Please contact JnUITS before submitting.
+          Event-registration file uploads are not available yet. Please contact JnUITS before submitting.
         </p>
       ) : null}
       {!submissionTarget ? (

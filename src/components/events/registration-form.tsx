@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { TurnstileField } from "@/components/auth/turnstile-field";
 
 interface RegistrationFormProps {
+  captcha: {
+    required: boolean;
+    siteKey: string;
+  };
   eventId: string;
   eventTitle: string;
   formHref?: string;
@@ -21,6 +26,7 @@ type FormState =
   | { status: "error"; message: string };
 
 export function RegistrationForm({
+  captcha,
   eventId,
   eventTitle,
   formHref,
@@ -28,13 +34,21 @@ export function RegistrationForm({
   registrationOpen,
 }: RegistrationFormProps) {
   const [state, setState] = useState<FormState>({ status: "idle" });
+  const captchaUnavailable = captcha.required && !captcha.siteKey;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (captchaUnavailable) {
+      setState({ status: "error", message: "Verification is temporarily unavailable. Please try again later." });
+      return;
+    }
+
     setState({ status: "loading" });
 
     const formData = new FormData(e.currentTarget);
     const payload = {
+      captchaToken: String(formData.get("captchaToken") || ""),
       name: formData.get("name") as string,
       email: formData.get("email") as string,
       phone: (formData.get("phone") as string) || undefined,
@@ -280,6 +294,17 @@ export function RegistrationForm({
           />
         </div>
 
+        {captcha.required ? <TurnstileField siteKey={captcha.siteKey} /> : null}
+
+        {captchaUnavailable ? (
+          <p
+            className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+            role="alert"
+          >
+            Verification is temporarily unavailable. Please try again later.
+          </p>
+        ) : null}
+
         {state.status === "error" ? (
           <p
             className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
@@ -293,7 +318,7 @@ export function RegistrationForm({
         <button
           type="submit"
           className="primary-button w-full"
-          disabled={state.status === "loading"}
+          disabled={state.status === "loading" || captchaUnavailable}
           aria-busy={state.status === "loading"}
         >
           {state.status === "loading" ? "Registering…" : "Complete registration"}

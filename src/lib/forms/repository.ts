@@ -13,6 +13,7 @@ import {
 } from "@/lib/forms/definition";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
+import type { FormSubmissionAsset } from "./upload-proof";
 
 export type PublishedForm = {
   applicationBehavior: FormApplicationBehavior;
@@ -179,6 +180,34 @@ export async function createPendingFormSubmission(options: {
   }
 
   return data.id;
+}
+
+export async function createFormSubmissionAssets(
+  submissionId: string,
+  assets: FormSubmissionAsset[]
+) {
+  if (!assets.length) {
+    return;
+  }
+
+  const admin = asFlexibleClient(createAdminClient());
+  const { error } = await admin.from("form_submission_assets").insert(
+    assets.map((asset) => ({
+      bytes: asset.bytes,
+      cloudinary_asset_id: asset.cloudinaryAssetId,
+      cloudinary_folder: asset.cloudinaryFolder,
+      cloudinary_public_id: asset.cloudinaryPublicId,
+      cloudinary_version: asset.cloudinaryVersion,
+      content_type: asset.contentType,
+      field_id: asset.fieldId,
+      form_submission_id: submissionId,
+      sha256: asset.sha256,
+    }))
+  );
+
+  if (error) {
+    throw error;
+  }
 }
 
 export async function markFormConfirmationSent(submissionId: string) {

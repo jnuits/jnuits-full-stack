@@ -4,10 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   createClient: vi.fn(),
+  enforceAuthActionProtection: vi.fn(),
   loadPublishedFormByVersionId: vi.fn(),
   resolvePublishedEventForMutation: vi.fn(),
   rpc: vi.fn(),
   sendEmail: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/action-protection", () => ({
+  enforceAuthActionProtection: mocks.enforceAuthActionProtection,
 }));
 
 vi.mock("@/lib/content/events", () => ({
@@ -48,6 +53,7 @@ import { POST } from "./route";
 function request() {
   return new NextRequest("https://jnuits.org.bd/api/events/event-1/register", {
     body: JSON.stringify({
+      captchaToken: "captcha-token",
       email: "attendee@example.test",
       name: "Event Attendee",
       phone: "+8801700000000",
@@ -60,6 +66,7 @@ function request() {
 describe("event registration route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.enforceAuthActionProtection.mockResolvedValue(null);
     mocks.createAdminClient.mockReturnValue({ rpc: mocks.rpc });
     mocks.createClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
@@ -93,6 +100,14 @@ describe("event registration route", () => {
       success: true,
       waitlisted: true,
     });
+    expect(mocks.enforceAuthActionProtection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        captchaToken: "captcha-token",
+        captchaValidation: "turnstile",
+        email: "attendee@example.test",
+        rateLimitPrefix: "event-register:event-1",
+      })
+    );
     expect(mocks.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         subject: "You're on the waitlist: JnUITS Summit",

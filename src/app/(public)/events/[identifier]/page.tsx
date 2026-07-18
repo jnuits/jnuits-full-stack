@@ -25,6 +25,7 @@ import {
 } from "@/lib/content/events";
 import { loadPublishedFormByVersionId } from "@/lib/forms/repository";
 import { getAppBaseUrl } from "@/lib/env";
+import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
 
 type PageParams = {
   identifier: string;
@@ -393,6 +394,7 @@ export default async function EventDetailPage({
 
           {event.registrationMode === "internal" ? (
             <RegistrationForm
+              captcha={getAuthCaptchaUiConfig()}
               eventId={event.id}
               eventTitle={event.title}
               formHref={linkedRegistrationForm ? `/forms/${linkedRegistrationForm.slug}` : undefined}

@@ -295,6 +295,27 @@ export function FormStudioScreen() {
     }
   }
 
+  async function exportGoogleSheet(formId: string) {
+    setMessage("Creating a Google Sheet snapshot…");
+    try {
+      const response = await fetch(`/api/admin/forms/${formId}/submissions/export?format=google-sheet`, {
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; success?: boolean; webViewLink?: string }
+        | null;
+
+      if (!response.ok || !payload?.success || !payload.webViewLink) {
+        throw new Error(payload?.error || "The Google Sheet snapshot could not be created.");
+      }
+
+      window.open(payload.webViewLink, "_blank", "noopener,noreferrer");
+      setMessage("Google Sheet snapshot created.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The Google Sheet snapshot could not be created.");
+    }
+  }
+
   return (
     <div className="grid gap-7">
       <header className="admin-page-header">
@@ -379,7 +400,7 @@ export function FormStudioScreen() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="admin-section-label">Fields</p>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Image/PDF fields stay disabled until the private Cloudinary upload workflow is published.</p>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Image/PDF fields use private Cloudinary uploads for membership and alumni forms. Event file uploads remain unavailable.</p>
             </div>
             <button className="admin-btn admin-btn--ghost" onClick={addField} type="button">
               <Plus aria-hidden="true" size={15} /> Add field
@@ -460,9 +481,24 @@ export function FormStudioScreen() {
                       <span className={statusClass(form.lifecycle)}>{form.lifecycle}</span>
                     </div>
                     {form.lifecycle === "published" ? (
-                      <Link className="queue-link mt-3 inline-flex" href={`/forms/${form.slug}`} rel="noreferrer" target="_blank">
-                        Open public form
-                      </Link>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        <Link className="queue-link inline-flex" href={`/forms/${form.slug}`} rel="noreferrer" target="_blank">
+                          Open public form
+                        </Link>
+                        {form.kind !== "event_registration" ? (
+                          <>
+                            <a className="queue-link inline-flex" href={`/api/admin/forms/${form.id}/submissions/export?format=csv`}>
+                              Export CSV
+                            </a>
+                            <a className="queue-link inline-flex" href={`/api/admin/forms/${form.id}/submissions/export?format=xlsx`}>
+                              Export XLSX
+                            </a>
+                            <button className="queue-link inline-flex" onClick={() => void exportGoogleSheet(form.id)} type="button">
+                              Google Sheet
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
                     ) : null}
                   </article>
                 ))}

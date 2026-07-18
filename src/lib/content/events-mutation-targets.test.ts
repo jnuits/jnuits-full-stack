@@ -66,6 +66,7 @@ describe("event mutation targets", () => {
       id: "event-1",
       legacyContentPostId: "legacy-event-1",
       locationLabel: "JnUITS Lab",
+      registrationFormVersionId: null,
       registrationClosed: false,
       registrationMode: "internal",
       registrationOpen: true,
@@ -76,7 +77,7 @@ describe("event mutation targets", () => {
     expect(eventQuery.select).toHaveBeenCalledWith(
       "id, legacy_content_post_id, title, starts_at, ends_at, location_label, location_mode, online_url, venue_address, venue_name, registration_mode, registration_open, registration_closes_at"
     );
-    expect(mocks.from).toHaveBeenCalledTimes(1);
+    expect(mocks.from).toHaveBeenCalledTimes(2);
   });
 
   it("resolves check-in commands with only canonical and legacy event identifiers", async () => {

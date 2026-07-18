@@ -2,30 +2,79 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { enforceAuthActionProtection } from "@/lib/auth/action-protection";
+import { getCloudinaryConfig } from "@/lib/cloudinary/config";
 import { getAppBaseUrl } from "@/lib/env";
 import { logServerError } from "@/lib/errors/api-error";
 import { extractApplicationIdentity } from "@/lib/forms/application-behavior";
 import { createFormConfirmation } from "@/lib/forms/confirmation";
-import { validateFormAnswers } from "@/lib/forms/definition";
 import {
+  type FormAnswers,
+  type FormDefinition,
+  validateFormAnswers,
+} from "@/lib/forms/definition";
+import {
+  createFormSubmissionAssets,
   createPendingFormSubmission,
   loadPublishedForm,
   markFormConfirmationSent,
 } from "@/lib/forms/repository";
+import {
+  type FormSubmissionAsset,
+  validateProofBoundFormAssets,
+  verifyFormUploadProof,
+} from "@/lib/forms/upload-proof";
 import { buildFormConfirmationEmail } from "@/lib/notifications/email-builders";
 import { sendEmail } from "@/lib/notifications/send-email";
 import { withApiGuard } from "@/lib/security/with-api-guard";
-import { RATE_LIMITS } from "@/lib/security/rate-limit";
+import { checkRateLimitForApi, getRequestIp, RATE_LIMITS } from "@/lib/security/rate-limit";
 
 const slugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 
 const submissionRequestSchema = z
   .object({
     answers: z.unknown(),
+    assets: z.array(z.unknown()).max(25).optional().default([]),
     captchaToken: z.string().trim().max(4_096).optional().default(""),
+    uploadProof: z.string().trim().max(20_000).optional().default(""),
     website: z.string().trim().max(200).optional().default(""),
   })
   .strict();
+
+function verifyAssetAnswerBindings(
+  definition: FormDefinition,
+  answers: FormAnswers,
+  assets: FormSubmissionAsset[]
+) {
+  const assetFields = definition.fields.filter(
+    (field) => field.type === "image" || field.type === "pdf"
+  );
+
+  if (!assetFields.length && assets.length) {
+    throw new Error("This form does not accept file uploads.");
+  }
+
+  for (const field of assetFields) {
+    const answer = answers[field.id];
+    const uploadedIds = assets
+      .filter((asset) => asset.fieldId === field.id)
+      .map((asset) => asset.uploadId);
+
+    if (!uploadedIds.length) {
+      if (Array.isArray(answer) && answer.length) {
+        throw new Error("A form upload is missing.");
+      }
+      continue;
+    }
+
+    if (
+      !Array.isArray(answer) ||
+      answer.length !== uploadedIds.length ||
+      answer.some((uploadId) => !uploadedIds.includes(uploadId))
+    ) {
+      throw new Error("Form upload answers do not match uploaded files.");
+    }
+  }
+}
 
 function buildConfirmationUrl(submissionId: string, token: string) {
   const url = new URL("/forms/confirm", getAppBaseUrl());
@@ -82,13 +131,6 @@ export const POST = withApiGuard(
       );
     }
 
-    if (form.definition.fields.some((field) => field.type === "image" || field.type === "pdf")) {
-      return NextResponse.json(
-        { error: "File uploads are not available for this form yet." },
-        { status: 409 }
-      );
-    }
-
     let answers;
 
     try {
@@ -123,17 +165,73 @@ export const POST = withApiGuard(
       );
     }
 
-    const protectionError = await enforceAuthActionProtection({
-      captchaToken: parsed.data.captchaToken,
-      captchaValidation: "turnstile",
-      email: identity.email,
-      rateLimit: RATE_LIMITS.formSubmit,
-      rateLimitPrefix: `form-submit:${form.id}`,
-      requestHeaders: request.headers,
-    });
+    let submissionAssets: FormSubmissionAsset[] = [];
 
-    if (protectionError) {
-      return NextResponse.json({ error: protectionError }, { status: 422 });
+    if (parsed.data.assets.length || parsed.data.uploadProof) {
+      if (!parsed.data.assets.length || !parsed.data.uploadProof) {
+        return NextResponse.json(
+          { error: "Please upload files again before submitting." },
+          { status: 422 }
+        );
+      }
+
+      const proof = (() => {
+        try {
+          return verifyFormUploadProof({
+            expectedFormDefinitionId: form.id,
+            proof: parsed.data.uploadProof,
+            secret: getCloudinaryConfig().apiSecret,
+          });
+        } catch {
+          return "unavailable" as const;
+        }
+      })();
+
+      if (proof === "unavailable") {
+        return NextResponse.json({ error: "File upload verification is unavailable." }, { status: 503 });
+      }
+
+      if (!proof) {
+        return NextResponse.json(
+          { error: "Please upload files again before submitting." },
+          { status: 422 }
+        );
+      }
+
+      try {
+        submissionAssets = validateProofBoundFormAssets({
+          assets: parsed.data.assets,
+          uploads: proof.uploads,
+        });
+        verifyAssetAnswerBindings(form.definition, answers, submissionAssets);
+      } catch {
+        return NextResponse.json(
+          { error: "Please upload files again before submitting." },
+          { status: 422 }
+        );
+      }
+
+      const rateLimit = await checkRateLimitForApi(
+        `form-submit:${form.id}:${getRequestIp(request.headers)}:${identity.email}`,
+        RATE_LIMITS.formSubmit
+      );
+
+      if (!rateLimit.success) {
+        return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 422 });
+      }
+    } else {
+      const protectionError = await enforceAuthActionProtection({
+        captchaToken: parsed.data.captchaToken,
+        captchaValidation: "turnstile",
+        email: identity.email,
+        rateLimit: RATE_LIMITS.formSubmit,
+        rateLimitPrefix: `form-submit:${form.id}`,
+        requestHeaders: request.headers,
+      });
+
+      if (protectionError) {
+        return NextResponse.json({ error: protectionError }, { status: 422 });
+      }
     }
 
     const confirmation = createFormConfirmation();
@@ -145,6 +243,17 @@ export const POST = withApiGuard(
       formVersionId: form.versionId,
       submitterEmail: identity.email,
     });
+
+    try {
+      await createFormSubmissionAssets(submissionId, submissionAssets);
+    } catch (error) {
+      logServerError("forms.submit.persist_uploads", error);
+      return NextResponse.json(
+        { error: "We could not securely save uploaded files. Please try again." },
+        { status: 503 }
+      );
+    }
+
     const delivery = await sendEmail({
       html: buildFormConfirmationEmail({
         applicantName: identity.fullName,

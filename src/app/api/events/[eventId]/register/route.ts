@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { enforceAuthActionProtection } from "@/lib/auth/action-protection";
 import {
   buildEventConfirmationEmail,
   buildEventWaitlistEmail,
@@ -22,6 +23,7 @@ type EventRegistrationRpcResult = {
 
 const registrationRequestSchema = z.object({
   answers: z.unknown().optional(),
+  captchaToken: z.string().trim().max(4_096).optional().default(""),
   email: z.string().trim().email().optional(),
   name: z.string().trim().min(2).max(100).optional(),
   phone: z.string().trim().max(20).optional(),
@@ -153,6 +155,19 @@ export const POST = withApiGuard(
       email = legacy.data.email.toLowerCase();
       registrantName = legacy.data.name;
       registrantPhone = legacy.data.phone || null;
+    }
+
+    const protectionError = await enforceAuthActionProtection({
+      captchaToken: parsed.data.captchaToken,
+      captchaValidation: "turnstile",
+      email,
+      rateLimit: RATE_LIMITS.eventRegister,
+      rateLimitPrefix: `event-register:${event.id}`,
+      requestHeaders: request.headers,
+    });
+
+    if (protectionError) {
+      return NextResponse.json({ error: protectionError }, { status: 422 });
     }
 
     const admin = createAdminClient();

@@ -2,11 +2,17 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  createFormSubmissionAssets: vi.fn(),
   createPendingFormSubmission: vi.fn(),
   enforceAuthActionProtection: vi.fn(),
   loadPublishedForm: vi.fn(),
   markFormConfirmationSent: vi.fn(),
   sendEmail: vi.fn(),
+  verifyFormUploadProof: vi.fn(),
+}));
+
+vi.mock("@/lib/cloudinary/config", () => ({
+  getCloudinaryConfig: () => ({ apiSecret: "test-cloudinary-secret" }),
 }));
 
 vi.mock("@/lib/env", () => ({
@@ -14,9 +20,15 @@ vi.mock("@/lib/env", () => ({
 }));
 
 vi.mock("@/lib/forms/repository", () => ({
+  createFormSubmissionAssets: mocks.createFormSubmissionAssets,
   createPendingFormSubmission: mocks.createPendingFormSubmission,
   loadPublishedForm: mocks.loadPublishedForm,
   markFormConfirmationSent: mocks.markFormConfirmationSent,
+}));
+
+vi.mock("@/lib/forms/upload-proof", () => ({
+  validateProofBoundFormAssets: ({ assets }: { assets: unknown }) => assets,
+  verifyFormUploadProof: mocks.verifyFormUploadProof,
 }));
 
 vi.mock("@/lib/notifications/email-builders", () => ({
@@ -74,14 +86,33 @@ function membershipForm() {
   };
 }
 
+function signedUpload() {
+  return {
+    assetFolder:
+      "jnuits/jnuits-full-stack/private/forms/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222",
+    fieldId: "identity_document",
+    mimeType: "application/pdf",
+    publicId: "33333333-3333-4333-8333-333333333333.pdf",
+    resourceType: "raw",
+    sha256: "a".repeat(64),
+    size: 1024,
+    uploadId: "44444444-4444-4444-8444-444444444444",
+  };
+}
+
 describe("public form submission route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.createFormSubmissionAssets.mockResolvedValue(undefined);
     mocks.createPendingFormSubmission.mockResolvedValue(ids.submission);
     mocks.enforceAuthActionProtection.mockResolvedValue(null);
     mocks.loadPublishedForm.mockResolvedValue(membershipForm());
     mocks.markFormConfirmationSent.mockResolvedValue(undefined);
     mocks.sendEmail.mockResolvedValue({ messageId: "email-1", success: true });
+    mocks.verifyFormUploadProof.mockReturnValue({
+      formDefinitionId: ids.definition,
+      uploads: [signedUpload()],
+    });
   });
 
   it("stores only a confirmation token hash and sends an idempotent email", async () => {
@@ -163,5 +194,63 @@ describe("public form submission route", () => {
 
     expect(response.status).toBe(422);
     expect(mocks.createPendingFormSubmission).not.toHaveBeenCalled();
+  });
+
+  it("persists a proof-bound private upload with its form submission", async () => {
+    const upload = signedUpload();
+    mocks.loadPublishedForm.mockResolvedValue({
+      ...membershipForm(),
+      definition: {
+        fields: [
+          ...membershipForm().definition.fields,
+          {
+            id: upload.fieldId,
+            label: "Identity document",
+            maxFiles: 1,
+            required: true,
+            type: "pdf",
+          },
+        ],
+        payment: { enabled: false },
+      },
+    });
+
+    const response = await POST(request({
+      answers: {
+        email: "applicant@example.test",
+        full_name: "Applicant Name",
+        identity_document: [upload.uploadId],
+      },
+      assets: [
+        {
+          bytes: upload.size,
+          cloudinaryAssetId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          cloudinaryFolder: upload.assetFolder,
+          cloudinaryPublicId: upload.publicId,
+          cloudinaryVersion: "1234567890",
+          contentType: upload.mimeType,
+          fieldId: upload.fieldId,
+          resourceType: upload.resourceType,
+          sha256: upload.sha256,
+          uploadId: upload.uploadId,
+        },
+      ],
+      uploadProof: "proof-token",
+    }), {
+      params: Promise.resolve({ slug: "membership-2026" }),
+    });
+
+    expect(response.status).toBe(202);
+    expect(mocks.enforceAuthActionProtection).not.toHaveBeenCalled();
+    expect(mocks.createFormSubmissionAssets).toHaveBeenCalledWith(
+      ids.submission,
+      [
+        expect.objectContaining({
+          cloudinaryAssetId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          fieldId: upload.fieldId,
+          uploadId: upload.uploadId,
+        }),
+      ]
+    );
   });
 });
