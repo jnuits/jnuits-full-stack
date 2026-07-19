@@ -60,13 +60,6 @@ export const POST = withApiGuard(async (request, context) => {
     return NextResponse.json({ error: "Form not found." }, { status: 404 });
   }
 
-  if (form.kind === "event_registration") {
-    return NextResponse.json(
-      { error: "Event registrations do not accept file uploads yet." },
-      { status: 409 }
-    );
-  }
-
   const protectionError = await enforceAuthActionProtection({
     captchaToken: parsed.data.captchaToken,
     captchaValidation: "turnstile",

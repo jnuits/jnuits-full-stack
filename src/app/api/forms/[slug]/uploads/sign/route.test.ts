@@ -97,15 +97,15 @@ describe("public form upload signer", () => {
     );
   });
 
-  it("does not issue public upload signatures for event-registration forms", async () => {
+  it("issues CAPTCHA-protected upload signatures for event-registration forms", async () => {
     mocks.loadPublishedForm.mockResolvedValue({ ...form, kind: "event_registration" });
 
     const response = await POST(request({ captchaToken: "captcha-token", uploads: [upload] }), {
       params: Promise.resolve({ slug: "event-2026" }),
     });
 
-    expect(response.status).toBe(409);
-    expect(mocks.enforceAuthActionProtection).not.toHaveBeenCalled();
-    expect(mocks.buildFormUploadInstructions).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mocks.enforceAuthActionProtection).toHaveBeenCalledOnce();
+    expect(mocks.buildFormUploadInstructions).toHaveBeenCalledOnce();
   });
 });

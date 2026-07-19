@@ -3,28 +3,18 @@
 import Link from "next/link";
 import { Plus, Send, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { FormDefinitionSchema } from "@/lib/forms/definition";
+import {
+  formDefinitionToStudioFields,
+  studioFieldsToDefinition,
+  type StudioEditorField,
+  type StudioFieldType,
+} from "@/lib/forms/form-studio-definition";
 
 type FormKind = "alumni_onboarding" | "event_registration" | "membership_application";
-type FieldType =
-  | "checkbox"
-  | "consent"
-  | "date"
-  | "email"
-  | "multi_select"
-  | "number"
-  | "section"
-  | "select"
-  | "telephone"
-  | "text"
-  | "textarea";
+type FieldType = StudioFieldType;
 
-type EditorField = {
-  id: string;
-  label: string;
-  optionsText: string;
-  required: boolean;
-  type: FieldType;
-};
+type EditorField = StudioEditorField;
 
 type FormSummary = {
   currentPublishedVersionId?: null | string;
@@ -41,7 +31,23 @@ type DraftResult = {
   formVersionId: string;
 };
 
-const KIND_LABELS: Record<FormKind, string> = {
+
+type FormEditorPayload = {
+  description: string;
+  id: string;
+  kind: FormKind;
+  lifecycle: FormSummary["lifecycle"];
+  linkedEventId: null | string;
+  slug: string;
+  title: string;
+  version: {
+    applicationBehavior: unknown;
+    fieldSchema: unknown;
+    id: string;
+    lifecycle: "draft" | "published";
+    versionNumber: number;
+  } | null;
+};const KIND_LABELS: Record<FormKind, string> = {
   alumni_onboarding: "Alumni onboarding",
   event_registration: "Event registration",
   membership_application: "Membership application",
@@ -52,6 +58,8 @@ const FIELD_TYPE_LABELS: Record<FieldType, string> = {
   consent: "Required consent",
   date: "Date",
   email: "Email",
+  image: "Image upload",
+  pdf: "PDF upload",
   multi_select: "Multiple choice",
   number: "Number",
   section: "Section heading",
@@ -111,40 +119,24 @@ function defaultMapping(kind: FormKind) {
   };
 }
 
-function toOptionValue(label: string) {
-  return label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 120);
-}
 
-function toDefinition(fields: EditorField[]) {
-  return {
-    fields: fields.map((field) => {
-      if (field.type === "section") {
-        return { id: field.id, label: field.label, type: field.type };
-      }
+function mappingFromApplicationBehavior(kind: FormKind, value: unknown) {
+  const fallback = defaultMapping(kind);
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback;
+  }
 
-      if (field.type === "consent") {
-        return { id: field.id, label: field.label, required: true, type: field.type };
-      }
+  const fieldMapping = (value as { fieldMapping?: unknown }).fieldMapping;
+  if (!fieldMapping || typeof fieldMapping !== "object" || Array.isArray(fieldMapping)) {
+    return fallback;
+  }
 
-      if (field.type === "select" || field.type === "multi_select") {
-        const options = field.optionsText
-          .split("\n")
-          .map((label) => label.trim())
-          .filter(Boolean)
-          .map((label) => ({ label, value: toOptionValue(label) }));
-
-        return { id: field.id, label: field.label, options, required: field.required, type: field.type };
-      }
-
-      return { id: field.id, label: field.label, required: field.required, type: field.type };
-    }),
-    payment: { enabled: false },
-  };
+  const mapped = Object.fromEntries(
+    Object.entries(fieldMapping).filter((entry): entry is [string, string] => typeof entry[1] === "string")
+  );
+  return { ...fallback, ...mapped };
+}function toDefinition(fields: EditorField[]) {
+  return studioFieldsToDefinition(fields);
 }
 
 function statusClass(lifecycle: FormSummary["lifecycle"]) {
@@ -169,6 +161,10 @@ export function FormStudioScreen() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftResult | null>(null);
+  const [editingFormId, setEditingFormId] = useState<string | null>(null);
+  const [isLoadingEditor, setIsLoadingEditor] = useState(false);
+
+  const isExistingForm = editingFormId !== null;
 
   const mappableFields = useMemo(
     () => fields.filter((field) => field.type !== "section" && field.type !== "consent"),
@@ -210,6 +206,7 @@ export function FormStudioScreen() {
           : "Submit your details for JnUITS membership review."
     );
     setDraft(null);
+    setEditingFormId(null);
     setMessage(null);
   }
 
@@ -230,45 +227,118 @@ export function FormStudioScreen() {
     ]);
   }
 
+  async function openForm(formId: string) {
+    setIsLoadingEditor(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/admin/forms/${formId}/versions`, { cache: "no-store" });
+      const payload = (await response.json().catch(() => null)) as
+        | (FormEditorPayload & { error?: string })
+        | null;
+
+      if (!response.ok || !payload?.version) {
+        throw new Error(payload?.error || "The form editor could not be loaded.");
+      }
+
+      const definition = FormDefinitionSchema.safeParse(payload.version.fieldSchema);
+      if (!definition.success) {
+        throw new Error("This form version has an invalid field schema.");
+      }
+
+      setKind(payload.kind);
+      setTitle(payload.title);
+      setSlug(payload.slug);
+      setDescription(payload.description);
+      setLinkedEventId(payload.linkedEventId || "");
+      setFields(formDefinitionToStudioFields(definition.data));
+      setMapping(mappingFromApplicationBehavior(payload.kind, payload.version.applicationBehavior));
+      setEditingFormId(payload.id);
+      setDraft(
+        payload.version.lifecycle === "draft"
+          ? { formDefinitionId: payload.id, formVersionId: payload.version.id }
+          : null
+      );
+      setMessage(
+        payload.version.lifecycle === "draft"
+          ? `Resumed draft version ${payload.version.versionNumber}.`
+          : `Published version ${payload.version.versionNumber} loaded. Saving creates a new draft version.`
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The form editor could not be loaded.");
+    } finally {
+      setIsLoadingEditor(false);
+    }
+  }
+
   async function createDraft() {
     setIsSaving(true);
     setMessage(null);
 
     try {
-      const response = await fetch("/api/admin/forms", {
-        body: JSON.stringify({
-          applicationBehavior: { fieldMapping: mapping },
-          definition: toDefinition(fields),
-          description,
-          kind,
-          linkedEventId: kind === "event_registration" ? linkedEventId || null : null,
-          slug,
-          title,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | ({ error?: string } & Partial<DraftResult>)
-        | null;
+      const versionPayload = {
+        applicationBehavior: { fieldMapping: mapping },
+        definition: toDefinition(fields),
+      };
 
-      if (!response.ok || !payload?.formDefinitionId || !payload.formVersionId) {
-        throw new Error(payload?.error || "The form draft could not be created.");
+      if (editingFormId) {
+        const response = await fetch(`/api/admin/forms/${editingFormId}/versions`, {
+          body: JSON.stringify(
+            draft ? { ...versionPayload, formVersionId: draft.formVersionId } : versionPayload
+          ),
+          headers: { "Content-Type": "application/json" },
+          method: draft ? "PATCH" : "POST",
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string; formVersionId?: string }
+          | null;
+
+        if (!response.ok || !payload?.formVersionId) {
+          throw new Error(payload?.error || "The form draft could not be saved.");
+        }
+
+        setDraft({ formDefinitionId: editingFormId, formVersionId: payload.formVersionId });
+        setMessage(
+          draft
+            ? "Draft saved. Publish when it is ready for public use."
+            : "Draft version created. Existing submissions remain pinned to their original version."
+        );
+      } else {
+        const response = await fetch("/api/admin/forms", {
+          body: JSON.stringify({
+            ...versionPayload,
+            description,
+            kind,
+            linkedEventId: kind === "event_registration" ? linkedEventId || null : null,
+            slug,
+            title,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | ({ error?: string } & Partial<DraftResult>)
+          | null;
+
+        if (!response.ok || !payload?.formDefinitionId || !payload.formVersionId) {
+          throw new Error(payload?.error || "The form draft could not be created.");
+        }
+
+        setEditingFormId(payload.formDefinitionId);
+        setDraft({
+          formDefinitionId: payload.formDefinitionId,
+          formVersionId: payload.formVersionId,
+        });
+        setMessage("Draft created. Review it, then publish when it is ready for public use.");
       }
 
-      setDraft({
-        formDefinitionId: payload.formDefinitionId,
-        formVersionId: payload.formVersionId,
-      });
-      setMessage("Draft created. Review it, then publish when it is ready for public use.");
       await refreshForms();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "The form draft could not be created.");
+      setMessage(error instanceof Error ? error.message : "The form draft could not be saved.");
     } finally {
       setIsSaving(false);
     }
   }
-
   async function publishDraft() {
     if (!draft) return;
 
@@ -331,14 +401,14 @@ export function FormStudioScreen() {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.6fr)]">
         <section className="admin-review-card grid gap-5">
           <div>
-            <p className="admin-section-label">New form</p>
+            <p className="admin-section-label">{isExistingForm ? "Editing form" : "New form"}</p>
             <h2 className="admin-card-row__title">Definition and fields</h2>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="input-label">
               Form type
-              <select value={kind} onChange={(event) => changeKind(event.target.value as FormKind)}>
+              <select disabled={isExistingForm} value={kind} onChange={(event) => changeKind(event.target.value as FormKind)}>
                 {Object.entries(KIND_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
@@ -346,17 +416,17 @@ export function FormStudioScreen() {
             </label>
             <label className="input-label">
               Public slug
-              <input value={slug} onChange={(event) => setSlug(event.target.value)} required />
+              <input disabled={isExistingForm} value={slug} onChange={(event) => setSlug(event.target.value)} required />
             </label>
           </div>
 
           <label className="input-label">
             Form title
-            <input value={title} onChange={(event) => setTitle(event.target.value)} required />
+            <input disabled={isExistingForm} value={title} onChange={(event) => setTitle(event.target.value)} required />
           </label>
           <label className="input-label">
             Public description
-            <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} />
+            <textarea disabled={isExistingForm} rows={3} value={description} onChange={(event) => setDescription(event.target.value)} />
           </label>
 
           {kind === "event_registration" ? (
@@ -365,6 +435,7 @@ export function FormStudioScreen() {
               <input
                 placeholder="Event UUID from the event workspace URL"
                 value={linkedEventId}
+                disabled={isExistingForm}
                 onChange={(event) => setLinkedEventId(event.target.value)}
                 required
               />
@@ -400,9 +471,9 @@ export function FormStudioScreen() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="admin-section-label">Fields</p>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Image/PDF fields use private Cloudinary uploads for membership and alumni forms. Event file uploads remain unavailable.</p>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Image/PDF fields use private, signed Cloudinary uploads. Linked event forms use the same protected upload path.</p>
             </div>
-            <button className="admin-btn admin-btn--ghost" onClick={addField} type="button">
+            <button className="admin-btn admin-btn--ghost" disabled={isLoadingEditor} onClick={addField} type="button">
               <Plus aria-hidden="true" size={15} /> Add field
             </button>
           </div>
@@ -446,14 +517,39 @@ export function FormStudioScreen() {
                     <textarea rows={3} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} required />
                   </label>
                 ) : null}
-              </article>
+                {field.type === "image" || field.type === "pdf" ? (
+                  <label className="input-label mt-3 block">
+                    Maximum files
+                    <input
+                      max={5}
+                      min={1}
+                      onChange={(event) =>
+                        updateField(index, {
+                          maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)),
+                        })
+                      }
+                      type="number"
+                      value={field.maxFiles ?? 1}
+                    />
+                  </label>
+                ) : null}              </article>
             ))}
           </div>
 
           {message ? <p className="status-pill" role="status" aria-live="polite">{message}</p> : null}
           <div className="flex flex-wrap justify-end gap-3">
-            <button className="admin-btn admin-btn--primary" disabled={isSaving} onClick={createDraft} type="button">
-              <Plus aria-hidden="true" size={15} /> {isSaving ? "Creating…" : "Create draft"}
+            {isExistingForm ? (
+              <button
+                className="admin-btn admin-btn--ghost"
+                disabled={isSaving || isLoadingEditor}
+                onClick={() => changeKind("membership_application")}
+                type="button"
+              >
+                <Plus aria-hidden="true" size={15} /> New form
+              </button>
+            ) : null}
+            <button className="admin-btn admin-btn--primary" disabled={isSaving || isLoadingEditor} onClick={createDraft} type="button">
+              <Plus aria-hidden="true" size={15} /> {isSaving ? "Saving…" : isExistingForm ? draft ? "Save draft" : "Create draft version" : "Create draft"}
             </button>
             {draft ? (
               <button className="admin-btn admin-btn--primary" disabled={isPublishing} onClick={publishDraft} type="button">
@@ -480,7 +576,16 @@ export function FormStudioScreen() {
                       </div>
                       <span className={statusClass(form.lifecycle)}>{form.lifecycle}</span>
                     </div>
-                    {form.lifecycle === "published" ? (
+                    {form.lifecycle !== "archived" ? (
+                      <button
+                        className="queue-link mt-3 inline-flex"
+                        disabled={isLoadingEditor}
+                        onClick={() => void openForm(form.id)}
+                        type="button"
+                      >
+                        {isLoadingEditor ? "Loading…" : form.lifecycle === "draft" ? "Resume draft" : "Edit fields"}
+                      </button>
+                    ) : null}                    {form.lifecycle === "published" ? (
                       <div className="mt-3 flex flex-wrap gap-3">
                         <Link className="queue-link inline-flex" href={`/forms/${form.slug}`} rel="noreferrer" target="_blank">
                           Open public form

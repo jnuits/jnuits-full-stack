@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   enforceAuthActionProtection: vi.fn(),
   loadPublishedForm: vi.fn(),
   markFormConfirmationSent: vi.fn(),
+  recordFormConfirmationDelivery: vi.fn(),
   sendEmail: vi.fn(),
   verifyFormUploadProof: vi.fn(),
 }));
@@ -24,6 +25,7 @@ vi.mock("@/lib/forms/repository", () => ({
   createPendingFormSubmission: mocks.createPendingFormSubmission,
   loadPublishedForm: mocks.loadPublishedForm,
   markFormConfirmationSent: mocks.markFormConfirmationSent,
+  recordFormConfirmationDelivery: mocks.recordFormConfirmationDelivery,
 }));
 
 vi.mock("@/lib/forms/upload-proof", () => ({
@@ -108,6 +110,7 @@ describe("public form submission route", () => {
     mocks.enforceAuthActionProtection.mockResolvedValue(null);
     mocks.loadPublishedForm.mockResolvedValue(membershipForm());
     mocks.markFormConfirmationSent.mockResolvedValue(undefined);
+    mocks.recordFormConfirmationDelivery.mockResolvedValue(undefined);
     mocks.sendEmail.mockResolvedValue({ messageId: "email-1", success: true });
     mocks.verifyFormUploadProof.mockReturnValue({
       formDefinitionId: ids.definition,
@@ -150,6 +153,14 @@ describe("public form submission route", () => {
         idempotencyKey: `form-confirmation/${ids.submission}`,
         subject: "Confirm your email for Membership application",
         to: "applicant@example.test",
+      })
+    );
+    expect(mocks.recordFormConfirmationDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        formSubmissionId: ids.submission,
+        idempotencyKey: `form-confirmation/${ids.submission}`,
+        providerMessageId: "email-1",
+        status: "sent",
       })
     );
     expect(mocks.markFormConfirmationSent).toHaveBeenCalledWith(ids.submission);
@@ -235,13 +246,19 @@ describe("public form submission route", () => {
           uploadId: upload.uploadId,
         },
       ],
+      captchaToken: "captcha-token",
       uploadProof: "proof-token",
     }), {
       params: Promise.resolve({ slug: "membership-2026" }),
     });
 
     expect(response.status).toBe(202);
-    expect(mocks.enforceAuthActionProtection).not.toHaveBeenCalled();
+    expect(mocks.enforceAuthActionProtection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        captchaToken: "captcha-token",
+        email: "applicant@example.test",
+      })
+    );
     expect(mocks.createFormSubmissionAssets).toHaveBeenCalledWith(
       ids.submission,
       [

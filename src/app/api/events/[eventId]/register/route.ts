@@ -1,17 +1,30 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { enforceAuthActionProtection } from "@/lib/auth/action-protection";
+import { getCloudinaryConfig } from "@/lib/cloudinary/config";
 import {
   buildEventConfirmationEmail,
   buildEventWaitlistEmail,
 } from "@/lib/notifications/email-builders";
 import { extractApplicationIdentity } from "@/lib/forms/application-behavior";
-import { validateFormAnswers } from "@/lib/forms/definition";
+import {
+  type FormAnswers,
+  type FormDefinition,
+  validateFormAnswers,
+} from "@/lib/forms/definition";
+import { recordEventRegistrationDelivery } from "@/lib/events/delivery";
 import { loadPublishedFormByVersionId } from "@/lib/forms/repository";
+import {
+  type FormSubmissionAsset,
+  validateProofBoundFormAssets,
+  verifyFormUploadProof,
+} from "@/lib/forms/upload-proof";
 import { sendEmail } from "@/lib/notifications/send-email";
 import { resolvePublishedEventForMutation } from "@/lib/content/events";
+import { logServerError } from "@/lib/errors/api-error";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
@@ -23,10 +36,12 @@ type EventRegistrationRpcResult = {
 
 const registrationRequestSchema = z.object({
   answers: z.unknown().optional(),
+  assets: z.array(z.unknown()).max(25).optional().default([]),
   captchaToken: z.string().trim().max(4_096).optional().default(""),
   email: z.string().trim().email().optional(),
   name: z.string().trim().min(2).max(100).optional(),
   phone: z.string().trim().max(20).optional(),
+  uploadProof: z.string().trim().max(20_000).optional().default(""),
   website: z.string().trim().max(200).optional().or(z.literal("")),
 }).strict();
 
@@ -37,12 +52,85 @@ const legacyRegistrationSchema = z.object({
   website: z.string().trim().max(200).optional().or(z.literal("")),
 });
 
+function verifyAssetAnswerBindings(
+  definition: FormDefinition,
+  answers: FormAnswers,
+  assets: FormSubmissionAsset[]
+) {
+  const assetFields = definition.fields.filter(
+    (field) => field.type === "image" || field.type === "pdf"
+  );
+
+  if (!assetFields.length && assets.length) {
+    throw new Error("This form does not accept file uploads.");
+  }
+
+  for (const field of assetFields) {
+    const answer = answers[field.id];
+    const uploadedIds = assets
+      .filter((asset) => asset.fieldId === field.id)
+      .map((asset) => asset.uploadId);
+
+    if (!uploadedIds.length) {
+      if (Array.isArray(answer) && answer.length) {
+        throw new Error("A form upload is missing.");
+      }
+      continue;
+    }
+
+    if (
+      !Array.isArray(answer) ||
+      answer.length !== uploadedIds.length ||
+      answer.some((uploadId) => !uploadedIds.includes(uploadId))
+    ) {
+      throw new Error("Form upload answers do not match uploaded files.");
+    }
+  }
+}
 function getEventIdentifier(request: Request) {
   const segments = new URL(request.url).pathname.split("/");
 
   return segments[segments.indexOf("events") + 1] || "";
 }
 
+async function sendEventRegistrationEmail(options: {
+  deliveryKind: "confirmed" | "waitlisted";
+  eventId: string;
+  html: string;
+  registrationCode: string;
+  subject: string;
+  to: string;
+}) {
+  const idempotencyKey = `event-registration/${options.eventId}/${options.registrationCode}/${options.deliveryKind}`;
+  const delivery = await sendEmail({
+    html: options.html,
+    idempotencyKey,
+    subject: options.subject,
+    to: options.to,
+  });
+
+  try {
+    await recordEventRegistrationDelivery({
+      eventId: options.eventId,
+      idempotencyKey,
+      providerMessageId: delivery.messageId,
+      registrationCode: options.registrationCode,
+      status: delivery.success ? "sent" : "failed",
+    });
+  } catch {
+    logServerError(
+      "events.register.record_delivery",
+      new Error("Event registration delivery ledger write failed.")
+    );
+  }
+
+  if (!delivery.success) {
+    logServerError(
+      "events.register.delivery",
+      new Error("Event registration confirmation delivery failed.")
+    );
+  }
+}
 export const POST = withApiGuard(
   async (request) => {
     const eventIdentifier = getEventIdentifier(request);
@@ -106,19 +194,17 @@ export const POST = withApiGuard(
     }
 
     let email: string;
-    let formAnswers: unknown = null;
+    let formAnswers: FormAnswers | null = null;
+    let formDefinition: FormDefinition | null = null;
     let formDefinitionId: string | null = null;
     let formVersionId: string | null = null;
     let registrantName: string;
     let registrantPhone: null | string;
+    let submissionAssets: FormSubmissionAsset[] = [];
 
     if (event.registrationFormVersionId) {
       const form = await loadPublishedFormByVersionId(event.registrationFormVersionId);
       if (!form || form.kind !== "event_registration") {
-        return NextResponse.json({ error: "This event registration form is unavailable." }, { status: 409 });
-      }
-
-      if (form.definition.fields.some((field) => field.type === "image" || field.type === "pdf")) {
         return NextResponse.json({ error: "This event registration form is unavailable." }, { status: 409 });
       }
 
@@ -131,6 +217,7 @@ export const POST = withApiGuard(
         const identity = extractApplicationIdentity(form.applicationBehavior, answers);
         email = identity.email;
         formAnswers = answers;
+        formDefinition = form.definition;
         formDefinitionId = form.id;
         formVersionId = form.versionId;
         registrantName = identity.fullName;
@@ -170,6 +257,59 @@ export const POST = withApiGuard(
       return NextResponse.json({ error: protectionError }, { status: 422 });
     }
 
+    const hasUploadProof = parsed.data.assets.length > 0 || Boolean(parsed.data.uploadProof);
+
+    if (hasUploadProof) {
+      if (
+        !formDefinition ||
+        !formDefinitionId ||
+        !formAnswers ||
+        !parsed.data.assets.length ||
+        !parsed.data.uploadProof
+      ) {
+        return NextResponse.json(
+          { error: "Please upload files again before submitting." },
+          { status: 422 }
+        );
+      }
+
+      let uploadSecret: string;
+      try {
+        uploadSecret = getCloudinaryConfig().apiSecret;
+      } catch {
+        return NextResponse.json(
+          { error: "File upload verification is unavailable." },
+          { status: 503 }
+        );
+      }
+
+      const proof = verifyFormUploadProof({
+        expectedFormDefinitionId: formDefinitionId,
+        proof: parsed.data.uploadProof,
+        secret: uploadSecret,
+      });
+      if (!proof) {
+        return NextResponse.json(
+          { error: "Please upload files again before submitting." },
+          { status: 422 }
+        );
+      }
+
+      try {
+        submissionAssets = validateProofBoundFormAssets({
+          assets: parsed.data.assets,
+          uploads: proof.uploads,
+        });
+        verifyAssetAnswerBindings(formDefinition, formAnswers, submissionAssets);
+      } catch {
+        return NextResponse.json(
+          { error: "Please upload files again before submitting." },
+          { status: 422 }
+        );
+      }
+
+    }
+
     const admin = createAdminClient();
     let memberId: string | null = null;
 
@@ -192,11 +332,12 @@ export const POST = withApiGuard(
 
     const isLinkedFormRegistration = Boolean(formDefinitionId && formVersionId && formAnswers);
     const rpcName = isLinkedFormRegistration
-      ? "register_for_event_with_form_atomic"
+      ? "register_for_event_with_form_assets_atomic"
       : "register_for_event_atomic";
     const rpcArguments = isLinkedFormRegistration
       ? {
           p_answers: formAnswers,
+          p_assets: submissionAssets,
           p_event_id: event.id,
           p_form_definition_id: formDefinitionId,
           p_form_version_id: formVersionId,
@@ -254,7 +395,9 @@ export const POST = withApiGuard(
     }
 
     if (result.result_status === "waitlisted" && result.registration_code) {
-      void sendEmail({
+      await sendEventRegistrationEmail({
+        deliveryKind: "waitlisted",
+        eventId: event.id,
         html: buildEventWaitlistEmail({
           eventLocation: event.locationLabel,
           eventStart: event.startsAt,
@@ -262,6 +405,7 @@ export const POST = withApiGuard(
           registrantName,
           registrationCode: result.registration_code,
         }),
+        registrationCode: result.registration_code,
         subject: `You're on the waitlist: ${event.title}`,
         to: email,
       });
@@ -273,15 +417,16 @@ export const POST = withApiGuard(
         waitlisted: true,
       });
     }
-
-    if (result.result_status !== "created" || !result.registration_code) {
+    if (result.result_status !== "confirmed" || !result.registration_code) {
       return NextResponse.json(
         { error: "Unable to complete registration. Please try again." },
         { status: 409 }
       );
     }
 
-    void sendEmail({
+    await sendEventRegistrationEmail({
+      deliveryKind: "confirmed",
+      eventId: event.id,
       html: buildEventConfirmationEmail({
         eventLocation: event.locationLabel,
         eventStart: event.startsAt,
@@ -289,10 +434,10 @@ export const POST = withApiGuard(
         registrantName,
         registrationCode: result.registration_code,
       }),
+      registrationCode: result.registration_code,
       subject: `You're registered: ${event.title}`,
       to: email,
     });
-
     return NextResponse.json({
       code: result.registration_code,
       eventTitle: event.title,

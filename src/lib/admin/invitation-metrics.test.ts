@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   claimedEq: vi.fn(),
   claimedGt: vi.fn(),
   failedBatchEq: vi.fn(),
-  failedStatusEq: vi.fn(),
+  failedStatusesIn: vi.fn(),
   from: vi.fn(),
   issuedEq: vi.fn(),
   memberInvitationSelect: vi.fn(),
@@ -27,8 +27,8 @@ describe("syncInvitationBatchMetrics", () => {
     mocks.issuedEq.mockResolvedValue({ count: 5, data: null, error: null });
     mocks.claimedGt.mockResolvedValue({ count: 2, data: null, error: null });
     mocks.claimedEq.mockReturnValue({ gt: mocks.claimedGt });
-    mocks.failedStatusEq.mockResolvedValue({ count: 1, data: null, error: null });
-    mocks.failedBatchEq.mockReturnValue({ eq: mocks.failedStatusEq });
+    mocks.failedStatusesIn.mockResolvedValue({ count: 1, data: null, error: null });
+    mocks.failedBatchEq.mockReturnValue({ in: mocks.failedStatusesIn });
     mocks.memberInvitationSelect
       .mockReturnValueOnce({ eq: mocks.issuedEq })
       .mockReturnValueOnce({ eq: mocks.claimedEq })
@@ -75,7 +75,11 @@ describe("syncInvitationBatchMetrics", () => {
     expect(mocks.claimedEq).toHaveBeenCalledWith("batch_id", "batch-1");
     expect(mocks.claimedGt).toHaveBeenCalledWith("used_count", 0);
     expect(mocks.failedBatchEq).toHaveBeenCalledWith("batch_id", "batch-1");
-    expect(mocks.failedStatusEq).toHaveBeenCalledWith("delivery_status", "failed");
+    expect(mocks.failedStatusesIn).toHaveBeenCalledWith("delivery_status", [
+      "failed",
+      "bounced",
+      "complained",
+    ]);
     expect(mocks.batchUpdate).toHaveBeenCalledWith({
       claimed_count: 2,
       issued_count: 5,

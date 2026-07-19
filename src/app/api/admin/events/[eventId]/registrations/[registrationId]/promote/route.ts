@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { resolveEventForAdminMutation } from "@/lib/content/events";
+import { recordEventRegistrationDelivery } from "@/lib/events/delivery";
 import { buildEventConfirmationEmail } from "@/lib/notifications/email-builders";
+import { logServerError } from "@/lib/errors/api-error";
 import { sendEmail } from "@/lib/notifications/send-email";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
@@ -126,7 +128,8 @@ export const POST = withApiGuard(
       | null;
 
     if (registration && eventDetails) {
-      void sendEmail({
+      const idempotencyKey = `event-registration/${event.id}/${result.registration_code}/promoted`;
+      const delivery = await sendEmail({
         html: buildEventConfirmationEmail({
           eventLocation: eventDetails.location_label,
           eventStart: eventDetails.starts_at,
@@ -134,11 +137,33 @@ export const POST = withApiGuard(
           registrantName: registration.registrant_name,
           registrationCode: result.registration_code,
         }),
+        idempotencyKey,
         subject: `You're registered: ${eventDetails.title}`,
         to: registration.registrant_email,
       });
-    }
 
+      try {
+        await recordEventRegistrationDelivery({
+          eventId: event.id,
+          idempotencyKey,
+          providerMessageId: delivery.messageId,
+          registrationCode: result.registration_code,
+          status: delivery.success ? "sent" : "failed",
+        });
+      } catch {
+        logServerError(
+          "events.promote.record_delivery",
+          new Error("Promoted-attendee delivery ledger write failed.")
+        );
+      }
+
+      if (!delivery.success) {
+        logServerError(
+          "events.promote.delivery",
+          new Error("Promoted-attendee confirmation delivery failed.")
+        );
+      }
+    }
     return NextResponse.json({
       auditRecorded: !auditResult.error,
       code: result.registration_code,

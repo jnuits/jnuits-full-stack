@@ -24,6 +24,7 @@ export const productionRequiredEnv = [
   "RATE_LIMIT_SECRET_SALT",
   "RESEND_API_KEY",
   "RESEND_FROM_EMAIL",
+  "RESEND_WEBHOOK_SECRET",
 ];
 
 function isBlank(value) {

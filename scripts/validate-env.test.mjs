@@ -20,6 +20,7 @@ const completeProductionEnv = {
   RATE_LIMIT_SECRET_SALT: "12345678901234567890123456789012",
   RESEND_API_KEY: "re_test_api_key",
   RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>",
+  RESEND_WEBHOOK_SECRET: "whsec_test_webhook_secret",
   TURNSTILE_SECRET_KEY: "turnstile-secret",
 };
 
@@ -79,6 +80,7 @@ describe("validateEnv", () => {
         "NEXT_PUBLIC_SENTRY_DSN",
         "RESEND_API_KEY",
         "RESEND_FROM_EMAIL",
+        "RESEND_WEBHOOK_SECRET",
       ])
     );
   });

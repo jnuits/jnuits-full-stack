@@ -1,9 +1,10 @@
 "use client";
 
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useState } from "react";
 
 import { TurnstileField } from "@/components/auth/turnstile-field";
 import type { FormDefinition, FormField, FormKind } from "@/lib/forms/definition";
+import { getEventRegistrationSuccessContent } from "@/lib/forms/event-registration-result";
 import { resolvePublicFormSubmissionTarget } from "@/lib/forms/submission-target";
 
 type PublicFormScreenProps = {
@@ -16,6 +17,7 @@ type PublicFormScreenProps = {
   form: {
     definition: FormDefinition;
     description: null | string;
+    emailFieldId: string;
     slug: string;
     title: string;
   };
@@ -24,7 +26,7 @@ type PublicFormScreenProps = {
 type SubmissionState =
   | { status: "idle" }
   | { status: "submitting" }
-  | { status: "success" }
+  | { status: "success"; waitlisted: boolean }
   | { message: string; status: "error" };
 
 type PendingFormUpload = {
@@ -377,16 +379,18 @@ function toAnswers(
 
 export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicFormScreenProps) {
   const [state, setState] = useState<SubmissionState>({ status: "idle" });
-  const hasFileFields = useMemo(
-    () => form.definition.fields.some((field) => field.type === "image" || field.type === "pdf"),
-    [form.definition.fields]
-  );
+  const [confirmationEmail, setConfirmationEmail] = useState("");
+  const [resendState, setResendState] = useState<
+    | { status: "idle" }
+    | { status: "sending" }
+    | { status: "sent" }
+    | { message: string; status: "error" }
+  >({ status: "idle" });
   const submissionTarget = resolvePublicFormSubmissionTarget({ kind, linkedEventId, slug: form.slug });
   const isEventRegistration = kind === "event_registration";
-  const eventFileUploadsUnsupported = isEventRegistration && hasFileFields;
   const captchaRequired = captcha.required;
   const captchaUnavailable = captchaRequired && !captcha.siteKey;
-  const cannotSubmit = !submissionTarget || eventFileUploadsUnsupported || captchaUnavailable;
+  const cannotSubmit = !submissionTarget || captchaUnavailable;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -397,6 +401,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
 
     setState({ status: "submitting" });
     const formData = new FormData(event.currentTarget);
+    const mappedEmail = String(formData.get(form.emailFieldId) || "").trim().toLowerCase();
 
     try {
       const captchaToken = String(formData.get("captchaToken") || "");
@@ -456,14 +461,16 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
         method: "POST",
       });
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; success?: boolean }
+        | { error?: string; success?: boolean; waitlisted?: boolean }
         | null;
 
       if (!response.ok || !payload?.success) {
         throw new Error(payload?.error || "We could not submit this form. Please try again.");
       }
 
-      setState({ status: "success" });
+      setConfirmationEmail(isEventRegistration ? "" : mappedEmail);
+      setResendState({ status: "idle" });
+      setState({ status: "success", waitlisted: Boolean(payload.waitlisted) });
     } catch (error) {
       setState({
         message: error instanceof Error ? error.message : "We could not submit this form. Please try again.",
@@ -473,16 +480,83 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
   }
 
   if (state.status === "success") {
+  async function handleConfirmationResend(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!confirmationEmail || isEventRegistration) return;
+
+    setResendState({ status: "sending" });
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      const response = await fetch(
+        `/api/forms/${encodeURIComponent(form.slug)}/confirmations/resend`,
+        {
+          body: JSON.stringify({
+            captchaToken: String(formData.get("captchaToken") || ""),
+            email: confirmationEmail,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; success?: boolean }
+        | null;
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "We could not resend the confirmation email.");
+      }
+
+      setResendState({ status: "sent" });
+    } catch (error) {
+      setResendState({
+        message:
+          error instanceof Error ? error.message : "We could not resend the confirmation email.",
+        status: "error",
+      });
+    }
+  }
+
+    const eventSuccessContent = isEventRegistration
+      ? getEventRegistrationSuccessContent(state.waitlisted)
+      : null;
+
     return (
       <section className="glass-card max-w-2xl px-6 py-8 sm:px-8" role="status" aria-live="polite">
         <h1 className="section-title">
-          {isEventRegistration ? "Registration received" : "Check your email"}
+          {eventSuccessContent ? eventSuccessContent.heading : "Check your email"}
         </h1>
         <p className="section-copy mt-4">
-          {isEventRegistration
-            ? "Your registration is complete. Check your email for your check-in code."
+          {eventSuccessContent
+            ? eventSuccessContent.message
             : "We sent a confirmation link to your email address. Open it to send your submission to the JnUITS review team."}
         </p>
+        {!eventSuccessContent && confirmationEmail ? (
+          <form className="mt-6 grid gap-3" onSubmit={handleConfirmationResend}>
+            <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+              Did not receive it? Complete a new verification challenge to request another link.
+            </p>
+            {captchaRequired ? <TurnstileField siteKey={captcha.siteKey} /> : null}
+            {resendState.status === "sent" ? (
+              <p className="text-sm font-semibold text-[var(--brand-green)]" role="status">
+                If this email has a pending application, another confirmation link is on its way.
+              </p>
+            ) : null}
+            {resendState.status === "error" ? (
+              <p className="text-sm font-semibold text-red-700" role="alert">
+                {resendState.message}
+              </p>
+            ) : null}
+            <button
+              aria-busy={resendState.status === "sending"}
+              className="secondary-button w-full"
+              disabled={resendState.status === "sending"}
+              type="submit"
+            >
+              {resendState.status === "sending" ? "Requesting…" : "Resend confirmation email"}
+            </button>
+          </form>
+        ) : null}
       </section>
     );
   }
@@ -492,11 +566,6 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
       <h1 className="section-title">{form.title}</h1>
       {form.description ? <p className="section-copy mt-4">{form.description}</p> : null}
 
-      {eventFileUploadsUnsupported ? (
-        <p className="mt-6 rounded-lg border border-[var(--brand-gold)]/30 bg-[var(--brand-gold)]/10 px-4 py-3 text-sm text-[var(--brand-ink)]" role="alert">
-          Event-registration file uploads are not available yet. Please contact JnUITS before submitting.
-        </p>
-      ) : null}
       {!submissionTarget ? (
         <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700" role="alert">
           This event registration form is unavailable. Please return to the event page.

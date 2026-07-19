@@ -265,7 +265,7 @@ export async function syncInvitationBatchMetrics(admin: AdminClient, batchId: st
       .from("member_invitations" as string)
       .select("id", { count: "exact", head: true })
       .eq("batch_id", batchId)
-      .eq("delivery_status", "failed"),
+      .in("delivery_status", ["failed", "bounced", "complained"]),
   ]);
 
   const countError = issuedResult.error || claimedResult.error || failedResult.error;

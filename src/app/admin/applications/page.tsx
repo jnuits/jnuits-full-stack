@@ -1,10 +1,15 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { cookies } from "next/headers";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import {
   approveMembershipApplication,
   rejectMembershipApplication,
 } from "@/app/admin/membership/moderation-actions";
+import {
+  approveAlumniOnboardingCase,
+  rejectAlumniOnboardingCase,
+} from "./alumni-actions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CheckCircle, XCircle, Clock, UserCheck } from "lucide-react";
 
@@ -28,7 +33,20 @@ type ApplicationRecord = {
   departments?: { name?: string | null } | { name?: string | null }[] | null;
 };
 
-function resolveDepartmentName(
+
+type AlumniOnboardingCase = {
+  created_at: string;
+  email: string | null;
+  form_submission_id: string;
+  full_name: string | null;
+  id: string;
+  invitation_id: string | null;
+  jnuits_id: string | null;
+  processed_member_id: string | null;
+  review_note: string | null;
+  reviewed_at: string | null;
+  status: "approved" | "pending" | "rejected";
+};function resolveDepartmentName(
   departments: ApplicationRecord["departments"],
   fallbackCode: string | null
 ) {
@@ -51,11 +69,11 @@ function relativeTime(iso: string): string {
 export const metadata = { title: "Applications — Admin | JnUITS" };
 
 export default async function ApplicationsPage() {
-  const admin = createAdminClient();
+  const admin = asFlexibleClient(createAdminClient());
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
 
-  const [pendingResult, recentResult, countResult] = await Promise.all([
+  const [pendingResult, recentResult, countResult, alumniPendingResult, alumniCountResult] = await Promise.all([
     admin
       .from("membership_applications")
       .select(
@@ -74,11 +92,24 @@ export default async function ApplicationsPage() {
       .from("membership_applications")
       .select("*", { count: "exact", head: true })
       .eq("status", "pending"),
+    admin
+      .from("alumni_onboarding_cases")
+      .select(
+        "id, form_submission_id, full_name, email, jnuits_id, status, review_note, reviewed_at, invitation_id, processed_member_id, created_at"
+      )
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(20),
+    admin
+      .from("alumni_onboarding_cases")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending"),
   ]);
-
   const pending = (pendingResult.data || []) as ApplicationRecord[];
   const recent = (recentResult.data || []) as ApplicationRecord[];
   const pendingCount = countResult.count || 0;
+  const alumniPending = (alumniPendingResult.data || []) as AlumniOnboardingCase[];
+  const alumniPendingCount = alumniCountResult.count || 0;
 
   return (
     <div className="grid gap-8">
@@ -87,13 +118,18 @@ export default async function ApplicationsPage() {
           <p className="admin-page-header__breadcrumb">Admin / Membership</p>
           <h1 className="admin-page-header__title">Applications</h1>
           <p className="admin-page-header__desc">
-            Review, approve, or reject pending membership applications. Approved applicants receive a membership record and invitation claim code.
+            Review annual membership applications and confirmed alumni onboarding cases. Approval creates or reactivates a member, then issues the canonical claim invitation.
           </p>
         </div>
         <div className="flex items-center gap-3">
           {pendingCount > 0 && (
             <span className="abadge abadge--pending">
               <Clock size={10} /> {pendingCount} pending
+            </span>
+          )}
+          {alumniPendingCount > 0 && (
+            <span className="abadge abadge--pending">
+              <Clock size={10} /> {alumniPendingCount} alumni
             </span>
           )}
         </div>
@@ -235,7 +271,79 @@ export default async function ApplicationsPage() {
         )}
       </section>
 
-      {/* ── Recent Decisions ── */}
+
+      <section id="alumni-onboarding">
+        <p className="admin-section-label">Alumni onboarding — oldest first</p>
+
+        {alumniPending.length === 0 ? (
+          <EmptyState
+            title="No alumni cases awaiting review"
+            description="Confirmed alumni onboarding submissions will appear here after staff publishes an alumni form."
+          />
+        ) : (
+          <div className="grid gap-4">
+            {alumniPending.map((onboardingCase) => (
+              <div key={onboardingCase.id} className="admin-review-card admin-review-card--pending">
+                <div className="admin-review-card__header">
+                  <div>
+                    <div className="admin-review-card__chips">
+                      <span className="abadge abadge--pending">Pending</span>
+                      <span className="detail-chip">{relativeTime(onboardingCase.created_at)}</span>
+                    </div>
+                    <p className="admin-review-card__name mt-1">
+                      {onboardingCase.full_name || "Alumni applicant"}
+                    </p>
+                    <p className="admin-review-card__id">{onboardingCase.email || "Email unavailable"}</p>
+                  </div>
+                  {onboardingCase.jnuits_id ? (
+                    <span className="detail-chip">{onboardingCase.jnuits_id}</span>
+                  ) : null}
+                </div>
+
+                <div className="admin-review-card__diff">
+                  <div className="admin-diff-box">
+                    <p className="admin-diff-box__label">Identity review</p>
+                    <div className="admin-diff-box__item">
+                      <span className="admin-diff-box__key">Submitted</span>
+                      <span>{new Date(onboardingCase.created_at).toLocaleDateString("en-BD")}</span>
+                    </div>
+                    <div className="admin-diff-box__item">
+                      <span className="admin-diff-box__key">Member match</span>
+                      <span>Verified during approval</span>
+                    </div>
+                  </div>
+                  <div className="admin-diff-box">
+                    <p className="admin-diff-box__label">Approval result</p>
+                    <p className="text-xs leading-6" style={{ color: "var(--muted-foreground)" }}>
+                      Approval deduplicates by email and JnUITS ID, safely reactivates an existing alumni record, and issues the canonical invitation claim.
+                    </p>
+                  </div>
+                </div>
+
+                <form className="admin-review-card__actions">
+                  <input name="caseId" type="hidden" value={onboardingCase.id} />
+                  <label className="input-label">
+                    Review note (optional for approval, recommended for rejection)
+                    <textarea
+                      name="reviewNote"
+                      placeholder="Identity verification or follow-up note"
+                      rows={3}
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-3">
+                    <button className="admin-btn admin-btn--success" formAction={approveAlumniOnboardingCase}>
+                      <CheckCircle size={15} /> Approve &amp; issue claim
+                    </button>
+                    <button className="admin-btn admin-btn--danger" formAction={rejectAlumniOnboardingCase}>
+                      <XCircle size={15} /> Reject onboarding
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>      {/* ── Recent Decisions ── */}
       {recent.length > 0 && (
         <section>
           <p className="admin-section-label">Recent decisions</p>
