@@ -184,6 +184,9 @@ export const RATE_LIMITS = {
   /** Form confirmation attempts — 8 per 10 minutes per IP */
   formConfirm: { limit: 8, windowSeconds: 600 } satisfies RateLimitConfig,
 
+  /** Form confirmation resend — 3 per hour per IP and canonical email */
+  formConfirmationResend: { limit: 3, windowSeconds: 3_600 } satisfies RateLimitConfig,
+
   /** Event check-in (admin only) — 60 per minute per IP */
   eventCheckin: { limit: 60, windowSeconds: 60 } satisfies RateLimitConfig,
 

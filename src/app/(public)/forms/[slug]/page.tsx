@@ -31,6 +31,7 @@ export default async function PublicFormPage({
         form={{
           definition: form.definition,
           description: form.description,
+          emailFieldId: form.applicationBehavior.fieldMapping.email,
           slug: form.slug,
           title: form.title,
         }}

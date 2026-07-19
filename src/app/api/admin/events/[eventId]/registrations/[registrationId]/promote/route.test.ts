@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   requireAdminApiPermission: vi.fn(),
   resolveEventForAdminMutation: vi.fn(),
+  recordEventRegistrationDelivery: vi.fn(),
   rpc: vi.fn(),
   sendEmail: vi.fn(),
 }));
@@ -15,6 +16,10 @@ vi.mock("@/lib/admin/api-auth", () => ({
 
 vi.mock("@/lib/content/events", () => ({
   resolveEventForAdminMutation: mocks.resolveEventForAdminMutation,
+}));
+
+vi.mock("@/lib/events/delivery", () => ({
+  recordEventRegistrationDelivery: mocks.recordEventRegistrationDelivery,
 }));
 
 vi.mock("@/lib/notifications/email-builders", () => ({
@@ -53,6 +58,8 @@ describe("event waitlist promotion route", () => {
       data: [{ registration_code: "CONFIRM1", result_status: "promoted" }],
       error: null,
     });
+    mocks.recordEventRegistrationDelivery.mockResolvedValue(undefined);
+    mocks.sendEmail.mockResolvedValue({ messageId: "promotion-email-1", success: true });
 
     const registrationQuery = {
       eq: vi.fn(),
@@ -126,9 +133,16 @@ describe("event waitlist promotion route", () => {
     });
     expect(mocks.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
+        idempotencyKey: "event-registration/event-1/CONFIRM1/promoted",
         subject: "You're registered: JnUITS Summit",
         to: "attendee@example.test",
       })
     );
-  });
+    expect(mocks.recordEventRegistrationDelivery).toHaveBeenCalledWith({
+      eventId: "event-1",
+      idempotencyKey: "event-registration/event-1/CONFIRM1/promoted",
+      providerMessageId: "promotion-email-1",
+      registrationCode: "CONFIRM1",
+      status: "sent",
+    });  });
 });

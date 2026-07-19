@@ -45,7 +45,33 @@ export type FormSummary = {
   updatedAt: string;
 };
 
-function escapeIlike(value: string) {
+
+export type FormEditorVersion = {
+  applicationBehavior: Record<string, unknown>;
+  fieldSchema: Record<string, unknown>;
+  id: string;
+  lifecycle: "draft" | "published";
+  versionNumber: number;
+};
+
+export type FormEditorContext = {
+  description: string;
+  id: string;
+  kind: FormKind;
+  lifecycle: "archived" | "draft" | "published";
+  linkedEventId: null | string;
+  slug: string;
+  title: string;
+  version: FormEditorVersion | null;
+};
+
+type FormEditorVersionRow = {
+  application_behavior: Record<string, unknown>;
+  field_schema: Record<string, unknown>;
+  id: string;
+  lifecycle: "draft" | "published";
+  version_number: number;
+};function escapeIlike(value: string) {
   return value.replace(/[\\%_,().]/g, (character) => `\\${character}`);
 }
 
@@ -102,7 +128,82 @@ function firstResult<T>(data: T | T[] | null): T | null {
   return Array.isArray(data) ? data[0] || null : data;
 }
 
-export async function createFormDraft(options: {
+
+function toFormEditorVersion(value: FormEditorVersionRow | null): FormEditorVersion | null {
+  if (!value?.id || !value.field_schema || !value.application_behavior) {
+    return null;
+  }
+
+  return {
+    applicationBehavior: value.application_behavior,
+    fieldSchema: value.field_schema,
+    id: value.id,
+    lifecycle: value.lifecycle,
+    versionNumber: value.version_number,
+  };
+}
+
+export async function loadFormEditorContext(formDefinitionId: string): Promise<FormEditorContext | null> {
+  const admin = asFlexibleClient(createAdminClient());
+  const { data: definitionData, error: definitionError } = await admin
+    .from("form_definitions")
+    .select("id, kind, lifecycle, linked_event_id, slug, title, description, current_published_version_id")
+    .eq("id", formDefinitionId)
+    .maybeSingle();
+
+  if (definitionError) throw definitionError;
+  const definition = definitionData as {
+    current_published_version_id: null | string;
+    description: null | string;
+    id: string;
+    kind: FormKind;
+    lifecycle: "archived" | "draft" | "published";
+    linked_event_id: null | string;
+    slug: string;
+    title: string;
+  } | null;
+
+  if (!definition?.id || !definition.kind || !definition.lifecycle) {
+    return null;
+  }
+
+  const versionSelect = "id, lifecycle, version_number, field_schema, application_behavior";
+  const { data: draftData, error: draftError } = await admin
+    .from("form_versions")
+    .select(versionSelect)
+    .eq("form_definition_id", definition.id)
+    .eq("lifecycle", "draft")
+    .order("version_number", { ascending: false })
+    .limit(1);
+
+  if (draftError) throw draftError;
+  let version = toFormEditorVersion(
+    firstResult(draftData as FormEditorVersionRow | FormEditorVersionRow[] | null)
+  );
+
+  if (!version && definition.current_published_version_id) {
+    const { data: publishedData, error: publishedError } = await admin
+      .from("form_versions")
+      .select(versionSelect)
+      .eq("id", definition.current_published_version_id)
+      .eq("form_definition_id", definition.id)
+      .maybeSingle();
+
+    if (publishedError) throw publishedError;
+    version = toFormEditorVersion(publishedData as FormEditorVersionRow | null);
+  }
+
+  return {
+    description: definition.description || "",
+    id: definition.id,
+    kind: definition.kind,
+    lifecycle: definition.lifecycle,
+    linkedEventId: definition.linked_event_id,
+    slug: definition.slug,
+    title: definition.title,
+    version,
+  };
+}export async function createFormDraft(options: {
   actorUserId: string;
   applicationBehavior: FormApplicationBehavior | Record<string, never>;
   definition: FormDefinition;
@@ -165,7 +266,34 @@ export async function createFormDraftVersion(options: {
   return result.form_version_id;
 }
 
-export async function publishFormVersion(options: {
+
+export async function updateFormDraftVersion(options: {
+  actorUserId: string;
+  applicationBehavior: FormApplicationBehavior | Record<string, never>;
+  definition: FormDefinition;
+  formDefinitionId: string;
+  formVersionId: string;
+}) {
+  const admin = asFlexibleClient(createAdminClient());
+  const { data, error } = await admin.rpc("update_form_draft_version", {
+    p_actor_user_id: options.actorUserId,
+    p_application_behavior: options.applicationBehavior,
+    p_field_schema: options.definition,
+    p_form_definition_id: options.formDefinitionId,
+    p_form_version_id: options.formVersionId,
+  });
+  const result = firstResult(data as { form_version_id: string } | { form_version_id: string }[] | null);
+
+  if (error) {
+    throw error;
+  }
+
+  if (!result?.form_version_id) {
+    throw new Error("Form draft version was not updated.");
+  }
+
+  return result.form_version_id;
+}export async function publishFormVersion(options: {
   actorUserId: string;
   formDefinitionId: string;
   formVersionId: string;

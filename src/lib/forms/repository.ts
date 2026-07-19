@@ -210,19 +210,87 @@ export async function createFormSubmissionAssets(
   }
 }
 
-export async function markFormConfirmationSent(submissionId: string) {
+export async function markFormConfirmationSent(submissionId: string, tokenHash?: string) {
   const admin = asFlexibleClient(createAdminClient());
-  const { error } = await admin
+  let query = admin
     .from("form_submissions")
     .update({ confirmation_sent_at: new Date().toISOString() })
     .eq("id", submissionId)
     .eq("confirmation_status", "pending");
+
+  if (tokenHash) {
+    query = query.eq("confirmation_token_hash", tokenHash);
+  }
+
+  const { error } = await query;
 
   if (error) {
     throw error;
   }
 }
 
+export type FormConfirmationResendResult = {
+  applicantName: null | string;
+  formSubmissionId: null | string;
+  resultStatus: string;
+};
+
+export async function refreshFormSubmissionConfirmation(options: {
+  confirmationExpiresAt: Date;
+  confirmationTokenHash: string;
+  formDefinitionId: string;
+  submitterEmail: string;
+}): Promise<FormConfirmationResendResult> {
+  const admin = asFlexibleClient(createAdminClient());
+  const { data, error } = await admin.rpc("refresh_form_submission_confirmation", {
+    p_form_definition_id: options.formDefinitionId,
+    p_next_expires_at: options.confirmationExpiresAt.toISOString(),
+    p_next_token_hash: options.confirmationTokenHash,
+    p_submitter_email: options.submitterEmail,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = (Array.isArray(data) ? data[0] : data) as
+    | {
+        applicant_name?: null | string;
+        form_submission_id?: null | string;
+        result_status?: string;
+      }
+    | null;
+
+  return {
+    applicantName: result?.applicant_name || null,
+    formSubmissionId: result?.form_submission_id || null,
+    resultStatus: result?.result_status || "not_found",
+  };
+}
+
+export async function recordFormConfirmationDelivery(options: {
+  formSubmissionId: string;
+  idempotencyKey: string;
+  providerMessageId?: string;
+  status: "failed" | "sent";
+}) {
+  const admin = asFlexibleClient(createAdminClient());
+  const { error } = await admin.from("form_confirmation_deliveries").upsert(
+    {
+      error_message: options.status === "failed" ? "provider_send_failed" : null,
+      form_submission_id: options.formSubmissionId,
+      idempotency_key: options.idempotencyKey,
+      provider_message_id: options.providerMessageId || null,
+      sent_at: options.status === "sent" ? new Date().toISOString() : null,
+      status: options.status,
+    },
+    { onConflict: "idempotency_key" }
+  );
+
+  if (error) {
+    throw error;
+  }
+}
 export type FormConfirmationResult = {
   form_kind: null | string;
   form_submission_id: null | string;

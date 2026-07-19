@@ -17,6 +17,7 @@ import {
   createPendingFormSubmission,
   loadPublishedForm,
   markFormConfirmationSent,
+  recordFormConfirmationDelivery,
 } from "@/lib/forms/repository";
 import {
   type FormSubmissionAsset,
@@ -26,7 +27,7 @@ import {
 import { buildFormConfirmationEmail } from "@/lib/notifications/email-builders";
 import { sendEmail } from "@/lib/notifications/send-email";
 import { withApiGuard } from "@/lib/security/with-api-guard";
-import { checkRateLimitForApi, getRequestIp, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
 
 const slugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 
@@ -165,6 +166,19 @@ export const POST = withApiGuard(
       );
     }
 
+    const protectionError = await enforceAuthActionProtection({
+      captchaToken: parsed.data.captchaToken,
+      captchaValidation: "turnstile",
+      email: identity.email,
+      rateLimit: RATE_LIMITS.formSubmit,
+      rateLimitPrefix: `form-submit:${form.id}`,
+      requestHeaders: request.headers,
+    });
+
+    if (protectionError) {
+      return NextResponse.json({ error: protectionError }, { status: 422 });
+    }
+
     let submissionAssets: FormSubmissionAsset[] = [];
 
     if (parsed.data.assets.length || parsed.data.uploadProof) {
@@ -211,27 +225,6 @@ export const POST = withApiGuard(
         );
       }
 
-      const rateLimit = await checkRateLimitForApi(
-        `form-submit:${form.id}:${getRequestIp(request.headers)}:${identity.email}`,
-        RATE_LIMITS.formSubmit
-      );
-
-      if (!rateLimit.success) {
-        return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 422 });
-      }
-    } else {
-      const protectionError = await enforceAuthActionProtection({
-        captchaToken: parsed.data.captchaToken,
-        captchaValidation: "turnstile",
-        email: identity.email,
-        rateLimit: RATE_LIMITS.formSubmit,
-        rateLimitPrefix: `form-submit:${form.id}`,
-        requestHeaders: request.headers,
-      });
-
-      if (protectionError) {
-        return NextResponse.json({ error: protectionError }, { status: 422 });
-      }
     }
 
     const confirmation = createFormConfirmation();
@@ -254,6 +247,7 @@ export const POST = withApiGuard(
       );
     }
 
+    const deliveryIdempotencyKey = `form-confirmation/${submissionId}`;
     const delivery = await sendEmail({
       html: buildFormConfirmationEmail({
         applicantName: identity.fullName,
@@ -261,10 +255,24 @@ export const POST = withApiGuard(
         expiresAt: confirmation.expiresAt.toISOString(),
         formTitle: form.title,
       }),
-      idempotencyKey: `form-confirmation/${submissionId}`,
+      idempotencyKey: deliveryIdempotencyKey,
       subject: `Confirm your email for ${form.title}`,
       to: identity.email,
     });
+
+    try {
+      await recordFormConfirmationDelivery({
+        formSubmissionId: submissionId,
+        idempotencyKey: deliveryIdempotencyKey,
+        providerMessageId: delivery.messageId,
+        status: delivery.success ? "sent" : "failed",
+      });
+    } catch {
+      logServerError(
+        "forms.submit.record_confirmation_delivery",
+        new Error("Form confirmation delivery ledger write failed.")
+      );
+    }
 
     if (!delivery.success) {
       logServerError("forms.submit.confirmation_delivery", delivery.error);
