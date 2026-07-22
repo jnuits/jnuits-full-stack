@@ -3,9 +3,11 @@ import "server-only";
 import { NextResponse } from "next/server";
 import {
   getAuthContext,
+  hasAdminRole,
   hasPermission,
   type AuthContext,
 } from "@/lib/auth/session";
+import { loadAdminLifecycleAccessState } from "@/lib/auth/admin-lifecycle";
 import { checkAdminMFA } from "@/lib/auth/mfa";
 import { createClient } from "@/lib/supabase/server";
 import type { AdminPermission } from "@/lib/admin/access";
@@ -37,6 +39,25 @@ export async function requireAdminApiPermission(
             "Sign in before using this admin endpoint.",
         },
         { status: 401 }
+      ),
+    };
+  }
+
+  if (!hasAdminRole(auth.roles)) {
+    return {
+      response: NextResponse.json(
+        { message: "Active admin access is required for this action." },
+        { status: 403 }
+      ),
+    };
+  }
+
+  const lifecycle = await loadAdminLifecycleAccessState(auth.user.id);
+  if (lifecycle !== "active") {
+    return {
+      response: NextResponse.json(
+        { message: "Active admin access is required for this action." },
+        { status: 403 }
       ),
     };
   }

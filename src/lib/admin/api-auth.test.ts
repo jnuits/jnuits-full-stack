@@ -4,14 +4,20 @@ const mocks = vi.hoisted(() => ({
   checkAdminMFA: vi.fn(),
   createClient: vi.fn(),
   getAuthContext: vi.fn(),
+  hasAdminRole: vi.fn(),
   hasPermission: vi.fn(),
+  loadAdminLifecycleAccessState: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
   getAuthContext: mocks.getAuthContext,
+  hasAdminRole: mocks.hasAdminRole,
   hasPermission: mocks.hasPermission,
 }));
 
+vi.mock("@/lib/auth/admin-lifecycle", () => ({
+  loadAdminLifecycleAccessState: mocks.loadAdminLifecycleAccessState,
+}));
 vi.mock("@/lib/auth/mfa", () => ({ checkAdminMFA: mocks.checkAdminMFA }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 
@@ -25,7 +31,9 @@ describe("requireAdminApiPermission", () => {
       roles: ["admin"],
       user: { id: "11111111-1111-4111-8111-111111111111" },
     });
+    mocks.hasAdminRole.mockReturnValue(true);
     mocks.hasPermission.mockResolvedValue(true);
+    mocks.loadAdminLifecycleAccessState.mockResolvedValue("active");
     mocks.checkAdminMFA.mockResolvedValue({ ok: true });
   });
 
