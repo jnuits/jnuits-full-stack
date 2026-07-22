@@ -10,7 +10,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    exclude: [...configDefaults.exclude, "e2e/**"],
+    exclude: [...configDefaults.exclude, ".agents/**", "e2e/**"],
     globals: false,
   },
 });
