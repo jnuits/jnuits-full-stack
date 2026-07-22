@@ -6,6 +6,8 @@ import {
   hasPermission,
   type AuthContext,
 } from "@/lib/auth/session";
+import { checkAdminMFA } from "@/lib/auth/mfa";
+import { createClient } from "@/lib/supabase/server";
 import type { AdminPermission } from "@/lib/admin/access";
 
 type AuthenticatedAdminContext = AuthContext & {
@@ -20,6 +22,7 @@ export async function requireAdminApiPermission(
   permission: AdminPermission,
   options: {
     forbiddenMessage?: string;
+    requireAal2?: boolean;
     unauthenticatedMessage?: string;
   } = {}
 ): Promise<AdminApiPermissionResult> {
@@ -51,6 +54,19 @@ export async function requireAdminApiPermission(
         { status: 403 }
       ),
     };
+  }
+
+  if (options.requireAal2) {
+    const mfaState = await checkAdminMFA(await createClient());
+
+    if (!mfaState.ok) {
+      return {
+        response: NextResponse.json(
+          { message: "Complete multi-factor verification before this action." },
+          { status: 403 }
+        ),
+      };
+    }
   }
 
   return { auth: { ...auth, user: auth.user } };
