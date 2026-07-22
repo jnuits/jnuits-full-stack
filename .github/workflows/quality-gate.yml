@@ -25,6 +25,10 @@ jobs:
       CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
       CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret
       CLOUDINARY_CLOUD_NAME: ci-placeholder-cloudinary-cloud
+      GOOGLE_DRIVE_EXPORTS_FOLDER_ID: ci-placeholder-exports-folder
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL: ci@example.test
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY: ci-placeholder-private-key
+      GOOGLE_DRIVE_SHARED_DRIVE_ID: ci-placeholder-shared-drive
       NEXT_PUBLIC_SENTRY_DSN: https://public@example.ingest.sentry.io/123
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
@@ -34,14 +38,16 @@ jobs:
       RATE_LIMIT_SECRET_SALT: ci-placeholder-rate-limit-secret-salt-000000
       RESEND_API_KEY: re_ci_placeholder
       RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>"
+      RESEND_WEBHOOK_SECRET: whsec_ci_placeholder
+      RETENTION_MANIFEST_SIGNING_SECRET: ci-placeholder-retention-manifest-signing-secret
       SUPABASE_SECRET_KEY: ci-placeholder-supabase-secret-key
       TURNSTILE_SECRET_KEY: ci-placeholder-turnstile-secret-key
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24.14.1
           cache: npm
@@ -74,6 +80,10 @@ jobs:
       CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
       CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret
       CLOUDINARY_CLOUD_NAME: ci-placeholder-cloudinary-cloud
+      GOOGLE_DRIVE_EXPORTS_FOLDER_ID: ci-placeholder-exports-folder
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL: ci@example.test
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY: ci-placeholder-private-key
+      GOOGLE_DRIVE_SHARED_DRIVE_ID: ci-placeholder-shared-drive
       NEXT_PUBLIC_SENTRY_DSN: https://public@example.ingest.sentry.io/123
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
@@ -83,14 +93,16 @@ jobs:
       RATE_LIMIT_SECRET_SALT: ci-placeholder-rate-limit-secret-salt-000000
       RESEND_API_KEY: re_ci_placeholder
       RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>"
+      RESEND_WEBHOOK_SECRET: whsec_ci_placeholder
+      RETENTION_MANIFEST_SIGNING_SECRET: ci-placeholder-retention-manifest-signing-secret
       SUPABASE_SECRET_KEY: ci-placeholder-supabase-secret-key
       TURNSTILE_SECRET_KEY: ci-placeholder-turnstile-secret-key
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24.14.1
           cache: npm
@@ -106,6 +118,37 @@ jobs:
 
       - name: Migration parity unit checks
         run: npx --no-install vitest run scripts/check-migration-parity.test.mjs
+
+  migration_integrity:
+    name: Migration integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate migration contracts
+        run: >-
+          npx --no-install vitest run
+          scripts/check-migration-parity.test.mjs
+          src/lib/retention/retention-purge-migration.test.ts
+          src/lib/events/event-registration-delivery-migration.test.ts
+          src/lib/forms/form-publication-compatibility-migration.test.ts
+          src/lib/forms/form-draft-version-updates-migration.test.ts
+          src/lib/forms/form-confirmation-resend-migration.test.ts
+          src/lib/forms/event-registration-migration.test.ts
+          src/lib/forms/event-form-assets-migration.test.ts
+          src/lib/notifications/resend-delivery-webhook-migration.test.ts
+
   build_and_browser:
     name: Build and browser smoke
     runs-on: ubuntu-latest
@@ -116,6 +159,10 @@ jobs:
       CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
       CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret
       CLOUDINARY_CLOUD_NAME: ci-placeholder-cloudinary-cloud
+      GOOGLE_DRIVE_EXPORTS_FOLDER_ID: ci-placeholder-exports-folder
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL: ci@example.test
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY: ci-placeholder-private-key
+      GOOGLE_DRIVE_SHARED_DRIVE_ID: ci-placeholder-shared-drive
       NEXT_PUBLIC_SENTRY_DSN: https://public@example.ingest.sentry.io/123
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
@@ -125,14 +172,16 @@ jobs:
       RATE_LIMIT_SECRET_SALT: ci-placeholder-rate-limit-secret-salt-000000
       RESEND_API_KEY: re_ci_placeholder
       RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>"
+      RESEND_WEBHOOK_SECRET: whsec_ci_placeholder
+      RETENTION_MANIFEST_SIGNING_SECRET: ci-placeholder-retention-manifest-signing-secret
       SUPABASE_SECRET_KEY: ci-placeholder-supabase-secret-key
       TURNSTILE_SECRET_KEY: ci-placeholder-turnstile-secret-key
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24.14.1
           cache: npm
@@ -144,7 +193,7 @@ jobs:
         run: npm run build
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -159,7 +208,7 @@ jobs:
 
       - name: Upload Playwright traces
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: playwright-results
           path: test-results/playwright
@@ -167,8 +216,8 @@ jobs:
           retention-days: 7
 
   application_quality:
-    name: Application quality
-    needs: [static_analysis, unit_and_integration, build_and_browser]
+    name: Required CI
+    needs: [static_analysis, unit_and_integration, migration_integrity, build_and_browser, secret_scan]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -177,20 +226,27 @@ jobs:
         env:
           STATIC_ANALYSIS_RESULT: ${{ needs.static_analysis.result }}
           UNIT_AND_INTEGRATION_RESULT: ${{ needs.unit_and_integration.result }}
+          MIGRATION_INTEGRITY_RESULT: ${{ needs.migration_integrity.result }}
           BUILD_AND_BROWSER_RESULT: ${{ needs.build_and_browser.result }}
+          SECRET_SCAN_RESULT: ${{ needs.secret_scan.result }}
         run: |
           test "$STATIC_ANALYSIS_RESULT" = "success"
           test "$UNIT_AND_INTEGRATION_RESULT" = "success"
+          test "$MIGRATION_INTEGRITY_RESULT" = "success"
           test "$BUILD_AND_BROWSER_RESULT" = "success"
+          case "$SECRET_SCAN_RESULT" in
+            success|skipped) ;;
+            *) exit 1 ;;
+          esac
 
-  secret-scan:
+  secret_scan:
     name: Secret scan
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout full history
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 

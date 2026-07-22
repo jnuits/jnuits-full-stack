@@ -329,7 +329,7 @@ export function EventOperationsScreen({
           </p>
         </div>
         <form className="flex flex-wrap gap-3" onSubmit={checkIn}>
-          <label className="input-label min-w-[min(100%,20rem)] flex-1">
+          <label className="input-label w-full flex-1 sm:min-w-80">
             Registration code
             <input autoComplete="off" name="code" placeholder="Scan or enter code" />
           </label>
@@ -343,7 +343,7 @@ export function EventOperationsScreen({
       <section className="admin-review-card grid gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <form className="flex flex-1 flex-wrap gap-3" onSubmit={submitSearch}>
-            <label className="input-label min-w-[min(100%,18rem)] flex-1">
+            <label className="input-label w-full flex-1 sm:min-w-72">
               Search name, email, or reference
               <input
                 onChange={(event) => setQuery(event.target.value)}
@@ -376,7 +376,7 @@ export function EventOperationsScreen({
         {error ? <p className="text-sm text-red-400" role="alert">{error}</p> : null}
 
         <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
-          <table className="min-w-full text-left text-sm">
+          <table className="admin-responsive-table min-w-full text-left text-sm">
             <thead className="bg-[var(--bg)] text-xs tracking-wide text-[var(--muted-foreground)] uppercase">
               <tr>
                 <th className="px-4 py-3">Attendee</th>
