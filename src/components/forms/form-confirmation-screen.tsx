@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import {
+  FormConfirmationRecoveryForm,
+  type FormConfirmationCaptchaConfig,
+} from "@/components/forms/form-confirmation-recovery-form";
+
 type ConfirmationState =
   | { status: "ready" }
   | { status: "confirming" }
@@ -10,10 +15,14 @@ type ConfirmationState =
   | { message: string; status: "expired" | "error" };
 
 export function FormConfirmationScreen({
+  captcha,
+  formSlug,
   submissionId,
   token,
   valid,
 }: {
+  captcha: FormConfirmationCaptchaConfig;
+  formSlug: null | string;
   submissionId: string;
   token: string;
   valid: boolean;
@@ -47,7 +56,8 @@ export function FormConfirmationScreen({
       if (response.status === 410) {
         setState({
           message:
-            payload?.error || "This confirmation link has expired. Request a new link from the form page.",
+            payload?.error ||
+            "This confirmation link has expired. Use the recovery form below to request a new one.",
           status: "expired",
         });
         return;
@@ -89,6 +99,9 @@ export function FormConfirmationScreen({
           ? state.message
           : "Confirming sends your application to the JnUITS review team. This action is safe to repeat."}
       </p>
+      {state.status === "expired" && formSlug ? (
+        <FormConfirmationRecoveryForm captcha={captcha} formSlug={formSlug} />
+      ) : null}
       {state.status === "ready" || state.status === "confirming" ? (
         <button
           aria-busy={isBusy}

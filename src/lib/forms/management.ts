@@ -22,6 +22,63 @@ export type FormManagementContext = {
   linkedEventId: null | string;
 };
 
+type FormPublicationContext = {
+  event: null | { registrationMode: string; status: string };
+  kind: FormKind;
+  linkedEventId: null | string;
+};
+
+export function getFormPublicationCompatibilityError(
+  context: FormPublicationContext
+): null | string {
+  if (context.kind !== "event_registration") return null;
+  if (!context.linkedEventId) return "Link this form to an event before publishing.";
+  if (!context.event) return "The linked event no longer exists.";
+  if (context.event.registrationMode !== "internal") {
+    return "The linked event must use internal registration.";
+  }
+  if (context.event.status === "archived") {
+    return "Archived events cannot accept a published registration form.";
+  }
+  return null;
+}
+
+export async function getFormPublicationError(
+  formDefinitionId: string
+): Promise<null | string> {
+  const admin = asFlexibleClient(createAdminClient());
+  const { data: definitionData, error: definitionError } = await admin
+    .from("form_definitions")
+    .select("kind, linked_event_id")
+    .eq("id", formDefinitionId)
+    .maybeSingle();
+  if (definitionError) throw definitionError;
+  const definition = definitionData as {
+    kind: FormKind;
+    linked_event_id: null | string;
+  } | null;
+  if (!definition) return "Form definition is unavailable.";
+  if (definition.kind !== "event_registration") return null;
+
+  let event: FormPublicationContext["event"] = null;
+  if (definition.linked_event_id) {
+    const { data: eventData, error: eventError } = await admin
+      .from("events")
+      .select("registration_mode, status")
+      .eq("id", definition.linked_event_id)
+      .maybeSingle();
+    if (eventError) throw eventError;
+    const row = eventData as { registration_mode: string; status: string } | null;
+    event = row ? { registrationMode: row.registration_mode, status: row.status } : null;
+  }
+
+  return getFormPublicationCompatibilityError({
+    event,
+    kind: definition.kind,
+    linkedEventId: definition.linked_event_id,
+  });
+}
+
 export async function loadFormManagementContext(formDefinitionId: string): Promise<FormManagementContext | null> {
   const admin = asFlexibleClient(createAdminClient());
   const { data, error } = await admin

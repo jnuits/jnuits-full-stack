@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  getFormPublicationError: vi.fn(),
   publishFormVersion: vi.fn(),
   requireAdminApiPermission: vi.fn(),
 }));
@@ -11,6 +12,7 @@ vi.mock("@/lib/admin/api-auth", () => ({
 }));
 
 vi.mock("@/lib/forms/management", () => ({
+  getFormPublicationError: mocks.getFormPublicationError,
   publishFormVersion: mocks.publishFormVersion,
 }));
 
@@ -34,6 +36,7 @@ function request(body: unknown) {
 describe("admin form publish route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getFormPublicationError.mockResolvedValue(null);
     mocks.publishFormVersion.mockResolvedValue({
       formDefinitionId: formId,
       formVersionId: versionId,
@@ -55,11 +58,28 @@ describe("admin form publish route", () => {
       success: true,
     });
     expect(mocks.requireAdminApiPermission).toHaveBeenCalledWith("cms.forms.publish");
+    expect(mocks.getFormPublicationError).toHaveBeenCalledWith(formId);
     expect(mocks.publishFormVersion).toHaveBeenCalledWith({
       actorUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       formDefinitionId: formId,
       formVersionId: versionId,
     });
+  });
+
+  it("returns a safe compatibility error before calling the publish RPC", async () => {
+    mocks.getFormPublicationError.mockResolvedValue(
+      "The linked event must use internal registration."
+    );
+
+    const response = await POST(request({ formVersionId: versionId }), {
+      params: Promise.resolve({ formId }),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "The linked event must use internal registration.",
+    });
+    expect(mocks.publishFormVersion).not.toHaveBeenCalled();
   });
 
   it("rejects malformed version identifiers before publishing", async () => {
