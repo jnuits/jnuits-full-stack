@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "artifacts/**",
+    ".agents/**",
     "next-env.d.ts",
     // Node utility scripts — CJS require() is intentional here
     "scripts/**",
