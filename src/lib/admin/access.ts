@@ -255,6 +255,14 @@ export const adminAccessItems: readonly AdminAccessItem[] = [
   },
   {
     group: "Settings",
+    href: "/admin/retention",
+    iconKey: "shield",
+    label: "Data Retention",
+    requiredPermission: "admin.retention.manage",
+    requireAal2: true,
+  },
+  {
+    group: "Settings",
     href: "/admin/settings/notifications",
     iconKey: "bell",
     label: "Notification Settings",
