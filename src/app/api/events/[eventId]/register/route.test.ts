@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   enforceAuthActionProtection: vi.fn(),
   loadPublishedFormByVersionId: vi.fn(),
+  recordEventRegistrationDelivery: vi.fn(),
   resolvePublishedEventForMutation: vi.fn(),
   rpc: vi.fn(),
   sendEmail: vi.fn(),
@@ -21,6 +22,10 @@ vi.mock("@/lib/content/events", () => ({
 
 vi.mock("@/lib/forms/repository", () => ({
   loadPublishedFormByVersionId: mocks.loadPublishedFormByVersionId,
+}));
+
+vi.mock("@/lib/events/delivery", () => ({
+  recordEventRegistrationDelivery: mocks.recordEventRegistrationDelivery,
 }));
 
 vi.mock("@/lib/notifications/email-builders", () => ({
@@ -67,6 +72,8 @@ describe("event registration route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.enforceAuthActionProtection.mockResolvedValue(null);
+    mocks.recordEventRegistrationDelivery.mockResolvedValue(undefined);
+    mocks.sendEmail.mockResolvedValue({ messageId: "event-email-1", success: true });
     mocks.createAdminClient.mockReturnValue({ rpc: mocks.rpc });
     mocks.createClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
@@ -110,9 +117,17 @@ describe("event registration route", () => {
     );
     expect(mocks.sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
+        idempotencyKey: "event-registration/event-1/WAITLIST1/waitlisted",
         subject: "You're on the waitlist: JnUITS Summit",
         to: "attendee@example.test",
       })
     );
+    expect(mocks.recordEventRegistrationDelivery).toHaveBeenCalledWith({
+      eventId: "event-1",
+      idempotencyKey: "event-registration/event-1/WAITLIST1/waitlisted",
+      providerMessageId: "event-email-1",
+      registrationCode: "WAITLIST1",
+      status: "sent",
+    });
   });
 });
