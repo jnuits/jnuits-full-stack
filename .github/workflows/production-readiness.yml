@@ -31,10 +31,10 @@ jobs:
     environment: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24.14.1
           cache: npm
@@ -49,6 +49,10 @@ jobs:
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           CLOUDINARY_CLOUD_NAME: ${{ vars.CLOUDINARY_CLOUD_NAME }}
+          GOOGLE_DRIVE_EXPORTS_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_EXPORTS_FOLDER_ID }}
+          GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL: ${{ vars.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          GOOGLE_DRIVE_SHARED_DRIVE_ID: ${{ vars.GOOGLE_DRIVE_SHARED_DRIVE_ID }}
           NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
@@ -58,6 +62,7 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
           RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
+          RETENTION_MANIFEST_SIGNING_SECRET: ${{ secrets.RETENTION_MANIFEST_SIGNING_SECRET }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
         run: node scripts/validate-env.mjs --production
@@ -93,10 +98,10 @@ jobs:
     environment: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24.14.1
           cache: npm
@@ -105,7 +110,7 @@ jobs:
         run: npm ci
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v2
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2
         with:
           version: 2.101.0
           github-token: ${{ github.token }}
@@ -145,7 +150,7 @@ jobs:
 
       - name: Upload database readiness evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: production-database-readiness-${{ github.run_id }}
           path: artifacts/reports/supabase-cleanup-audit-*.md

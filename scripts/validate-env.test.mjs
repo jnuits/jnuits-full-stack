@@ -14,6 +14,10 @@ const completeProductionEnv = {
   CLOUDINARY_API_KEY: "cloudinary-api-key",
   CLOUDINARY_API_SECRET: "cloudinary-api-secret",
   CLOUDINARY_CLOUD_NAME: "jnuits-test",
+  GOOGLE_DRIVE_EXPORTS_FOLDER_ID: "exports-folder-id",
+  GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL: "ci@example.test",
+  GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY: "test-private-key",
+  GOOGLE_DRIVE_SHARED_DRIVE_ID: "shared-drive-id",
   NEXT_PUBLIC_SENTRY_DSN: "https://public@example.ingest.sentry.io/123",
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: "turnstile-site",
   RATE_LIMIT_BACKEND: "supabase",
@@ -21,6 +25,7 @@ const completeProductionEnv = {
   RESEND_API_KEY: "re_test_api_key",
   RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>",
   RESEND_WEBHOOK_SECRET: "whsec_test_webhook_secret",
+  RETENTION_MANIFEST_SIGNING_SECRET: "test-retention-signing-secret",
   TURNSTILE_SECRET_KEY: "turnstile-secret",
 };
 
@@ -59,7 +64,7 @@ describe("validateEnv", () => {
     );
   });
 
-  it("requires delivery, media, telemetry, and explicit CAPTCHA production configuration", () => {
+  it("requires delivery, media, archive, telemetry, and explicit CAPTCHA production configuration", () => {
     const result = validateEnv(
       {
         ...baseEnv,
@@ -77,10 +82,15 @@ describe("validateEnv", () => {
         "CLOUDINARY_API_KEY",
         "CLOUDINARY_API_SECRET",
         "CLOUDINARY_CLOUD_NAME",
+        "GOOGLE_DRIVE_EXPORTS_FOLDER_ID",
+        "GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL",
+        "GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY",
+        "GOOGLE_DRIVE_SHARED_DRIVE_ID",
         "NEXT_PUBLIC_SENTRY_DSN",
         "RESEND_API_KEY",
         "RESEND_FROM_EMAIL",
         "RESEND_WEBHOOK_SECRET",
+        "RETENTION_MANIFEST_SIGNING_SECRET",
       ])
     );
   });
