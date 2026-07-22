@@ -42,7 +42,10 @@ export const POST = withApiGuard(
 
     if (result?.result_status === "expired") {
       return NextResponse.json(
-        { error: "This confirmation link has expired. Request a new one from the form page." },
+        {
+          error:
+            "This confirmation link has expired. Use the recovery form below to request a new one.",
+        },
         { status: 410 }
       );
     }

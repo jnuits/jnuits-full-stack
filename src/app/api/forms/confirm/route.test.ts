@@ -71,7 +71,7 @@ describe("form confirmation route", () => {
 
     expect(response.status).toBe(410);
     await expect(response.json()).resolves.toEqual({
-      error: "This confirmation link has expired. Request a new one from the form page.",
+      error: "This confirmation link has expired. Use the recovery form below to request a new one.",
     });
   });
 

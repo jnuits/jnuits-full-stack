@@ -4,7 +4,10 @@ import { z } from "zod";
 import { enforceAuthActionProtection } from "@/lib/auth/action-protection";
 import { getAppBaseUrl } from "@/lib/env";
 import { logServerError } from "@/lib/errors/api-error";
-import { createFormConfirmation } from "@/lib/forms/confirmation";
+import {
+  buildFormConfirmationUrl,
+  createFormConfirmation,
+} from "@/lib/forms/confirmation";
 import {
   loadPublishedForm,
   markFormConfirmationSent,
@@ -28,13 +31,6 @@ const resendRequestSchema = z
 
 function acceptedResponse() {
   return NextResponse.json({ success: true }, { status: 202 });
-}
-
-function buildConfirmationUrl(submissionId: string, token: string) {
-  const url = new URL("/forms/confirm", getAppBaseUrl());
-  url.searchParams.set("submission", submissionId);
-  url.searchParams.set("token", token);
-  return url.toString();
 }
 
 export const POST = withApiGuard(
@@ -105,7 +101,12 @@ export const POST = withApiGuard(
     const delivery = await sendEmail({
       html: buildFormConfirmationEmail({
         applicantName: refreshed.applicantName || "JnUITS applicant",
-        confirmationUrl: buildConfirmationUrl(refreshed.formSubmissionId, confirmation.token),
+        confirmationUrl: buildFormConfirmationUrl({
+          baseUrl: getAppBaseUrl(),
+          formSlug: slug.data,
+          submissionId: refreshed.formSubmissionId,
+          token: confirmation.token,
+        }),
         expiresAt: confirmation.expiresAt.toISOString(),
         formTitle: form.title,
       }),

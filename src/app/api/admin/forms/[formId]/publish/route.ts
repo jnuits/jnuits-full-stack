@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { logServerError } from "@/lib/errors/api-error";
-import { publishFormVersion } from "@/lib/forms/management";
+import { getFormPublicationError, publishFormVersion } from "@/lib/forms/management";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 
 const formIdSchema = z.string().uuid();
@@ -35,6 +35,11 @@ export const POST = withApiGuard(
     }
 
     try {
+      const compatibilityError = await getFormPublicationError(formId.data);
+      if (compatibilityError) {
+        return NextResponse.json({ error: compatibilityError }, { status: 409 });
+      }
+
       const result = await publishFormVersion({
         actorUserId: permission.auth.user.id,
         formDefinitionId: formId.data,

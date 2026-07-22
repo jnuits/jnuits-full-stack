@@ -6,7 +6,10 @@ import { getCloudinaryConfig } from "@/lib/cloudinary/config";
 import { getAppBaseUrl } from "@/lib/env";
 import { logServerError } from "@/lib/errors/api-error";
 import { extractApplicationIdentity } from "@/lib/forms/application-behavior";
-import { createFormConfirmation } from "@/lib/forms/confirmation";
+import {
+  buildFormConfirmationUrl,
+  createFormConfirmation,
+} from "@/lib/forms/confirmation";
 import {
   type FormAnswers,
   type FormDefinition,
@@ -75,13 +78,6 @@ function verifyAssetAnswerBindings(
       throw new Error("Form upload answers do not match uploaded files.");
     }
   }
-}
-
-function buildConfirmationUrl(submissionId: string, token: string) {
-  const url = new URL("/forms/confirm", getAppBaseUrl());
-  url.searchParams.set("submission", submissionId);
-  url.searchParams.set("token", token);
-  return url.toString();
 }
 
 function acceptedResponse() {
@@ -251,7 +247,12 @@ export const POST = withApiGuard(
     const delivery = await sendEmail({
       html: buildFormConfirmationEmail({
         applicantName: identity.fullName,
-        confirmationUrl: buildConfirmationUrl(submissionId, confirmation.token),
+        confirmationUrl: buildFormConfirmationUrl({
+          baseUrl: getAppBaseUrl(),
+          formSlug: form.slug,
+          submissionId,
+          token: confirmation.token,
+        }),
         expiresAt: confirmation.expiresAt.toISOString(),
         formTitle: form.title,
       }),
