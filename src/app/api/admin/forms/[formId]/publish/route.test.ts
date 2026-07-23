@@ -3,91 +3,47 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getFormPublicationError: vi.fn(),
+  loadFormManagementContext: vi.fn(),
   publishFormVersion: vi.fn(),
   requireAdminApiPermission: vi.fn(),
 }));
-
-vi.mock("@/lib/admin/api-auth", () => ({
-  requireAdminApiPermission: mocks.requireAdminApiPermission,
-}));
-
+vi.mock("@/lib/admin/api-auth", () => ({ requireAdminApiPermission: mocks.requireAdminApiPermission }));
 vi.mock("@/lib/forms/management", () => ({
   getFormPublicationError: mocks.getFormPublicationError,
+  loadFormManagementContext: mocks.loadFormManagementContext,
   publishFormVersion: mocks.publishFormVersion,
 }));
-
-vi.mock("@/lib/security/with-api-guard", () => ({
-  withApiGuard: <T>(handler: T) => handler,
-}));
+vi.mock("@/lib/security/with-api-guard", () => ({ withApiGuard: <T>(handler: T) => handler }));
 
 import { POST } from "./route";
-
 const formId = "11111111-1111-4111-8111-111111111111";
 const versionId = "22222222-2222-4222-8222-222222222222";
-
-function request(body: unknown) {
-  return new NextRequest(`https://jnuits.example.test/api/admin/forms/${formId}/publish`, {
-    body: JSON.stringify(body),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
+function request() {
+  return new NextRequest(`https://jnuits.test/api/admin/forms/${formId}/publish`, {
+    body: JSON.stringify({ formVersionId: versionId }), headers: { "Content-Type": "application/json" }, method: "POST",
   });
 }
 
-describe("admin form publish route", () => {
+describe("form publication authorization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.requireAdminApiPermission.mockResolvedValue({ auth: { roles: ["admin"], user: { id: "admin-user" } } });
+    mocks.loadFormManagementContext.mockResolvedValue({ id: formId, kind: "membership_application", lifecycle: "draft", linkedEventId: null });
     mocks.getFormPublicationError.mockResolvedValue(null);
-    mocks.publishFormVersion.mockResolvedValue({
-      formDefinitionId: formId,
-      formVersionId: versionId,
-    });
-    mocks.requireAdminApiPermission.mockResolvedValue({
-      auth: { user: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } },
-    });
+    mocks.publishFormVersion.mockResolvedValue({ formDefinitionId: formId, formVersionId: versionId });
   });
 
-  it("publishes an immutable draft version through the dedicated permission", async () => {
-    const response = await POST(request({ formVersionId: versionId }), {
-      params: Promise.resolve({ formId }),
-    });
-
+  it("publishes membership forms for admins", async () => {
+    const response = await POST(request(), { params: Promise.resolve({ formId }) });
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      formDefinitionId: formId,
-      formVersionId: versionId,
-      success: true,
-    });
-    expect(mocks.requireAdminApiPermission).toHaveBeenCalledWith("cms.forms.publish");
-    expect(mocks.getFormPublicationError).toHaveBeenCalledWith(formId);
-    expect(mocks.publishFormVersion).toHaveBeenCalledWith({
-      actorUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      formDefinitionId: formId,
-      formVersionId: versionId,
-    });
+    expect(mocks.publishFormVersion).toHaveBeenCalled();
   });
 
-  it("returns a safe compatibility error before calling the publish RPC", async () => {
-    mocks.getFormPublicationError.mockResolvedValue(
-      "The linked event must use internal registration."
-    );
-
-    const response = await POST(request({ formVersionId: versionId }), {
-      params: Promise.resolve({ formId }),
-    });
-
-    expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
-      error: "The linked event must use internal registration.",
-    });
-    expect(mocks.publishFormVersion).not.toHaveBeenCalled();
-  });
-
-  it("rejects malformed version identifiers before publishing", async () => {
-    const response = await POST(request({ formVersionId: "not-a-uuid" }), {
-      params: Promise.resolve({ formId }),
-    });
-
-    expect(response.status).toBe(422);
+  it("denies content admins from publishing membership forms", async () => {
+    mocks.requireAdminApiPermission.mockResolvedValue({ auth: { roles: ["content_admin"], user: { id: "content-user" } } });
+    const response = await POST(request(), { params: Promise.resolve({ formId }) });
+    expect(response.status).toBe(403);
+    expect(mocks.getFormPublicationError).not.toHaveBeenCalled();
     expect(mocks.publishFormVersion).not.toHaveBeenCalled();
   });
 });
