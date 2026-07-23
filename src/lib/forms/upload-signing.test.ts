@@ -4,6 +4,7 @@ import type { FormDefinition } from "./definition";
 import { buildFormUploadInstructions } from "./upload-signing";
 
 const formDefinitionId = "11111111-1111-4111-8111-111111111111";
+const formVersionId = "33333333-3333-4333-8333-333333333333";
 const now = new Date("2026-07-18T06:00:00.000Z");
 
 const definition: FormDefinition = {
@@ -22,11 +23,12 @@ const config = {
 };
 
 describe("form upload signing", () => {
-  it("creates private, proof-bound instructions without exposing the secret", () => {
+  it("creates private, version-bound instructions without exposing the secret", () => {
     const result = buildFormUploadInstructions({
       config,
       definition,
       formDefinitionId,
+      formVersionId,
       now,
       randomId: () => "22222222-2222-4222-8222-222222222222",
       uploads: [
@@ -40,6 +42,8 @@ describe("form upload signing", () => {
     });
 
     expect(result.expiresAt).toBe("2026-07-18T06:10:00.000Z");
+    expect(result.formVersionId).toBe(formVersionId);
+    expect(result.manifestSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(result.proof).not.toContain(config.apiSecret);
     expect(result.uploads).toEqual([
       expect.objectContaining({
@@ -48,7 +52,7 @@ describe("form upload signing", () => {
         assetFolder:
           "jnuits/jnuits-full-stack/private/forms/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222",
         context:
-          "form_definition_id=11111111-1111-4111-8111-111111111111|field_id=identity_document|upload_id=22222222-2222-4222-8222-222222222222",
+          "form_definition_id=11111111-1111-4111-8111-111111111111|form_version_id=33333333-3333-4333-8333-333333333333|field_id=identity_document|upload_id=22222222-2222-4222-8222-222222222222|sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         publicId: "22222222-2222-4222-8222-222222222222.pdf",
         resourceType: "raw",
         timestamp: 1784354400,
@@ -63,6 +67,7 @@ describe("form upload signing", () => {
         config,
         definition,
         formDefinitionId,
+        formVersionId,
         now,
         uploads: [
           {
@@ -80,6 +85,7 @@ describe("form upload signing", () => {
         config,
         definition,
         formDefinitionId,
+        formVersionId,
         now,
         uploads: [
           {
