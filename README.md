@@ -27,6 +27,12 @@ Create `.env.local` from `.env.example` and set:
 - `SUPABASE_SECRET_KEY`
 - `APP_BASE_URL`
 
+Use Supabase's current publishable key for browser/SSR clients and its secret key only in trusted
+server code. Legacy `anon` and `service_role` API keys are not supported by this repository. Auth
+claims are verified through `supabase.auth.getClaims()`, which uses the project's signing-key
+infrastructure. Any manual verifier must load keys from
+`${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/.well-known/jwks.json`; do not configure a shared JWT secret.
+
 Deferred until their phases:
 
 - `RESEND_API_KEY`

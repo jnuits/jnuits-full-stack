@@ -161,8 +161,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 
 # server-only
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_JWT_SECRET=
+SUPABASE_SECRET_KEY=
 
 # app security
 APP_BASE_URL=
@@ -183,12 +182,15 @@ CLOUDINARY_UPLOAD_PRESET=
 SENTRY_DSN=
 ```
 
+JWT verification must use `supabase.auth.getClaims()` or the project's JWKS endpoint at
+`${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/.well-known/jwks.json`. Do not configure a shared JWT secret.
+
 ## 6.2 Secret rules
 
-1. Never expose service role key to browser code.
-2. Service role usage only in server route handlers, cron jobs, and edge functions.
+1. Never expose the Supabase secret key to browser code.
+2. Supabase secret-key usage is limited to server route handlers, cron jobs, and edge functions.
 3. Use publishable key in browser + SSR helpers.
-4. Rotate mail and service keys quarterly.
+4. Rotate mail and Supabase secret keys quarterly.
 
 ---
 
@@ -1231,7 +1233,7 @@ For each critical table:
 2. CSRF protections on state-changing routes.
 3. Input validation via Zod at all API boundaries.
 4. Hash invitation and verification codes, never store plain values.
-5. Service-role key only in server runtime.
+5. Supabase secret key only in server runtime.
 6. RLS enabled on every non-public table.
 7. Storage bucket policies reviewed for object path traversal risks.
 8. Rate-limits on claim, verify, login, and upload APIs.

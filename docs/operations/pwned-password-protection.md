@@ -24,7 +24,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const rangeUrl = "https://api.pwnedpasswords.com/range";
 const internalSecret = Deno.env.get("INTERNAL_SIGNUP_SECRET");
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabaseSecretKey = Deno.env.get("SUPABASE_SECRET_KEY")!;
 
 function json(body: Record<string, unknown>, status = 200) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -76,7 +76,7 @@ Deno.serve(async (request) => {
     return json({ message: "Password security verification is unavailable. Please try again shortly." }, 503);
   }
 
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
+  const admin = createClient(supabaseUrl, supabaseSecretKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data, error } = await admin.auth.admin.createUser({
