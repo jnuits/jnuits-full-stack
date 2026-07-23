@@ -3,405 +3,259 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-
-import { requireAdminPermission } from "@/lib/auth/session";
-import { setAdminFlash } from "@/lib/admin/flash";
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
-import {
-  issueInvitationForMember,
-  type AdminClient,
-  type InvitationMember,
-} from "@/lib/admin/invitations";
-import {
-  normalizeAlumniIdentity,
-  resolveAlumniMemberMatch,
-} from "@/lib/forms/alumni-identity";
+import { setAdminFlash } from "@/lib/admin/flash";
+import { requireAdminPermission } from "@/lib/auth/session";
+import { getAppBaseUrl } from "@/lib/env";
+import { buildClaimProfileUrl } from "@/lib/members/claim-url";
 import {
   DEFAULT_INVITATION_EXPIRY_DAYS,
+  generateInvitationCode,
+  getInvitationExpiryIso,
+  hashInvitationCode,
 } from "@/lib/members/invitation-code";
-import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
-import { buildAlumniConversionDecisionEmail } from "@/lib/notifications/email-builders";
+import {
+  buildAlumniConversionDecisionEmail,
+  buildAlumniInvitationEmail,
+} from "@/lib/notifications/email-builders";
 import { sendEmail } from "@/lib/notifications/send-email";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
-
-type AlumniCase = {
-  email: null | string;
-  form_submission_id: string;
-  full_name: null | string;
-  id: string;
-  jnuits_id: null | string;
-  status: "approved" | "pending" | "rejected";
-};
-
-type AlumniMember = InvitationMember & {
-  user_id: null | string;
-};
 
 const reviewSchema = z.object({
   caseId: z.string().uuid("The alumni case identifier is missing."),
   reviewNote: z.string().trim().max(1_500).optional().default(""),
 });
 
-function getFormValue(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return typeof value === "string" ? value.trim() : "";
+type ApprovalResult = {
+  invitation_id: null | string;
+  jnuits_id: null | string;
+  member_id: null | string;
+  recipient_email: null | string;
+  result_status: string;
+};
+
+type CaseIdentity = {
+  email: null | string;
+  full_name: null | string;
+};
+
+function parse(formData: FormData) {
+  return reviewSchema.safeParse({
+    caseId: formData.get("caseId"),
+    reviewNote: formData.get("reviewNote"),
+  });
 }
 
 function redirectToQueue(): never {
   redirect("/admin/applications#alumni-onboarding");
 }
 
-async function loadPendingCase(admin: AdminClient, caseId: string) {
-  const { data, error } = await asFlexibleClient(admin)
+async function actor() {
+  const auth = await requireAdminPermission("admin.membership.manage", {
+    fallbackPath: "/admin/applications#alumni-onboarding",
+  });
+  if (!auth.user?.id) redirect("/admin/login");
+  return auth.user.id;
+}
+
+async function loadIdentity(caseId: string): Promise<CaseIdentity | null> {
+  const admin = asFlexibleClient(createAdminClient());
+  const { data, error } = await admin
     .from("alumni_onboarding_cases" as string)
-    .select("id, form_submission_id, full_name, email, jnuits_id, status")
+    .select("full_name, email")
     .eq("id", caseId)
     .maybeSingle();
-
-  if (error || !data) {
-    throw new Error(error?.message || "The alumni onboarding case could not be loaded.");
-  }
-
-  return data as AlumniCase;
+  if (error || !data) return null;
+  return data as CaseIdentity;
 }
 
-async function allocateAlumniJnuitsId(admin: AdminClient) {
-  const { data, error } = await asFlexibleClient(admin).rpc("allocate_membership_id" as string, {
-    year_block: String(new Date().getUTCFullYear()),
-  });
-
-  if (error || typeof data !== "string") {
-    throw new Error(error?.message || "Unable to allocate a JnUITS ID for this alumni member.");
-  }
-
-  return data;
-}
-
-async function resolveAlumniMember(admin: AdminClient, onboardingCase: AlumniCase): Promise<AlumniMember> {
-  if (!onboardingCase.email?.trim()) {
-    throw new Error("This confirmed alumni case does not include an email address.");
-  }
-
-  const identity = normalizeAlumniIdentity({
-    email: onboardingCase.email,
-    jnuitsId: onboardingCase.jnuits_id,
-  });
-  const flexibleAdmin = asFlexibleClient(admin);
-  const memberSelect = "id, email, full_name, jnuits_id, user_id";
-  const [byEmailResult, byJnuitsIdResult] = await Promise.all([
-    flexibleAdmin
-      .from("members" as string)
-      .select(memberSelect)
-      .eq("email", identity.email)
-      .maybeSingle(),
-    identity.jnuitsId
-      ? flexibleAdmin
-          .from("members" as string)
-          .select(memberSelect)
-          .eq("jnuits_id", identity.jnuitsId)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-  ]);
-
-  if (byEmailResult.error || byJnuitsIdResult.error) {
-    throw new Error(
-      byEmailResult.error?.message ||
-        byJnuitsIdResult.error?.message ||
-        "Unable to check existing alumni identities."
-    );
-  }
-
-  const memberByEmail = byEmailResult.data as AlumniMember | null;
-  const memberByJnuitsId = byJnuitsIdResult.data as AlumniMember | null;
-  const match = resolveAlumniMemberMatch(memberByEmail, memberByJnuitsId);
-
-  if (match.kind === "conflict") {
-    throw new Error(
-      "The submitted email and JnUITS ID belong to different member records. Resolve the identity conflict before approval."
-    );
-  }
-
-  const nowIso = new Date().toISOString();
-  if (match.kind === "existing") {
-    const member = match.member;
-    const existingEmail = member.email?.trim().toLowerCase() || null;
-
-    if (memberByJnuitsId && existingEmail && existingEmail !== identity.email) {
-      throw new Error(
-        "The matching JnUITS ID has a different email address. Verify and update the member record before issuing a claim invitation."
-      );
-    }
-
-    const { error } = await flexibleAdmin
-      .from("members" as string)
-      .update({
-        email: member.email || identity.email,
-        lifecycle_changed_at: nowIso,
-        lifecycle_note: "Reactivated through approved alumni onboarding.",
-        lifecycle_status: "alumni",
-        member_type: "alumni",
-        portal_access_status: "active",
-        updated_at: nowIso,
-      })
-      .eq("id", member.id);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return {
-      ...member,
-      email: member.email || identity.email,
-      member_type: "alumni",
-      lifecycle_status: "alumni",
-      portal_access_status: "active",
-    };
-  }
-
-  const suppliedId = normalizeJnuitsIdForCreation(onboardingCase.jnuits_id || "");
-  const jnuitsId = suppliedId || (await allocateAlumniJnuitsId(admin));
-  const { data, error } = await flexibleAdmin
-    .from("members" as string)
-    .insert({
-      email: identity.email,
-      full_name: onboardingCase.full_name?.trim() || "JnUITS alumni",
-      jnuits_id: jnuitsId,
-      lifecycle_changed_at: nowIso,
-      lifecycle_note: "Created through approved alumni onboarding.",
-      lifecycle_status: "alumni",
-      member_type: "alumni",
-      portal_access_status: "active",
-      professional_visibility: "members-only",
-    })
-    .select(memberSelect)
-    .single();
-
-  if (error || !data) {
-    throw new Error(error?.message || "Unable to create the alumni member record.");
-  }
-
-  return data as AlumniMember;
-}
-
-async function markAlumniCaseReviewed(options: {
-  actorUserId: string;
-  admin: AdminClient;
-  onboardingCase: AlumniCase;
-  reviewNote: string;
-  status: "approved" | "rejected";
-  invitationId?: null | string;
-  memberId?: null | string;
+async function finish(options: {
+  invitationCode?: string;
+  jnuitsId?: string;
+  message: string;
+  title: string;
+  tone: "error" | "success";
 }) {
-  const nowIso = new Date().toISOString();
-  const flexibleAdmin = asFlexibleClient(options.admin);
-  const { data: updatedCase, error: caseError } = await flexibleAdmin
-    .from("alumni_onboarding_cases" as string)
-    .update({
-      invitation_id: options.invitationId || null,
-      processed_member_id: options.memberId || null,
-      review_note: options.reviewNote || null,
-      reviewed_at: nowIso,
-      reviewed_by_user_id: options.actorUserId,
-      status: options.status,
-    })
-    .eq("id", options.onboardingCase.id)
-    .eq("status", "pending")
-    .select("id")
-    .maybeSingle();
-
-  if (caseError || !updatedCase) {
-    throw new Error(caseError?.message || "This alumni case has already been reviewed.");
-  }
-
-  const { data: updatedSubmission, error: submissionError } = await flexibleAdmin
-    .from("form_submissions" as string)
-    .update({
-      review_status: options.status,
-      reviewed_at: nowIso,
-      reviewed_by_user_id: options.actorUserId,
-    })
-    .eq("id", options.onboardingCase.form_submission_id)
-    .eq("review_status", "unreviewed")
-    .select("id")
-    .maybeSingle();
-
-  if (submissionError || !updatedSubmission) {
-    throw new Error(submissionError?.message || "The linked form submission has already been reviewed.");
-  }
+  revalidatePath("/admin/applications");
+  revalidatePath("/admin/membership");
+  revalidatePath("/admin/invitations");
+  await setAdminFlash(options);
+  redirectToQueue();
 }
 
 export async function approveAlumniOnboardingCase(formData: FormData) {
-  const auth = await requireAdminPermission("admin.membership.manage", {
-    fallbackPath: "/admin/dashboard",
-  });
-  const actorUserId = auth.user?.id;
-  if (!actorUserId) redirect("/login");
-
-  const parsed = reviewSchema.safeParse({
-    caseId: getFormValue(formData, "caseId"),
-    reviewNote: getFormValue(formData, "reviewNote"),
-  });
+  const actorUserId = await actor();
+  const parsed = parse(formData);
   if (!parsed.success) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Alumni approval failed",
+    return finish({
       message: parsed.error.issues[0]?.message || "The alumni case is invalid.",
+      title: "Alumni approval failed",
+      tone: "error",
     });
-    redirectToQueue();
   }
 
-  const admin = createAdminClient();
-  try {
-    const onboardingCase = await loadPendingCase(admin, parsed.data.caseId);
-    if (onboardingCase.status !== "pending") {
-      throw new Error("This alumni case has already been reviewed.");
-    }
-
-    const member = await resolveAlumniMember(admin, onboardingCase);
-    const invitation = await issueInvitationForMember({
-      actorUserId,
-      admin,
-      emailVariant: "alumni",
-      expiresInDays: DEFAULT_INVITATION_EXPIRY_DAYS,
-      invitationType: "alumni_direct",
-      maxUses: 1,
-      member,
-      note: parsed.data.reviewNote || "Generated from alumni onboarding approval.",
-    });
-
-    await markAlumniCaseReviewed({
-      actorUserId,
-      admin,
-      invitationId: invitation.invitationId,
-      memberId: member.id,
-      onboardingCase,
-      reviewNote: parsed.data.reviewNote,
-      status: "approved",
-    });
-
-    await asFlexibleClient(admin).from("membership_lifecycle_events" as string).insert({
-      created_by_user_id: actorUserId,
-      event_type: "alumni_onboarding_approved",
-      member_id: member.id,
-      metadata: {
-        alumniCaseId: onboardingCase.id,
-        invitationId: invitation.invitationId,
-        invitationDeliveryStatus: invitation.deliveryStatus,
-      },
-      summary: "Alumni onboarding approved and claim invitation issued.",
-    });
-    await asFlexibleClient(admin).from("audit_events" as string).insert({
-      action: "alumni.onboarding_approved",
-      actor_user_id: actorUserId,
-      entity_id: onboardingCase.id,
-      entity_type: "alumni_onboarding_case",
-      metadata: {
-        invitationId: invitation.invitationId,
-        memberId: member.id,
-        reviewNote: parsed.data.reviewNote || null,
-      },
-    });
-
-    revalidatePath("/admin");
-    revalidatePath("/admin/applications");
-    revalidatePath("/admin/membership");
-    revalidatePath("/admin/invitations");
-    await setAdminFlash({
-      tone: "success",
-      title: "Alumni onboarding approved",
-      message:
-        invitation.deliveryStatus === "failed"
-          ? `${member.full_name || "The alumni member"} was approved, but the invitation email needs a retry from Invitations.`
-          : `${member.full_name || "The alumni member"} can now claim the alumni portal account.`,
-      invitationCode: invitation.code,
-      jnuitsId: member.jnuits_id || undefined,
-    });
-  } catch (error) {
-    await setAdminFlash({
-      tone: "error",
+  const identity = await loadIdentity(parsed.data.caseId);
+  if (!identity?.email) {
+    return finish({
+      message: "The confirmed alumni case could not be loaded.",
       title: "Alumni approval failed",
+      tone: "error",
+    });
+  }
+
+  const invitationCode = generateInvitationCode();
+  const expiresAt = getInvitationExpiryIso(DEFAULT_INVITATION_EXPIRY_DAYS);
+  const admin = asFlexibleClient(createAdminClient());
+  const { data, error } = await admin.rpc("approve_alumni_onboarding_case", {
+    p_actor_user_id: actorUserId,
+    p_case_id: parsed.data.caseId,
+    p_invitation_code_hash: hashInvitationCode(invitationCode),
+    p_invitation_expires_at: expiresAt,
+    p_review_note: parsed.data.reviewNote || null,
+  });
+  const result = (Array.isArray(data) ? data[0] : data) as ApprovalResult | null;
+
+  if (error || !result) {
+    return finish({
       message: getSafeAdminActionErrorMessage(error, {
         context: "alumni.onboarding.approve",
         fallback: "The alumni invitation workflow could not be completed.",
       }),
+      title: "Alumni approval failed",
+      tone: "error",
     });
   }
 
-  redirectToQueue();
+  if (result.result_status === "identity_conflict") {
+    return finish({
+      message: "The submitted email and JnUITS ID belong to different members. Resolve the identity conflict before approval.",
+      title: "Identity conflict",
+      tone: "error",
+    });
+  }
+
+  if (result.result_status === "current_member") {
+    return finish({
+      message: "This identity belongs to a current member. Alumni onboarding will not downgrade the member.",
+      title: "Current member protected",
+      tone: "error",
+    });
+  }
+
+  if (!["approved", "reactivated", "already_approved"].includes(result.result_status)) {
+    return finish({
+      message: "This alumni case could not be approved in its current state.",
+      title: "Alumni approval failed",
+      tone: "error",
+    });
+  }
+
+  const memberName = identity.full_name?.trim() || "JnUITS alumni";
+  if (result.result_status === "approved" && result.invitation_id && result.jnuits_id) {
+    const claimUrl = buildClaimProfileUrl({
+      email: result.recipient_email || identity.email,
+      invitationCode,
+      jnuitsId: result.jnuits_id,
+    });
+    void sendEmail({
+      html: buildAlumniInvitationEmail({
+        alumniEmail: result.recipient_email || identity.email,
+        alumniName: memberName,
+        claimUrl: new URL(claimUrl, getAppBaseUrl()).toString(),
+        invitationCode,
+        invitationExpiresAt: expiresAt,
+        jnuitsId: result.jnuits_id,
+      }),
+      idempotencyKey: `alumni-onboarding/${parsed.data.caseId}/${result.invitation_id}`,
+      subject: "Claim your JnUITS alumni portal account",
+      to: result.recipient_email || identity.email,
+    });
+  } else if (result.result_status === "reactivated") {
+    void sendEmail({
+      html: buildAlumniConversionDecisionEmail({
+        approved: true,
+        memberName,
+        reviewNote: parsed.data.reviewNote || null,
+      }),
+      idempotencyKey: `alumni-reactivated/${parsed.data.caseId}`,
+      subject: "Your JnUITS alumni access is active",
+      to: result.recipient_email || identity.email,
+    });
+  }
+
+  return finish({
+    invitationCode:
+      result.result_status === "approved" ? invitationCode : undefined,
+    jnuitsId: result.jnuits_id || undefined,
+    message:
+      result.result_status === "already_approved"
+        ? "This case was already approved. No duplicate member or invitation was created."
+        : result.result_status === "reactivated"
+          ? `${memberName}'s existing alumni account was reactivated safely.`
+          : `${memberName} can now claim the alumni portal account.`,
+    title: "Alumni onboarding approved",
+    tone: "success",
+  });
 }
 
 export async function rejectAlumniOnboardingCase(formData: FormData) {
-  const auth = await requireAdminPermission("admin.membership.manage", {
-    fallbackPath: "/admin/dashboard",
-  });
-  const actorUserId = auth.user?.id;
-  if (!actorUserId) redirect("/login");
-
-  const parsed = reviewSchema.safeParse({
-    caseId: getFormValue(formData, "caseId"),
-    reviewNote: getFormValue(formData, "reviewNote"),
-  });
+  const actorUserId = await actor();
+  const parsed = parse(formData);
   if (!parsed.success) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Alumni rejection failed",
+    return finish({
       message: parsed.error.issues[0]?.message || "The alumni case is invalid.",
-    });
-    redirectToQueue();
-  }
-
-  const admin = createAdminClient();
-  try {
-    const onboardingCase = await loadPendingCase(admin, parsed.data.caseId);
-    if (onboardingCase.status !== "pending") {
-      throw new Error("This alumni case has already been reviewed.");
-    }
-
-    await markAlumniCaseReviewed({
-      actorUserId,
-      admin,
-      onboardingCase,
-      reviewNote: parsed.data.reviewNote,
-      status: "rejected",
-    });
-    await asFlexibleClient(admin).from("audit_events" as string).insert({
-      action: "alumni.onboarding_rejected",
-      actor_user_id: actorUserId,
-      entity_id: onboardingCase.id,
-      entity_type: "alumni_onboarding_case",
-      metadata: { reviewNote: parsed.data.reviewNote || null },
-    });
-
-    if (onboardingCase.email && onboardingCase.full_name) {
-      void sendEmail({
-        html: buildAlumniConversionDecisionEmail({
-          approved: false,
-          memberName: onboardingCase.full_name,
-          reviewNote: parsed.data.reviewNote || null,
-        }),
-        subject: "An update on your JnUITS alumni onboarding",
-        to: onboardingCase.email,
-      });
-    }
-
-    revalidatePath("/admin");
-    revalidatePath("/admin/applications");
-    await setAdminFlash({
-      tone: "success",
-      title: "Alumni onboarding rejected",
-      message: "The alumni case has been marked as rejected.",
-    });
-  } catch (error) {
-    await setAdminFlash({
-      tone: "error",
       title: "Alumni rejection failed",
-      message: getSafeAdminActionErrorMessage(error, {
-        context: "alumni.onboarding.reject",
-        fallback: "The alumni case could not be updated.",
-      }),
+      tone: "error",
     });
   }
 
-  redirectToQueue();
+  const identity = await loadIdentity(parsed.data.caseId);
+  if (!identity) {
+    return finish({
+      message: "The confirmed alumni case could not be loaded.",
+      title: "Alumni rejection failed",
+      tone: "error",
+    });
+  }
+
+  const admin = asFlexibleClient(createAdminClient());
+  const { data, error } = await admin.rpc("reject_alumni_onboarding_case", {
+    p_actor_user_id: actorUserId,
+    p_case_id: parsed.data.caseId,
+    p_review_note: parsed.data.reviewNote || null,
+  });
+  const result = (Array.isArray(data) ? data[0] : data) as
+    | { result_status?: string }
+    | null;
+
+  if (error || !["rejected", "already_rejected"].includes(result?.result_status || "")) {
+    return finish({
+      message: "The alumni case could not be rejected.",
+      title: "Alumni rejection failed",
+      tone: "error",
+    });
+  }
+
+  if (result?.result_status === "rejected" && identity.email) {
+    void sendEmail({
+      html: buildAlumniConversionDecisionEmail({
+        approved: false,
+        memberName: identity.full_name?.trim() || "JnUITS alumni applicant",
+        reviewNote: parsed.data.reviewNote || null,
+      }),
+      idempotencyKey: `alumni-rejection/${parsed.data.caseId}`,
+      subject: "An update on your JnUITS alumni onboarding",
+      to: identity.email,
+    });
+  }
+
+  return finish({
+    message:
+      result?.result_status === "already_rejected"
+        ? "This alumni case was already rejected."
+        : "The alumni case was rejected without exposing application details.",
+    title: "Alumni onboarding rejected",
+    tone: "success",
+  });
 }
