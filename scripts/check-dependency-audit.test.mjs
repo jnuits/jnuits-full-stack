@@ -55,14 +55,18 @@ describe("dependency audit gate", () => {
     ).toContain("time-limited GHSA-f88m-g3jw-g9cj exception");
   });
 
-  it("rejects every additional reportable vulnerability", () => {
+  it("rejects every additional reportable vulnerability with actionable details", () => {
     const report = structuredClone(allowedReport);
     report.vulnerabilities.example = {
       isDirect: true,
       nodes: ["node_modules/example"],
       range: "<2.0.0",
       severity: "moderate",
-      via: [],
+      via: [
+        {
+          url: "https://github.com/advisories/GHSA-example",
+        },
+      ],
     };
 
     expect(() =>
@@ -72,7 +76,9 @@ describe("dependency audit gate", () => {
         now: Date.parse("2026-07-23T00:00:00Z"),
         report,
       })
-    ).toThrow("Unexpected dependency vulnerabilities");
+    ).toThrow(
+      "example (moderate; range <2.0.0; via https://github.com/advisories/GHSA-example; nodes node_modules/example)"
+    );
   });
 
   it("rejects the exception after its deadline", () => {
