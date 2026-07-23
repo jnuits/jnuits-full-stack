@@ -1,69 +1,58 @@
+import { cookies } from "next/headers";
+import { CheckCircle, Clock, SearchCheck, UserCheck, XCircle } from "lucide-react";
+import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
+import { EmptyState } from "@/components/ui/empty-state";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
-import { cookies } from "next/headers";
-import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import {
   approveMembershipApplication,
   rejectMembershipApplication,
-} from "@/app/admin/membership/moderation-actions";
+  requestMembershipApplicationReview,
+} from "./membership-actions";
 import {
   approveAlumniOnboardingCase,
   rejectAlumniOnboardingCase,
 } from "./alumni-actions";
-import { EmptyState } from "@/components/ui/empty-state";
-import { CheckCircle, XCircle, Clock, UserCheck } from "lucide-react";
 
-type ApplicationRecord = {
-  id: string;
-  name: string;
-  email: string;
-  department_code: string | null;
-  batch_label: string | null;
-  student_id: string | null;
-  phone: string | null;
-  facebook_url: string | null;
-  linkedin_url: string | null;
-  photo_url: string | null;
-  status: string;
+type MembershipApplication = {
+  batch_label: null | string;
   created_at: string;
-  review_note: string | null;
-  reviewed_at: string | null;
-  invitation_id: string | null;
-  processed_member_id: string | null;
-  departments?: { name?: string | null } | { name?: string | null }[] | null;
+  department_code: null | string;
+  email: string;
+  id: string;
+  membership_cycle_id: null | string;
+  name: string;
+  phone: null | string;
+  review_note: null | string;
+  status: "needs_review" | "pending";
+  student_id: null | string;
 };
 
-
-type AlumniOnboardingCase = {
+type AlumniCase = {
   created_at: string;
-  email: string | null;
-  form_submission_id: string;
-  full_name: string | null;
+  email: null | string;
+  full_name: null | string;
   id: string;
-  invitation_id: string | null;
-  jnuits_id: string | null;
-  processed_member_id: string | null;
-  review_note: string | null;
-  reviewed_at: string | null;
-  status: "approved" | "pending" | "rejected";
-};function resolveDepartmentName(
-  departments: ApplicationRecord["departments"],
-  fallbackCode: string | null
-) {
-  if (Array.isArray(departments)) {
-    return departments[0]?.name || fallbackCode || "Department not set";
-  }
-  return departments?.name || fallbackCode || "Department not set";
-}
+  jnuits_id: null | string;
+  review_note: null | string;
+  status: "pending";
+};
 
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+type RecentDecision = {
+  email: string;
+  id: string;
+  name: string;
+  review_note: null | string;
+  reviewed_at: null | string;
+  status: string;
+};
+
+function relativeTime(value: string) {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1_440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1_440)}d ago`;
 }
 
 export const metadata = { title: "Applications — Admin | JnUITS" };
@@ -72,315 +61,164 @@ export default async function ApplicationsPage() {
   const admin = asFlexibleClient(createAdminClient());
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
-
-  const [pendingResult, recentResult, countResult, alumniPendingResult, alumniCountResult] = await Promise.all([
+  const [membershipResult, membershipCountResult, recentResult, alumniResult, alumniCountResult] = await Promise.all([
     admin
       .from("membership_applications")
-      .select(
-        "id, name, email, department_code, batch_label, student_id, phone, facebook_url, linkedin_url, photo_url, status, created_at, review_note, reviewed_at, invitation_id, processed_member_id, departments(name)"
-      )
-      .eq("status", "pending")
+      .select("id, membership_cycle_id, name, email, department_code, batch_label, student_id, phone, status, created_at, review_note")
+      .in("status", ["pending", "needs_review"])
       .order("created_at", { ascending: true })
-      .limit(20),
+      .limit(50),
     admin
       .from("membership_applications")
-      .select("id, name, email, status, review_note, reviewed_at, invitation_id, processed_member_id")
-      .neq("status", "pending")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["pending", "needs_review"]),
+    admin
+      .from("membership_applications")
+      .select("id, name, email, status, review_note, reviewed_at")
+      .in("status", ["approved", "rejected"])
       .order("reviewed_at", { ascending: false })
-      .limit(10),
-    admin
-      .from("membership_applications")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending"),
-    admin
-      .from("alumni_onboarding_cases")
-      .select(
-        "id, form_submission_id, full_name, email, jnuits_id, status, review_note, reviewed_at, invitation_id, processed_member_id, created_at"
-      )
-      .eq("status", "pending")
-      .order("created_at", { ascending: true })
       .limit(20),
     admin
       .from("alumni_onboarding_cases")
-      .select("*", { count: "exact", head: true })
+      .select("id, full_name, email, jnuits_id, status, review_note, created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(50),
+    admin
+      .from("alumni_onboarding_cases")
+      .select("id", { count: "exact", head: true })
       .eq("status", "pending"),
   ]);
-  const pending = (pendingResult.data || []) as ApplicationRecord[];
-  const recent = (recentResult.data || []) as ApplicationRecord[];
-  const pendingCount = countResult.count || 0;
-  const alumniPending = (alumniPendingResult.data || []) as AlumniOnboardingCase[];
-  const alumniPendingCount = alumniCountResult.count || 0;
+
+  const membership = (membershipResult.data || []) as MembershipApplication[];
+  const recent = (recentResult.data || []) as RecentDecision[];
+  const alumni = (alumniResult.data || []) as AlumniCase[];
+  const membershipCount = membershipCountResult.count || 0;
+  const alumniCount = alumniCountResult.count || 0;
 
   return (
     <div className="grid gap-8">
-      <div className="admin-page-header">
+      <header className="admin-page-header">
         <div>
           <p className="admin-page-header__breadcrumb">Admin / Membership</p>
           <h1 className="admin-page-header__title">Applications</h1>
           <p className="admin-page-header__desc">
-            Review annual membership applications and confirmed alumni onboarding cases. Approval creates or reactivates a member, then issues the canonical claim invitation.
+            Review confirmed annual membership and alumni onboarding cases. Approval reconciles canonical identity and issues a claim, never an account.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {pendingCount > 0 && (
-            <span className="abadge abadge--pending">
-              <Clock size={10} /> {pendingCount} pending
-            </span>
-          )}
-          {alumniPendingCount > 0 && (
-            <span className="abadge abadge--pending">
-              <Clock size={10} /> {alumniPendingCount} alumni
-            </span>
-          )}
+        <div className="flex flex-wrap gap-2">
+          <span className="abadge abadge--pending"><Clock size={10} /> {membershipCount} membership</span>
+          <span className="abadge abadge--pending"><Clock size={10} /> {alumniCount} alumni</span>
         </div>
-      </div>
+      </header>
 
-      {flash && (
+      {flash ? (
         <section className="flash-panel" data-tone={flash.tone}>
           <p className="admin-section-label">Operator feedback</p>
-          <h2 className="mt-2 font-[family-name:var(--font-heading)] text-2xl font-semibold tracking-[-0.03em]">
-            {flash.title}
-          </h2>
+          <h2 className="mt-2 text-2xl font-semibold">{flash.title}</h2>
           <p className="mt-1 text-sm leading-7">{flash.message}</p>
         </section>
-      )}
+      ) : null}
 
-      {/* ── Metrics ── */}
-      <div className="admin-metric-grid">
-        <div className="admin-metric-card" data-tone="warning">
-          <div className="admin-metric-card__icon"><Clock size={16} /></div>
-          <p className="admin-metric-card__label">Pending</p>
-          <p className="admin-metric-card__value">{pendingCount}</p>
-          <p className="admin-metric-card__sub">Awaiting review</p>
+      <section className="grid gap-4" aria-labelledby="membership-queue-heading">
+        <div>
+          <p className="admin-section-label">Annual membership</p>
+          <h2 className="admin-card-row__title" id="membership-queue-heading">Confirmed applications, oldest first</h2>
         </div>
-        <div className="admin-metric-card" data-tone="info">
-          <div className="admin-metric-card__icon"><UserCheck size={16} /></div>
-          <p className="admin-metric-card__label">In queue</p>
-          <p className="admin-metric-card__value">{pending.length}</p>
-          <p className="admin-metric-card__sub">Showing oldest first</p>
-        </div>
-        <div className="admin-metric-card" data-tone="success">
-          <div className="admin-metric-card__icon"><CheckCircle size={16} /></div>
-          <p className="admin-metric-card__label">Approved</p>
-          <p className="admin-metric-card__value">{recent.filter((r) => r.status === "approved").length}</p>
-          <p className="admin-metric-card__sub">Recent decisions</p>
-        </div>
-        <div className="admin-metric-card" data-tone="danger">
-          <div className="admin-metric-card__icon"><XCircle size={16} /></div>
-          <p className="admin-metric-card__label">Rejected</p>
-          <p className="admin-metric-card__value">{recent.filter((r) => r.status === "rejected").length}</p>
-          <p className="admin-metric-card__sub">Recent decisions</p>
-        </div>
-      </div>
-
-      {/* ── Pending Queue ── */}
-      <section>
-        <p className="admin-section-label">Pending applications — oldest first</p>
-
-        {pending.length === 0 ? (
-          <EmptyState
-            title="No pending applications"
-            description="The application queue is clear. New submissions from the portal will appear here."
-          />
-        ) : (
-          <div className="grid gap-4">
-            {pending.map((app) => (
-              <div key={app.id} className="admin-review-card admin-review-card--pending">
-                <div className="admin-review-card__header">
-                  <div>
-                    <div className="admin-review-card__chips">
-                      <span className="abadge abadge--pending">Pending</span>
-                      <span className="detail-chip">{relativeTime(app.created_at)}</span>
-                      {app.batch_label && <span className="detail-chip">Batch {app.batch_label}</span>}
-                    </div>
-                    <p className="admin-review-card__name mt-1">{app.name}</p>
-                    <p className="admin-review-card__id">{app.email}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">
-                      {resolveDepartmentName(app.departments, app.department_code)}
-                    </p>
-                    {app.student_id && (
-                      <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
-                        ID: {app.student_id}
-                      </p>
-                    )}
-                  </div>
+        {!membership.length ? (
+          <EmptyState title="No membership applications awaiting review" description="Only email-confirmed submissions from an open annual cycle appear here." />
+        ) : membership.map((application) => (
+          <article className="admin-review-card admin-review-card--pending" key={application.id}>
+            <div className="admin-review-card__header">
+              <div>
+                <div className="admin-review-card__chips">
+                  <span className="abadge abadge--pending">{application.status === "needs_review" ? "Needs review" : "Pending"}</span>
+                  <span className="detail-chip">{relativeTime(application.created_at)}</span>
+                  {application.batch_label ? <span className="detail-chip">Batch {application.batch_label}</span> : null}
                 </div>
-
-                <div className="admin-review-card__diff">
-                  <div className="admin-diff-box">
-                    <p className="admin-diff-box__label">Contact info</p>
-                    {app.phone && (
-                      <div className="admin-diff-box__item">
-                        <span className="admin-diff-box__key">Phone</span>
-                        <span>{app.phone}</span>
-                      </div>
-                    )}
-                    {app.facebook_url && (
-                      <div className="admin-diff-box__item">
-                        <span className="admin-diff-box__key">Facebook</span>
-                        <span className="truncate text-xs">{app.facebook_url}</span>
-                      </div>
-                    )}
-                    {app.linkedin_url && (
-                      <div className="admin-diff-box__item">
-                        <span className="admin-diff-box__key">LinkedIn</span>
-                        <span className="truncate text-xs">{app.linkedin_url}</span>
-                      </div>
-                    )}
-                    {!app.phone && !app.facebook_url && !app.linkedin_url && (
-                      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>No contact info provided</p>
-                    )}
-                  </div>
-                  <div className="admin-diff-box">
-                    <p className="admin-diff-box__label">Application detail</p>
-                    <div className="admin-diff-box__item">
-                      <span className="admin-diff-box__key">Submitted</span>
-                      <span>{new Date(app.created_at).toLocaleDateString("en-BD")}</span>
-                    </div>
-                    <div className="admin-diff-box__item">
-                      <span className="admin-diff-box__key">Status</span>
-                      <span className="capitalize">{app.status}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <form className="admin-review-card__actions">
-                  <input type="hidden" name="applicationId" value={app.id} />
-                  <label className="input-label">
-                    Review note (required for rejection, optional for approval)
-                    <textarea
-                      name="reviewNote"
-                      placeholder="Operator rationale or follow-up instruction"
-                      rows={3}
-                    />
-                  </label>
-                  <div className="flex flex-wrap gap-3">
-                    <button className="admin-btn admin-btn--success" formAction={approveMembershipApplication}>
-                      <CheckCircle size={15} /> Approve &amp; create member
-                    </button>
-                    <button className="admin-btn admin-btn--danger" formAction={rejectMembershipApplication}>
-                      <XCircle size={15} /> Reject application
-                    </button>
-                  </div>
-                </form>
+                <h3 className="admin-review-card__name mt-1">{application.name}</h3>
+                <p className="admin-review-card__id">{application.email}</p>
               </div>
-            ))}
-          </div>
-        )}
+              <div className="text-right text-xs text-[var(--muted-foreground)]">
+                <p>{application.department_code || "Department not supplied"}</p>
+                <p>{application.student_id || "Student ID not supplied"}</p>
+                <p>{application.membership_cycle_id ? "Annual cycle bound" : "Cycle binding missing"}</p>
+              </div>
+            </div>
+            <form className="admin-review-card__actions">
+              <input name="applicationId" type="hidden" value={application.id} />
+              <label className="input-label">
+                Review note
+                <textarea defaultValue={application.review_note || ""} name="reviewNote" placeholder="Decision rationale or follow-up needed" rows={3} />
+              </label>
+              <div className="flex flex-wrap gap-3">
+                <button className="admin-btn admin-btn--success" formAction={approveMembershipApplication}>
+                  <CheckCircle size={15} /> Approve and issue claim
+                </button>
+                <button className="admin-btn admin-btn--ghost" formAction={requestMembershipApplicationReview}>
+                  <SearchCheck size={15} /> Request review
+                </button>
+                <button className="admin-btn admin-btn--danger" formAction={rejectMembershipApplication}>
+                  <XCircle size={15} /> Reject
+                </button>
+              </div>
+            </form>
+          </article>
+        ))}
       </section>
 
-
-      <section id="alumni-onboarding">
-        <p className="admin-section-label">Alumni onboarding — oldest first</p>
-
-        {alumniPending.length === 0 ? (
-          <EmptyState
-            title="No alumni cases awaiting review"
-            description="Confirmed alumni onboarding submissions will appear here after staff publishes an alumni form."
-          />
-        ) : (
-          <div className="grid gap-4">
-            {alumniPending.map((onboardingCase) => (
-              <div key={onboardingCase.id} className="admin-review-card admin-review-card--pending">
-                <div className="admin-review-card__header">
-                  <div>
-                    <div className="admin-review-card__chips">
-                      <span className="abadge abadge--pending">Pending</span>
-                      <span className="detail-chip">{relativeTime(onboardingCase.created_at)}</span>
-                    </div>
-                    <p className="admin-review-card__name mt-1">
-                      {onboardingCase.full_name || "Alumni applicant"}
-                    </p>
-                    <p className="admin-review-card__id">{onboardingCase.email || "Email unavailable"}</p>
-                  </div>
-                  {onboardingCase.jnuits_id ? (
-                    <span className="detail-chip">{onboardingCase.jnuits_id}</span>
-                  ) : null}
-                </div>
-
-                <div className="admin-review-card__diff">
-                  <div className="admin-diff-box">
-                    <p className="admin-diff-box__label">Identity review</p>
-                    <div className="admin-diff-box__item">
-                      <span className="admin-diff-box__key">Submitted</span>
-                      <span>{new Date(onboardingCase.created_at).toLocaleDateString("en-BD")}</span>
-                    </div>
-                    <div className="admin-diff-box__item">
-                      <span className="admin-diff-box__key">Member match</span>
-                      <span>Verified during approval</span>
-                    </div>
-                  </div>
-                  <div className="admin-diff-box">
-                    <p className="admin-diff-box__label">Approval result</p>
-                    <p className="text-xs leading-6" style={{ color: "var(--muted-foreground)" }}>
-                      Approval deduplicates by email and JnUITS ID, safely reactivates an existing alumni record, and issues the canonical invitation claim.
-                    </p>
-                  </div>
-                </div>
-
-                <form className="admin-review-card__actions">
-                  <input name="caseId" type="hidden" value={onboardingCase.id} />
-                  <label className="input-label">
-                    Review note (optional for approval, recommended for rejection)
-                    <textarea
-                      name="reviewNote"
-                      placeholder="Identity verification or follow-up note"
-                      rows={3}
-                    />
-                  </label>
-                  <div className="flex flex-wrap gap-3">
-                    <button className="admin-btn admin-btn--success" formAction={approveAlumniOnboardingCase}>
-                      <CheckCircle size={15} /> Approve &amp; issue claim
-                    </button>
-                    <button className="admin-btn admin-btn--danger" formAction={rejectAlumniOnboardingCase}>
-                      <XCircle size={15} /> Reject onboarding
-                    </button>
-                  </div>
-                </form>
+      <section className="grid gap-4" id="alumni-onboarding" aria-labelledby="alumni-queue-heading">
+        <div>
+          <p className="admin-section-label">Alumni onboarding</p>
+          <h2 className="admin-card-row__title" id="alumni-queue-heading">Confirmed alumni cases, oldest first</h2>
+        </div>
+        {!alumni.length ? (
+          <EmptyState title="No alumni cases awaiting review" description="Email-confirmed alumni onboarding cases appear here." />
+        ) : alumni.map((onboardingCase) => (
+          <article className="admin-review-card admin-review-card--pending" key={onboardingCase.id}>
+            <div className="admin-review-card__header">
+              <div>
+                <span className="abadge abadge--pending">Pending</span>
+                <h3 className="admin-review-card__name mt-2">{onboardingCase.full_name || "Alumni applicant"}</h3>
+                <p className="admin-review-card__id">{onboardingCase.email || "Email unavailable"}</p>
               </div>
+              <span className="detail-chip">{onboardingCase.jnuits_id || "Identity match required"}</span>
+            </div>
+            <form className="admin-review-card__actions">
+              <input name="caseId" type="hidden" value={onboardingCase.id} />
+              <label className="input-label">
+                Review note
+                <textarea defaultValue={onboardingCase.review_note || ""} name="reviewNote" rows={3} />
+              </label>
+              <div className="flex flex-wrap gap-3">
+                <button className="admin-btn admin-btn--success" formAction={approveAlumniOnboardingCase}>
+                  <UserCheck size={15} /> Approve and issue claim
+                </button>
+                <button className="admin-btn admin-btn--danger" formAction={rejectAlumniOnboardingCase}>
+                  <XCircle size={15} /> Reject
+                </button>
+              </div>
+            </form>
+          </article>
+        ))}
+      </section>
+
+      {recent.length ? (
+        <section className="grid gap-3">
+          <p className="admin-section-label">Recent membership decisions</p>
+          <div className="grid gap-3">
+            {recent.map((decision) => (
+              <article className="admin-review-card" key={decision.id}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><h3 className="font-semibold">{decision.name}</h3><p className="text-sm text-[var(--muted-foreground)]">{decision.email}</p></div>
+                  <span className={`abadge abadge--${decision.status}`}>{decision.status}</span>
+                </div>
+                <p className="mt-3 text-sm text-[var(--muted-foreground)]">{decision.review_note || "No review note."}</p>
+              </article>
             ))}
           </div>
-        )}
-      </section>      {/* ── Recent Decisions ── */}
-      {recent.length > 0 && (
-        <section>
-          <p className="admin-section-label">Recent decisions</p>
-          <div className="admin-responsive-table-shell overflow-x-auto rounded-xl border" style={{ borderColor: "var(--line)" }}>
-            <table className="admin-queue-table admin-responsive-table">
-              <thead>
-                <tr>
-                  <th>Applicant</th>
-                  <th>Email</th>
-                  <th>Status</th>
-                  <th>Reviewed</th>
-                  <th>Note</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((app) => (
-                  <tr key={app.id}>
-                    <td className="font-semibold text-sm" data-label="Applicant">{app.name}</td>
-                    <td className="text-sm" data-label="Email" style={{ color: "var(--muted-foreground)" }}>{app.email}</td>
-                    <td data-label="Status">
-                      <span className={`abadge abadge--${app.status}`}>{app.status}</span>
-                    </td>
-                    <td className="text-xs" data-label="Reviewed" style={{ color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-                      {app.reviewed_at ? new Date(app.reviewed_at).toLocaleDateString("en-BD") : "—"}
-                    </td>
-                    <td className="max-w-64 whitespace-normal break-words text-xs" data-label="Note" style={{ color: "var(--muted-foreground)" }}>
-                      {app.review_note || "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </section>
-      )}
+      ) : null}
     </div>
   );
 }
-
-
