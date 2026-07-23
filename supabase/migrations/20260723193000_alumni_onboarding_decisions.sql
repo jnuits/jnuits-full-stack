@@ -51,8 +51,7 @@ begin
   end if;
 
   if onboarding.status = 'approved' and onboarding.processed_member_id is not null then
-    select * into member from public.members
-    where id = onboarding.processed_member_id;
+    select * into member from public.members where id = onboarding.processed_member_id;
     return query select 'already_approved'::text, member.id,
       onboarding.invitation_id, member.jnuits_id::text, member.email::text;
     return;
@@ -93,9 +92,12 @@ begin
     return;
   end if;
 
-  member := coalesce(member_by_id, member_by_email);
+  if member_by_id.id is not null then
+    member := member_by_id;
+  else
+    member := member_by_email;
+  end if;
 
-  -- Alumni onboarding must never downgrade a current member.
   if member.id is not null
     and (member.lifecycle_status = 'current' or member.member_type = 'current')
   then
@@ -112,25 +114,15 @@ begin
     end if;
 
     insert into public.members (
-      email,
-      full_name,
-      jnuits_id,
-      lifecycle_changed_at,
-      lifecycle_note,
-      lifecycle_status,
-      member_type,
-      portal_access_status,
-      professional_visibility
+      email, full_name, jnuits_id, lifecycle_changed_at, lifecycle_note,
+      lifecycle_status, member_type, portal_access_status, professional_visibility
     ) values (
       normalized_email,
       coalesce(nullif(trim(onboarding.full_name), ''), 'JnUITS alumni'),
       normalized_jnuits_id,
       now_value,
       'Created through approved alumni onboarding.',
-      'alumni',
-      'alumni',
-      'active',
-      'members-only'
+      'alumni', 'alumni', 'active', 'members-only'
     ) returning * into member;
   else
     update public.members
@@ -145,23 +137,12 @@ begin
     returning * into member;
   end if;
 
-  -- Claimed alumni accounts are reactivated directly. Unclaimed identities get
-  -- one canonical invitation and no automatic auth account provisioning.
   if member.user_id is null then
     insert into public.member_invitations (
-      member_id,
-      code_hash,
-      expires_at,
-      max_uses,
-      notes,
-      created_by_user_id
+      member_id, code_hash, expires_at, max_uses, notes, created_by_user_id
     ) values (
-      member.id,
-      p_invitation_code_hash,
-      p_invitation_expires_at,
-      1,
-      nullif(trim(p_review_note), ''),
-      p_actor_user_id
+      member.id, p_invitation_code_hash, p_invitation_expires_at, 1,
+      nullif(trim(p_review_note), ''), p_actor_user_id
     ) returning * into invitation;
   end if;
 
@@ -200,9 +181,7 @@ begin
   insert into public.audit_events (
     action, actor_user_id, entity_id, entity_type, metadata
   ) values (
-    'alumni.onboarding_approved',
-    p_actor_user_id,
-    onboarding.id,
+    'alumni.onboarding_approved', p_actor_user_id, onboarding.id,
     'alumni_onboarding_case',
     jsonb_build_object(
       'memberId', member.id,
@@ -213,10 +192,7 @@ begin
 
   return query select
     case when invitation.id is null then 'reactivated' else 'approved' end,
-    member.id,
-    invitation.id,
-    member.jnuits_id::text,
-    member.email::text;
+    member.id, invitation.id, member.jnuits_id::text, member.email::text;
 end;
 $function$;
 
@@ -234,6 +210,11 @@ declare
   onboarding public.alumni_onboarding_cases%rowtype;
   now_value timestamptz := clock_timestamp();
 begin
+  if p_case_id is null or p_actor_user_id is null then
+    return query select 'invalid'::text;
+    return;
+  end if;
+
   select * into onboarding
   from public.alumni_onboarding_cases
   where id = p_case_id
@@ -273,9 +254,7 @@ begin
   insert into public.audit_events (
     action, actor_user_id, entity_id, entity_type, metadata
   ) values (
-    'alumni.onboarding_rejected',
-    p_actor_user_id,
-    onboarding.id,
+    'alumni.onboarding_rejected', p_actor_user_id, onboarding.id,
     'alumni_onboarding_case',
     jsonb_build_object('reviewNote', nullif(trim(p_review_note), ''))
   );
