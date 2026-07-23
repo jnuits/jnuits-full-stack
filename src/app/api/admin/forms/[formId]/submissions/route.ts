@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { logServerError } from "@/lib/errors/api-error";
+import { canAccessFormStudioKind } from "@/lib/forms/form-studio-access";
+import { loadFormManagementContext } from "@/lib/forms/management";
 import {
   FORM_REVIEW_STATUSES,
   listFormSubmissionsForReview,
@@ -18,30 +20,33 @@ function positiveInt(value: string | null, fallback: number, max: number) {
 
 export const GET = withApiGuard(
   async (request, context) => {
-    const permission = await requireAdminApiPermission("admin.forms.review");
+    const permission = await requireAdminApiPermission("cms.forms.manage");
     if (permission.response) return permission.response;
 
     const { formId: rawFormId } = await context.params;
-    const formId =
-      typeof rawFormId === "string" ? formIdSchema.safeParse(rawFormId) : null;
-    if (!formId?.success) {
-      return NextResponse.json({ error: "Form not found." }, { status: 404 });
-    }
-
-    const url = new URL(request.url);
-    const statusValue = url.searchParams.get("status");
-    const status = statusValue
-      ? z.enum(FORM_REVIEW_STATUSES).safeParse(statusValue)
-      : null;
-    if (statusValue && !status?.success) {
-      return NextResponse.json({ error: "Invalid review status." }, { status: 422 });
-    }
-
-    const page = positiveInt(url.searchParams.get("page"), 1, 100_000);
-    const pageSize = positiveInt(url.searchParams.get("pageSize"), 25, 100);
-    const query = (url.searchParams.get("q") || "").trim().slice(0, 120);
+    const formId = typeof rawFormId === "string" ? formIdSchema.safeParse(rawFormId) : null;
+    if (!formId?.success) return NextResponse.json({ error: "Form not found." }, { status: 404 });
 
     try {
+      const form = await loadFormManagementContext(formId.data);
+      if (!form) return NextResponse.json({ error: "Form not found." }, { status: 404 });
+      if (!canAccessFormStudioKind(permission.auth.roles, form.kind)) {
+        return NextResponse.json(
+          { error: "You do not have permission to review this form type." },
+          { status: 403 }
+        );
+      }
+
+      const url = new URL(request.url);
+      const statusValue = url.searchParams.get("status");
+      const status = statusValue ? z.enum(FORM_REVIEW_STATUSES).safeParse(statusValue) : null;
+      if (statusValue && !status?.success) {
+        return NextResponse.json({ error: "Invalid review status." }, { status: 422 });
+      }
+
+      const page = positiveInt(url.searchParams.get("page"), 1, 100_000);
+      const pageSize = positiveInt(url.searchParams.get("pageSize"), 25, 100);
+      const query = (url.searchParams.get("q") || "").trim().slice(0, 120);
       const result = await listFormSubmissionsForReview({
         formDefinitionId: formId.data,
         page,
@@ -52,10 +57,7 @@ export const GET = withApiGuard(
       return NextResponse.json({ ...result, page, pageSize });
     } catch (error) {
       logServerError("forms.admin.review_list", error);
-      return NextResponse.json(
-        { error: "Form submissions could not be loaded." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Form submissions could not be loaded." }, { status: 500 });
     }
   },
   { requireAuth: true }

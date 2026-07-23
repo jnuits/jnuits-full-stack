@@ -5,6 +5,10 @@ import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { logServerError } from "@/lib/errors/api-error";
 import { parseFormApplicationBehavior } from "@/lib/forms/application-behavior";
 import { FormKindSchema, parseFormDefinition } from "@/lib/forms/definition";
+import {
+  canAccessFormStudioKind,
+  formStudioKindFilter,
+} from "@/lib/forms/form-studio-access";
 import { createFormDraft, listForms } from "@/lib/forms/management";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 
@@ -20,15 +24,19 @@ const createFormRequestSchema = z
   })
   .strict();
 
+function forbiddenKindResponse() {
+  return NextResponse.json(
+    { error: "You do not have permission to manage this form type." },
+    { status: 403 }
+  );
+}
+
 export const POST = withApiGuard(
   async (request) => {
     const permission = await requireAdminApiPermission("cms.forms.manage");
-    if (permission.response) {
-      return permission.response;
-    }
+    if (permission.response) return permission.response;
 
     let body: unknown;
-
     try {
       body = await request.json();
     } catch {
@@ -39,23 +47,21 @@ export const POST = withApiGuard(
     if (!parsed.success) {
       return NextResponse.json({ error: "Please check the form configuration." }, { status: 422 });
     }
+    if (!canAccessFormStudioKind(permission.auth.roles, parsed.data.kind)) {
+      return forbiddenKindResponse();
+    }
 
     let definition;
     let applicationBehavior;
-
     try {
       definition = parseFormDefinition(parsed.data.definition);
-
       if (parsed.data.kind === "event_registration") {
         if (!parsed.data.linkedEventId) {
           throw new Error("Event registration forms must link to an event.");
         }
-      } else {
-        if (parsed.data.linkedEventId) {
-          throw new Error("Only event registration forms can link to an event.");
-        }
+      } else if (parsed.data.linkedEventId) {
+        throw new Error("Only event registration forms can link to an event.");
       }
-
       applicationBehavior = parseFormApplicationBehavior(
         parsed.data.kind,
         parsed.data.applicationBehavior,
@@ -63,10 +69,7 @@ export const POST = withApiGuard(
       );
     } catch (error) {
       return NextResponse.json(
-        {
-          error:
-            error instanceof Error ? error.message : "Please check the form configuration.",
-        },
+        { error: error instanceof Error ? error.message : "Please check the form configuration." },
         { status: 422 }
       );
     }
@@ -82,7 +85,6 @@ export const POST = withApiGuard(
         slug: parsed.data.slug,
         title: parsed.data.title,
       });
-
       return NextResponse.json(draft, { status: 201 });
     } catch (error) {
       logServerError("forms.admin.create_draft", error);
@@ -111,14 +113,18 @@ export const GET = withApiGuard(
     if (kindValue && !kind?.success) {
       return NextResponse.json({ error: "Invalid form kind." }, { status: 422 });
     }
+    if (kind?.success && !canAccessFormStudioKind(permission.auth.roles, kind.data)) {
+      return forbiddenKindResponse();
+    }
 
     const page = parsePositiveInt(url.searchParams.get("page"), 1, 100_000);
     const pageSize = parsePositiveInt(url.searchParams.get("pageSize"), 25, 100);
     const query = (url.searchParams.get("q") || "").trim().slice(0, 100);
+    const scopedKind = formStudioKindFilter(permission.auth.roles);
 
     try {
       const result = await listForms({
-        kind: kind?.success ? kind.data : undefined,
+        kind: scopedKind || (kind?.success ? kind.data : undefined),
         page,
         pageSize,
         query,
