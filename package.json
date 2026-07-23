@@ -2,9 +2,7 @@
   "name": "jnuits-full-stack",
   "version": "0.1.0",
   "private": true,
-  "engines": {
-    "node": "24.x"
-  },
+  "engines": { "node": "24.x" },
   "scripts": {
     "dev": "next dev --webpack",
     "dev:turbopack": "next dev --turbopack",
@@ -22,6 +20,7 @@
     "content:import:legacy": "node scripts/import-legacy-public-content.mjs",
     "events:build-seed": "node scripts/build-events-seed.mjs",
     "events:import": "node scripts/import-events-seed.mjs",
+    "events:verify-concurrency": "node scripts/verify-event-registration-concurrency.mjs",
     "gallery:build-seed": "node scripts/build-gallery-seed.mjs",
     "gallery:import": "node scripts/import-gallery-seed.mjs",
     "gallery:normalize-items": "node scripts/normalize-gallery-items.mjs",
@@ -79,7 +78,5 @@
     "typescript": "^5",
     "vitest": "^4.1.8"
   },
-  "overrides": {
-    "postcss": "8.5.10"
-  }
+  "overrides": { "postcss": "8.5.10" }
 }
