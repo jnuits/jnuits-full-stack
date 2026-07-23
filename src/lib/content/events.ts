@@ -732,7 +732,7 @@ export const getPublicEventFilterOptions = cache(async () => {
   return Array.from(new Set(rows.map((row) => row.category))).sort();
 });
 
-export async function getPublicEventsPage(
+async function getPublicEventsPageUnsafe(
   filters: EventArchiveFilters = {}
 ): Promise<EventArchiveResult> {
   const view = filters.view === "past" ? "past" : "upcoming";
@@ -848,6 +848,31 @@ export async function getPublicEventsPage(
     totalPages,
     view,
   };
+}
+
+export async function getPublicEventsPage(
+  filters: EventArchiveFilters = {}
+): Promise<EventArchiveResult> {
+  try {
+    return await getPublicEventsPageUnsafe(filters);
+  } catch (error) {
+    console.error(
+      `Public event archive unavailable: ${
+        error instanceof Error ? error.message : "Unknown error."
+      }`
+    );
+
+    return {
+      categories: [],
+      categoryCounts: [],
+      featuredEvent: null,
+      items: [],
+      page: 1,
+      totalItems: 0,
+      totalPages: 1,
+      view: filters.view === "past" ? "past" : "upcoming",
+    };
+  }
 }
 
 export const getFeaturedPublicEvent = cache(async () => {

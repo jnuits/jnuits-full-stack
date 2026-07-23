@@ -260,4 +260,35 @@ describe("event query bounds", () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
+  it("renders an empty public archive when the content backend is unavailable", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const unavailableQuery = makeQuery({
+      data: null,
+      error: { message: "backend unavailable" },
+    });
+
+    mocks.publicFrom.mockReturnValue(unavailableQuery);
+
+    try {
+      await expect(
+        getPublicEventsPage({ page: 4, view: "past" })
+      ).resolves.toEqual({
+        categories: [],
+        categoryCounts: [],
+        featuredEvent: null,
+        items: [],
+        page: 1,
+        totalItems: 0,
+        totalPages: 1,
+        view: "past",
+      });
+
+      expect(consoleError).toHaveBeenCalledWith(
+        "Public event archive unavailable: Featured event lookup failed: backend unavailable"
+      );
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
 });

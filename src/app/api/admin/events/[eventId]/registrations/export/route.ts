@@ -23,8 +23,6 @@ type EventTarget = {
   legacyContentPostId: null | string;
 };
 
-type ExportFormat = "csv" | "google-sheet" | "xlsx";
-
 function getEventIdentifier(request: Request) {
   const segments = new URL(request.url).pathname.split("/");
 
