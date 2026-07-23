@@ -26,7 +26,7 @@ explicitly approved for that task.
 
 Store read-only evidence dumps under `artifacts/reports/` using a filename like
 `supabase-live-dump-YYYYMMDD.md`. Before committing a dump, confirm it contains
-only metadata needed for verification and no service-role keys, PATs, JWTs,
+only metadata needed for verification and no Supabase secret keys, PATs, JWTs,
 SMTP credentials, or user PII. If a project ref is not already known from safe
 configuration, request it directly instead of reading env files.
 

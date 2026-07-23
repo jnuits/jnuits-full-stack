@@ -7,7 +7,7 @@
 - Payment configuration remains disabled; no provider or checkout ships.
 - No starter forms or automatic publication. Staff create and publish forms in Form Studio.
 - No live Supabase DDL, DML, grants, revocations, archive, or purge without explicit approval. New migrations may be authored and verified locally only.
-- Cloudinary assets remain private. Never expose credentials, service-role keys, or persistent public asset URLs.
+- Cloudinary assets remain private. Never expose credentials, Supabase secret keys, or persistent public asset URLs.
 - Hosted previews are read-only. Write-path validation is local plus a controlled production staff smoke after deployment approval.
 - No new dependency without approval. Keep Supabase and Vercel free-tier limits in scope.
 
