@@ -42,6 +42,17 @@ function expectOnly(values, expected, label) {
   }
 }
 
+function describeAuditEntry([name, vulnerability]) {
+  const via = (vulnerability.via || []).map((advisory) => {
+    if (typeof advisory === "string") return advisory;
+    return advisory.url || advisory.title || "unknown-advisory";
+  });
+
+  return `${name} (${vulnerability.severity}; range ${vulnerability.range}; via ${
+    via.join(", ") || "none"
+  }; nodes ${(vulnerability.nodes || []).join(", ") || "none"})`;
+}
+
 export function evaluateDependencyAudit({
   lock,
   nextConfig,
@@ -60,11 +71,18 @@ export function evaluateDependencyAudit({
     return "Dependency audit passed: no moderate, high, or critical vulnerabilities.";
   }
 
-  expectOnly(
-    reportable.map(([name]) => name),
-    ["next", "sharp"],
-    "Unexpected dependency vulnerabilities"
-  );
+  const reportableNames = reportable.map(([name]) => name);
+  const expectedNames = ["next", "sharp"];
+  if (
+    JSON.stringify([...reportableNames].sort()) !==
+    JSON.stringify([...expectedNames].sort())
+  ) {
+    fail(
+      `Unexpected dependency vulnerabilities: ${reportable
+        .map(describeAuditEntry)
+        .join("; ")}.`
+    );
+  }
 
   if (now >= SHARP_EXCEPTION_EXPIRES_AT) {
     fail("Sharp security exception expired. Upgrade stable Next.js and remove the exception.");
