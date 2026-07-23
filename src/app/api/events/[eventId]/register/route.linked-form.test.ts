@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   checkRateLimitForApi: vi.fn(),
+  consumeFormUploadSession: vi.fn(),
   createAdminClient: vi.fn(),
   createClient: vi.fn(),
   getCloudinaryConfig: vi.fn(),
@@ -37,8 +38,12 @@ vi.mock("@/lib/events/delivery", () => ({
 }));
 
 vi.mock("@/lib/forms/upload-proof", () => ({
+  hashFormUploadManifest: () => "c".repeat(64),
   validateProofBoundFormAssets: mocks.validateProofBoundFormAssets,
   verifyFormUploadProof: mocks.verifyFormUploadProof,
+}));
+vi.mock("@/lib/forms/upload-sessions", () => ({
+  consumeFormUploadSession: mocks.consumeFormUploadSession,
 }));
 
 vi.mock("@/lib/notifications/email-builders", () => ({
@@ -63,6 +68,7 @@ describe("linked event registration form", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.checkRateLimitForApi.mockResolvedValue({ success: true });
+  mocks.consumeFormUploadSession.mockResolvedValue(true);
     mocks.enforceAuthActionProtection.mockResolvedValue(null);
     mocks.getCloudinaryConfig.mockReturnValue({ apiSecret: "server-only-secret" });
     mocks.validateProofBoundFormAssets.mockReturnValue([]);
@@ -243,6 +249,7 @@ describe("linked event registration form", () => {
       versionId: "00000000-0000-4000-8000-000000000001",
     });
     mocks.verifyFormUploadProof.mockReturnValue({
+      sessionId: "33333333-3333-4333-8333-333333333333",
       uploads: [
         {
           assetFolder: asset.cloudinaryFolder,
@@ -286,16 +293,38 @@ describe("linked event registration form", () => {
 
     expect(mocks.verifyFormUploadProof).toHaveBeenCalledWith({
       expectedFormDefinitionId: "00000000-0000-4000-8000-000000000002",
+      expectedFormVersionId: "00000000-0000-4000-8000-000000000001",
       proof: "proof-token",
       secret: "server-only-secret",
     });
     expect(mocks.validateProofBoundFormAssets).toHaveBeenCalledWith(
       expect.objectContaining({ assets: [asset] })
     );
+    expect(mocks.consumeFormUploadSession).toHaveBeenCalledWith({
+      formDefinitionId: "00000000-0000-4000-8000-000000000002",
+      formVersionId: "00000000-0000-4000-8000-000000000001",
+      manifestSha256: "c".repeat(64),
+      sessionId: "33333333-3333-4333-8333-333333333333",
+    });
     expect(mocks.rpc).toHaveBeenCalledWith(
       "register_for_event_with_form_assets_atomic",
       expect.objectContaining({ p_assets: [asset] })
     );
+
+    mocks.rpc.mockClear();
+    mocks.consumeFormUploadSession.mockResolvedValue(false);
+    const replay = await POST(
+      new NextRequest("https://jnuits.org.bd/api/events/event-1/register", {
+        body: JSON.stringify({
+          answers: { email: "attendee@example.test", full_name: "Event Attendee", identity_document: [uploadId] },
+          assets: [asset], captchaToken: "captcha-token", uploadProof: "proof-token",
+        }),
+        headers: { "Content-Type": "application/json" }, method: "POST",
+      }),
+      { params: Promise.resolve({ eventId: "event-1" }) }
+    );
+    expect(replay.status).toBe(422);
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it("stops a linked-form registration before its atomic RPC when CAPTCHA fails", async () => {
     mocks.enforceAuthActionProtection.mockResolvedValue("Complete the verification challenge.");

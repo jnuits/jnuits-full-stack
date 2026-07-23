@@ -16,9 +16,11 @@ import { recordEventRegistrationDelivery } from "@/lib/events/delivery";
 import { loadPublishedFormByVersionId } from "@/lib/forms/repository";
 import {
   type FormSubmissionAsset,
+  hashFormUploadManifest,
   validateProofBoundFormAssets,
   verifyFormUploadProof,
 } from "@/lib/forms/upload-proof";
+import { consumeFormUploadSession } from "@/lib/forms/upload-sessions";
 import { sendEmail } from "@/lib/notifications/send-email";
 import { resolvePublishedEventForMutation } from "@/lib/content/events";
 import { logServerError } from "@/lib/errors/api-error";
@@ -285,6 +287,7 @@ export const POST = withApiGuard(
 
       const proof = verifyFormUploadProof({
         expectedFormDefinitionId: formDefinitionId,
+        expectedFormVersionId: formVersionId!,
         proof: parsed.data.uploadProof,
         secret: uploadSecret,
       });
@@ -308,6 +311,25 @@ export const POST = withApiGuard(
         );
       }
 
+      try {
+        const consumed = await consumeFormUploadSession({
+          formDefinitionId,
+          formVersionId: formVersionId!,
+          manifestSha256: hashFormUploadManifest(proof.uploads),
+          sessionId: proof.sessionId,
+        });
+        if (!consumed) {
+          return NextResponse.json(
+            { error: "Please upload files again before submitting." },
+            { status: 422 }
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: "File upload verification is unavailable." },
+          { status: 503 }
+        );
+      }
     }
 
     const admin = createAdminClient();
