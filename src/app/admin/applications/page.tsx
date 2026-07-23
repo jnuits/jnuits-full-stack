@@ -48,7 +48,10 @@ type RecentDecision = {
 };
 
 function relativeTime(value: string) {
-  const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000));
+  const minutes = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(value).getTime()) / 60_000)
+  );
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes}m ago`;
   if (minutes < 1_440) return `${Math.floor(minutes / 60)}h ago`;
@@ -63,36 +66,38 @@ export default async function ApplicationsPage() {
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
   const [membershipResult, membershipCountResult, recentResult, alumniResult, alumniCountResult] = await Promise.all([
     admin
-      .from("membership_applications")
+      .from("membership_applications" as string)
       .select("id, membership_cycle_id, name, email, department_code, batch_label, student_id, phone, status, created_at, review_note")
       .in("status", ["pending", "needs_review"])
       .order("created_at", { ascending: true })
       .limit(50),
     admin
-      .from("membership_applications")
+      .from("membership_applications" as string)
       .select("id", { count: "exact", head: true })
       .in("status", ["pending", "needs_review"]),
     admin
-      .from("membership_applications")
+      .from("membership_applications" as string)
       .select("id, name, email, status, review_note, reviewed_at")
       .in("status", ["approved", "rejected"])
       .order("reviewed_at", { ascending: false })
       .limit(20),
     admin
-      .from("alumni_onboarding_cases")
+      .from("alumni_onboarding_cases" as string)
       .select("id, full_name, email, jnuits_id, status, review_note, created_at")
       .eq("status", "pending")
       .order("created_at", { ascending: true })
       .limit(50),
     admin
-      .from("alumni_onboarding_cases")
+      .from("alumni_onboarding_cases" as string)
       .select("id", { count: "exact", head: true })
       .eq("status", "pending"),
   ]);
 
-  const membership = (membershipResult.data || []) as MembershipApplication[];
-  const recent = (recentResult.data || []) as RecentDecision[];
-  const alumni = (alumniResult.data || []) as AlumniCase[];
+  // These columns are introduced by local-only migrations and intentionally
+  // remain outside generated remote schema types until migration approval.
+  const membership = (membershipResult.data || []) as unknown as MembershipApplication[];
+  const recent = (recentResult.data || []) as unknown as RecentDecision[];
+  const alumni = (alumniResult.data || []) as unknown as AlumniCase[];
   const membershipCount = membershipCountResult.count || 0;
   const alumniCount = alumniCountResult.count || 0;
 
