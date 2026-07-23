@@ -1,0 +1,36 @@
+name: Regenerate PostCSS lockfile
+
+on:
+  push:
+    branches:
+      - copilot/fix-151169143-1204084958-9ba3eca0-d503-40cc-a6e0-b4a176ecf1de
+    paths:
+      - .github/workflows/regenerate-postcss-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: copilot/fix-151169143-1204084958-9ba3eca0-d503-40cc-a6e0-b4a176ecf1de
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - run: npm install --package-lock-only --ignore-scripts
+      - run: node -e "const lock=require('./package-lock.json'); if(lock.packages['node_modules/postcss']?.version !== '8.5.22') process.exit(1)"
+      - run: npm ci
+      - run: node scripts/check-dependency-audit.mjs
+      - name: Commit lockfile and remove one-shot workflow
+        run: |
+          rm .github/workflows/regenerate-postcss-lock.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json .github/workflows/regenerate-postcss-lock.yml
+          git commit -m "fix(deps): regenerate lockfile for PostCSS 8.5.22"
+          git push
