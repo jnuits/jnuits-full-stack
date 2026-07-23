@@ -28,8 +28,27 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow, "page-level horizontal overflow").toBeLessThanOrEqual(2);
 }
 
+async function navigateToStablePage(page: Page, path: string) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await page.goto(path, { waitUntil: "domcontentloaded" });
+    } catch (error) {
+      const isTransientAbort =
+        error instanceof Error &&
+        /net::ERR_ABORTED|frame was detached/i.test(error.message);
+
+      if (!isTransientAbort || attempt === 1) {
+        throw error;
+      }
+
+    }
+  }
+
+  throw new Error(`Navigation failed for ${path}.`);
+}
+
 async function expectStablePage(page: Page, path: string) {
-  const response = await page.goto(path, { waitUntil: "domcontentloaded" });
+  const response = await navigateToStablePage(page, path);
 
   expect(response?.status(), `${path} status`).toBeLessThan(500);
   await expect(page.locator("body")).toContainText(/JnUITS|Members|Gallery|Events|Email/i);
@@ -56,33 +75,36 @@ test.describe("public and auth smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
-  test("public archive routes render responsively", async ({ page }) => {
-    for (const viewport of responsiveViewports) {
-      await page.setViewportSize({ height: viewport.height, width: viewport.width });
-      for (const route of ["/members", "/gallery", "/events"]) {
+  for (const viewport of responsiveViewports) {
+    for (const route of ["/members", "/gallery", "/events"]) {
+      test(`${viewport.label} ${route} renders responsively`, async ({ page }) => {
+        await page.setViewportSize({
+          height: viewport.height,
+          width: viewport.width,
+        });
         await expectStablePage(page, route);
-      }
+      });
     }
-  });
+  }
 
   test("membership form route loads without submitting data", async ({ page }) => {
     await expectStablePage(page, "/membership-form");
     await expect(page.locator("body")).toContainText(/membership/i);
   });
-  test("public core routes load without runtime errors", async ({ page }) => {
-    for (const route of [
-      "/about",
-      "/alumni",
-      "/blogs",
-      "/certificates",
-      "/committee",
-      "/contact",
-      "/notices",
-      "/projects",
-    ]) {
+  for (const route of [
+    "/about",
+    "/alumni",
+    "/blogs",
+    "/certificates",
+    "/committee",
+    "/contact",
+    "/notices",
+    "/projects",
+  ]) {
+    test(`public route ${route} loads without runtime errors`, async ({ page }) => {
       await expectStablePage(page, route);
-    }
-  });
+    });
+  }
 
 
   test("admin and portal login pages render accessible fields responsively", async ({ page }) => {

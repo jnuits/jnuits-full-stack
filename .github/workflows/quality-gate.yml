@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: quality-gate-${{ github.workflow }}-${{ github.ref }}
