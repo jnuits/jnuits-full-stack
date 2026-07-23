@@ -8,25 +8,23 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
 const checkInSchema = z.object({
-  code: z.string().min(4).max(20).transform((value) => value.toUpperCase().trim()),
-});
+  code: z.string().trim().min(4).max(20).regex(/^[a-z0-9]+$/i).transform((value) => value.toUpperCase()),
+}).strict();
 
-type CheckInRegistration = {
-  cancelled_at: null | string;
+type CheckInResult = {
   checked_in_at: null | string;
-  id: string;
-  members:
-    | { jnuits_id: null | string; member_type: null | string }
-    | Array<{ jnuits_id: null | string; member_type: null | string }>
-    | null;
-  registration_status: null | string;
+  registration_id: null | string;
+  result_status: string;
+};
+
+type RegistrationIdentity = {
+  members: { jnuits_id: null | string; member_type: null | string } | Array<{ jnuits_id: null | string; member_type: null | string }> | null;
   registrant_email: string;
   registrant_name: string;
 };
 
 function getEventIdentifier(request: Request) {
   const segments = new URL(request.url).pathname.split("/");
-
   return segments[segments.indexOf("events") + 1] || "";
 }
 
@@ -36,121 +34,58 @@ export const POST = withApiGuard(
       forbiddenMessage: "Only event managers can check in event registrations.",
       unauthenticatedMessage: "Sign in before checking in event registrations.",
     });
-
-    if (permission.response) {
-      return permission.response;
-    }
+    if (permission.response) return permission.response;
 
     const eventIdentifier = getEventIdentifier(request);
+    if (!eventIdentifier) return NextResponse.json({ error: "Invalid event identifier." }, { status: 400 });
 
-    if (!eventIdentifier) {
-      return NextResponse.json(
-        { error: "Invalid event identifier." },
-        { status: 400 }
-      );
-    }
-
-    let body: unknown;
-
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
-    }
-
+    const body = await request.json().catch(() => null);
     const parsed = checkInSchema.safeParse(body);
-
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Please provide a valid registration code." },
-        { status: 422 }
-      );
+      return NextResponse.json({ error: "Please provide a valid registration code." }, { status: 422 });
     }
 
     const event = await resolveEventForAdminMutation(eventIdentifier);
-
-    if (!event) {
-      return NextResponse.json({ error: "Event not found." }, { status: 404 });
-    }
+    if (!event) return NextResponse.json({ error: "Event not found." }, { status: 404 });
 
     const admin = asFlexibleClient(createAdminClient());
-    let registrationQuery = admin
+    const { data, error } = await admin.rpc("check_in_event_registration", {
+      p_actor_user_id: permission.auth.user.id,
+      p_event_id: event.id,
+      p_registration_code: parsed.data.code,
+    });
+    const result = (Array.isArray(data) ? data[0] : data) as CheckInResult | null;
+    if (error || !result) {
+      return NextResponse.json({ error: "Unable to record check-in. Please try again." }, { status: 500 });
+    }
+    if (result.result_status === "not_found") {
+      return NextResponse.json({ error: "No registration found for that code at this event." }, { status: 404 });
+    }
+    if (result.result_status === "cancelled") {
+      return NextResponse.json({ cancelled: true, error: "This registration has been cancelled." }, { status: 409 });
+    }
+    if (result.result_status === "waitlisted") {
+      return NextResponse.json({ error: "This registration is still on the waitlist.", waitlisted: true }, { status: 409 });
+    }
+    if (!result.registration_id || !result.checked_in_at || !["checked_in", "already_checked_in"].includes(result.result_status)) {
+      return NextResponse.json({ error: "Unable to record check-in. Please try again." }, { status: 500 });
+    }
+
+    const identityResult = await admin
       .from("event_registrations")
-      .select(
-        "id, registrant_name, registrant_email, member_id, checked_in_at, cancelled_at, registration_status, members(jnuits_id, member_type)"
-      )
-      .eq("registration_code", parsed.data.code)
-      .limit(1);
-
-    if (event.legacyContentPostId) {
-      registrationQuery = registrationQuery.or(
-        `event_id.eq.${event.id},event_post_id.eq.${event.legacyContentPostId}`
-      );
-    } else {
-      registrationQuery = registrationQuery.eq("event_id", event.id);
+      .select("registrant_name, registrant_email, members(jnuits_id, member_type)")
+      .eq("id", result.registration_id)
+      .eq("event_id", event.id)
+      .maybeSingle();
+    const registration = identityResult.data as RegistrationIdentity | null;
+    if (identityResult.error || !registration) {
+      return NextResponse.json({ error: "Check-in was recorded, but attendee details could not be loaded." }, { status: 500 });
     }
-
-    const registrationResult = await (registrationQuery as unknown as {
-      maybeSingle: () => Promise<{
-        data: CheckInRegistration | null;
-        error: unknown;
-      }>;
-    }).maybeSingle();
-    const registration = registrationResult.data;
-    const registrationError = registrationResult.error;
-
-    if (registrationError || !registration) {
-      return NextResponse.json(
-        { error: "No registration found for that code at this event." },
-        { status: 404 }
-      );
-    }
-
-    if (registration.cancelled_at) {
-      return NextResponse.json(
-        { cancelled: true, error: "This registration has been cancelled." },
-        { status: 409 }
-      );
-    }
-
-    if (registration.registration_status === "waitlisted") {
-      return NextResponse.json(
-        {
-          error: "This registration is still on the waitlist.",
-          waitlisted: true,
-        },
-        { status: 409 }
-      );
-    }
-
-    if (registration.checked_in_at) {
-      return NextResponse.json({
-        alreadyCheckedIn: true,
-        checkedInAt: registration.checked_in_at,
-        email: registration.registrant_email,
-        name: registration.registrant_name,
-      });
-    }
-
-    const checkedInAt = new Date().toISOString();
-    const { error: updateError } = await admin
-      .from("event_registrations")
-      .update({ checked_in_at: checkedInAt })
-      .eq("id", registration.id);
-
-    if (updateError) {
-      return NextResponse.json(
-        { error: "Unable to record check-in. Please try again." },
-        { status: 500 }
-      );
-    }
-
-    const member = Array.isArray(registration.members)
-      ? registration.members[0]
-      : registration.members;
+    const member = Array.isArray(registration.members) ? registration.members[0] : registration.members;
 
     return NextResponse.json({
-      checkedInAt,
+      alreadyCheckedIn: result.result_status === "already_checked_in",
+      checkedInAt: result.checked_in_at,
       email: registration.registrant_email,
       jnuitsId: member?.jnuits_id ?? null,
       memberType: member?.member_type ?? null,
@@ -158,8 +93,5 @@ export const POST = withApiGuard(
       success: true,
     });
   },
-  {
-    rateLimit: RATE_LIMITS.eventCheckin,
-    requireAuth: true,
-  }
+  { rateLimit: RATE_LIMITS.eventCheckin, requireAuth: true }
 );
