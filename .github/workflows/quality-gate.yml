@@ -69,7 +69,7 @@ jobs:
         run: npm run audit:admin-ui
 
       - name: Dependency audit
-        run: npm audit --audit-level=moderate
+        run: node scripts/check-dependency-audit.mjs
 
   unit_and_integration:
     name: Unit and integration

@@ -26,6 +26,9 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
+    // Cloudinary already applies bounded transformations. Avoid Next's optional
+    // Sharp optimizer until stable Next supports patched Sharp 0.35.x.
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",

@@ -34,6 +34,7 @@ describe("GitHub Actions workflows", () => {
     expect(workflow).toContain("secret_scan:");
     expect(workflow).toContain("name: Required CI");
     expect(workflow).toContain("pull-requests: read");
+    expect(workflow).toContain("node scripts/check-dependency-audit.mjs");
     expect(workflow).toContain("MIGRATION_INTEGRITY_RESULT");
     expect(workflow).toContain("SECRET_SCAN_RESULT");
     expect(workflow).toContain("RESEND_WEBHOOK_SECRET: whsec_ci_placeholder");
