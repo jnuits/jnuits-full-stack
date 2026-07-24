@@ -1,0 +1,72 @@
+name: Apply final tracker quality coverage
+
+on:
+  push:
+    branches: [feature/non-payment-forms-phases-2-4]
+    paths: [.github/workflows/apply-final-quality-coverage.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: feature/non-payment-forms-phases-2-4
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - run: npm ci
+      - name: Update quality gate
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/quality-gate.yml')
+          text = path.read_text()
+          old = '''      - name: Checkout
+                  uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+                - name: Setup Node'''
+          new = '''      - name: Checkout
+                  uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+                  with:
+                    fetch-depth: 0
+
+                - name: Diff whitespace check
+                  run: git diff --check origin/main...HEAD
+
+                - name: Setup Node'''
+          if 'Diff whitespace check' not in text:
+              if old not in text: raise SystemExit('static checkout marker missing')
+              text = text.replace(old, new, 1)
+          marker = '''          src/lib/forms/event-form-assets-migration.test.ts
+                    src/lib/notifications/resend-delivery-webhook-migration.test.ts'''
+          replacement = '''          src/lib/forms/event-form-assets-migration.test.ts
+                    src/lib/forms/form-lifecycle-migration.test.ts
+                    src/lib/forms/membership-cycle-migration.test.ts
+                    src/lib/forms/membership-application-decisions-migration.test.ts
+                    src/lib/forms/alumni-onboarding-decisions-migration.test.ts
+                    src/lib/forms/form-upload-session-migration.test.ts
+                    src/lib/forms/form-platform-security-contract.test.ts
+                    src/lib/notifications/resend-delivery-webhook-migration.test.ts'''
+          if 'src/lib/forms/form-platform-security-contract.test.ts' not in text:
+              if marker not in text: raise SystemExit('migration list marker missing')
+              text = text.replace(marker, replacement)
+          path.write_text(text)
+          PY
+      - run: npx vitest run 'src/lib/forms/form-platform-lifecycle-wiring.test.ts' 'src/lib/forms/form-platform-security-contract.test.ts' 'src/lib/forms/cloudinary-assets.test.ts' 'src/lib/forms/private-download-contract.test.ts'
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Commit and remove workflow
+        run: |
+          rm .github/workflows/apply-final-quality-coverage.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/quality-gate.yml .github/workflows/apply-final-quality-coverage.yml
+          git commit -m "ci: enforce final form security gates"
+          git push
