@@ -1,0 +1,53 @@
+name: Apply protected alumni verification
+on:
+  push:
+    branches: [feature/non-payment-forms-phases-2-4]
+    paths: [.github/workflows/apply-preprod-alumni.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: feature/non-payment-forms-phases-2-4
+      - name: Patch pre-production workflow
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/preproduction-verify.yml')
+          s = p.read_text()
+          marker = '''      - name: Run pre-production runtime probe
+                env:'''
+          replacement = '''      - name: Run protected alumni decision workflow
+                if: inputs.run_authenticated_e2e
+                env:
+                  E2E_ALUMNI_APPROVE_CASE_ID: ${{ vars.E2E_ALUMNI_APPROVE_CASE_ID }}
+                  E2E_ALUMNI_EXPECTED_JNUITS_ID: ${{ vars.E2E_ALUMNI_EXPECTED_JNUITS_ID }}
+                  E2E_ALUMNI_REJECT_CASE_ID: ${{ vars.E2E_ALUMNI_REJECT_CASE_ID }}
+                  E2E_ALUMNI_WORKFLOW: "1"
+                  E2E_AUTH_SMOKE: "1"
+                  E2E_NORMAL_ADMIN_EMAIL: ${{ secrets.E2E_NORMAL_ADMIN_EMAIL }}
+                  E2E_NORMAL_ADMIN_PASSWORD: ${{ secrets.E2E_NORMAL_ADMIN_PASSWORD }}
+                  PLAYWRIGHT_BASE_URL: ${{ vars.PREPRODUCTION_APP_URL }}
+                run: npx playwright test e2e/alumni-onboarding-protected.spec.ts --project=chromium
+
+              - name: Run pre-production runtime probe
+                env:'''
+          marker = '\n'.join(line[6:] if line.startswith('      ') else line for line in marker.splitlines())
+          replacement = '\n'.join(line[6:] if line.startswith('      ') else line for line in replacement.splitlines())
+          if 'Run protected alumni decision workflow' not in s:
+              if marker not in s: raise SystemExit('runtime probe marker missing')
+              s = s.replace(marker, replacement)
+          p.write_text(s)
+          PY
+      - name: Commit and remove workflow
+        run: |
+          rm .github/workflows/apply-preprod-alumni.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/preproduction-verify.yml .github/workflows/apply-preprod-alumni.yml
+          git commit -m "ci: run protected alumni verification in pre-production"
+          git push
