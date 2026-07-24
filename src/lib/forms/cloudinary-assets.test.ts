@@ -6,6 +6,9 @@ vi.mock("@/lib/cloudinary/config", () => ({
 
 import { buildSignedCloudinaryFormAssetUrl, loadVerifiedCloudinaryFormAsset } from "./cloudinary-assets";
 
+const formDefinitionId = "22222222-2222-4222-8222-222222222222";
+const formVersionId = "33333333-3333-4333-8333-333333333333";
+const ownership = { expectedFormDefinitionId: formDefinitionId, expectedFormVersionId: formVersionId };
 const asset = {
   bytes: 1024,
   cloudinaryAssetId: "a".repeat(32),
@@ -26,8 +29,8 @@ function providerDetails(overrides: Record<string, unknown> = {}) {
     bytes: asset.bytes,
     context: { custom: {
       field_id: asset.fieldId,
-      form_definition_id: "22222222-2222-4222-8222-222222222222",
-      form_version_id: "33333333-3333-4333-8333-333333333333",
+      form_definition_id: formDefinitionId,
+      form_version_id: formVersionId,
       sha256: asset.sha256,
       upload_id: asset.uploadId,
     } },
@@ -43,9 +46,9 @@ function providerDetails(overrides: Record<string, unknown> = {}) {
 describe("Cloudinary form asset verification", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("accepts exact authenticated provider metadata", async () => {
+  it("accepts exact authenticated provider metadata and form ownership", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify(providerDetails()), { status: 200 }));
-    await expect(loadVerifiedCloudinaryFormAsset(asset, { fetchImpl })).resolves.toMatchObject({ type: "authenticated" });
+    await expect(loadVerifiedCloudinaryFormAsset(asset, { ...ownership, fetchImpl })).resolves.toMatchObject({ type: "authenticated" });
     expect(fetchImpl).toHaveBeenCalledWith(expect.stringContaining(`/resources/${asset.cloudinaryAssetId}`),
       expect.objectContaining({ headers: { Authorization: expect.stringMatching(/^Basic /) } }));
   });
@@ -54,11 +57,13 @@ describe("Cloudinary form asset verification", () => {
     ["public delivery", { type: "upload" }],
     ["wrong bytes", { bytes: 2048 }],
     ["wrong format", { format: "exe" }],
-    ["wrong ownership", { context: { custom: { ...providerDetails().context.custom, field_id: "other_field" } } }],
+    ["wrong field", { context: { custom: { ...providerDetails().context.custom, field_id: "other_field" } } }],
+    ["wrong form", { context: { custom: { ...providerDetails().context.custom, form_definition_id: "44444444-4444-4444-8444-444444444444" } } }],
+    ["wrong version", { context: { custom: { ...providerDetails().context.custom, form_version_id: "55555555-5555-4555-8555-555555555555" } } }],
     ["wrong checksum", { context: { custom: { ...providerDetails().context.custom, sha256: "c".repeat(64) } } }],
   ])("rejects %s", async (_label, overrides) => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify(providerDetails(overrides)), { status: 200 }));
-    await expect(loadVerifiedCloudinaryFormAsset(asset, { fetchImpl })).rejects.toThrow("does not match");
+    await expect(loadVerifiedCloudinaryFormAsset(asset, { ...ownership, fetchImpl })).rejects.toThrow("does not match");
   });
 
   it("builds an authenticated signed delivery URL without exposing the secret", () => {
