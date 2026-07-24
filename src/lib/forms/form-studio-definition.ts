@@ -5,7 +5,6 @@ import {
 } from "@/lib/forms/definition";
 
 export type StudioFieldType = FormFieldType;
-
 export type StudioEditorField = {
   automaticId?: boolean;
   id: string;
@@ -29,16 +28,8 @@ function stableLabelHash(value: string) {
 }
 
 function normalizedFieldIdBase(label: string) {
-  const normalized = label
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .replace(/^[^a-z]+/, "")
-    .slice(0, MAX_FIELD_ID_LENGTH);
-
+  const normalized = label.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").replace(/^[^a-z]+/, "").slice(0, MAX_FIELD_ID_LENGTH);
   if (normalized && !RESERVED_FIELD_IDS.has(normalized)) return normalized;
   const meaningfulLabel = label.trim();
   return meaningfulLabel ? `field_${stableLabelHash(meaningfulLabel)}` : "field";
@@ -48,7 +39,6 @@ export function createUniqueStudioFieldId(label: string, existingIds: Iterable<s
   const used = new Set(existingIds);
   const base = normalizedFieldIdBase(label);
   if (!used.has(base) && !RESERVED_FIELD_IDS.has(base)) return base;
-
   for (let suffix = 2; suffix < 10_000; suffix += 1) {
     const suffixText = `_${suffix}`;
     const candidate = `${base.slice(0, MAX_FIELD_ID_LENGTH - suffixText.length)}${suffixText}`;
@@ -57,27 +47,24 @@ export function createUniqueStudioFieldId(label: string, existingIds: Iterable<s
   throw new Error("A unique field identifier could not be generated.");
 }
 
-export function updateAutomaticStudioFieldLabel(
-  fields: readonly StudioEditorField[],
-  index: number,
-  label: string,
-) {
+export function updateAutomaticStudioFieldLabel(fields: readonly StudioEditorField[], index: number, label: string) {
   return fields.map((field, position) => {
     if (position !== index) return field;
     if (!field.automaticId) return { ...field, label };
     return {
       ...field,
-      id: createUniqueStudioFieldId(
-        label,
-        fields.filter((_, otherPosition) => otherPosition !== index).map((candidate) => candidate.id),
-      ),
+      id: createUniqueStudioFieldId(label, fields.filter((_, otherPosition) => otherPosition !== index).map((candidate) => candidate.id)),
       label,
     };
   });
 }
 
 export function markStudioFieldIdsPersisted(fields: readonly StudioEditorField[]) {
-  return fields.map(({ automaticId: _automaticId, ...field }) => field);
+  return fields.map((field) => {
+    const persisted = { ...field };
+    delete persisted.automaticId;
+    return persisted;
+  });
 }
 
 export function duplicateStudioField(field: StudioEditorField, existingIds: Iterable<string>): StudioEditorField {
@@ -112,8 +99,7 @@ export function formDefinitionToStudioFields(definition: FormDefinition): Studio
     if (field.type === "section") return { id: field.id, label: field.label, optionsText: "", required: false, type: field.type };
     if (field.type === "consent") return { id: field.id, label: field.label, optionsText: "", required: true, type: field.type };
     if (field.type === "select" || field.type === "multi_select") return {
-      id: field.id, label: field.label, optionsText: field.options.map((option) => option.label).join("\n"),
-      required: field.required, type: field.type,
+      id: field.id, label: field.label, optionsText: field.options.map((option) => option.label).join("\n"), required: field.required, type: field.type,
     };
     if (field.type === "image" || field.type === "pdf") return {
       id: field.id, label: field.label, maxFiles: field.maxFiles, optionsText: "", required: field.required, type: field.type,
