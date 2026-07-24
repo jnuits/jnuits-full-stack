@@ -1,0 +1,84 @@
+name: Pre-production Alumni Workflow
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preproduction-alumni-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Protected alumni end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: preproduction
+    steps:
+      - name: Require main
+        run: test "$GITHUB_REF" = "refs/heads/main"
+
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Install dependencies and Chromium
+        run: |
+          npm ci
+          npm run test:e2e:install
+
+      - name: Require complete protected fixtures
+        env:
+          E2E_ALUMNI_APPROVE_CASE_ID: ${{ vars.E2E_ALUMNI_APPROVE_CASE_ID }}
+          E2E_ALUMNI_CONFIRM_URL: ${{ secrets.E2E_ALUMNI_CONFIRM_URL }}
+          E2E_ALUMNI_DEDUPE_CASE_ID: ${{ vars.E2E_ALUMNI_DEDUPE_CASE_ID }}
+          E2E_ALUMNI_EXPECTED_JNUITS_ID: ${{ vars.E2E_ALUMNI_EXPECTED_JNUITS_ID }}
+          E2E_ALUMNI_FORM_SLUG: ${{ vars.E2E_ALUMNI_FORM_SLUG }}
+          E2E_ALUMNI_REJECT_CASE_ID: ${{ vars.E2E_ALUMNI_REJECT_CASE_ID }}
+          E2E_ALUMNI_SUBMIT_PAYLOAD_JSON: ${{ secrets.E2E_ALUMNI_SUBMIT_PAYLOAD_JSON }}
+          E2E_NORMAL_ADMIN_EMAIL: ${{ secrets.E2E_NORMAL_ADMIN_EMAIL }}
+          E2E_NORMAL_ADMIN_PASSWORD: ${{ secrets.E2E_NORMAL_ADMIN_PASSWORD }}
+          PREPRODUCTION_APP_URL: ${{ vars.PREPRODUCTION_APP_URL }}
+        run: |
+          test -n "$PREPRODUCTION_APP_URL"
+          test -n "$E2E_NORMAL_ADMIN_EMAIL"
+          test -n "$E2E_NORMAL_ADMIN_PASSWORD"
+          test -n "$E2E_ALUMNI_APPROVE_CASE_ID"
+          test -n "$E2E_ALUMNI_REJECT_CASE_ID"
+          test -n "$E2E_ALUMNI_DEDUPE_CASE_ID"
+          test -n "$E2E_ALUMNI_EXPECTED_JNUITS_ID"
+          test -n "$E2E_ALUMNI_FORM_SLUG"
+          test -n "$E2E_ALUMNI_SUBMIT_PAYLOAD_JSON"
+          test -n "$E2E_ALUMNI_CONFIRM_URL"
+
+      - name: Run protected alumni workflow
+        env:
+          E2E_ALUMNI_APPROVE_CASE_ID: ${{ vars.E2E_ALUMNI_APPROVE_CASE_ID }}
+          E2E_ALUMNI_CONFIRM_URL: ${{ secrets.E2E_ALUMNI_CONFIRM_URL }}
+          E2E_ALUMNI_DEDUPE_CASE_ID: ${{ vars.E2E_ALUMNI_DEDUPE_CASE_ID }}
+          E2E_ALUMNI_EXPECTED_JNUITS_ID: ${{ vars.E2E_ALUMNI_EXPECTED_JNUITS_ID }}
+          E2E_ALUMNI_FORM_SLUG: ${{ vars.E2E_ALUMNI_FORM_SLUG }}
+          E2E_ALUMNI_REJECT_CASE_ID: ${{ vars.E2E_ALUMNI_REJECT_CASE_ID }}
+          E2E_ALUMNI_SUBMIT_PAYLOAD_JSON: ${{ secrets.E2E_ALUMNI_SUBMIT_PAYLOAD_JSON }}
+          E2E_ALUMNI_WORKFLOW: "1"
+          E2E_AUTH_SMOKE: "1"
+          E2E_NORMAL_ADMIN_EMAIL: ${{ secrets.E2E_NORMAL_ADMIN_EMAIL }}
+          E2E_NORMAL_ADMIN_PASSWORD: ${{ secrets.E2E_NORMAL_ADMIN_PASSWORD }}
+          PLAYWRIGHT_BASE_URL: ${{ vars.PREPRODUCTION_APP_URL }}
+        run: npx playwright test e2e/alumni-onboarding-protected.spec.ts --project=chromium
+
+      - name: Upload protected evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: preproduction-alumni-results-${{ github.run_id }}
+          path: test-results/playwright
+          if-no-files-found: ignore
+          retention-days: 7
