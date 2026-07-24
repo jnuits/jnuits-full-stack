@@ -6,6 +6,7 @@ import { getAppBaseUrl } from "@/lib/env";
 import { logServerError } from "@/lib/errors/api-error";
 import { extractApplicationIdentity } from "@/lib/forms/application-behavior";
 import { buildFormConfirmationUrl, createFormConfirmation } from "@/lib/forms/confirmation";
+import { verifyCloudinaryFormAssets } from "@/lib/forms/cloudinary-assets";
 import { type FormAnswers, type FormDefinition, validateFormAnswers } from "@/lib/forms/definition";
 import { createFormSubmissionAssets, createPendingFormSubmission, loadPublishedForm, markFormConfirmationSent, recordFormConfirmationDelivery } from "@/lib/forms/repository";
 import { type FormSubmissionAsset, hashFormUploadManifest, validateProofBoundFormAssets, verifyFormUploadProof } from "@/lib/forms/upload-proof";
@@ -54,6 +55,7 @@ export const POST = withApiGuard(async (request, context) => {
     try {
       submissionAssets = validateProofBoundFormAssets({ assets: parsed.data.assets, uploads: proof.uploads });
       verifyAssetAnswerBindings(form.definition, answers, submissionAssets);
+      await verifyCloudinaryFormAssets(submissionAssets, { expectedFormDefinitionId: form.id, expectedFormVersionId: form.versionId });
       const consumed = await consumeFormUploadSession({ formDefinitionId: form.id, formVersionId: form.versionId,
         manifestSha256: hashFormUploadManifest(proof.uploads), sessionId: proof.sessionId });
       if (!consumed) return NextResponse.json({ error: "Please upload files again before submitting." }, { status: 422 });

@@ -14,6 +14,7 @@ import {
 } from "@/lib/forms/definition";
 import { recordEventRegistrationDelivery } from "@/lib/events/delivery";
 import { loadPublishedFormByVersionId } from "@/lib/forms/repository";
+import { verifyCloudinaryFormAssets } from "@/lib/forms/cloudinary-assets";
 import {
   type FormSubmissionAsset,
   hashFormUploadManifest,
@@ -304,6 +305,7 @@ export const POST = withApiGuard(
           uploads: proof.uploads,
         });
         verifyAssetAnswerBindings(formDefinition, formAnswers, submissionAssets);
+        await verifyCloudinaryFormAssets(submissionAssets, { expectedFormDefinitionId: formDefinitionId, expectedFormVersionId: formVersionId! });
       } catch {
         return NextResponse.json(
           { error: "Please upload files again before submitting." },
