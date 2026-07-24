@@ -32,95 +32,48 @@ export const productionRequiredEnv = [
   "RETENTION_MANIFEST_SIGNING_SECRET",
 ];
 
-function isBlank(value) {
-  return typeof value !== "string" || value.trim().length === 0;
-}
-
+const FORBIDDEN_PUBLIC_SECRET_NAME = /(?:API_SECRET|PRIVATE_KEY|SECRET_KEY|WEBHOOK_SECRET|SIGNING_SECRET|PASSWORD|TOKEN)$/i;
+function isBlank(value) { return typeof value !== "string" || value.trim().length === 0; }
 function isValidUrl(value, { requireHttps }) {
-  try {
-    const url = new URL(value);
-    return requireHttps ? url.protocol === "https:" : /^https?:$/.test(url.protocol);
-  } catch {
-    return false;
-  }
+  try { const url = new URL(value); return requireHttps ? url.protocol === "https:" : /^https?:$/.test(url.protocol); }
+  catch { return false; }
 }
-
-function isEnabled(value) {
-  return ["1", "on", "true"].includes(String(value || "").trim().toLowerCase());
-}
+function isEnabled(value) { return ["1", "on", "true"].includes(String(value || "").trim().toLowerCase()); }
 
 export function validateEnv(env, options = {}) {
   const production = Boolean(options.production);
   const missing = [];
   const invalid = [];
-  const required = production
-    ? [...baseRequiredEnv, ...productionRequiredEnv]
-    : baseRequiredEnv;
+  const required = production ? [...baseRequiredEnv, ...productionRequiredEnv] : baseRequiredEnv;
 
-  for (const key of required) {
-    if (isBlank(env[key])) {
-      missing.push(key);
+  for (const key of required) if (isBlank(env[key])) missing.push(key);
+
+  for (const [name, value] of Object.entries(env)) {
+    if (name.startsWith("NEXT_PUBLIC_") && FORBIDDEN_PUBLIC_SECRET_NAME.test(name) && !isBlank(value)) {
+      invalid.push(`${name} must not expose secret configuration to the browser.`);
     }
   }
 
   if (!isBlank(env.NEXT_PUBLIC_SUPABASE_URL) && !isValidUrl(env.NEXT_PUBLIC_SUPABASE_URL, { requireHttps: production })) {
-    invalid.push(
-      production
-        ? "NEXT_PUBLIC_SUPABASE_URL must be a valid https URL."
-        : "NEXT_PUBLIC_SUPABASE_URL must be a valid http(s) URL."
-    );
+    invalid.push(production ? "NEXT_PUBLIC_SUPABASE_URL must be a valid https URL." : "NEXT_PUBLIC_SUPABASE_URL must be a valid http(s) URL.");
   }
-
   if (!isBlank(env.APP_BASE_URL) && !isValidUrl(env.APP_BASE_URL, { requireHttps: production })) {
-    invalid.push(
-      production
-        ? "APP_BASE_URL must be a valid https URL."
-        : "APP_BASE_URL must be a valid http(s) URL."
-    );
+    invalid.push(production ? "APP_BASE_URL must be a valid https URL." : "APP_BASE_URL must be a valid http(s) URL.");
   }
+  if (production && env.RATE_LIMIT_BACKEND !== "supabase") invalid.push("RATE_LIMIT_BACKEND must be set to 'supabase' for production builds.");
+  if (production && !isBlank(env.AUTH_CAPTCHA_REQUIRED) && !isEnabled(env.AUTH_CAPTCHA_REQUIRED)) invalid.push("AUTH_CAPTCHA_REQUIRED must be explicitly enabled for production builds.");
+  if (production && !isBlank(env.NEXT_PUBLIC_SENTRY_DSN) && !isValidUrl(env.NEXT_PUBLIC_SENTRY_DSN, { requireHttps: true })) invalid.push("NEXT_PUBLIC_SENTRY_DSN must be a valid https URL.");
+  if (production && !isBlank(env.RATE_LIMIT_SECRET_SALT) && env.RATE_LIMIT_SECRET_SALT.trim().length < 32) invalid.push("RATE_LIMIT_SECRET_SALT must be at least 32 characters.");
+  if (production && !isBlank(env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL)) invalid.push("GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL must be a valid email address.");
+  if (production && !isBlank(env.RESEND_FROM_EMAIL) && !/<[^\s@]+@[^\s@]+\.[^\s@]+>$/.test(env.RESEND_FROM_EMAIL.trim())) invalid.push("RESEND_FROM_EMAIL must include a valid sender email address.");
 
-  if (production && env.RATE_LIMIT_BACKEND !== "supabase") {
-    invalid.push("RATE_LIMIT_BACKEND must be set to 'supabase' for production builds.");
-  }
-
-  if (production && !isBlank(env.AUTH_CAPTCHA_REQUIRED) && !isEnabled(env.AUTH_CAPTCHA_REQUIRED)) {
-    invalid.push("AUTH_CAPTCHA_REQUIRED must be explicitly enabled for production builds.");
-  }
-
-  if (
-    production &&
-    !isBlank(env.NEXT_PUBLIC_SENTRY_DSN) &&
-    !isValidUrl(env.NEXT_PUBLIC_SENTRY_DSN, { requireHttps: true })
-  ) {
-    invalid.push("NEXT_PUBLIC_SENTRY_DSN must be a valid https URL.");
-  }
-
-  if (
-    production &&
-    !isBlank(env.RATE_LIMIT_SECRET_SALT) &&
-    env.RATE_LIMIT_SECRET_SALT.trim().length < 32
-  ) {
-    invalid.push("RATE_LIMIT_SECRET_SALT must be at least 32 characters.");
-  }
-
-  return {
-    ok: missing.length === 0 && invalid.length === 0,
-    missing,
-    invalid,
-  };
+  return { ok: missing.length === 0 && invalid.length === 0, missing, invalid };
 }
 
 function formatFailure(result) {
   const lines = ["Environment validation failed."];
-
-  if (result.missing.length) {
-    lines.push(`Missing: ${result.missing.join(", ")}`);
-  }
-
-  if (result.invalid.length) {
-    lines.push(...result.invalid.map((message) => `Invalid: ${message}`));
-  }
-
+  if (result.missing.length) lines.push(`Missing: ${result.missing.join(", ")}`);
+  if (result.invalid.length) lines.push(...result.invalid.map((message) => `Invalid: ${message}`));
   lines.push("Set the variables in your deployment environment or .env.local.");
   return lines.join("\n");
 }
@@ -128,22 +81,10 @@ function formatFailure(result) {
 export function runValidateEnvCli(argv = process.argv, env = process.env) {
   const production = argv.includes("--production") || env.NODE_ENV === "production";
   loadEnvConfig(process.cwd(), !production);
-
   const result = validateEnv(env, { production });
-
-  if (!result.ok) {
-    console.error(formatFailure(result));
-    return 1;
-  }
-
-  console.log(
-    production
-      ? "Environment validation passed for production."
-      : "Environment validation passed."
-  );
+  if (!result.ok) { console.error(formatFailure(result)); return 1; }
+  console.log(production ? "Environment validation passed for production." : "Environment validation passed.");
   return 0;
 }
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  process.exitCode = runValidateEnvCli();
-}
+if (fileURLToPath(import.meta.url) === process.argv[1]) process.exitCode = runValidateEnvCli();
