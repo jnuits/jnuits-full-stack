@@ -15,6 +15,64 @@ export type StudioEditorField = {
   type: StudioFieldType;
 };
 
+const RESERVED_FIELD_IDS = new Set(["__proto__", "constructor", "prototype"]);
+const MAX_FIELD_ID_LENGTH = 64;
+
+function stableLabelHash(value: string) {
+  let hash = 2166136261;
+  for (const character of value) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function normalizedFieldIdBase(label: string) {
+  const normalized = label
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/^[^a-z]+/, "")
+    .slice(0, MAX_FIELD_ID_LENGTH);
+
+  if (normalized && !RESERVED_FIELD_IDS.has(normalized)) return normalized;
+
+  const meaningfulLabel = label.trim();
+  return meaningfulLabel
+    ? `field_${stableLabelHash(meaningfulLabel)}`
+    : "field";
+}
+
+export function createUniqueStudioFieldId(
+  label: string,
+  existingIds: Iterable<string>,
+) {
+  const used = new Set(existingIds);
+  const base = normalizedFieldIdBase(label);
+  if (!used.has(base) && !RESERVED_FIELD_IDS.has(base)) return base;
+
+  for (let suffix = 2; suffix < 10_000; suffix += 1) {
+    const suffixText = `_${suffix}`;
+    const candidate = `${base.slice(0, MAX_FIELD_ID_LENGTH - suffixText.length)}${suffixText}`;
+    if (!used.has(candidate) && !RESERVED_FIELD_IDS.has(candidate)) return candidate;
+  }
+
+  throw new Error("A unique field identifier could not be generated.");
+}
+
+export function duplicateStudioField(
+  field: StudioEditorField,
+  existingIds: Iterable<string>,
+): StudioEditorField {
+  return {
+    ...field,
+    id: createUniqueStudioFieldId(field.label, existingIds),
+  };
+}
+
 function toOptionValue(label: string) {
   return label
     .trim()
