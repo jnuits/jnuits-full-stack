@@ -7,7 +7,6 @@ const baseEnv = {
   NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
   SUPABASE_SECRET_KEY: "sb_secret_test",
 };
-
 const completeProductionEnv = {
   ...baseEnv,
   AUTH_CAPTCHA_REQUIRED: "true",
@@ -30,101 +29,59 @@ const completeProductionEnv = {
 };
 
 describe("validateEnv", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  afterEach(() => vi.restoreAllMocks());
 
   it("reports all missing base variables", () => {
-    const result = validateEnv({}, { production: false });
-
-    expect(result.ok).toBe(false);
-    expect(result.missing).toEqual([
-      "NEXT_PUBLIC_SUPABASE_URL",
-      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-      "SUPABASE_SECRET_KEY",
-      "APP_BASE_URL",
+    expect(validateEnv({}, { production: false }).missing).toEqual([
+      "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY", "APP_BASE_URL",
     ]);
   });
 
-  it("requires Supabase-backed rate limiting in production", () => {
-    const result = validateEnv(
-      {
-        ...baseEnv,
-        NEXT_PUBLIC_TURNSTILE_SITE_KEY: "turnstile-site",
-        RATE_LIMIT_BACKEND: "memory",
-        RATE_LIMIT_SECRET_SALT: "12345678901234567890123456789012",
-        TURNSTILE_SECRET_KEY: "turnstile-secret",
-      },
-      { production: true }
-    );
-
-    expect(result.ok).toBe(false);
-    expect(result.invalid).toContain(
-      "RATE_LIMIT_BACKEND must be set to 'supabase' for production builds."
-    );
+  it("requires complete production delivery, media, archive, telemetry, and CAPTCHA configuration", () => {
+    const result = validateEnv({ ...baseEnv, NEXT_PUBLIC_TURNSTILE_SITE_KEY: "site", RATE_LIMIT_BACKEND: "supabase", RATE_LIMIT_SECRET_SALT: "1".repeat(32), TURNSTILE_SECRET_KEY: "secret" }, { production: true });
+    expect(result.missing).toEqual(expect.arrayContaining([
+      "AUTH_CAPTCHA_REQUIRED", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET", "CLOUDINARY_CLOUD_NAME",
+      "GOOGLE_DRIVE_EXPORTS_FOLDER_ID", "GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY",
+      "GOOGLE_DRIVE_SHARED_DRIVE_ID", "NEXT_PUBLIC_SENTRY_DSN", "RESEND_API_KEY", "RESEND_FROM_EMAIL",
+      "RESEND_WEBHOOK_SECRET", "RETENTION_MANIFEST_SIGNING_SECRET",
+    ]));
   });
 
-  it("requires delivery, media, archive, telemetry, and explicit CAPTCHA production configuration", () => {
-    const result = validateEnv(
-      {
-        ...baseEnv,
-        NEXT_PUBLIC_TURNSTILE_SITE_KEY: "turnstile-site",
-        RATE_LIMIT_BACKEND: "supabase",
-        RATE_LIMIT_SECRET_SALT: "12345678901234567890123456789012",
-        TURNSTILE_SECRET_KEY: "turnstile-secret",
-      },
-      { production: true }
-    );
-
-    expect(result.missing).toEqual(
-      expect.arrayContaining([
-        "AUTH_CAPTCHA_REQUIRED",
-        "CLOUDINARY_API_KEY",
-        "CLOUDINARY_API_SECRET",
-        "CLOUDINARY_CLOUD_NAME",
-        "GOOGLE_DRIVE_EXPORTS_FOLDER_ID",
-        "GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL",
-        "GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY",
-        "GOOGLE_DRIVE_SHARED_DRIVE_ID",
-        "NEXT_PUBLIC_SENTRY_DSN",
-        "RESEND_API_KEY",
-        "RESEND_FROM_EMAIL",
-        "RESEND_WEBHOOK_SECRET",
-        "RETENTION_MANIFEST_SIGNING_SECRET",
-      ])
-    );
+  it("rejects disabled CAPTCHA, malformed service email, malformed sender, and public secrets", () => {
+    const result = validateEnv({
+      ...completeProductionEnv,
+      AUTH_CAPTCHA_REQUIRED: "false",
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL: "not-email",
+      NEXT_PUBLIC_CLOUDINARY_API_SECRET: "leaked",
+      RESEND_FROM_EMAIL: "not-email",
+    }, { production: true });
+    expect(result.invalid).toEqual(expect.arrayContaining([
+      "AUTH_CAPTCHA_REQUIRED must be explicitly enabled for production builds.",
+      "GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL must be a valid email address.",
+      "NEXT_PUBLIC_CLOUDINARY_API_SECRET must not expose secret configuration to the browser.",
+      "RESEND_FROM_EMAIL must include a valid sender email address.",
+    ]));
+    expect(JSON.stringify(result)).not.toContain("leaked");
   });
 
-  it("rejects disabled CAPTCHA and malformed public Sentry DSNs in production", () => {
-    const disabledCaptcha = validateEnv(
-      { ...completeProductionEnv, AUTH_CAPTCHA_REQUIRED: "false" },
-      { production: true }
-    );
-    const malformedDsn = validateEnv(
-      { ...completeProductionEnv, NEXT_PUBLIC_SENTRY_DSN: "not-a-url" },
-      { production: true }
-    );
-
-    expect(disabledCaptcha.invalid).toContain(
-      "AUTH_CAPTCHA_REQUIRED must be explicitly enabled for production builds."
-    );
-    expect(malformedDsn.invalid).toContain(
-      "NEXT_PUBLIC_SENTRY_DSN must be a valid https URL."
-    );
+  it("requires Supabase rate limiting and valid HTTPS URLs in production", () => {
+    const result = validateEnv({ ...completeProductionEnv, APP_BASE_URL: "http://localhost:3000", NEXT_PUBLIC_SENTRY_DSN: "not-url", RATE_LIMIT_BACKEND: "memory" }, { production: true });
+    expect(result.invalid).toEqual(expect.arrayContaining([
+      "APP_BASE_URL must be a valid https URL.",
+      "NEXT_PUBLIC_SENTRY_DSN must be a valid https URL.",
+      "RATE_LIMIT_BACKEND must be set to 'supabase' for production builds.",
+    ]));
   });
 
   it("accepts a complete production environment", () => {
-    const result = validateEnv(completeProductionEnv, { production: true });
-
-    expect(result).toEqual({ invalid: [], missing: [], ok: true });
+    expect(validateEnv(completeProductionEnv, { production: true })).toEqual({ invalid: [], missing: [], ok: true });
   });
 
-  it("CLI validation reports missing production env without import errors", () => {
+  it("CLI errors name variables but never their values", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const exitCode = runValidateEnvCli(["node", "scripts/validate-env.mjs", "--production"], {});
-
+    const exitCode = runValidateEnvCli(["node", "scripts/validate-env.mjs", "--production"], { NEXT_PUBLIC_CLOUDINARY_API_SECRET: "do-not-print" });
     expect(exitCode).toBe(1);
-    expect(errorSpy.mock.calls[0]?.[0]).toContain("Environment validation failed.");
     expect(errorSpy.mock.calls[0]?.[0]).toContain("NEXT_PUBLIC_SUPABASE_URL");
+    expect(errorSpy.mock.calls[0]?.[0]).not.toContain("do-not-print");
   });
 });
