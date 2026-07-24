@@ -23,6 +23,11 @@ type CloudinaryAssetDetails = {
   version?: number;
 };
 
+type ExpectedFormOwnership = {
+  expectedFormDefinitionId: string;
+  expectedFormVersionId: string;
+};
+
 function basicAuthorization(apiKey: string, apiSecret: string) {
   return `Basic ${Buffer.from(`${apiKey}:${apiSecret}`, "utf8").toString("base64")}`;
 }
@@ -34,7 +39,7 @@ function normalizedFormat(contentType: FormSubmissionAsset["contentType"], forma
 
 export async function loadVerifiedCloudinaryFormAsset(
   asset: FormSubmissionAsset,
-  options: { fetchImpl?: typeof fetch } = {}
+  options: ExpectedFormOwnership & { fetchImpl?: typeof fetch }
 ) {
   const config = getCloudinaryConfig();
   const response = await (options.fetchImpl || fetch)(
@@ -59,8 +64,8 @@ export async function loadVerifiedCloudinaryFormAsset(
     details.bytes !== asset.bytes ||
     !details.format ||
     !normalizedFormat(asset.contentType, details.format) ||
-    context.form_definition_id === undefined ||
-    context.form_version_id === undefined ||
+    context.form_definition_id !== options.expectedFormDefinitionId ||
+    context.form_version_id !== options.expectedFormVersionId ||
     context.field_id !== asset.fieldId ||
     context.upload_id !== asset.uploadId ||
     context.sha256 !== asset.sha256
@@ -88,6 +93,11 @@ export function buildSignedCloudinaryFormAssetUrl(asset: FormSubmissionAsset) {
   return `https://res.cloudinary.com/${encodeURIComponent(config.cloudName)}/${asset.resourceType}/authenticated/s--${signature}--/v${asset.cloudinaryVersion}/${encodePublicId(leaf)}`;
 }
 
-export async function verifyCloudinaryFormAssets(assets: FormSubmissionAsset[]) {
-  await Promise.all(assets.map((asset) => loadVerifiedCloudinaryFormAsset(asset)));
+export async function verifyCloudinaryFormAssets(
+  assets: FormSubmissionAsset[],
+  ownership: ExpectedFormOwnership
+) {
+  await Promise.all(
+    assets.map((asset) => loadVerifiedCloudinaryFormAsset(asset, ownership))
+  );
 }
