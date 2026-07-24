@@ -21,6 +21,8 @@ vi.mock("@/lib/auth/action-protection", () => ({
   enforceAuthActionProtection: mocks.enforceAuthActionProtection,
 }));
 
+vi.mock("@/lib/forms/cloudinary-assets", () => ({ verifyCloudinaryFormAssets: vi.fn().mockResolvedValue(undefined) }));
+
 vi.mock("@/lib/cloudinary/config", () => ({
   getCloudinaryConfig: mocks.getCloudinaryConfig,
 }));

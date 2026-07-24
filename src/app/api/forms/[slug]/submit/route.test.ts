@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ consumeFormUploadSession: vi.fn(), createFormSubmissionAssets: vi.fn(), createPendingFormSubmission: vi.fn(),
   enforceAuthActionProtection: vi.fn(), loadPublishedForm: vi.fn(), markFormConfirmationSent: vi.fn(), recordFormConfirmationDelivery: vi.fn(),
   sendEmail: vi.fn(), verifyFormUploadProof: vi.fn() }));
+vi.mock("@/lib/forms/cloudinary-assets", () => ({ verifyCloudinaryFormAssets: vi.fn().mockResolvedValue(undefined) }));
+
 vi.mock("@/lib/cloudinary/config", () => ({ getCloudinaryConfig: () => ({ apiSecret: "test-cloudinary-secret" }) }));
 vi.mock("@/lib/env", () => ({ getAppBaseUrl: () => "https://jnuits.example.test" }));
 vi.mock("@/lib/forms/repository", () => ({ createFormSubmissionAssets: mocks.createFormSubmissionAssets, createPendingFormSubmission: mocks.createPendingFormSubmission,

@@ -9,7 +9,8 @@ describe("private form upload downloads", () => {
     expect(route).toContain('requireAdminApiPermission("admin.forms.review"');
     expect(route).toContain('.eq("form_definition_id", formId.data)');
     expect(route).toContain('.eq("form_submission_id", submissionId.data)');
-    expect(route).toContain("loadVerifiedCloudinaryFormAsset(asset)");
+    expect(route).toContain("loadVerifiedCloudinaryFormAsset(asset, {");
+    expect(route).toContain("expectedFormVersionId: submission.form_version_id");
   });
 
   it("proxies authenticated delivery with non-cacheable safe headers", () => {
