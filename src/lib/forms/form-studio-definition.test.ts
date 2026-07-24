@@ -2,9 +2,48 @@ import { describe, expect, it } from "vitest";
 
 import { parseFormDefinition } from "@/lib/forms/definition";
 import {
+  createUniqueStudioFieldId,
+  duplicateStudioField,
   formDefinitionToStudioFields,
   studioFieldsToDefinition,
 } from "@/lib/forms/form-studio-definition";
+
+describe("Form Studio field identity", () => {
+  it("generates readable IDs and deterministic collision suffixes", () => {
+    expect(createUniqueStudioFieldId("Email address", [])).toBe("email_address");
+    expect(createUniqueStudioFieldId("Email", ["email"])).toBe("email_2");
+    expect(createUniqueStudioFieldId("Email", ["email", "email_2"])).toBe("email_3");
+  });
+
+  it("handles Bangla, punctuation-only, reserved, and empty labels safely", () => {
+    expect(createUniqueStudioFieldId("আপনার নাম", [])).toMatch(/^field_[a-z0-9]+$/);
+    expect(createUniqueStudioFieldId("!!!", [])).toMatch(/^field_[a-z0-9]+$/);
+    expect(createUniqueStudioFieldId("constructor", [])).toMatch(/^field_[a-z0-9]+$/);
+    expect(createUniqueStudioFieldId("", [])).toBe("field");
+  });
+
+  it("keeps generated IDs within the schema limit after suffixing", () => {
+    const label = `a${"b".repeat(90)}`;
+    const first = createUniqueStudioFieldId(label, []);
+    const second = createUniqueStudioFieldId(label, [first]);
+    expect(first).toHaveLength(64);
+    expect(second.length).toBeLessThanOrEqual(64);
+    expect(second).toMatch(/_2$/);
+  });
+
+  it("duplicates a question with a fresh ID without mutating the source", () => {
+    const source = {
+      id: "email",
+      label: "Email",
+      optionsText: "",
+      required: true,
+      type: "email" as const,
+    };
+    const duplicate = duplicateStudioField(source, [source.id]);
+    expect(duplicate).toEqual({ ...source, id: "email_2" });
+    expect(source.id).toBe("email");
+  });
+});
 
 describe("Form Studio definition conversion", () => {
   it("emits valid private image and PDF field schema with a one-file default", () => {
@@ -24,7 +63,7 @@ describe("Form Studio definition conversion", () => {
     expect(parsed.payment).toEqual({ enabled: false });
   });
 
-  it("loads a published definition into editable field controls", () => {
+  it("loads a published definition into editable controls without changing historical IDs", () => {
     const fields = formDefinitionToStudioFields(
       parseFormDefinition({
         fields: [
