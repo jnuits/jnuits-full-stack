@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import {
+  requireVerifiedRetentionArchive,
+  RetentionArchiveVerificationError,
+} from "@/lib/retention/approval";
+import {
   listRetentionWorkspace,
   RetentionWorkflowError,
   runRetentionAction,
@@ -43,17 +47,10 @@ async function handleGet() {
   if (permission.response) return permission.response;
 
   try {
-    const workspace = await listRetentionWorkspace(
-      asFlexibleClient(createAdminClient())
-    );
-    return NextResponse.json(workspace, {
-      headers: { "Cache-Control": "private, no-store" },
-    });
+    const workspace = await listRetentionWorkspace(asFlexibleClient(createAdminClient()));
+    return NextResponse.json(workspace, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    const message =
-      error instanceof RetentionWorkflowError
-        ? error.message
-        : "Retention workspace could not be loaded.";
+    const message = error instanceof RetentionWorkflowError ? error.message : "Retention workspace could not be loaded.";
     const status = error instanceof RetentionWorkflowError ? error.status : 500;
     return NextResponse.json({ error: message }, { status });
   }
@@ -66,26 +63,27 @@ async function handlePost(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const parsed = actionSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Choose a valid retention action. Purge requires typing PURGE." },
-      { status: 422 }
-    );
+    return NextResponse.json({ error: "Choose a valid retention action. Purge requires typing PURGE." }, { status: 422 });
   }
 
   try {
-    const result = await runRetentionAction(asFlexibleClient(createAdminClient()), {
+    const admin = asFlexibleClient(createAdminClient());
+    if (parsed.data.action === "approve_purge") {
+      await requireVerifiedRetentionArchive(admin, parsed.data.scope, parsed.data.jobId);
+    }
+    const result = await runRetentionAction(admin, {
       ...parsed.data,
       actorUserId: permission.auth.user.id,
     });
-    return NextResponse.json(result, {
-      headers: { "Cache-Control": "private, no-store" },
-    });
+    return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    const message =
-      error instanceof RetentionWorkflowError
+    const verificationFailure = error instanceof RetentionArchiveVerificationError;
+    const message = verificationFailure
+      ? error.message
+      : error instanceof RetentionWorkflowError
         ? error.message
         : "Retention action could not be completed.";
-    const status = error instanceof RetentionWorkflowError ? error.status : 500;
+    const status = verificationFailure ? 409 : error instanceof RetentionWorkflowError ? error.status : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }
