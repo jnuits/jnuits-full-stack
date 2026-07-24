@@ -3,15 +3,17 @@ import {
   canApproveRetentionPurge,
   canArchiveRetentionJob,
   canPurgeRetentionJob,
+  isRetentionEligible,
   redactEventRegistrantEmail,
   retentionEligibleAt,
 } from "./state";
 
 describe("retention state", () => {
-  it("uses a calendar three-year retention boundary", () => {
-    expect(retentionEligibleAt("2023-07-22T12:00:00.000Z")).toBe(
-      "2026-07-22T12:00:00.000Z"
-    );
+  it("uses an exact calendar three-year retention boundary", () => {
+    expect(retentionEligibleAt("2023-07-22T12:00:00.000Z")).toBe("2026-07-22T12:00:00.000Z");
+    expect(isRetentionEligible("2023-07-22T12:00:00.000Z", new Date("2026-07-22T11:59:59.999Z"))).toBe(false);
+    expect(isRetentionEligible("2023-07-22T12:00:00.000Z", new Date("2026-07-22T12:00:00.000Z"))).toBe(true);
+    expect(isRetentionEligible("2023-07-22T12:00:00.000Z", new Date("2026-07-22T12:00:00.001Z"))).toBe(true);
   });
 
   it("allows archive then explicit approval then purge, never skips stages", () => {
@@ -24,8 +26,6 @@ describe("retention state", () => {
   });
 
   it("replaces an event email with a non-deliverable retained marker", () => {
-    expect(redactEventRegistrantEmail("registration-123")).toBe(
-      "purged-registration-123@retained.invalid"
-    );
+    expect(redactEventRegistrantEmail("registration-123")).toBe("purged-registration-123@retained.invalid");
   });
 });
