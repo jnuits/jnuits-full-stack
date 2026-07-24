@@ -5,7 +5,9 @@ import {
   createUniqueStudioFieldId,
   duplicateStudioField,
   formDefinitionToStudioFields,
+  markStudioFieldIdsPersisted,
   studioFieldsToDefinition,
+  updateAutomaticStudioFieldLabel,
 } from "@/lib/forms/form-studio-definition";
 
 describe("Form Studio field identity", () => {
@@ -31,16 +33,20 @@ describe("Form Studio field identity", () => {
     expect(second).toMatch(/_2$/);
   });
 
-  it("duplicates a question with a fresh ID without mutating the source", () => {
-    const source = {
-      id: "email",
-      label: "Email",
-      optionsText: "",
-      required: true,
-      type: "email" as const,
-    };
+  it("updates label-derived IDs before persistence and freezes them afterward", () => {
+    const unsaved = [{ automaticId: true, id: "new_question", label: "New question", optionsText: "", required: false, type: "text" as const }];
+    const renamed = updateAutomaticStudioFieldLabel(unsaved, 0, "Emergency contact");
+    expect(renamed[0]).toMatchObject({ id: "emergency_contact", label: "Emergency contact" });
+
+    const persisted = markStudioFieldIdsPersisted(renamed);
+    const relabeled = updateAutomaticStudioFieldLabel(persisted, 0, "Primary contact");
+    expect(relabeled[0]).toMatchObject({ id: "emergency_contact", label: "Primary contact" });
+  });
+
+  it("duplicates a question with a fresh automatic ID without mutating the source", () => {
+    const source = { id: "email", label: "Email", optionsText: "", required: true, type: "email" as const };
     const duplicate = duplicateStudioField(source, [source.id]);
-    expect(duplicate).toEqual({ ...source, id: "email_2" });
+    expect(duplicate).toEqual({ ...source, automaticId: true, id: "email_2" });
     expect(source.id).toBe("email");
   });
 });
@@ -52,38 +58,23 @@ describe("Form Studio definition conversion", () => {
       { id: "student_id", label: "Student ID card", optionsText: "", required: true, type: "image" },
       { id: "cv", label: "CV", optionsText: "", required: false, type: "pdf" },
     ]);
-
     const parsed = parseFormDefinition(definition);
-    expect(parsed.fields).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: "student_id", maxFiles: 1, type: "image" }),
-        expect.objectContaining({ id: "cv", maxFiles: 1, type: "pdf" }),
-      ]),
-    );
+    expect(parsed.fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "student_id", maxFiles: 1, type: "image" }),
+      expect.objectContaining({ id: "cv", maxFiles: 1, type: "pdf" }),
+    ]));
     expect(parsed.payment).toEqual({ enabled: false });
   });
 
-  it("loads a published definition into editable controls without changing historical IDs", () => {
-    const fields = formDefinitionToStudioFields(
-      parseFormDefinition({
-        fields: [
-          { id: "full_name", label: "Full name", required: true, type: "text" },
-          {
-            id: "track",
-            label: "Track",
-            options: [
-              { label: "Web", value: "web" },
-              { label: "Mobile", value: "mobile" },
-            ],
-            required: true,
-            type: "select",
-          },
-          { id: "portfolio", label: "Portfolio", maxFiles: 1, required: false, type: "pdf" },
-        ],
-        payment: { enabled: false },
-      })
-    );
-
+  it("loads a published definition without changing historical IDs", () => {
+    const fields = formDefinitionToStudioFields(parseFormDefinition({
+      fields: [
+        { id: "full_name", label: "Full name", required: true, type: "text" },
+        { id: "track", label: "Track", options: [{ label: "Web", value: "web" }, { label: "Mobile", value: "mobile" }], required: true, type: "select" },
+        { id: "portfolio", label: "Portfolio", maxFiles: 1, required: false, type: "pdf" },
+      ],
+      payment: { enabled: false },
+    }));
     expect(fields).toEqual([
       { id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" },
       { id: "track", label: "Track", optionsText: "Web\nMobile", required: true, type: "select" },
