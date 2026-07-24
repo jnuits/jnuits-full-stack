@@ -145,6 +145,19 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ vars.PREPRODUCTION_APP_URL }}
         run: npm run test:e2e:auth
 
+      - name: Run protected alumni decision workflow
+        if: inputs.run_authenticated_e2e
+        env:
+          E2E_ALUMNI_APPROVE_CASE_ID: ${{ vars.E2E_ALUMNI_APPROVE_CASE_ID }}
+          E2E_ALUMNI_EXPECTED_JNUITS_ID: ${{ vars.E2E_ALUMNI_EXPECTED_JNUITS_ID }}
+          E2E_ALUMNI_REJECT_CASE_ID: ${{ vars.E2E_ALUMNI_REJECT_CASE_ID }}
+          E2E_ALUMNI_WORKFLOW: "1"
+          E2E_AUTH_SMOKE: "1"
+          E2E_NORMAL_ADMIN_EMAIL: ${{ secrets.E2E_NORMAL_ADMIN_EMAIL }}
+          E2E_NORMAL_ADMIN_PASSWORD: ${{ secrets.E2E_NORMAL_ADMIN_PASSWORD }}
+          PLAYWRIGHT_BASE_URL: ${{ vars.PREPRODUCTION_APP_URL }}
+        run: npx playwright test e2e/alumni-onboarding-protected.spec.ts --project=chromium
+
       - name: Run pre-production runtime probe
         env:
           RUNTIME_PROBE_BASE_URL: ${{ vars.PREPRODUCTION_APP_URL }}
