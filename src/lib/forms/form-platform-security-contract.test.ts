@@ -25,7 +25,11 @@ describe("form platform security regression contract", () => {
   });
   it("revokes public execution from privileged RPCs", () => {
     for (const name of ["confirm_form_submission", "register_for_event_with_form_assets_atomic", "approve_membership_application", "review_membership_application", "approve_alumni_onboarding_case", "reject_alumni_onboarding_case", "consume_form_upload_session"]) {
-      expect(migrations.some((migration) => migration.includes(`revoke all on function public.${name}`)), name).toBe(true);
+      const revoked = migrations.some((migration) =>
+        migration.includes(`revoke all on function public.${name}`) ||
+        migration.includes(`revoke execute on function public.${name}`)
+      );
+      expect(revoked, name).toBe(true);
     }
   });
   it("enforces CAPTCHA, rate limits, immutable schema version, and upload ownership server-side", () => {
