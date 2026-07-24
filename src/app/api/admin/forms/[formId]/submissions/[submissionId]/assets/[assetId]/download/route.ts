@@ -12,17 +12,11 @@ export const runtime = "nodejs";
 const idSchema = z.string().uuid();
 
 type AssetRow = {
-  bytes: number;
-  cloudinary_asset_id: string;
-  cloudinary_folder: string;
-  cloudinary_public_id: string;
-  cloudinary_version: string;
-  content_type: FormSubmissionAsset["contentType"];
-  field_id: string;
-  form_submission_id: string;
-  id: string;
-  sha256: string;
+  bytes: number; cloudinary_asset_id: string; cloudinary_folder: string; cloudinary_public_id: string;
+  cloudinary_version: string; content_type: FormSubmissionAsset["contentType"]; field_id: string;
+  form_submission_id: string; id: string; sha256: string;
 };
+type SubmissionRow = { form_version_id: string; id: string };
 
 async function GETHandler(_request: NextRequest, context: { params: Promise<{ assetId?: string; formId?: string; submissionId?: string }> }) {
   const permission = await requireAdminApiPermission("admin.forms.review", {
@@ -32,16 +26,13 @@ async function GETHandler(_request: NextRequest, context: { params: Promise<{ as
   if (permission.response) return permission.response;
 
   const params = await context.params;
-  const formId = idSchema.safeParse(params.formId);
-  const submissionId = idSchema.safeParse(params.submissionId);
-  const assetId = idSchema.safeParse(params.assetId);
-  if (!formId.success || !submissionId.success || !assetId.success) {
-    return NextResponse.json({ error: "Upload not found." }, { status: 404 });
-  }
+  const formId = idSchema.safeParse(params.formId); const submissionId = idSchema.safeParse(params.submissionId); const assetId = idSchema.safeParse(params.assetId);
+  if (!formId.success || !submissionId.success || !assetId.success) return NextResponse.json({ error: "Upload not found." }, { status: 404 });
 
   const admin = asFlexibleClient(createAdminClient());
-  const { data: submission } = await admin.from("form_submissions").select("id")
+  const { data: submissionData } = await admin.from("form_submissions").select("id, form_version_id")
     .eq("id", submissionId.data).eq("form_definition_id", formId.data).maybeSingle();
+  const submission = submissionData as SubmissionRow | null;
   if (!submission) return NextResponse.json({ error: "Upload not found." }, { status: 404 });
 
   const { data, error } = await admin.from("form_submission_assets")
@@ -59,15 +50,20 @@ async function GETHandler(_request: NextRequest, context: { params: Promise<{ as
   };
 
   try {
-    await loadVerifiedCloudinaryFormAsset(asset);
+    await loadVerifiedCloudinaryFormAsset(asset, {
+      expectedFormDefinitionId: formId.data,
+      expectedFormVersionId: submission.form_version_id,
+    });
     const provider = await fetch(buildSignedCloudinaryFormAssetUrl(asset), { signal: AbortSignal.timeout(10_000) });
     if (!provider.ok || !provider.body) throw new Error("Provider delivery failed.");
 
-    await admin.from("audit_events").insert({
+    const { error: auditError } = await admin.from("audit_events").insert({
       action: "form.upload_downloaded", actor_user_id: permission.auth.user.id,
       entity_id: row.id, entity_type: "form_submission_asset",
       metadata: { field_id: row.field_id, form_definition_id: formId.data, form_submission_id: submissionId.data },
     });
+    if (auditError) return NextResponse.json({ error: "The download audit record could not be saved." }, { status: 500 });
+
     const extension = row.content_type === "application/pdf" ? "pdf" : row.content_type.split("/")[1];
     return new NextResponse(provider.body, { headers: {
       "Cache-Control": "private, no-store, max-age=0",
