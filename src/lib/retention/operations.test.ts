@@ -83,6 +83,13 @@ function createAdmin(handler: Handler) {
   return { admin: admin as unknown as FlexibleSupabaseClient, calls, rpc };
 }
 
+function filterFor(calls: Call[], table: string, prefix: string) {
+  return calls
+    .filter((call) => call.table === table)
+    .flatMap((call) => call.filters)
+    .find((filter) => filter.startsWith(prefix));
+}
+
 const oldSubmission = {
   answers: { full_name: "Old Person" },
   confirmation_status: "confirmed",
@@ -148,9 +155,8 @@ describe("retention archive boundary", () => {
     });
 
     expect(result).toMatchObject({ boundary: BOUNDARY, success: true });
-    const submissionQuery = calls.find((call) => call.table === "form_submissions");
-    expect(submissionQuery?.filters).toContain(`lte:created_at=${BOUNDARY}`);
-    expect(submissionQuery?.filters).toContain("eq:form_definition_id=form-1");
+    expect(filterFor(calls, "form_submissions", "lte:created_at")).toBe(`lte:created_at=${BOUNDARY}`);
+    expect(filterFor(calls, "form_submissions", "eq:form_definition_id")).toBe("eq:form_definition_id=form-1");
   });
 
   it("seals the boundary into the signed manifest so purge cannot widen it", async () => {
@@ -252,9 +258,10 @@ describe("retention discovery", () => {
     const result = await runRetentionAction(admin, { action: "discover", actorUserId: ACTOR });
 
     expect(result).toMatchObject({ boundary: BOUNDARY, success: true });
-    expect(calls.find((call) => call.table === "form_submissions")?.filters)
-      .toContain(`lte:created_at=${BOUNDARY}`);
-    expect(calls.find((call) => call.table === "events")?.filters?.[0])
-      .toContain(`ends_at.lte.${BOUNDARY}`);
+    expect(filterFor(calls, "form_submissions", "lte:created_at")).toBe(`lte:created_at=${BOUNDARY}`);
+
+    const eventWindow = filterFor(calls, "events", "or:");
+    expect(eventWindow).toContain(`ends_at.lte.${BOUNDARY}`);
+    expect(eventWindow).toContain(`starts_at.lte.${BOUNDARY}`);
   });
 });
