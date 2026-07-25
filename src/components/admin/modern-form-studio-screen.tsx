@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Copy, Eye, GripVertical, Plus, Send, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Copy, Eye, Plus, Send, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FormDefinitionSchema } from "@/lib/forms/definition";
 import {
   createUniqueStudioFieldId,
   duplicateStudioField,
   formDefinitionToStudioFields,
+  markStudioFieldIdsPersisted,
   studioFieldsToDefinition,
+  updateAutomaticStudioFieldLabel,
   type StudioEditorField,
   type StudioFieldType,
 } from "@/lib/forms/form-studio-definition";
@@ -23,7 +25,9 @@ type FormSummary = {
   title: string;
   updatedAt?: string;
 };
+type LinkableEvent = { id: string; startsAt: null | string; status: string; title: string };
 type Draft = { formDefinitionId: string; formVersionId: string };
+type Notice = { text: string; tone: "error" | "success" };
 type EditorPayload = {
   description: string;
   id: string;
@@ -61,7 +65,13 @@ const TYPES: Record<StudioFieldType, string> = {
   image: "Image upload",
   pdf: "PDF upload",
 };
+const UNMAPPABLE_TYPES = ["section", "consent"];
 
+/**
+ * Starter fields keep curated, stable identifiers because the application
+ * mapping refers to them by name. Only operator-created questions receive
+ * automatic label-derived identifiers.
+ */
 function starterFields(kind: FormKind): StudioEditorField[] {
   const common: StudioEditorField[] = [
     { id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" },
@@ -105,33 +115,67 @@ function slugify(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 }
 
+function eventLabel(event: LinkableEvent) {
+  if (!event.startsAt) return event.title;
+  const when = new Date(event.startsAt);
+  return Number.isNaN(when.getTime())
+    ? event.title
+    : `${event.title} · ${when.toLocaleDateString("en-BD", { day: "numeric", month: "short", year: "numeric" })}`;
+}
+
 export function ModernFormStudioScreen() {
   const [kind, setKind] = useState<FormKind>("membership_application");
   const [title, setTitle] = useState("Membership application");
   const [slug, setSlug] = useState("membership-application");
   const [description, setDescription] = useState("Submit your details for JnUITS membership review.");
   const [linkedEventId, setLinkedEventId] = useState("");
+  const [events, setEvents] = useState<LinkableEvent[]>([]);
+  const [eventsError, setEventsError] = useState<null | string>(null);
   const [fields, setFields] = useState<StudioEditorField[]>(() => starterFields("membership_application"));
   const [mapping, setMapping] = useState<Record<string, string>>(() => defaultMapping("membership_application"));
   const [forms, setForms] = useState<FormSummary[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<"load" | "publish" | "save" | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [preview, setPreview] = useState(false);
   const [slugEdited, setSlugEdited] = useState(false);
 
-  const mappable = useMemo(() => fields.filter((field) => !["section", "consent"].includes(field.type)), [fields]);
-  const canSave = title.trim() && slug.trim() && fields.every((field) => field.label.trim());
+  const mappable = useMemo(() => fields.filter((field) => !UNMAPPABLE_TYPES.includes(field.type)), [fields]);
+  const canSave = Boolean(title.trim()) && Boolean(slug.trim()) && fields.every((field) => field.label.trim());
+  const needsEvent = kind === "event_registration" && !editingId;
 
-  async function refresh() {
-    const response = await fetch("/api/admin/forms?pageSize=25", { cache: "no-store" });
+  function fail(error: unknown, fallback: string) {
+    setNotice({ text: error instanceof Error ? error.message : fallback, tone: "error" });
+  }
+
+  const refresh = useCallback(async () => {
+    const response = await fetch("/api/admin/forms?pageSize=100", { cache: "no-store" });
     const payload = (await response.json().catch(() => null)) as { error?: string; items?: FormSummary[] } | null;
     if (!response.ok) throw new Error(payload?.error || "Forms could not be loaded.");
     setForms(payload?.items || []);
-  }
+  }, []);
 
-  useEffect(() => { void refresh().catch((error) => setMessage(error instanceof Error ? error.message : "Forms could not be loaded.")); }, []);
+  useEffect(() => {
+    void refresh().catch((error: unknown) => fail(error, "Forms could not be loaded."));
+  }, [refresh]);
+
+  // Loaded lazily so non-event operators never trigger the events query.
+  useEffect(() => {
+    if (kind !== "event_registration" || events.length) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/forms/linkable-events", { cache: "no-store" });
+        const payload = (await response.json().catch(() => null)) as { error?: string; items?: LinkableEvent[] } | null;
+        if (!response.ok) throw new Error(payload?.error || "Events could not be loaded.");
+        if (!cancelled) { setEvents(payload?.items || []); setEventsError(null); }
+      } catch (error) {
+        if (!cancelled) setEventsError(error instanceof Error ? error.message : "Events could not be loaded.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [events.length, kind]);
 
   function chooseKind(nextKind: FormKind) {
     setKind(nextKind);
@@ -141,16 +185,25 @@ export function ModernFormStudioScreen() {
     setDescription(nextKind === "event_registration" ? "Register for this JnUITS event." : nextKind === "alumni_onboarding" ? "Request alumni onboarding and account claim access." : "Submit your details for JnUITS membership review.");
     setFields(starterFields(nextKind));
     setMapping(defaultMapping(nextKind));
+    setLinkedEventId("");
     setDraft(null);
     setEditingId(null);
+    setNotice(null);
   }
 
   function updateField(index: number, update: Partial<StudioEditorField>) {
     setFields((current) => current.map((field, position) => position === index ? { ...field, ...update } : field));
   }
 
+  // Routed through the helper so an unsaved question's automatic identifier
+  // tracks its label, and a persisted identifier never moves.
+  function renameField(index: number, label: string) {
+    setFields((current) => updateAutomaticStudioFieldLabel(current, index, label));
+  }
+
   function addQuestion() {
     setFields((current) => [...current, {
+      automaticId: true,
       id: createUniqueStudioFieldId("New question", current.map((field) => field.id)),
       label: "New question",
       optionsText: "",
@@ -167,7 +220,7 @@ export function ModernFormStudioScreen() {
   }
 
   async function openForm(id: string) {
-    setBusy("load"); setMessage(null);
+    setBusy("load"); setNotice(null);
     try {
       const response = await fetch(`/api/admin/forms/${id}/versions`, { cache: "no-store" });
       const payload = (await response.json().catch(() => null)) as (EditorPayload & { error?: string }) | null;
@@ -176,16 +229,28 @@ export function ModernFormStudioScreen() {
       if (!definition.success) throw new Error("This form uses an invalid legacy schema. Repair it before editing.");
       setKind(payload.kind); setTitle(payload.title); setSlug(payload.slug); setSlugEdited(true);
       setDescription(payload.description); setLinkedEventId(payload.linkedEventId || "");
-      setFields(formDefinitionToStudioFields(definition.data)); setEditingId(payload.id);
+      // Historical identifiers are loaded as persisted, so editing a label in an
+      // existing form can never rewrite a stored field id.
+      setFields(markStudioFieldIdsPersisted(formDefinitionToStudioFields(definition.data)));
+      setEditingId(payload.id);
       const behavior = payload.version.applicationBehavior as { fieldMapping?: Record<string, string> } | null;
       setMapping({ ...defaultMapping(payload.kind), ...(behavior?.fieldMapping || {}) });
       setDraft(payload.version.lifecycle === "draft" ? { formDefinitionId: payload.id, formVersionId: payload.version.id } : null);
-      setMessage(payload.version.lifecycle === "draft" ? "Draft resumed." : "Published form loaded. Saving creates a new draft version.");
+      setNotice({
+        text: payload.version.lifecycle === "draft" ? "Draft resumed." : "Published form loaded. Saving creates a new draft version.",
+        tone: "success",
+      });
+    } catch (error) {
+      fail(error, "The form could not be opened.");
     } finally { setBusy(null); }
   }
 
   async function save() {
-    setBusy("save"); setMessage(null);
+    if (needsEvent && !linkedEventId) {
+      setNotice({ text: "Choose the event this registration form belongs to.", tone: "error" });
+      return;
+    }
+    setBusy("save"); setNotice(null);
     try {
       const version = { applicationBehavior: { fieldMapping: mapping }, definition: studioFieldsToDefinition(fields) };
       const response = editingId
@@ -201,31 +266,39 @@ export function ModernFormStudioScreen() {
       if (!response.ok || !payload?.formVersionId) throw new Error(payload?.error || "The draft could not be saved.");
       const definitionId = editingId || payload.formDefinitionId;
       if (!definitionId) throw new Error("The draft identifier is missing.");
-      setEditingId(definitionId); setDraft({ formDefinitionId: definitionId, formVersionId: payload.formVersionId });
-      setMessage("Draft saved. Review it before publishing."); await refresh();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "The draft could not be saved."); }
+      setEditingId(definitionId);
+      setDraft({ formDefinitionId: definitionId, formVersionId: payload.formVersionId });
+      // Identifiers are now stored, so freeze them against later relabelling.
+      setFields((current) => markStudioFieldIdsPersisted(current));
+      setNotice({ text: "Draft saved. Review it before publishing.", tone: "success" });
+      await refresh();
+    } catch (error) { fail(error, "The draft could not be saved."); }
     finally { setBusy(null); }
   }
 
   async function publish() {
     if (!draft || !window.confirm("Publish this version? Published versions are immutable.")) return;
-    setBusy("publish"); setMessage(null);
+    setBusy("publish"); setNotice(null);
     try {
       const response = await fetch(`/api/admin/forms/${draft.formDefinitionId}/publish`, {
         body: JSON.stringify({ formVersionId: draft.formVersionId }), headers: { "Content-Type": "application/json" }, method: "POST",
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; success?: boolean } | null;
       if (!response.ok || !payload?.success) throw new Error(payload?.error || "The form could not be published.");
-      setMessage("Form published. You can now preview or share the public link."); await refresh();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "The form could not be published."); }
+      // The draft no longer exists, so clear it: a further save must create a
+      // new draft version rather than patch the published one.
+      setDraft(null);
+      setNotice({ text: "Form published. Preview or share the public link, or save again to start a new draft version.", tone: "success" });
+      await refresh();
+    } catch (error) { fail(error, "The form could not be published."); }
     finally { setBusy(null); }
   }
 
   async function copyLink(form: FormSummary) {
     try {
       await navigator.clipboard.writeText(new URL(`/forms/${form.slug}`, window.location.origin).toString());
-      setMessage("Published form link copied.");
-    } catch { setMessage("The link could not be copied. Open the preview and copy it from the address bar."); }
+      setNotice({ text: "Published form link copied.", tone: "success" });
+    } catch { setNotice({ text: "The link could not be copied. Open the preview and copy it from the address bar.", tone: "error" }); }
   }
 
   return <div className="grid gap-7">
@@ -236,14 +309,28 @@ export function ModernFormStudioScreen() {
         <div className="grid gap-4 sm:grid-cols-2"><label className="input-label">Form type<select disabled={Boolean(editingId)} value={kind} onChange={(event) => chooseKind(event.target.value as FormKind)}>{Object.entries(KINDS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="input-label">Public address<input disabled={Boolean(editingId)} value={slug} onChange={(event) => { setSlugEdited(true); setSlug(slugify(event.target.value)); }} required /><span className="mt-1 block text-xs font-normal text-[var(--muted-foreground)]">/forms/{slug || "your-form"}</span></label></div>
         <label className="input-label">Form title<input disabled={Boolean(editingId)} value={title} onChange={(event) => { setTitle(event.target.value); if (!slugEdited) setSlug(slugify(event.target.value)); }} required /></label>
         <label className="input-label">Description<textarea disabled={Boolean(editingId)} rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
-        {kind === "event_registration" ? <label className="input-label">Linked event<input value={linkedEventId} disabled={Boolean(editingId)} onChange={(event) => setLinkedEventId(event.target.value)} placeholder="Event selection is being upgraded; paste the event ID for now" required /></label> : <section className="rounded-xl border border-[var(--line)] p-4"><p className="admin-section-label">Application details</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{Object.entries(mapping).map(([key, value]) => <label className="input-label" key={key}>{key.replace(/([A-Z])/g, " $1")}<select value={value} onChange={(event) => setMapping((current) => ({ ...current, [key]: event.target.value }))}><option value="">Not collected</option>{mappable.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}</select></label>)}</div></section>}
+        {kind === "event_registration"
+          ? <label className="input-label">Linked event
+              <select disabled={Boolean(editingId)} value={linkedEventId} onChange={(event) => setLinkedEventId(event.target.value)} required>
+                <option value="">Choose an event…</option>
+                {events.map((event) => <option key={event.id} value={event.id}>{eventLabel(event)}</option>)}
+              </select>
+              <span className="mt-1 block text-xs font-normal text-[var(--muted-foreground)]">
+                {eventsError
+                  ? eventsError
+                  : events.length
+                    ? "Only events using internal registration appear here."
+                    : "No event is currently open to internal registration."}
+              </span>
+            </label>
+          : <section className="rounded-xl border border-[var(--line)] p-4"><p className="admin-section-label">Application details</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{Object.entries(mapping).map(([key, value]) => <label className="input-label" key={key}>{key.replace(/([A-Z])/g, " $1")}<select value={value} onChange={(event) => setMapping((current) => ({ ...current, [key]: event.target.value }))}><option value="">Not collected</option>{mappable.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}</select></label>)}</div></section>}
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="admin-section-label">Questions</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">Question IDs are generated automatically and stay stable after saving.</p></div><button className="admin-btn admin-btn--ghost" onClick={addQuestion} type="button"><Plus size={15} /> Add question</button></div>
-        <div className="grid gap-3">{fields.map((field, index) => <article className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4" key={field.id}><div className="mb-3 flex items-center justify-between gap-3"><span className="inline-flex items-center gap-2 text-xs text-[var(--muted-foreground)]"><GripVertical size={14} /> Question {index + 1}</span><details><summary className="cursor-pointer text-xs font-semibold">Advanced details</summary><code className="mt-2 block text-xs">ID: {field.id}</code></details></div><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="input-label">Question<input value={field.label} onChange={(event) => updateField(index, { label: event.target.value })} required /></label><label className="input-label">Question type<select value={field.type} onChange={(event) => updateField(index, { required: event.target.value === "consent" || field.required, type: event.target.value as StudioFieldType })}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!["section", "consent"].includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{["select", "multi_select"].includes(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
+        <div className="grid gap-3">{fields.map((field, index) => <article className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4" key={field.id}><div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs text-[var(--muted-foreground)]">Question {index + 1}</span><details><summary className="cursor-pointer text-xs font-semibold">Advanced details</summary><code className="mt-2 block text-xs">ID: {field.id}</code></details></div><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="input-label">Question<input value={field.label} onChange={(event) => renameField(index, event.target.value)} required /></label><label className="input-label">Question type<select value={field.type} onChange={(event) => updateField(index, { required: event.target.value === "consent" || field.required, type: event.target.value as StudioFieldType })}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{["select", "multi_select"].includes(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
         {preview ? <section className="rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-5" aria-label="Form preview"><p className="admin-section-label">Respondent preview</p><h3 className="mt-2 text-2xl font-semibold">{title}</h3><p className="mt-1 text-sm text-[var(--muted-foreground)]">{description}</p><div className="mt-5 grid gap-4">{fields.map((field) => <div key={field.id}><p className="font-semibold">{field.label}{field.required ? " *" : ""}</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">{TYPES[field.type]}</p></div>)}</div></section> : null}
-        {message ? <p className="status-pill" role="status" aria-live="polite">{message}</p> : null}
-        <div className="flex flex-wrap justify-end gap-3"><button className="admin-btn admin-btn--ghost" onClick={() => setPreview((value) => !value)} type="button"><Eye size={15} /> {preview ? "Hide preview" : "Preview"}</button><button className="admin-btn admin-btn--primary" disabled={busy !== null || !canSave} onClick={() => void save()} type="button"><Plus size={15} /> {busy === "save" ? "Saving…" : draft ? "Save draft" : "Create draft"}</button>{draft ? <button className="admin-btn admin-btn--primary" disabled={busy !== null} onClick={() => void publish()} type="button"><Send size={15} /> {busy === "publish" ? "Publishing…" : "Publish"}</button> : null}</div>
+        {notice ? <p className={notice.tone === "error" ? "status-pill status-pill--danger" : "status-pill"} role={notice.tone === "error" ? "alert" : "status"} aria-live="polite">{notice.text}</p> : null}
+        <div className="flex flex-wrap justify-end gap-3"><button className="admin-btn admin-btn--ghost" onClick={() => setPreview((value) => !value)} type="button"><Eye size={15} /> {preview ? "Hide preview" : "Preview"}</button><button className="admin-btn admin-btn--primary" disabled={busy !== null || !canSave} onClick={() => void save()} type="button"><Plus size={15} /> {busy === "save" ? "Saving…" : draft ? "Save draft" : editingId ? "Save as new draft" : "Create draft"}</button>{draft ? <button className="admin-btn admin-btn--primary" disabled={busy !== null} onClick={() => void publish()} type="button"><Send size={15} /> {busy === "publish" ? "Publishing…" : "Publish"}</button> : null}</div>
       </section>
-      <aside className="grid content-start gap-4"><section className="admin-review-card"><p className="admin-section-label">Your forms</p><h2 className="admin-card-row__title">Edit, share, and export</h2>{forms.length ? <div className="mt-4 grid gap-3">{forms.map((form) => <article className="rounded-xl border border-[var(--line)] p-3" key={form.id}><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{form.title}</h3><p className="mt-1 text-xs text-[var(--muted-foreground)]">{KINDS[form.kind]} · {form.lifecycle}</p></div></div>{form.lifecycle !== "archived" ? <button className="queue-link mt-3" disabled={busy === "load"} onClick={() => void openForm(form.id)} type="button">{form.lifecycle === "draft" ? "Resume draft" : "Edit"}</button> : null}{form.lifecycle === "published" ? <div className="mt-3 flex flex-wrap gap-3"><Link className="queue-link" href={`/forms/${form.slug}`} target="_blank">Preview</Link><button className="queue-link" onClick={() => void copyLink(form)} type="button"><Copy size={13} /> Share link</button><Link className="queue-link" href={`/admin/content/forms?review=${form.id}`}>Review responses</Link>{form.kind !== "event_registration" ? <><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=csv`}>CSV</a><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=xlsx`}>XLSX</a></> : null}</div> : null}</article>)}</div> : <p className="mt-4 text-sm text-[var(--muted-foreground)]">No forms yet. Create your first draft.</p>}</section></aside>
+      <aside className="grid content-start gap-4"><section className="admin-review-card"><p className="admin-section-label">Your forms</p><h2 className="admin-card-row__title">Edit, share, and export</h2>{forms.length ? <div className="mt-4 grid gap-3">{forms.map((form) => <article className="rounded-xl border border-[var(--line)] p-3" key={form.id}><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{form.title}</h3><p className="mt-1 text-xs text-[var(--muted-foreground)]">{KINDS[form.kind]} · {form.lifecycle}</p></div></div>{form.lifecycle !== "archived" ? <button className="queue-link mt-3" disabled={busy === "load"} onClick={() => void openForm(form.id)} type="button">{form.lifecycle === "draft" ? "Resume draft" : "Edit"}</button> : null}{form.lifecycle === "published" ? <div className="mt-3 flex flex-wrap gap-3"><Link className="queue-link" href={`/forms/${form.slug}`} target="_blank">Preview</Link><button className="queue-link" onClick={() => void copyLink(form)} type="button"><Copy size={13} /> Share link</button><Link className="queue-link" href={`/admin/content/forms?review=${form.id}#submission-review`}>Review responses</Link>{form.kind !== "event_registration" ? <><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=csv`}>CSV</a><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=xlsx`}>XLSX</a></> : null}</div> : null}</article>)}</div> : <p className="mt-4 text-sm text-[var(--muted-foreground)]">No forms yet. Create your first draft.</p>}</section></aside>
     </div>
   </div>;
 }
