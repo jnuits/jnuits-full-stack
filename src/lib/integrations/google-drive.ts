@@ -61,7 +61,7 @@ function isRecord(value: unknown): value is Record<string, unknown> { return typ
 function retryableGoogleStatus(status: number) { return status === 429 || status === 500 || status === 502 || status === 503 || status === 504; }
 
 function retryAfterDelay(response: Response) {
-  const header = response.headers?.get?.("retry-after");
+  const header = response.headers.get("retry-after");
   if (!header) return null;
   const seconds = Number(header.trim());
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
