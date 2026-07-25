@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 const STATUSES = ["", "unreviewed", "in_review", "approved", "rejected", "withdrawn"];
 
@@ -12,9 +13,19 @@ type Item = {
   submitterEmail: string | null;
   versionNumber: number | null;
 };
+type FormOption = {
+  id: string;
+  kind: string;
+  lifecycle: string;
+  title: string;
+};
 
-export function FormSubmissionReviewPanel() {
-  const [formId, setFormId] = useState("");
+function FormSubmissionReviewPanelContent() {
+  const searchParams = useSearchParams();
+  const requestedFormId = searchParams.get("review") || "";
+
+  const [forms, setForms] = useState<FormOption[]>([]);
+  const [formId, setFormId] = useState(requestedFormId);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [items, setItems] = useState<Item[]>([]);
@@ -22,19 +33,32 @@ export function FormSubmissionReviewPanel() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function load() {
-    if (!formId) {
-      setMessage("Choose a form definition ID from the inventory.");
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/forms?pageSize=100", { cache: "no-store" });
+        const payload = (await response.json().catch(() => null)) as { error?: string; items?: FormOption[] } | null;
+        if (!response.ok) throw new Error(payload?.error || "Forms could not be loaded.");
+        setForms(payload?.items || []);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Forms could not be loaded.");
+      }
+    })();
+  }, []);
+
+  const load = useCallback(async (targetFormId: string, searchQuery: string, reviewStatus: string) => {
+    if (!targetFormId) {
+      setMessage("Choose a form to review.");
       return;
     }
     setLoading(true);
     setMessage(null);
     try {
       const search = new URLSearchParams({ pageSize: "25" });
-      if (query.trim()) search.set("q", query.trim());
-      if (status) search.set("status", status);
+      if (searchQuery.trim()) search.set("q", searchQuery.trim());
+      if (reviewStatus) search.set("status", reviewStatus);
       const response = await fetch(
-        `/api/admin/forms/${encodeURIComponent(formId)}/submissions?${search}`,
+        `/api/admin/forms/${encodeURIComponent(targetFormId)}/submissions?${search}`,
         { cache: "no-store" }
       );
       const payload = (await response.json().catch(() => null)) as
@@ -52,12 +76,21 @@ export function FormSubmissionReviewPanel() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  // Deep link from the Form Studio inventory: select and load without asking an
+  // operator to find or paste an identifier.
+  useEffect(() => {
+    if (!requestedFormId) return;
+    setFormId(requestedFormId);
+    void load(requestedFormId, "", "");
+  }, [load, requestedFormId]);
 
   return (
     <section
       className="admin-review-card mt-6"
       aria-labelledby="submission-review-heading"
+      id="submission-review"
     >
       <p className="admin-section-label">Submission review</p>
       <h2 className="admin-card-row__title" id="submission-review-heading">
@@ -69,8 +102,15 @@ export function FormSubmissionReviewPanel() {
       </p>
       <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_12rem_auto]">
         <label className="input-label">
-          Form definition ID
-          <input value={formId} onChange={(event) => setFormId(event.target.value)} />
+          Form
+          <select value={formId} onChange={(event) => setFormId(event.target.value)}>
+            <option value="">Choose a form…</option>
+            {forms.map((form) => (
+              <option key={form.id} value={form.id}>
+                {form.title} · {form.lifecycle}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="input-label">
           Email search
@@ -88,8 +128,8 @@ export function FormSubmissionReviewPanel() {
         </label>
         <button
           className="admin-btn admin-btn--primary self-end"
-          disabled={loading}
-          onClick={() => void load()}
+          disabled={loading || !formId}
+          onClick={() => void load(formId, query, status)}
           type="button"
         >
           {loading ? "Loading…" : "Load submissions"}
@@ -141,5 +181,20 @@ export function FormSubmissionReviewPanel() {
         </p>
       ) : null}
     </section>
+  );
+}
+
+export function FormSubmissionReviewPanel() {
+  return (
+    <Suspense
+      fallback={
+        <section className="admin-review-card mt-6" id="submission-review">
+          <p className="admin-section-label">Submission review</p>
+          <p className="mt-2 text-sm text-[var(--muted-foreground)]">Loading reviewer queue…</p>
+        </section>
+      }
+    >
+      <FormSubmissionReviewPanelContent />
+    </Suspense>
   );
 }
