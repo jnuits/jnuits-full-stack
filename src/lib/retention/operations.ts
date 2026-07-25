@@ -12,7 +12,6 @@ import {
   canApproveRetentionPurge,
   canArchiveRetentionJob,
   canPurgeRetentionJob,
-  isRetentionEligible,
   retentionBoundaryAt,
   retentionEligibleAt,
   type RetentionJobStatus,
@@ -500,6 +499,7 @@ async function loadEventAssetReferences(
 async function uploadArchiveBundle({
   assetReferences,
   boundary,
+  jobId,
   materials,
   prefix,
   resourceId,
@@ -508,18 +508,33 @@ async function uploadArchiveBundle({
 }: {
   assetReferences: RetentionArchiveAssetReference[];
   boundary: string;
+  jobId: string;
   materials: { csv: Buffer; json: Buffer; xlsx: Buffer };
   prefix: string;
   resourceId: string;
   rowCount: number;
   scope: RetentionScope;
 }) {
+  // Deterministic per logical file, so a retry after a partial failure reuses
+  // whatever already landed in the Shared Drive instead of duplicating it.
+  const dataKey = (kind: string) => `${scope}:${jobId}:${resourceId}:${kind}`;
   const uploads = await Promise.all([
-    uploadGoogleDriveFile({ data: materials.csv, filename: `${prefix}.csv`, mimeType: "text/csv" }),
-    uploadGoogleDriveFile({ data: materials.json, filename: `${prefix}.json`, mimeType: "application/json" }),
+    uploadGoogleDriveFile({
+      data: materials.csv,
+      filename: `${prefix}.csv`,
+      idempotencyKey: dataKey("csv"),
+      mimeType: "text/csv",
+    }),
+    uploadGoogleDriveFile({
+      data: materials.json,
+      filename: `${prefix}.json`,
+      idempotencyKey: dataKey("json"),
+      mimeType: "application/json",
+    }),
     uploadGoogleDriveFile({
       data: materials.xlsx,
       filename: `${prefix}.xlsx`,
+      idempotencyKey: dataKey("xlsx"),
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
   ]);
@@ -528,8 +543,9 @@ async function uploadArchiveBundle({
     archiveRetentionDriveFile(`${prefix}.json`, uploads[1].id, materials.json),
     archiveRetentionDriveFile(`${prefix}.xlsx`, uploads[2].id, materials.xlsx),
   ];
+  const archivedAt = new Date().toISOString();
   const signed = signRetentionArchiveManifest({
-    archivedAt: new Date().toISOString(),
+    archivedAt,
     assetReferences,
     boundary,
     files,
@@ -538,9 +554,13 @@ async function uploadArchiveBundle({
     scope,
   });
   const manifestData = Buffer.from(JSON.stringify(signed, null, 2), "utf8");
+  // The manifest embeds its own archive time, so its bytes differ per attempt.
+  // Keying it by that time keeps the stored checksum matching the file that
+  // actually exists in Drive instead of an earlier manifest.
   const manifestUpload = await uploadGoogleDriveFile({
     data: manifestData,
     filename: `${prefix}-manifest.json`,
+    idempotencyKey: `${scope}:${jobId}:${resourceId}:manifest:${archivedAt}`,
     mimeType: "application/json",
   });
 
@@ -555,6 +575,7 @@ async function uploadArchiveBundle({
       ),
     },
     manifestFileId: manifestUpload.id,
+    reusedFiles: uploads.filter((upload) => upload.reused).length,
   };
 }
 
@@ -623,6 +644,7 @@ async function archiveRetentionJob(
       bundle = await uploadArchiveBundle({
         assetReferences: materials.assetReferences,
         boundary,
+        jobId,
         materials,
         prefix: `form-${resourceId}-retention-${date}`,
         resourceId,
@@ -641,6 +663,7 @@ async function archiveRetentionJob(
       bundle = await uploadArchiveBundle({
         assetReferences,
         boundary,
+        jobId,
         materials,
         prefix: `event-${event.id}-retention-${date}`,
         resourceId: event.id,
@@ -690,10 +713,11 @@ async function archiveRetentionJob(
     await recordAudit(admin, actorUserId, "retention.archive_completed", resourceId, {
       boundary,
       job_id: jobId,
+      reused_files: bundle.reusedFiles,
       row_count: rowCount,
       scope,
     });
-    return { boundary, rowCount, success: true };
+    return { boundary, reusedFiles: bundle.reusedFiles, rowCount, success: true };
   } catch (error) {
     await markArchiveFailed(admin, scope, jobId);
     throw error;
