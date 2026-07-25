@@ -12,6 +12,8 @@ import {
   canApproveRetentionPurge,
   canArchiveRetentionJob,
   canPurgeRetentionJob,
+  isRetentionEligible,
+  retentionBoundaryAt,
   retentionEligibleAt,
   type RetentionJobStatus,
 } from "@/lib/retention/state";
@@ -33,6 +35,8 @@ const ACTIVE_STATUSES: RetentionJobStatus[] = [
   "candidate",
   "purge_approved",
 ];
+const CONCURRENT_CHANGE_MESSAGE =
+  "The retention job changed state in another session. Reload the workspace and try again.";
 
 export type RetentionScope = "event" | "form";
 
@@ -116,6 +120,38 @@ function mapJob(row: RetentionJobRow, scope: RetentionScope) {
     sourcePiiPurgedAt: row.source_pii_purged_at || null,
     status: row.status,
   };
+}
+
+/**
+ * Every retention status change goes through here. A Supabase update that
+ * matches zero rows reports no error, so the affected ids must be selected and
+ * counted; otherwise a lost race looks indistinguishable from success.
+ */
+async function applyJobTransition(
+  admin: FlexibleSupabaseClient,
+  scope: RetentionScope,
+  jobId: string,
+  fromStatuses: RetentionJobStatus[],
+  patch: Record<string, unknown>,
+  failureMessage: string
+) {
+  const result = await admin
+    .from(jobTable(scope))
+    .update(patch)
+    .eq("id", jobId)
+    .in("status", fromStatuses)
+    .select("id");
+
+  if (result.error) {
+    throw new RetentionWorkflowError(failureMessage);
+  }
+
+  const rows = Array.isArray(result.data) ? result.data : [];
+  if (rows.length !== 1) {
+    throw new RetentionWorkflowError(CONCURRENT_CHANGE_MESSAGE, 409);
+  }
+
+  return rows[0] as { id: string };
 }
 
 export async function listRetentionWorkspace(admin: FlexibleSupabaseClient) {
@@ -246,15 +282,13 @@ async function discoverRetentionCandidates(
   admin: FlexibleSupabaseClient,
   actorUserId: string
 ) {
-  const cutoff = new Date();
-  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 3);
-  const cutoffIso = cutoff.toISOString();
+  const boundary = retentionBoundaryAt();
   const oldSubmissions = await loadPagedRows(
     (from, to) =>
       admin
         .from("form_submissions")
         .select("form_definition_id, created_at")
-        .lte("created_at", cutoffIso)
+        .lte("created_at", boundary)
         .order("created_at", { ascending: true })
         .range(from, to),
     "Retention-eligible form submissions could not be scanned."
@@ -271,7 +305,7 @@ async function discoverRetentionCandidates(
   const eventResult = await admin
     .from("events")
     .select("id, starts_at, ends_at")
-    .or(`ends_at.lte.${cutoffIso},and(ends_at.is.null,starts_at.lte.${cutoffIso})`)
+    .or(`ends_at.lte.${boundary},and(ends_at.is.null,starts_at.lte.${boundary})`)
     .order("starts_at", { ascending: true })
     .range(0, 999);
 
@@ -302,11 +336,12 @@ async function discoverRetentionCandidates(
   );
 
   await recordAudit(admin, actorUserId, "retention.discovery_completed", null, {
+    boundary,
     event_candidates_created: eventCreated,
     form_candidates_created: formCreated,
   });
 
-  return { created: eventCreated + formCreated, eventCreated, formCreated, success: true };
+  return { boundary, created: eventCreated + formCreated, eventCreated, formCreated, success: true };
 }
 
 async function loadJob(
@@ -330,7 +365,8 @@ async function loadJob(
 
 async function loadFormRows(
   admin: FlexibleSupabaseClient,
-  formDefinitionId: string
+  formDefinitionId: string,
+  boundary: string
 ): Promise<RetentionArchiveSubmissionRow[]> {
   const rows = await loadPagedRows(
     (from, to) =>
@@ -340,6 +376,7 @@ async function loadFormRows(
           "id, form_version_id, submitter_email, answers, confirmation_status, review_status, created_at, form_submission_assets(field_id, cloudinary_asset_id, cloudinary_public_id, cloudinary_version, cloudinary_folder, bytes, content_type, sha256)"
         )
         .eq("form_definition_id", formDefinitionId)
+        .lte("created_at", boundary)
         .order("created_at", { ascending: true })
         .range(from, to),
     "Form archive rows could not be loaded."
@@ -392,7 +429,8 @@ function applyEventScope<
 
 async function loadEventRows(
   admin: FlexibleSupabaseClient,
-  event: EventTarget
+  event: EventTarget,
+  boundary: string
 ): Promise<EventArchiveRow[]> {
   const rows = await loadPagedRows(
     (from, to) =>
@@ -402,6 +440,7 @@ async function loadEventRows(
           .select(
             "id, registrant_name, registrant_email, registrant_phone, registration_code, registration_status, created_at, waitlisted_at, promoted_at, checked_in_at, cancelled_at"
           )
+          .lte("created_at", boundary)
           .order("created_at", { ascending: true }),
         event
       ).range(from, to),
@@ -460,6 +499,7 @@ async function loadEventAssetReferences(
 
 async function uploadArchiveBundle({
   assetReferences,
+  boundary,
   materials,
   prefix,
   resourceId,
@@ -467,6 +507,7 @@ async function uploadArchiveBundle({
   scope,
 }: {
   assetReferences: RetentionArchiveAssetReference[];
+  boundary: string;
   materials: { csv: Buffer; json: Buffer; xlsx: Buffer };
   prefix: string;
   resourceId: string;
@@ -490,6 +531,7 @@ async function uploadArchiveBundle({
   const signed = signRetentionArchiveManifest({
     archivedAt: new Date().toISOString(),
     assetReferences,
+    boundary,
     files,
     resourceId,
     rowCount,
@@ -516,6 +558,24 @@ async function uploadArchiveBundle({
   };
 }
 
+async function markArchiveFailed(
+  admin: FlexibleSupabaseClient,
+  scope: RetentionScope,
+  jobId: string
+) {
+  try {
+    // Constrained to archive_requested so a job that has since been archived,
+    // approved, or purged can never be demoted back into a re-archivable state.
+    await admin
+      .from(jobTable(scope))
+      .update({ error_code: "archive_failed", status: "failed" })
+      .eq("id", jobId)
+      .in("status", ["archive_requested"]);
+  } catch {
+    // Never let failure bookkeeping mask the original archive error.
+  }
+}
+
 async function archiveRetentionJob(
   admin: FlexibleSupabaseClient,
   scope: RetentionScope,
@@ -528,31 +588,41 @@ async function archiveRetentionJob(
     throw new RetentionWorkflowError("Retention job is not ready to archive.", 409);
   }
 
+  const now = new Date();
+  if (new Date(job.retention_eligible_at).getTime() > now.getTime()) {
+    throw new RetentionWorkflowError(
+      "This job has not reached its three-year retention boundary yet.",
+      409
+    );
+  }
+
+  const boundary = retentionBoundaryAt(now);
   const resourceId =
     scope === "form" ? job.form_definition_id : job.event_id;
   if (!resourceId) throw new RetentionWorkflowError("Retention job target is missing.");
 
-  const requested = await admin
-    .from(jobTable(scope))
-    .update({ error_code: null, status: "archive_requested" })
-    .eq("id", jobId)
-    .eq("status", job.status);
-  if (requested.error) {
-    throw new RetentionWorkflowError("Retention archive could not be started.");
-  }
+  await applyJobTransition(
+    admin,
+    scope,
+    jobId,
+    ["candidate", "failed"],
+    { error_code: null, status: "archive_requested" },
+    "Retention archive could not be started."
+  );
 
   try {
-    const date = new Date().toISOString().slice(0, 10);
+    const date = now.toISOString().slice(0, 10);
     let archiveExportJobId: null | string = null;
     let bundle: Awaited<ReturnType<typeof uploadArchiveBundle>>;
     let rowCount = 0;
 
     if (scope === "form") {
-      const rows = await loadFormRows(admin, resourceId);
+      const rows = await loadFormRows(admin, resourceId, boundary);
       const materials = createFormArchiveMaterials(resourceId, rows);
       rowCount = materials.rowCount;
       bundle = await uploadArchiveBundle({
         assetReferences: materials.assetReferences,
+        boundary,
         materials,
         prefix: `form-${resourceId}-retention-${date}`,
         resourceId,
@@ -561,7 +631,7 @@ async function archiveRetentionJob(
       });
     } else {
       const event = await loadEventTarget(admin, resourceId);
-      const rows = await loadEventRows(admin, event);
+      const rows = await loadEventRows(admin, event, boundary);
       const materials = createEventArchiveMaterials(event.id, rows);
       const assetReferences = await loadEventAssetReferences(
         admin,
@@ -570,6 +640,7 @@ async function archiveRetentionJob(
       rowCount = materials.rowCount;
       bundle = await uploadArchiveBundle({
         assetReferences,
+        boundary,
         materials,
         prefix: `event-${event.id}-retention-${date}`,
         resourceId: event.id,
@@ -584,7 +655,7 @@ async function archiveRetentionJob(
           destination: "google_drive",
           event_id: event.id,
           export_kind: "event_archive",
-          filter_metadata: { schema_version: 1 },
+          filter_metadata: { boundary, schema_version: 2 },
           format: "archive_manifest",
           google_drive_file_id: bundle.manifestFileId,
           requested_by_user_id: actorUserId,
@@ -606,26 +677,25 @@ async function archiveRetentionJob(
       status: "archived",
     };
     if (archiveExportJobId) completion.archive_export_job_id = archiveExportJobId;
-    const completed = await admin
-      .from(jobTable(scope))
-      .update(completion)
-      .eq("id", jobId)
-      .eq("status", "archive_requested");
-    if (completed.error) {
-      throw new RetentionWorkflowError("Retention archive record could not be completed.");
-    }
+
+    await applyJobTransition(
+      admin,
+      scope,
+      jobId,
+      ["archive_requested"],
+      completion,
+      "Retention archive record could not be completed."
+    );
 
     await recordAudit(admin, actorUserId, "retention.archive_completed", resourceId, {
+      boundary,
       job_id: jobId,
       row_count: rowCount,
       scope,
     });
-    return { rowCount, success: true };
+    return { boundary, rowCount, success: true };
   } catch (error) {
-    await admin
-      .from(jobTable(scope))
-      .update({ error_code: "archive_failed", status: "failed" })
-      .eq("id", jobId);
+    await markArchiveFailed(admin, scope, jobId);
     throw error;
   }
 }
@@ -642,18 +712,18 @@ async function approveRetentionPurge(
   }
 
   const approvedAt = new Date().toISOString();
-  const result = await admin
-    .from(jobTable(scope))
-    .update({
+  await applyJobTransition(
+    admin,
+    scope,
+    jobId,
+    ["archived"],
+    {
       approved_at: approvedAt,
       approved_by_user_id: actorUserId,
       status: "purge_approved",
-    })
-    .eq("id", jobId)
-    .eq("status", "archived");
-  if (result.error) {
-    throw new RetentionWorkflowError("Retention purge approval could not be saved.");
-  }
+    },
+    "Retention purge approval could not be saved."
+  );
 
   await recordAudit(admin, actorUserId, "retention.purge_approved", jobId, {
     scope,
@@ -672,6 +742,9 @@ async function purgeRetentionJob(
     throw new RetentionWorkflowError("Purge requires an archived, approved job.", 409);
   }
 
+  // The boundary is read back out of the signed manifest inside
+  // purge_retention_job, so the purge can only ever touch rows the archive
+  // already captured.
   const result = await admin.rpc("purge_retention_job", {
     p_actor_user_id: actorUserId,
     p_job_id: jobId,
@@ -683,6 +756,7 @@ async function purgeRetentionJob(
 
   return result.data || { success: true };
 }
+
 async function recordAudit(
   admin: FlexibleSupabaseClient,
   actorUserId: string,

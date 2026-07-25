@@ -11,10 +11,14 @@ afterEach(() => {
   else process.env.RETENTION_MANIFEST_SIGNING_SECRET = originalSecret;
 });
 
+const BOUNDARY = "2023-07-22T00:00:00.000Z";
+const ARCHIVED_AT = "2026-07-22T00:00:00.000Z";
+
 function validSignedManifest() {
   return signRetentionArchiveManifest({
-    archivedAt: "2026-07-22T00:00:00.000Z",
+    archivedAt: ARCHIVED_AT,
     assetReferences: [],
+    boundary: BOUNDARY,
     files: [{ bytes: 42, id: "drive-csv", name: "submissions.csv", sha256: "b".repeat(64) }],
     resourceId: "form-1",
     rowCount: 1,
@@ -36,9 +40,10 @@ describe("retention archive materials", () => {
       submitter_email: "person@example.test",
     }]);
     const signed = signRetentionArchiveManifest({
-      archivedAt: "2026-07-22T00:00:00.000Z",
+      archivedAt: ARCHIVED_AT,
       assetReferences: materials.assetReferences,
-      files: [{ bytes: materials.csv.length, id: "drive-csv", name: "submissions.csv", sha256: "b".repeat(64) }],
+      boundary: BOUNDARY,
+      files: [{ bytes: 42, id: "drive-csv", name: "submissions.csv", sha256: "b".repeat(64) }],
       resourceId: "form-1",
       rowCount: materials.rowCount,
       scope: "form",
@@ -51,13 +56,44 @@ describe("retention archive materials", () => {
     expect(verifyRetentionArchiveManifest(signed)).toBe(true);
   });
 
+  it("records the retention boundary inside the signed payload", () => {
+    process.env.RETENTION_MANIFEST_SIGNING_SECRET = "test-only-retention-secret";
+    const signed = validSignedManifest();
+    expect(signed.manifest).toMatchObject({ boundary: BOUNDARY, schemaVersion: 2 });
+    expect(verifyRetentionArchiveManifest(signed)).toBe(true);
+  });
+
+  it("detects a tampered boundary, because purge trusts it", () => {
+    process.env.RETENTION_MANIFEST_SIGNING_SECRET = "test-only-retention-secret";
+    const signed = validSignedManifest();
+    const widened = structuredClone(signed);
+    widened.manifest.boundary = "2026-07-22T00:00:00.000Z";
+    expect(verifyRetentionArchiveManifest(widened)).toBe(false);
+  });
+
+  it("refuses to sign a missing, malformed, or future boundary", () => {
+    process.env.RETENTION_MANIFEST_SIGNING_SECRET = "test-only-retention-secret";
+    const base = {
+      archivedAt: ARCHIVED_AT,
+      assetReferences: [],
+      files: [{ bytes: 42, id: "drive-csv", name: "submissions.csv", sha256: "b".repeat(64) }],
+      resourceId: "form-1",
+      rowCount: 1,
+      scope: "form" as const,
+    };
+    expect(() => signRetentionArchiveManifest({ ...base, boundary: "" })).toThrow("boundary is incomplete");
+    expect(() => signRetentionArchiveManifest({ ...base, boundary: "not-a-date" })).toThrow("boundary is incomplete");
+    expect(() => signRetentionArchiveManifest({ ...base, boundary: "2026-07-23T00:00:00.000Z" }))
+      .toThrow("cannot be later than the archive time");
+  });
+
   it("rejects tampered, incomplete, and unsigned manifests", () => {
     process.env.RETENTION_MANIFEST_SIGNING_SECRET = "test-only-retention-secret";
     const signed = validSignedManifest();
     const tampered = structuredClone(signed);
     tampered.manifest.rowCount = 2;
     expect(verifyRetentionArchiveManifest(tampered)).toBe(false);
-    expect(() => signRetentionArchiveManifest({ archivedAt: "2026-07-22T00:00:00.000Z", assetReferences: [], files: [], resourceId: "form-1", rowCount: 0, scope: "form" })).toThrow("incomplete or unverified");
+    expect(() => signRetentionArchiveManifest({ archivedAt: ARCHIVED_AT, assetReferences: [], boundary: BOUNDARY, files: [], resourceId: "form-1", rowCount: 0, scope: "form" })).toThrow("incomplete or unverified");
     delete process.env.RETENTION_MANIFEST_SIGNING_SECRET;
     expect(verifyRetentionArchiveManifest(signed)).toBe(false);
   });

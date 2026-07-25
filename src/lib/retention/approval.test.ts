@@ -13,6 +13,7 @@ function signedManifest() {
   return signRetentionArchiveManifest({
     archivedAt: "2026-07-24T12:00:00.000Z",
     assetReferences: [],
+    boundary: "2023-07-24T12:00:00.000Z",
     files: [{ bytes: 100, id: "drive-file", name: "archive.csv", sha256: "a".repeat(64) }],
     resourceId: "form-1",
     rowCount: 1,
@@ -44,6 +45,16 @@ describe("retention purge approval archive gate", () => {
   it("rejects a tampered archive signature", () => {
     const archive = signedManifest();
     archive.manifest.rowCount = 9;
+    expect(() => parseVerifiedRetentionArchiveRecord({
+      archive_manifest: archive,
+      manifest_checksum_sha256: "b".repeat(64),
+      status: "archived",
+    })).toThrow(RetentionArchiveVerificationError);
+  });
+
+  it("rejects an archive whose boundary was widened after signing", () => {
+    const archive = signedManifest();
+    archive.manifest.boundary = "2026-07-24T12:00:00.000Z";
     expect(() => parseVerifiedRetentionArchiveRecord({
       archive_manifest: archive,
       manifest_checksum_sha256: "b".repeat(64),
