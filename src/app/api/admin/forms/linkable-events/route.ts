@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { logServerError } from "@/lib/errors/api-error";
@@ -23,7 +23,7 @@ type LinkableEventRow = {
  * event UUID. Only events that publish_form_version() would accept are
  * returned: internal registration mode and not archived.
  */
-async function handleGet(request: Request) {
+async function handleGet(request: NextRequest) {
   const permission = await requireAdminApiPermission("cms.forms.manage", {
     forbiddenMessage: "Only form managers can browse linkable events.",
     unauthenticatedMessage: "Sign in before browsing linkable events.",
