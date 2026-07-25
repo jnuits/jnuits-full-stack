@@ -64,6 +64,47 @@ describe("validateEnv", () => {
     expect(JSON.stringify(result)).not.toContain("leaked");
   });
 
+  it("accepts both bare and display-name production sender addresses", () => {
+    for (const sender of [
+      "no-reply@jnuits.org.bd",
+      "  no-reply@jnuits.org.bd  ",
+      "JnUITS Notifications <no-reply@jnuits.org.bd>",
+    ]) {
+      expect(validateEnv({ ...completeProductionEnv, RESEND_FROM_EMAIL: sender }, { production: true }))
+        .toEqual({ invalid: [], missing: [], ok: true });
+    }
+  });
+
+  it("still rejects senders without a usable address", () => {
+    for (const sender of ["JnUITS", "JnUITS <not-an-address>", "no-reply@localhost", "a b@example.test"]) {
+      expect(validateEnv({ ...completeProductionEnv, RESEND_FROM_EMAIL: sender }, { production: true }).invalid)
+        .toContain("RESEND_FROM_EMAIL must include a valid sender email address.");
+    }
+  });
+
+  it("rejects browser variables whose names imply secret material", () => {
+    const leaks = {
+      NEXT_PUBLIC_GOOGLE_CREDENTIALS: "leak-credentials",
+      NEXT_PUBLIC_RETENTION_SIGNING_SECRET: "leak-signing",
+      NEXT_PUBLIC_SERVICE_ACCOUNT_PRIVATE_KEY: "leak-private-key",
+    };
+    const result = validateEnv({ ...completeProductionEnv, ...leaks }, { production: true });
+    expect(result.invalid).toEqual(expect.arrayContaining(
+      Object.keys(leaks).map((name) => `${name} must not expose secret configuration to the browser.`)
+    ));
+    for (const value of Object.values(leaks)) {
+      expect(JSON.stringify(result)).not.toContain(value);
+    }
+  });
+
+  it("keeps legitimate browser keys permitted", () => {
+    expect(validateEnv({
+      ...completeProductionEnv,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: "turnstile-site",
+    }, { production: true }).ok).toBe(true);
+  });
+
   it("requires Supabase rate limiting and valid HTTPS URLs in production", () => {
     const result = validateEnv({ ...completeProductionEnv, APP_BASE_URL: "http://localhost:3000", NEXT_PUBLIC_SENTRY_DSN: "not-url", RATE_LIMIT_BACKEND: "memory" }, { production: true });
     expect(result.invalid).toEqual(expect.arrayContaining([
