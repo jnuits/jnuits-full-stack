@@ -32,7 +32,17 @@ export const productionRequiredEnv = [
   "RETENTION_MANIFEST_SIGNING_SECRET",
 ];
 
-const FORBIDDEN_PUBLIC_SECRET_NAME = /(?:API_SECRET|PRIVATE_KEY|SECRET_KEY|WEBHOOK_SECRET|SIGNING_SECRET|PASSWORD|TOKEN)$/i;
+// Browser variables must never carry secret material. Matching is by name only
+// so no value is ever inspected, logged, or echoed. Legitimate public keys
+// (publishable key, CAPTCHA site key) intentionally do not match.
+const FORBIDDEN_PUBLIC_SECRET_NAME =
+  /(?:CREDENTIALS|PASSWORD|PRIVATE_KEY|SECRET|SECRET_KEY|TOKEN)$/i;
+// Accepts either a bare address (no-reply@jnuits.org.bd) or a display-name
+// sender (JnUITS <no-reply@jnuits.org.bd>). Both are valid for Resend.
+const SENDER_ADDRESS_PATTERN =
+  /^(?:[^<>]*<\s*[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+\s*>|[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)$/;
+const EMAIL_ADDRESS_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function isBlank(value) { return typeof value !== "string" || value.trim().length === 0; }
 function isValidUrl(value, { requireHttps }) {
   try { const url = new URL(value); return requireHttps ? url.protocol === "https:" : /^https?:$/.test(url.protocol); }
@@ -64,8 +74,8 @@ export function validateEnv(env, options = {}) {
   if (production && !isBlank(env.AUTH_CAPTCHA_REQUIRED) && !isEnabled(env.AUTH_CAPTCHA_REQUIRED)) invalid.push("AUTH_CAPTCHA_REQUIRED must be explicitly enabled for production builds.");
   if (production && !isBlank(env.NEXT_PUBLIC_SENTRY_DSN) && !isValidUrl(env.NEXT_PUBLIC_SENTRY_DSN, { requireHttps: true })) invalid.push("NEXT_PUBLIC_SENTRY_DSN must be a valid https URL.");
   if (production && !isBlank(env.RATE_LIMIT_SECRET_SALT) && env.RATE_LIMIT_SECRET_SALT.trim().length < 32) invalid.push("RATE_LIMIT_SECRET_SALT must be at least 32 characters.");
-  if (production && !isBlank(env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL)) invalid.push("GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL must be a valid email address.");
-  if (production && !isBlank(env.RESEND_FROM_EMAIL) && !/<[^\s@]+@[^\s@]+\.[^\s@]+>$/.test(env.RESEND_FROM_EMAIL.trim())) invalid.push("RESEND_FROM_EMAIL must include a valid sender email address.");
+  if (production && !isBlank(env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL) && !EMAIL_ADDRESS_PATTERN.test(env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL.trim())) invalid.push("GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL must be a valid email address.");
+  if (production && !isBlank(env.RESEND_FROM_EMAIL) && !SENDER_ADDRESS_PATTERN.test(env.RESEND_FROM_EMAIL.trim())) invalid.push("RESEND_FROM_EMAIL must include a valid sender email address.");
 
   return { ok: missing.length === 0 && invalid.length === 0, missing, invalid };
 }
