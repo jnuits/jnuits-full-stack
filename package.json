@@ -17,8 +17,6 @@
     "migration:check": "node scripts/check-migration-parity.cjs",
     "migration:check-order": "node scripts/check-migration-dependencies.mjs",
     "migration:check-order:strict": "node scripts/check-migration-dependencies.mjs --strict",
-    "migration:manifest": "node scripts/check-migration-manifest.cjs",
-    "migration:manifest:write": "node scripts/check-migration-manifest.cjs --write",
     "db:replay-bootstrap": "bash supabase/verification/run-bootstrap-replay.sh",
     "certificates:import": "node scripts/import-certificates.mjs",
     "certificates:verify": "node scripts/verify-certificates.mjs",

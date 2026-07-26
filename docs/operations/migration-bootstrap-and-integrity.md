@@ -1,7 +1,10 @@
-# Migration Bootstrap, Clean Replay, and Applied-Migration Integrity
+# Migration Bootstrap and Clean Replay
 
-Covers issues #18 and #19. Read this before rebuilding a database, before
-adding a migration, and during a schema incident.
+Covers issue #18. Read this before rebuilding a database from migrations and
+during a schema incident.
+
+**Issue #19, applied-migration checksums, is deferred.** See §6 for what was
+built, why it was removed, and what to know if it is ever picked back up.
 
 ## 1. The two kinds of replay, and why the distinction matters
 
@@ -79,7 +82,7 @@ Two tiers, deliberately.
 **Enforced.** Failure aborts the run.
 
 1. Every migration copied in is recorded in
-   `supabase_migraions.schema_migrations`, with no extras and matching counts.
+   `supabase_migrations.schema_migrations`, with no extras and matching counts.
    This is the assertion that actually proves a clean replay.
 2. `public.rls_auto_enable()` exists after replay, so the bootstrap baseline
    still satisfies the historical chain.
@@ -135,121 +138,81 @@ enable `--strict`. The fixture tests in
 `scripts/check-migration-dependencies.test.mjs` already prove the checker
 detects every failure class.
 
-## 5. Applied-migration integrity manifest
+## 5. Line endings in `supabase/migrations`
+
+`.gitattributes` marks migration SQL as `-text`, so Git performs no end-of-line
+translation on checkout or commit. Migrations are historical records; their
+bytes should never be rewritten by tooling.
+
+**The directory currently contains a mix of LF and CRLF blobs** from before
+that rule existed. This is deliberately left alone. Normalising it would
+rewrite the bytes of already-applied migrations, which is exactly what the
+safety rules forbid.
+
+**Never run `git add --renormalize` on `supabase/migrations`.** With `-text`
+set, that would commit whatever line endings your working tree happens to have
+back into the blobs, silently rewriting applied migrations while looking like a
+tidy-up in review.
+
+If you cloned before `.gitattributes` landed and `core.autocrlf` is on, your
+working tree may hold CRLF where the repository holds LF. To realign without
+changing any committed byte:
 
 ```bash
-npm run migration:manifest        # verify
-npm run migration:manifest:write  # regenerate after adding a migration
+rm -rf supabase/migrations
+git checkout -- supabase/migrations
+git status --short supabase/migrations   # must be empty
 ```
 
-### Identity is logical, never positional
+## 6. Deferred: applied-migration checksums (issue #19)
 
-Supabase assigns its own version at application time, so the remote record and
-the local filename disagree:
+A SHA-256 manifest gate was built and then removed on 2026-07-27. Recorded here
+so the reasoning is not lost.
+
+**What it did.** Recorded a digest per migration keyed on *logical* name
+(filename minus the leading 14-digit version), with `localVersion` and
+`remoteAppliedVersion` as separate fields, because Supabase assigns its own
+version at application time:
 
 | Logical name | Local file | Remote record |
 | --- | --- | --- |
 | `form_publication_and_upload_session_hardening` | `20260724140000_...sql` | `20260726105745_...` |
 | `retention_purge_boundary_enforcement` | `20260726020000_...sql` | `20260726105843_...` |
 
-The manifest keys on the logical name and stores `localVersion` and
-`remoteAppliedVersion` as separate fields. It never claims they are equal.
-Remote evidence lives in `supabase/migration-remote-evidence.json` so the
-reconciliation is reviewable on its own.
+Digests covered raw bytes, with no newline normalisation, on purpose:
+normalising would let a CRLF rewrite carry a real SQL edit past the gate.
 
-### Manifest format
+**Why it was removed.** It worked correctly and immediately surfaced the
+mixed-line-ending reality described in §5: a manifest generated from a
+CRLF working tree disagreed with the LF blobs in the repository on 32 files.
+No migration SQL had been edited. Reconciling that split was judged not worth
+blocking delivery on.
 
-`supabase/migration-manifest.json`:
+**If it is picked back up.** Generate the manifest from a *fresh checkout* made
+after `.gitattributes` is in place, or from the committed blobs
+(`git cat-file`) rather than the working tree. Do not solve it by normalising
+newlines in the hasher, and do not solve it by renormalising the blobs.
 
-```json
-{
-  "manifestVersion": 1,
-  "checksumAlgorithm": "sha256",
-  "checksumScope": "raw file bytes, no newline normalisation",
-  "migrations": [
-    {
-      "logicalName": "retention_purge_boundary_enforcement",
-      "localFilename": "20260726020000_retention_purge_boundary_enforcement.sql",
-      "localVersion": "20260726020000",
-      "remoteAppliedVersion": "20260726105843",
-      "sha256": "<64 hex characters>",
-      "state": "applied"
-    }
-  ]
-}
-```
+Until then, `npm run migration:check` remains the only migration integrity
+check, and it compares filename versions against linked remote history only. It
+does not detect edited content. Treat migration files as append-only by
+convention, not by enforcement.
 
-### Checksum policy
+## 7. Promoting the replay gate to required
 
-- Digests cover **raw bytes**. Normalising line endings before hashing would
-  let a CRLF rewrite hide a real SQL edit, so it is not done.
-- Cross-platform determinism comes from `.gitattributes` marking
-  `supabase/migrations/*.sql` as `-text`, so Git performs no EOL translation on
-  Windows or Linux. A newline-only rewrite is a *detected modification*, not a
-  tolerated one.
-- The manifest is scanned on every read and write for connection strings,
-  `sb_secret_`/`sb_publishable_` keys, JWTs, `service_role`, and
-  `.supabase.co` hosts. A match aborts.
+The `migration_bootstrap_replay` job runs but is deliberately absent from the
+`Required CI` `needs` list in `.github/workflows/quality-gate.yml`.
 
-### Failure modes
-
-| Result | Meaning | Remedy |
-| --- | --- | --- |
-| `modified` | An applied migration's bytes changed | **Revert and ship a corrective forward migration.** Never regenerate the manifest to silence this. |
-| `unregistered` | A new migration has no entry | Expected for a forward migration. Regenerate, review the diff, commit. |
-| `missingFromDisk` | A recorded migration is gone | Investigate before doing anything else. |
-| `renamed` | Same logical name, different filename, identical bytes | Legitimate only as documented legacy reconciliation. |
-| exit 3 | Manifest absent | Generate it. See below. |
-
-### Adding a migration
-
-1. Add the `.sql` file.
-2. Run `npm run migration:manifest:write`.
-3. Review the diff. Exactly one new entry should appear. **A digest change on
-   an existing entry means you edited an applied migration.**
-4. Commit the migration and the manifest together in the same PR.
-
-## 6. Current blocker: the manifest does not exist yet
-
-`npm run migration:manifest` exits 3 until the manifest is generated. That is
-correct behaviour: an integrity gate with no trusted baseline must not report
-success.
-
-The digests cannot be produced from a GitHub-only workstream. The GitHub API
-exposes Git blob SHA-1, not content SHA-256. Committing placeholder digests
-would make the gate lie about what it is protecting.
-
-**Required local step:**
-
-```bash
-git switch fix/migration-integrity-18-19
-git pull
-npm run migration:manifest:write
-npm run migration:manifest      # must now exit 0
-git add supabase/migration-manifest.json
-git commit -m "chore(db): register applied migration checksums"
-git push
-```
-
-Confirm before committing that the two entries in §5's table carry their
-`remoteAppliedVersion` values and `"state": "applied"`.
-
-## 7. Promoting the gates to required
-
-Both new CI jobs run but are deliberately absent from the `Required CI` `needs`
-list in `.github/workflows/quality-gate.yml`.
-
-The full chain has never been replayed and the manifest does not exist, so
-requiring them today would report a control gap as a code failure and block
-every unrelated change. Promote in this order:
+The full chain has never been replayed, so requiring it today would report a
+control gap as a code failure and block every unrelated change. Promote in this
+order:
 
 1. Run `npm run db:replay-bootstrap` locally. If the chain fails, that failure
    is the answer #18 was asking for; fix it forward before promoting.
-2. Generate and commit the manifest per §6.
-3. Confirm both jobs are green on a pull request.
-4. Add `migration_bootstrap_replay` and `migration_manifest` to the
-   `Required CI` `needs` list and to its result assertions.
-5. Only then rely on either as release evidence.
+2. Confirm the job is green on a pull request.
+3. Add `migration_bootstrap_replay` to the `Required CI` `needs` list and to
+   its result assertions.
+4. Only then rely on it as release evidence.
 
-Until step 4 lands, neither job is a release gate, and the release checklist
+Until step 3 lands, the job is not a release gate, and the release checklist
 must not claim otherwise.

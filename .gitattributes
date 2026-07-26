@@ -1,10 +1,10 @@
-# Migration bytes are hashed for the applied-migration integrity manifest
-# (issue #19). Git must never translate their line endings, or the same file
-# would hash differently on Windows and Linux and a CRLF rewrite could be used
-# to disguise a real SQL edit.
+# Migrations are historical records. Git must never rewrite their bytes,
+# including line endings, so that a checkout on Windows and a checkout on Linux
+# produce identical files and a diff always reflects a real change.
+#
+# Note: supabase/migrations currently contains a MIX of LF and CRLF blobs from
+# before this rule existed. That is pre-existing and is deliberately left alone,
+# because normalising it would rewrite the bytes of already-applied migrations.
+# Do not run `git add --renormalize` on this directory.
 supabase/migrations/*.sql -text
 supabase/verification/baseline/*.sql -text
-
-# The manifest and its remote-evidence companion are compared byte for byte.
-supabase/migration-manifest.json -text
-supabase/migration-remote-evidence.json -text
