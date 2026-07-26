@@ -64,7 +64,10 @@ function verify(overrides: Partial<Parameters<typeof verifyFormUploadProof>[0]> 
   });
 }
 
-function assetFor(upload: FormUploadProofUpload, overrides: Partial<FormSubmissionAsset> = {}): FormSubmissionAsset {
+function assetFor(
+  upload: FormUploadProofUpload,
+  overrides: Partial<FormSubmissionAsset> = {}
+): FormSubmissionAsset {
   return {
     bytes: upload.size,
     cloudinaryAssetId: "a".repeat(32),
@@ -107,9 +110,7 @@ describe("form upload proof verification", () => {
   it("rejects a proof minted for another form or version", () => {
     expect(verify({ expectedFormDefinitionId: OTHER_UUID })).toBeNull();
     expect(verify({ expectedFormVersionId: OTHER_UUID })).toBeNull();
-    expect(
-      verify({ proof: mintProof({ formDefinitionId: OTHER_UUID }) })
-    ).toBeNull();
+    expect(verify({ proof: mintProof({ formDefinitionId: OTHER_UUID }) })).toBeNull();
     expect(verify({ proof: mintProof({ formVersionId: OTHER_UUID }) })).toBeNull();
   });
 
@@ -133,9 +134,30 @@ describe("form upload manifest hashing", () => {
     expect(hashFormUploadManifest([imageUpload, pdfUpload])).toBe(ordered);
     expect(hashFormUploadManifest([pdfUpload])).not.toBe(ordered);
     expect(hashFormUploadManifest([{ ...pdfUpload, size: 2048 }, imageUpload])).not.toBe(ordered);
-    expect(hashFormUploadManifest([{ ...pdfUpload, sha256: "c".repeat(64) }, imageUpload])).not.toBe(ordered);
+    expect(hashFormUploadManifest([{ ...pdfUpload, sha256: "c".repeat(64) }, imageUpload])).not.toBe(
+      ordered
+    );
   });
 });
+
+const MISMATCH_CASES: Array<[string, Partial<FormSubmissionAsset>]> = [
+  ["field", { fieldId: "another_field" }],
+  ["MIME type", { contentType: "image/png" }],
+  ["size", { bytes: 4096 }],
+  ["checksum", { sha256: "c".repeat(64) }],
+  ["provider folder", { cloudinaryFolder: "jnuits/public/somewhere-else" }],
+  ["provider public id", { cloudinaryPublicId: "someone-elses-object.pdf" }],
+  ["provider resource type", { resourceType: "image" }],
+];
+
+const SCHEMA_REJECTIONS: Array<Partial<FormSubmissionAsset>> = [
+  { bytes: 10 * 1024 * 1024 + 1 },
+  { bytes: 0 },
+  { cloudinaryAssetId: "not-a-cloudinary-asset-id" },
+  { cloudinaryVersion: "not-numeric" },
+  { sha256: "short" },
+  { uploadId: "not-a-uuid" },
+];
 
 describe("form upload asset binding", () => {
   it("accepts assets that match their signed uploads exactly", () => {
@@ -166,9 +188,9 @@ describe("form upload asset binding", () => {
   });
 
   it("rejects a missing or extra upload", () => {
-    expect(() =>
-      validateProofBoundFormAssets({ assets: [], uploads: [pdfUpload] })
-    ).toThrow("A signed upload is missing or unexpected.");
+    expect(() => validateProofBoundFormAssets({ assets: [], uploads: [pdfUpload] })).toThrow(
+      "A signed upload is missing or unexpected."
+    );
     expect(() =>
       validateProofBoundFormAssets({
         assets: [assetFor(pdfUpload)],
@@ -183,15 +205,7 @@ describe("form upload asset binding", () => {
     ).toThrow("A signed upload is missing or unexpected.");
   });
 
-  it.each([
-    ["field", { fieldId: "another_field" }],
-    ["MIME type", { contentType: "image/png" as const }],
-    ["size", { bytes: 4096 }],
-    ["checksum", { sha256: "c".repeat(64) }],
-    ["provider folder", { cloudinaryFolder: "jnuits/public/somewhere-else" }],
-    ["provider public id", { cloudinaryPublicId: "someone-elses-object.pdf" }],
-    ["provider resource type", { resourceType: "image" as const }],
-  ])("rejects a %s mismatch against the signed upload", (_label, override) => {
+  it.each(MISMATCH_CASES)("rejects a %s mismatch against the signed upload", (_label, override) => {
     expect(() =>
       validateProofBoundFormAssets({
         assets: [assetFor(pdfUpload, override)],
@@ -201,17 +215,10 @@ describe("form upload asset binding", () => {
   });
 
   it("rejects assets that fail the provider metadata schema outright", () => {
-    for (const override of [
-      { bytes: 10 * 1024 * 1024 + 1 },
-      { bytes: 0 },
-      { cloudinaryAssetId: "not-a-cloudinary-asset-id" },
-      { cloudinaryVersion: "not-numeric" },
-      { sha256: "short" },
-      { uploadId: "not-a-uuid" },
-    ]) {
+    for (const override of SCHEMA_REJECTIONS) {
       expect(() =>
         validateProofBoundFormAssets({
-          assets: [assetFor(pdfUpload, override as Partial<FormSubmissionAsset>)],
+          assets: [assetFor(pdfUpload, override)],
           uploads: [pdfUpload],
         })
       ).toThrow();
