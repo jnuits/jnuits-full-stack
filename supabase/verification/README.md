@@ -1,9 +1,8 @@
 # Migration verification
 
-Runtime evidence for migrations that CI cannot produce. Static SQL tests prove a
-file *says* the right thing; only execution proves PostgreSQL *does* the right
-thing. Supabase Preview is skipped on this repository, so this gap is filled
-manually.
+Static SQL tests prove a file *says* the right thing; only execution proves
+PostgreSQL *does* the right thing. The same disposable runtime harness runs
+locally and as a required GitHub Actions quality shard.
 
 ## What needs verifying
 
@@ -23,21 +22,28 @@ remain installed in the scratch database. Only the synthetic verification
 fixtures are rolled back. Delete or reset the scratch database after capturing
 the evidence.
 
-Against a local Supabase stack:
+With Docker running and Supabase CLI `2.109.1` available:
 
 ```bash
-supabase db reset --local --version 20260723233000
-psql "$(supabase status -o env | grep DB_URL | cut -d= -f2- | tr -d '\"')" \
-  -v ON_ERROR_STOP=1 \
-  -v scratch_ack=DISPOSABLE_SCRATCH \
-  -v expected_database=postgres \
-  -f supabase/verification/verify-unapplied-migrations.sql
+bash supabase/verification/run-unapplied-migrations.sh
 ```
 
-The reset must stop at `20260723233000_form_upload_sessions.sql`, the last
-migration applied to production. Running an unbounded reset would install both
-migrations under test before the recovery snapshot is captured. Never add
-`--linked` or `--db-url`; this workflow is local-only.
+Set `SUPABASE_BIN=/path/to/supabase` when the CLI is not on `PATH`.
+
+The runner creates a uniquely named temporary project, copies production
+migrations only through `20260723233000_form_upload_sessions.sql`, inserts the
+verification-only `rls_auto_enable()` baseline helper, starts a local stack,
+seeds one disposable `auth.users` row only when needed, executes the harness,
+and destroys the stack and its data volume on exit.
+
+The helper reconstructs a function that existed when an old production
+migration ran but is missing from the local chain. It is copied verbatim from
+`supabase/schema.sql` and deliberately lives outside `supabase/migrations`.
+Never move it into production migrations.
+
+Running an unbounded reset would install both migrations under test before the
+recovery snapshot is captured. Never add `--linked` or `--db-url`; this
+workflow is local-only.
 
 ## Reading the result
 
@@ -45,10 +51,11 @@ Every check raises a notice. A failed assertion aborts the run with
 `ON_ERROR_STOP=1`, so **any** non-zero exit means the migration is not safe to
 apply. Success ends with `VERIFICATION COMPLETE`; fixtures roll back, while the migrations remain applied only to the disposable scratch database.
 
-Capture the full output. The `pg_get_functiondef` blocks at the top are the
-recovery snapshot for the two functions being replaced; store them with the
-release record before applying anything to production, because git history is
-otherwise the only rollback path.
+Capture the full output. GitHub Actions uploads it as the
+`unapplied-migration-verification` artifact. The `pg_get_functiondef` blocks at
+the top are the recovery snapshot for the two functions being replaced; store
+them with the release record before applying anything to production, because
+git history is otherwise the only rollback path.
 
 ## Boundary check
 

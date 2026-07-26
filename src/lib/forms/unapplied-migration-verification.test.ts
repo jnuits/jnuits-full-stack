@@ -59,4 +59,16 @@ describe("unapplied migration verification harness", () => {
     expect(harness).toContain("20260724140000");
     expect(harness).toContain("20260726020000");
   });
+
+  it("proves both form and event retention paths preserve post-boundary data", () => {
+    expect(harness).toContain("=== SCOPE 3: retention purge boundary ===");
+    expect(harness).toContain("recent submission survived the purge intact");
+    expect(harness).toContain(
+      "=== SCOPE 3b: event retention purge boundary ==="
+    );
+    expect(harness).toContain(
+      "recent event registration and submission survived intact"
+    );
+    expect(harness).toContain("'purgedRegistrationRows'");
+  });
 });
