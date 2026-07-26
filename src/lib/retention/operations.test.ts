@@ -17,6 +17,7 @@ const ACTOR = "11111111-1111-4111-8111-111111111111";
 const JOB_ID = "22222222-2222-4222-8222-222222222222";
 const NOW = new Date("2026-07-26T00:00:00.000Z");
 const BOUNDARY = "2023-07-26T00:00:00.000Z";
+const PAGE_SIZE = 500;
 
 type QueryResult = { data?: unknown; error?: unknown };
 type Call = {
@@ -88,6 +89,20 @@ function filterFor(calls: Call[], table: string, prefix: string) {
     .filter((call) => call.table === table)
     .flatMap((call) => call.filters)
     .find((filter) => filter.startsWith(prefix));
+}
+
+function pageReads(calls: Call[], table: string) {
+  return calls.filter(
+    (call) => call.table === table && call.filters.some((filter) => filter.startsWith("range:"))
+  );
+}
+
+function eventPage(size: number) {
+  return Array.from({ length: size }, (_unused, index) => ({
+    ends_at: "2022-01-01T00:00:00.000Z",
+    id: `event-${index}`,
+    starts_at: "2022-01-01T00:00:00.000Z",
+  }));
 }
 
 const oldSubmission = {
@@ -263,5 +278,40 @@ describe("retention discovery", () => {
     const eventWindow = filterFor(calls, "events", "or:");
     expect(eventWindow).toContain(`ends_at.lte.${BOUNDARY}`);
     expect(eventWindow).toContain(`starts_at.lte.${BOUNDARY}`);
+  });
+
+  it("pages event discovery instead of stopping after one range", async () => {
+    let eventReads = 0;
+    const { admin, calls } = createAdmin((call) => {
+      if (call.table === "events") {
+        eventReads += 1;
+        // A full page must trigger another read; a short page ends the scan.
+        return { data: eventReads === 1 ? eventPage(PAGE_SIZE) : eventPage(2) };
+      }
+      return { data: [] };
+    });
+
+    const result = await runRetentionAction(admin, { action: "discover", actorUserId: ACTOR });
+
+    expect(result).toMatchObject({ success: true });
+    const reads = pageReads(calls, "events");
+    expect(reads).toHaveLength(2);
+    expect(reads[0].filters).toContain("range:0-499");
+    expect(reads[1].filters).toContain("range:500-999");
+  });
+
+  it("fails loudly rather than discovering a partial candidate set", async () => {
+    const { admin } = createAdmin((call) =>
+      call.table === "events" ? { data: eventPage(PAGE_SIZE) } : { data: [] }
+    );
+
+    const error = await runRetentionAction(admin, {
+      action: "discover",
+      actorUserId: ACTOR,
+    }).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(RetentionWorkflowError);
+    expect((error as RetentionWorkflowError).status).toBe(409);
+    expect((error as RetentionWorkflowError).message).toContain("10,000-row safety limit");
   });
 });
