@@ -148,7 +148,38 @@ jobs:
           src/lib/forms/form-confirmation-resend-migration.test.ts
           src/lib/forms/event-registration-migration.test.ts
           src/lib/forms/event-form-assets-migration.test.ts
+          src/lib/forms/unapplied-migration-runtime.test.ts
           src/lib/notifications/resend-delivery-webhook-migration.test.ts
+
+  migration_runtime:
+    name: Migration runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2
+        with:
+          version: 2.109.1
+          github-token: ${{ github.token }}
+
+      - name: Verify unapplied migrations on disposable Supabase
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/reports
+          bash supabase/verification/run-unapplied-migrations.sh |
+            tee artifacts/reports/unapplied-migration-verification.log
+
+      - name: Upload migration verification
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: unapplied-migration-verification
+          path: artifacts/reports/unapplied-migration-verification.log
+          if-no-files-found: error
+          retention-days: 14
 
   build_and_browser:
     name: Build and browser smoke
@@ -218,7 +249,7 @@ jobs:
 
   application_quality:
     name: Required CI
-    needs: [static_analysis, unit_and_integration, migration_integrity, build_and_browser, secret_scan]
+    needs: [static_analysis, unit_and_integration, migration_integrity, migration_runtime, build_and_browser, secret_scan]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -228,12 +259,14 @@ jobs:
           STATIC_ANALYSIS_RESULT: ${{ needs.static_analysis.result }}
           UNIT_AND_INTEGRATION_RESULT: ${{ needs.unit_and_integration.result }}
           MIGRATION_INTEGRITY_RESULT: ${{ needs.migration_integrity.result }}
+          MIGRATION_RUNTIME_RESULT: ${{ needs.migration_runtime.result }}
           BUILD_AND_BROWSER_RESULT: ${{ needs.build_and_browser.result }}
           SECRET_SCAN_RESULT: ${{ needs.secret_scan.result }}
         run: |
           test "$STATIC_ANALYSIS_RESULT" = "success"
           test "$UNIT_AND_INTEGRATION_RESULT" = "success"
           test "$MIGRATION_INTEGRITY_RESULT" = "success"
+          test "$MIGRATION_RUNTIME_RESULT" = "success"
           test "$BUILD_AND_BROWSER_RESULT" = "success"
           case "$SECRET_SCAN_RESULT" in
             success|skipped) ;;

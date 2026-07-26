@@ -6,12 +6,11 @@
 -- back.
 --
 -- Usage:
---   supabase db reset --local --version 20260723233000
---   psql "$(supabase status -o env | grep DB_URL | cut -d= -f2- | tr -d '\"')" \
---     -v ON_ERROR_STOP=1 \
---     -v scratch_ack=DISPOSABLE_SCRATCH \
---     -v expected_database=postgres \
---     -f supabase/verification/verify-unapplied-migrations.sql
+--   bash supabase/verification/run-unapplied-migrations.sh
+--
+-- The runner reconstructs the production baseline only through
+-- 20260723233000_form_upload_sessions.sql, invokes this file with
+-- ON_ERROR_STOP and both scratch guards, then destroys the local stack.
 
 \set ON_ERROR_STOP on
 \timing off
@@ -301,7 +300,165 @@ end;
 $retention$;
 
 \echo ''
-\echo '=== SCOPE 3b: purge without a verified boundary must fail closed ==='
+\echo '=== SCOPE 3b: event retention purge boundary ==='
+do $event_retention$
+declare
+  v_actor uuid;
+  v_boundary timestamptz := now() - interval '3 years';
+  v_definition uuid := '00000000-0000-4000-8000-00000000d004';
+  v_event uuid := '00000000-0000-4000-8000-00000000e001';
+  v_job uuid := '00000000-0000-4000-8000-00000000b003';
+  v_manifest jsonb;
+  v_old_registration uuid := '00000000-0000-4000-8000-00000000e101';
+  v_old_submission uuid := '00000000-0000-4000-8000-00000000c003';
+  v_recent_registration uuid := '00000000-0000-4000-8000-00000000e102';
+  v_recent_submission uuid := '00000000-0000-4000-8000-00000000c004';
+  v_result jsonb;
+  v_schema jsonb := '{"fields": [], "payment": {"enabled": false}}'::jsonb;
+  v_version uuid := '00000000-0000-4000-8000-00000000a005';
+begin
+  select id into v_actor from auth.users order by created_at limit 1;
+
+  insert into public.events (
+    id, title, slug, summary, category, delivery_mode, status, starts_at,
+    registration_mode, created_by_user_id
+  )
+  values (
+    v_event, 'Verify event retention', 'verify-event-retention',
+    'Disposable event retention fixture.', 'other-real-event', 'unknown',
+    'published', v_boundary - interval '30 days', 'internal', v_actor
+  );
+
+  insert into public.form_definitions (
+    id, kind, slug, title, lifecycle, owner_user_id, linked_event_id
+  )
+  values (
+    v_definition, 'event_registration', 'verify-event-retention-form',
+    'Verify event retention form', 'published', v_actor, v_event
+  );
+
+  insert into public.form_versions (
+    id, form_definition_id, version_number, lifecycle, field_schema,
+    created_by_user_id, published_at, published_by_user_id
+  )
+  values (
+    v_version, v_definition, 1, 'published', v_schema, v_actor, now(), v_actor
+  );
+
+  update public.form_definitions
+  set current_published_version_id = v_version
+  where id = v_definition;
+
+  update public.events
+  set registration_form_version_id = v_version
+  where id = v_event;
+
+  insert into public.event_registrations (
+    id, event_id, registrant_name, registrant_email, registrant_phone, created_at
+  )
+  values
+    (
+      v_old_registration, v_event, 'Old Event Registrant',
+      'old-event@example.invalid', '+8801000000001',
+      v_boundary - interval '30 days'
+    ),
+    (
+      v_recent_registration, v_event, 'Recent Event Registrant',
+      'recent-event@example.invalid', '+8801000000002',
+      now() - interval '2 days'
+    );
+
+  insert into public.form_submissions (
+    id, form_definition_id, form_version_id, event_registration_id,
+    submitter_email, answers, created_at
+  )
+  values
+    (
+      v_old_submission, v_definition, v_version, v_old_registration,
+      'old-event@example.invalid', '{"full_name": "Old Event Registrant"}'::jsonb,
+      v_boundary - interval '30 days'
+    ),
+    (
+      v_recent_submission, v_definition, v_version, v_recent_registration,
+      'recent-event@example.invalid',
+      '{"full_name": "Recent Event Registrant"}'::jsonb,
+      now() - interval '2 days'
+    );
+
+  v_manifest := jsonb_build_object(
+    'algorithm', 'HMAC-SHA256',
+    'manifest', jsonb_build_object(
+      'archivedAt', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'boundary', to_char(v_boundary at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'resourceId', v_event::text,
+      'rowCount', 1,
+      'schemaVersion', 2,
+      'scope', 'event'
+    ),
+    'signature', repeat('d', 64)
+  );
+
+  insert into public.event_retention_jobs (
+    id, event_id, requested_by_user_id, approved_by_user_id, status,
+    retention_eligible_at, archive_manifest, manifest_checksum_sha256,
+    approved_at
+  )
+  values (
+    v_job, v_event, v_actor, v_actor, 'purge_approved', v_boundary,
+    v_manifest, repeat('e', 64), now()
+  );
+
+  v_result := public.purge_retention_job('event', v_job, v_actor);
+
+  if v_result ->> 'purgedRows' <> '1'
+    or v_result ->> 'purgedRegistrationRows' <> '1' then
+    raise exception 'Event purge counts were %, expected one submission and one registration.',
+      v_result;
+  end if;
+  raise notice 'PASS: event purge returned one redacted submission and registration.';
+
+  if (select submitter_email from public.form_submissions where id = v_old_submission) is not null
+    or (select answers from public.form_submissions where id = v_old_submission) <> '{}'::jsonb
+    or (select registrant_name from public.event_registrations where id = v_old_registration)
+      <> 'Purged registrant'
+    or (select registrant_email::text from public.event_registrations where id = v_old_registration)
+      <> ('purged-' || v_old_registration::text || '@retained.invalid')
+    or (select registrant_phone from public.event_registrations where id = v_old_registration)
+      is not null then
+    raise exception 'Pre-boundary event registration or submission was not fully redacted.';
+  end if;
+  raise notice 'PASS: pre-boundary event registration and submission redacted.';
+
+  if (select submitter_email::text from public.form_submissions where id = v_recent_submission)
+      <> 'recent-event@example.invalid'
+    or (select answers from public.form_submissions where id = v_recent_submission)
+      <> '{"full_name": "Recent Event Registrant"}'::jsonb
+    or (select registrant_name from public.event_registrations where id = v_recent_registration)
+      <> 'Recent Event Registrant'
+    or (select registrant_email::text from public.event_registrations where id = v_recent_registration)
+      <> 'recent-event@example.invalid'
+    or (select registrant_phone from public.event_registrations where id = v_recent_registration)
+      <> '+8801000000002' then
+    raise exception 'BOUNDARY VIOLATION: recent event registration or submission was destroyed.';
+  end if;
+  raise notice 'PASS: recent event registration and submission survived intact.';
+
+  if not exists (
+    select 1
+    from public.audit_events
+    where action = 'retention.source_pii_purged'
+      and metadata ->> 'job_id' = v_job::text
+      and metadata ->> 'boundary' is not null
+      and metadata ->> 'purged_registration_rows' = '1'
+  ) then
+    raise exception 'Event purge audit record is missing its boundary or counts.';
+  end if;
+  raise notice 'PASS: event purge audit record contains its boundary and counts.';
+end;
+$event_retention$;
+
+\echo ''
+\echo '=== SCOPE 3c: purge without a verified boundary must fail closed ==='
 do $unbounded$
 declare
   v_actor uuid;
