@@ -155,11 +155,60 @@ function createBinaryMultipartBody(boundary: string, metadata: Record<string, un
 
 async function uploadMultipart(config: GoogleDriveConfig, accessToken: string, boundary: string, body: Buffer) {
   const requestBody: Uint8Array<ArrayBuffer> = Uint8Array.from(body);
-  return fetchGoogleWithRetry("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink,name,mimeType,driveId", {
+  return fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink,name,mimeType,driveId", {
     body: requestBody,
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
     method: "POST",
+    signal: AbortSignal.timeout(10_000),
   });
+}
+
+async function uploadMultipartWithRecovery({
+  accessToken,
+  body,
+  boundary,
+  config,
+  failureMessage,
+  token,
+}: {
+  accessToken: string;
+  body: Buffer;
+  boundary: string;
+  config: GoogleDriveConfig;
+  failureMessage: string;
+  token: null | string;
+}) {
+  for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt += 1) {
+    let response: null | Response = null;
+    try {
+      response = await uploadMultipart(config, accessToken, boundary, body);
+    } catch {
+      // A network failure is ambiguous: Drive may have completed the upload.
+    }
+
+    if (response?.ok) {
+      return readSnapshot(await response.json(), config, failureMessage);
+    }
+    if (response && !retryableGoogleStatus(response.status)) {
+      throw new Error(failureMessage);
+    }
+
+    if (!token) {
+      throw new Error(failureMessage);
+    }
+
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, 250 * 2 ** attempt)
+    );
+    const existing = await findExistingUpload(config, accessToken, token);
+    if (existing) return existing;
+
+    if (attempt === MAX_RETRY_ATTEMPTS - 1) {
+      throw new Error(failureMessage);
+    }
+  }
+
+  throw new Error(failureMessage);
 }
 
 async function prepareUpload(idempotencyKey?: string) {
@@ -197,9 +246,14 @@ export async function uploadGoogleSheetSnapshot({ csv, filename, idempotencyKey 
     withIdempotency({ appProperties: { jnuitsExport: "true" }, mimeType: GOOGLE_SHEETS_MIME, name: filename, parents: [config.exportsFolderId] }, token),
     csv
   );
-  const response = await uploadMultipart(config, accessToken, boundary, body);
-  if (!response.ok) throw new Error("Google Sheet snapshot upload failed.");
-  return readSnapshot(await response.json(), config, "Google Drive did not return a Shared Drive snapshot identifier.");
+  return uploadMultipartWithRecovery({
+    accessToken,
+    body,
+    boundary,
+    config,
+    failureMessage: "Google Sheet snapshot upload failed.",
+    token,
+  });
 }
 
 export async function uploadGoogleDriveFile({ data, filename, idempotencyKey, mimeType }: {
@@ -218,7 +272,12 @@ export async function uploadGoogleDriveFile({ data, filename, idempotencyKey, mi
     data,
     mimeType
   );
-  const response = await uploadMultipart(config, accessToken, boundary, body);
-  if (!response.ok) throw new Error("Google Drive archive upload failed.");
-  return readSnapshot(await response.json(), config, "Google Drive did not return a Shared Drive archive identifier.");
+  return uploadMultipartWithRecovery({
+    accessToken,
+    body,
+    boundary,
+    config,
+    failureMessage: "Google Drive archive upload failed.",
+    token,
+  });
 }
