@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createFormArchiveMaterials,
+  serializeRetentionArchiveManifest,
   signRetentionArchiveManifest,
   verifyRetentionArchiveManifest,
 } from "./archive";
@@ -24,6 +25,17 @@ function validSignedManifest() {
     rowCount: 1,
     scope: "form",
   });
+}
+
+function reverseObjectKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => reverseObjectKeys(item));
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .reverse()
+      .map(([key, item]) => [key, reverseObjectKeys(item)])
+  );
 }
 
 describe("retention archive materials", () => {
@@ -61,6 +73,17 @@ describe("retention archive materials", () => {
     const signed = validSignedManifest();
     expect(signed.manifest).toMatchObject({ boundary: BOUNDARY, schemaVersion: 2 });
     expect(verifyRetentionArchiveManifest(signed)).toBe(true);
+  });
+
+  it("survives jsonb-style object-key reordering", () => {
+    process.env.RETENTION_MANIFEST_SIGNING_SECRET = "test-only-retention-secret";
+    const signed = validSignedManifest();
+    const reordered = reverseObjectKeys(signed) as ReturnType<typeof validSignedManifest>;
+
+    expect(verifyRetentionArchiveManifest(reordered)).toBe(true);
+    expect(serializeRetentionArchiveManifest(reordered)).toBe(
+      serializeRetentionArchiveManifest(signed)
+    );
   });
 
   it("detects a tampered boundary, because purge trusts it", () => {
