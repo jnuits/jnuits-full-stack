@@ -3,6 +3,8 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
+import { useFormInventory } from "@/components/admin/form-inventory-context";
+
 const STATUSES = ["", "unreviewed", "in_review", "approved", "rejected", "withdrawn"];
 
 type Item = {
@@ -13,18 +15,12 @@ type Item = {
   submitterEmail: string | null;
   versionNumber: number | null;
 };
-type FormOption = {
-  id: string;
-  kind: string;
-  lifecycle: string;
-  title: string;
-};
 
 function FormSubmissionReviewPanelContent() {
   const searchParams = useSearchParams();
   const requestedFormId = searchParams.get("review") || "";
+  const { error: inventoryError, forms } = useFormInventory();
 
-  const [forms, setForms] = useState<FormOption[]>([]);
   const [formId, setFormId] = useState(requestedFormId);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
@@ -32,19 +28,6 @@ function FormSubmissionReviewPanelContent() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const response = await fetch("/api/admin/forms?pageSize=100", { cache: "no-store" });
-        const payload = (await response.json().catch(() => null)) as { error?: string; items?: FormOption[] } | null;
-        if (!response.ok) throw new Error(payload?.error || "Forms could not be loaded.");
-        setForms(payload?.items || []);
-      } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Forms could not be loaded.");
-      }
-    })();
-  }, []);
 
   const load = useCallback(async (targetFormId: string, searchQuery: string, reviewStatus: string) => {
     if (!targetFormId) {
@@ -85,6 +68,8 @@ function FormSubmissionReviewPanelContent() {
     setFormId(requestedFormId);
     void load(requestedFormId, "", "");
   }, [load, requestedFormId]);
+
+  const notice = message || inventoryError;
 
   return (
     <section
@@ -135,9 +120,9 @@ function FormSubmissionReviewPanelContent() {
           {loading ? "Loading…" : "Load submissions"}
         </button>
       </div>
-      {message ? (
+      {notice ? (
         <p className="status-pill mt-4" role="alert">
-          {message}
+          {notice}
         </p>
       ) : null}
       {!loading && items.length ? (
@@ -175,7 +160,7 @@ function FormSubmissionReviewPanelContent() {
             </tbody>
           </table>
         </div>
-      ) : !loading && formId && !message ? (
+      ) : !loading && formId && !notice ? (
         <p className="mt-4 text-sm text-[var(--muted-foreground)]">
           No matching submissions. Total: {total}.
         </p>

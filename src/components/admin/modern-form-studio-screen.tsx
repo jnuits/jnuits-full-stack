@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Copy, Eye, Plus, Send, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FormDefinitionSchema } from "@/lib/forms/definition";
 import {
   createUniqueStudioFieldId,
@@ -15,16 +15,13 @@ import {
   type StudioFieldType,
 } from "@/lib/forms/form-studio-definition";
 import { moveItem } from "@/lib/forms/field-order";
+import {
+  useFormInventory,
+  type FormInventoryItem,
+  type FormInventoryKind,
+} from "@/components/admin/form-inventory-context";
 
-type FormKind = "alumni_onboarding" | "event_registration" | "membership_application";
-type FormSummary = {
-  id: string;
-  kind: FormKind;
-  lifecycle: "archived" | "draft" | "published";
-  slug: string;
-  title: string;
-  updatedAt?: string;
-};
+type FormKind = FormInventoryKind;
 type LinkableEvent = { id: string; startsAt: null | string; status: string; title: string };
 type Draft = { formDefinitionId: string; formVersionId: string };
 type Notice = { text: string; tone: "error" | "success" };
@@ -32,7 +29,7 @@ type EditorPayload = {
   description: string;
   id: string;
   kind: FormKind;
-  lifecycle: FormSummary["lifecycle"];
+  lifecycle: FormInventoryItem["lifecycle"];
   linkedEventId: null | string;
   slug: string;
   title: string;
@@ -124,6 +121,7 @@ function eventLabel(event: LinkableEvent) {
 }
 
 export function ModernFormStudioScreen() {
+  const { error: inventoryError, forms, refresh } = useFormInventory();
   const [kind, setKind] = useState<FormKind>("membership_application");
   const [title, setTitle] = useState("Membership application");
   const [slug, setSlug] = useState("membership-application");
@@ -133,7 +131,6 @@ export function ModernFormStudioScreen() {
   const [eventsError, setEventsError] = useState<null | string>(null);
   const [fields, setFields] = useState<StudioEditorField[]>(() => starterFields("membership_application"));
   const [mapping, setMapping] = useState<Record<string, string>>(() => defaultMapping("membership_application"));
-  const [forms, setForms] = useState<FormSummary[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<"load" | "publish" | "save" | null>(null);
@@ -148,17 +145,6 @@ export function ModernFormStudioScreen() {
   function fail(error: unknown, fallback: string) {
     setNotice({ text: error instanceof Error ? error.message : fallback, tone: "error" });
   }
-
-  const refresh = useCallback(async () => {
-    const response = await fetch("/api/admin/forms?pageSize=100", { cache: "no-store" });
-    const payload = (await response.json().catch(() => null)) as { error?: string; items?: FormSummary[] } | null;
-    if (!response.ok) throw new Error(payload?.error || "Forms could not be loaded.");
-    setForms(payload?.items || []);
-  }, []);
-
-  useEffect(() => {
-    void refresh().catch((error: unknown) => fail(error, "Forms could not be loaded."));
-  }, [refresh]);
 
   // Loaded lazily so non-event operators never trigger the events query.
   useEffect(() => {
@@ -294,12 +280,14 @@ export function ModernFormStudioScreen() {
     finally { setBusy(null); }
   }
 
-  async function copyLink(form: FormSummary) {
+  async function copyLink(form: FormInventoryItem) {
     try {
       await navigator.clipboard.writeText(new URL(`/forms/${form.slug}`, window.location.origin).toString());
       setNotice({ text: "Published form link copied.", tone: "success" });
     } catch { setNotice({ text: "The link could not be copied. Open the preview and copy it from the address bar.", tone: "error" }); }
   }
+
+  const banner = notice || (inventoryError ? { text: inventoryError, tone: "error" as const } : null);
 
   return <div className="grid gap-7">
     <header className="admin-page-header"><div><p className="admin-page-header__breadcrumb">Admin / Content</p><h1 className="admin-page-header__title">Form Studio</h1><p className="admin-page-header__desc">Create polished forms without schema IDs or provider settings. Save a draft, preview it, then publish when ready.</p></div></header>
@@ -327,7 +315,7 @@ export function ModernFormStudioScreen() {
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="admin-section-label">Questions</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">Question IDs are generated automatically and stay stable after saving.</p></div><button className="admin-btn admin-btn--ghost" onClick={addQuestion} type="button"><Plus size={15} /> Add question</button></div>
         <div className="grid gap-3">{fields.map((field, index) => <article className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4" key={field.id}><div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs text-[var(--muted-foreground)]">Question {index + 1}</span><details><summary className="cursor-pointer text-xs font-semibold">Advanced details</summary><code className="mt-2 block text-xs">ID: {field.id}</code></details></div><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="input-label">Question<input value={field.label} onChange={(event) => renameField(index, event.target.value)} required /></label><label className="input-label">Question type<select value={field.type} onChange={(event) => updateField(index, { required: event.target.value === "consent" || field.required, type: event.target.value as StudioFieldType })}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{["select", "multi_select"].includes(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
         {preview ? <section className="rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-5" aria-label="Form preview"><p className="admin-section-label">Respondent preview</p><h3 className="mt-2 text-2xl font-semibold">{title}</h3><p className="mt-1 text-sm text-[var(--muted-foreground)]">{description}</p><div className="mt-5 grid gap-4">{fields.map((field) => <div key={field.id}><p className="font-semibold">{field.label}{field.required ? " *" : ""}</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">{TYPES[field.type]}</p></div>)}</div></section> : null}
-        {notice ? <p className={notice.tone === "error" ? "status-pill status-pill--danger" : "status-pill"} role={notice.tone === "error" ? "alert" : "status"} aria-live="polite">{notice.text}</p> : null}
+        {banner ? <p className={banner.tone === "error" ? "status-pill status-pill--danger" : "status-pill"} role={banner.tone === "error" ? "alert" : "status"} aria-live="polite">{banner.text}</p> : null}
         <div className="flex flex-wrap justify-end gap-3"><button className="admin-btn admin-btn--ghost" onClick={() => setPreview((value) => !value)} type="button"><Eye size={15} /> {preview ? "Hide preview" : "Preview"}</button><button className="admin-btn admin-btn--primary" disabled={busy !== null || !canSave} onClick={() => void save()} type="button"><Plus size={15} /> {busy === "save" ? "Saving…" : draft ? "Save draft" : editingId ? "Save as new draft" : "Create draft"}</button>{draft ? <button className="admin-btn admin-btn--primary" disabled={busy !== null} onClick={() => void publish()} type="button"><Send size={15} /> {busy === "publish" ? "Publishing…" : "Publish"}</button> : null}</div>
       </section>
       <aside className="grid content-start gap-4"><section className="admin-review-card"><p className="admin-section-label">Your forms</p><h2 className="admin-card-row__title">Edit, share, and export</h2>{forms.length ? <div className="mt-4 grid gap-3">{forms.map((form) => <article className="rounded-xl border border-[var(--line)] p-3" key={form.id}><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{form.title}</h3><p className="mt-1 text-xs text-[var(--muted-foreground)]">{KINDS[form.kind]} · {form.lifecycle}</p></div></div>{form.lifecycle !== "archived" ? <button className="queue-link mt-3" disabled={busy === "load"} onClick={() => void openForm(form.id)} type="button">{form.lifecycle === "draft" ? "Resume draft" : "Edit"}</button> : null}{form.lifecycle === "published" ? <div className="mt-3 flex flex-wrap gap-3"><Link className="queue-link" href={`/forms/${form.slug}`} target="_blank">Preview</Link><button className="queue-link" onClick={() => void copyLink(form)} type="button"><Copy size={13} /> Share link</button><Link className="queue-link" href={`/admin/content/forms?review=${form.id}#submission-review`}>Review responses</Link>{form.kind !== "event_registration" ? <><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=csv`}>CSV</a><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=xlsx`}>XLSX</a></> : null}</div> : null}</article>)}</div> : <p className="mt-4 text-sm text-[var(--muted-foreground)]">No forms yet. Create your first draft.</p>}</section></aside>
