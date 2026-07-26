@@ -76,6 +76,34 @@ $guard$;
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '=== SCOPE 1: recovery snapshot (store this output) ==='
+do $baseline$
+declare
+  v_publish_definition text;
+  v_purge_definition text;
+begin
+  if exists (
+    select 1
+    from supabase_migrations.schema_migrations
+    where version in ('20260724140000', '20260726020000')
+  ) then
+    raise exception 'PRE-MIGRATION BASELINE REQUIRED: a target migration is already recorded.';
+  end if;
+  raise notice 'PASS: target migration history is absent.';
+
+  select pg_get_functiondef('public.publish_form_version(uuid, uuid, uuid)'::regprocedure)
+  into v_publish_definition;
+  select pg_get_functiondef('public.purge_retention_job(text, uuid, uuid)'::regprocedure)
+  into v_purge_definition;
+
+  if position('version_row.form_definition_id' in v_publish_definition) > 0 then
+    raise exception 'PRE-MIGRATION BASELINE REQUIRED: publish_form_version is already migrated.';
+  end if;
+  if position('v_boundary_text' in v_purge_definition) > 0 then
+    raise exception 'PRE-MIGRATION BASELINE REQUIRED: purge_retention_job is already migrated.';
+  end if;
+  raise notice 'PASS: recovery definitions are pre-migration.';
+end;
+$baseline$;
 select pg_get_functiondef(oid) as publish_form_version_before
 from pg_proc
 where pronamespace = 'public'::regnamespace
