@@ -43,8 +43,39 @@ export type SignedRetentionArchiveManifest = {
 };
 
 function manifestSecret() { return process.env.RETENTION_MANIFEST_SIGNING_SECRET?.trim() || ""; }
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) {
+      throw new Error("Retention archive manifest contains an unsupported value.");
+    }
+    return serialized;
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+    .join(",")}}`;
+}
+
 function manifestSignature(manifest: SignedRetentionArchiveManifest["manifest"], secret: string) {
-  return createHmac("sha256", secret).update(JSON.stringify(manifest)).digest("hex");
+  return createHmac("sha256", secret).update(canonicalJson(manifest)).digest("hex");
+}
+
+export function serializeRetentionArchiveManifest(
+  signed: SignedRetentionArchiveManifest
+) {
+  return `${canonicalJson({
+    algorithm: signed.algorithm,
+    manifest: signed.manifest,
+    signature: signed.signature,
+  })}\n`;
 }
 function isValidInstant(value: unknown) {
   return typeof value === "string" && !Number.isNaN(new Date(value).getTime());
