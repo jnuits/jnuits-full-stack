@@ -153,7 +153,7 @@ function createBinaryMultipartBody(boundary: string, metadata: Record<string, un
   return Buffer.concat([prefix, data, Buffer.from(`\r\n--${boundary}--\r\n`, "utf8")]);
 }
 
-async function uploadMultipart(config: GoogleDriveConfig, accessToken: string, boundary: string, body: Buffer) {
+async function uploadMultipart(accessToken: string, boundary: string, body: Buffer) {
   const requestBody: Uint8Array<ArrayBuffer> = Uint8Array.from(body);
   return fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink,name,mimeType,driveId", {
     body: requestBody,
@@ -181,7 +181,7 @@ async function uploadMultipartWithRecovery({
   for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt += 1) {
     let response: null | Response = null;
     try {
-      response = await uploadMultipart(config, accessToken, boundary, body);
+      response = await uploadMultipart(accessToken, boundary, body);
     } catch {
       // A network failure is ambiguous: Drive may have completed the upload.
     }
