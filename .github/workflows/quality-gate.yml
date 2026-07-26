@@ -181,12 +181,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # Issue #18. Offline ordering and forward-reference analysis. The repo-wide
-  # report is advisory; the fixture tests are blocking and prove the checker
-  # detects every failure class it claims to.
+  # Issue #18. Offline ordering and forward-reference analysis.
   #
-  # Applied-migration checksums (issue #19) were removed from this job. See
-  # docs/operations/migration-bootstrap-and-integrity.md section 6.
+  # The fixture tests are blocking: they prove the checker detects every
+  # failure class it claims to, including the DDL false positives that made an
+  # earlier version report 198 findings. The repo-wide report is advisory until
+  # one run reports zero findings, at which point switch the step to
+  # `npm run migration:check-order:strict` and add this job to the Required CI
+  # needs list below.
   migration_dependencies:
     name: Migration ordering and dependencies
     runs-on: ubuntu-latest
@@ -211,9 +213,8 @@ jobs:
         run: npm run migration:check-order
 
   # Issue #18. Supported baseline replay of the entire chain on a disposable
-  # local stack. Deliberately NOT in the Required CI needs list yet: the full
-  # chain has never been replayed, so requiring it now would report a control
-  # gap as a code failure. See the runbook, section 7.
+  # local stack. Executed successfully on 2026-07-27: 96 migrations applied,
+  # all three ENFORCED assertions passed. Now required.
   migration_bootstrap_replay:
     name: Clean migration replay
     runs-on: ubuntu-latest
@@ -312,7 +313,16 @@ jobs:
 
   application_quality:
     name: Required CI
-    needs: [static_analysis, unit_and_integration, migration_integrity, migration_runtime, build_and_browser, secret_scan]
+    needs:
+      [
+        static_analysis,
+        unit_and_integration,
+        migration_integrity,
+        migration_runtime,
+        migration_bootstrap_replay,
+        build_and_browser,
+        secret_scan,
+      ]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -323,13 +333,22 @@ jobs:
           UNIT_AND_INTEGRATION_RESULT: ${{ needs.unit_and_integration.result }}
           MIGRATION_INTEGRITY_RESULT: ${{ needs.migration_integrity.result }}
           MIGRATION_RUNTIME_RESULT: ${{ needs.migration_runtime.result }}
+          MIGRATION_BOOTSTRAP_REPLAY_RESULT: ${{ needs.migration_bootstrap_replay.result }}
           BUILD_AND_BROWSER_RESULT: ${{ needs.build_and_browser.result }}
           SECRET_SCAN_RESULT: ${{ needs.secret_scan.result }}
         run: |
+          echo "static_analysis=$STATIC_ANALYSIS_RESULT"
+          echo "unit_and_integration=$UNIT_AND_INTEGRATION_RESULT"
+          echo "migration_integrity=$MIGRATION_INTEGRITY_RESULT"
+          echo "migration_runtime=$MIGRATION_RUNTIME_RESULT"
+          echo "migration_bootstrap_replay=$MIGRATION_BOOTSTRAP_REPLAY_RESULT"
+          echo "build_and_browser=$BUILD_AND_BROWSER_RESULT"
+          echo "secret_scan=$SECRET_SCAN_RESULT"
           test "$STATIC_ANALYSIS_RESULT" = "success"
           test "$UNIT_AND_INTEGRATION_RESULT" = "success"
           test "$MIGRATION_INTEGRITY_RESULT" = "success"
           test "$MIGRATION_RUNTIME_RESULT" = "success"
+          test "$MIGRATION_BOOTSTRAP_REPLAY_RESULT" = "success"
           test "$BUILD_AND_BROWSER_RESULT" = "success"
           case "$SECRET_SCAN_RESULT" in
             success|skipped) ;;

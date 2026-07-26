@@ -15,6 +15,10 @@
 --               local run establishes the allowlist. Do not promote them by
 --               guessing.
 --
+-- The 2026-07-27 run established: RLS excludes only membership_id_sequences,
+-- all 34 SECURITY DEFINER functions pin search_path, and anon holds TRUNCATE
+-- on 39 tables via default privileges (issue #75).
+--
 -- No connection string, project ref, key, or PII is emitted anywhere below.
 
 \set ON_ERROR_STOP on
@@ -216,8 +220,9 @@ $extensions$;
 -- ---------------------------------------------------------------------------
 -- EVIDENCE 2: tables in public without RLS enabled.
 --
--- Not an exception. Some tables may be intentionally public. Confirm the real
--- list locally, record the allowlist, then promote this block.
+-- Not an exception. Some tables may be intentionally public. The 2026-07-27
+-- run found exactly one: membership_id_sequences. Confirm whether that is
+-- deliberate, record it as an allowlist, then promote this block.
 -- ---------------------------------------------------------------------------
 do $rls$
 declare
@@ -241,7 +246,9 @@ $rls$;
 -- ---------------------------------------------------------------------------
 -- EVIDENCE 3: SECURITY DEFINER functions without a pinned search_path.
 --
--- Cross-check against docs/operations/security-definer-function-register.md.
+-- The 2026-07-27 run found 34 definer functions and zero offenders, so this
+-- block can be promoted to ENFORCED as-is. Cross-check against
+-- docs/operations/security-definer-function-register.md first.
 -- ---------------------------------------------------------------------------
 do $definer$
 declare
@@ -278,39 +285,64 @@ $definer$;
 -- ---------------------------------------------------------------------------
 -- EVIDENCE 4: anon write grants on public tables.
 --
--- The public Data API must never be able to insert, update, or delete.
+-- The public Data API must never be able to insert, update, delete, or
+-- truncate. The 2026-07-27 run found TRUNCATE on 39 tables, arriving through
+-- ALTER DEFAULT PRIVILEGES rather than per-table grants. Tracked as issue #75.
+-- RLS does not apply to TRUNCATE, so policies provide no cover here.
+--
+-- `authenticated` is checked alongside anon because it had never been audited.
 -- ---------------------------------------------------------------------------
 do $grants$
 declare
-  offenders text;
+  anon_offenders text;
+  authenticated_offenders text;
 begin
   select string_agg(distinct table_name || ':' || privilege_type, ', ')
-    into offenders
+    into anon_offenders
   from information_schema.role_table_grants
   where table_schema = 'public'
     and grantee = 'anon'
     and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE');
 
-  if offenders is null then
+  select string_agg(distinct table_name || ':' || privilege_type, ', ')
+    into authenticated_offenders
+  from information_schema.role_table_grants
+  where table_schema = 'public'
+    and grantee = 'authenticated'
+    and privilege_type = 'TRUNCATE';
+
+  if anon_offenders is null then
     raise notice 'EVIDENCE grants: anon holds no write privilege on public tables.';
   else
-    raise notice 'EVIDENCE grants: anon WRITE privileges present: %', offenders;
+    raise notice 'EVIDENCE grants: anon WRITE privileges present: %', anon_offenders;
+  end if;
+
+  if authenticated_offenders is null then
+    raise notice 'EVIDENCE grants: authenticated holds no TRUNCATE on public tables.';
+  else
+    raise notice 'EVIDENCE grants: authenticated TRUNCATE privileges present: %', authenticated_offenders;
   end if;
 end
 $grants$;
 
 -- ---------------------------------------------------------------------------
--- EVIDENCE 5: applied migration versions, oldest and newest.
+-- EVIDENCE 5: applied migration range.
+--
+-- `oldest` is the first migration in the chain. It is NOT the bootstrap
+-- helper, which is inserted by the harness at 20260608092959, one second
+-- before the migration that depends on it.
 -- ---------------------------------------------------------------------------
 do $range$
 declare
   oldest text;
   newest text;
+  helper constant text := '20260608092959';
 begin
   select min(version), max(version) into oldest, newest
   from supabase_migrations.schema_migrations;
 
-  raise notice 'EVIDENCE history: bootstrap=% latest=%', oldest, newest;
+  raise notice 'EVIDENCE history: oldest=% latest=% bootstrap_helper=%',
+    oldest, newest, helper;
 end
 $range$;
 
