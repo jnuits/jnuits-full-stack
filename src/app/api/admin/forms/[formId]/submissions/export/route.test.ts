@@ -251,9 +251,11 @@ describe("Unicode preservation", () => {
       [submission(0, { department: "কম্পিউটার সায়েন্স", full_name: "মোঃ রেদওয়ান আহমেদ" })],
     ];
 
-    const csv = await (await GET(request(), params())).text();
+    const response = await GET(request(), params());
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const csv = new TextDecoder().decode(bytes);
 
-    expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
     expect(csv).toContain("মোঃ রেদওয়ান আহমেদ");
     expect(csv).toContain("কম্পিউটার সায়েন্স");
   });
