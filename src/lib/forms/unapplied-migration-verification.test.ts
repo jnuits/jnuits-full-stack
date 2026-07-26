@@ -37,4 +37,26 @@ describe("unapplied migration verification harness", () => {
     expect(fixtureTransaction).toBeGreaterThan(finalMigration);
     expect(harness.trimEnd()).toMatch(/rollback;$/);
   });
+
+  it("rejects an already-migrated database before printing the recovery snapshot", () => {
+    const scope = harness.indexOf(
+      "\\echo '=== SCOPE 1: recovery snapshot (store this output) ==='"
+    );
+    const baselineGuard = harness.indexOf("PRE-MIGRATION BASELINE REQUIRED");
+    const recoverySnapshot = harness.indexOf(
+      "select pg_get_functiondef(oid) as publish_form_version_before"
+    );
+    const migrationApply = harness.indexOf(
+      "\\i supabase/migrations/20260724140000_form_publication_and_upload_session_hardening.sql"
+    );
+
+    expect(scope).toBeGreaterThan(0);
+    expect(baselineGuard).toBeGreaterThan(scope);
+    expect(baselineGuard).toBeLessThan(recoverySnapshot);
+    expect(recoverySnapshot).toBeLessThan(migrationApply);
+    expect(harness).toContain("version_row.form_definition_id");
+    expect(harness).toContain("v_boundary_text");
+    expect(harness).toContain("20260724140000");
+    expect(harness).toContain("20260726020000");
+  });
 });
