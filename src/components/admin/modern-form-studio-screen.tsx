@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Copy, Eye, Plus, Send, Trash2 } from "lucide-react";
+import { Copy, Eye, Plus, Send, Sheet, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { FormDefinitionSchema } from "@/lib/forms/definition";
 import {
@@ -62,7 +62,26 @@ const TYPES: Record<StudioFieldType, string> = {
   image: "Image upload",
   pdf: "PDF upload",
 };
+
+/**
+ * Written labels for the application mapping. These are not form fields; they
+ * are the contract the reviewer queue reads, so an operator needs to know what
+ * each one feeds rather than seeing a split camelCase key.
+ */
+const MAPPING_LABELS: Record<string, { hint: string; label: string }> = {
+  batchLabel: { hint: "Shown on the member record.", label: "Batch" },
+  departmentCode: { hint: "Groups members by department.", label: "Department" },
+  email: { hint: "Used for confirmation and review notices.", label: "Email address" },
+  fullName: { hint: "Displayed throughout review and membership.", label: "Full name" },
+  jnuitsId: { hint: "Matches an alumnus to their previous record.", label: "Previous JnUITS ID" },
+  phone: { hint: "Optional contact number for reviewers.", label: "Phone number" },
+  studentId: { hint: "Verified during membership review.", label: "Student ID" },
+};
 const UNMAPPABLE_TYPES = ["section", "consent"];
+
+function mappingLabel(key: string) {
+  return MAPPING_LABELS[key] || { hint: "", label: key.replace(/([A-Z])/g, " $1") };
+}
 
 /**
  * Starter fields keep curated, stable identifiers because the application
@@ -134,6 +153,7 @@ export function ModernFormStudioScreen() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<"load" | "publish" | "save" | null>(null);
+  const [sheetFormId, setSheetFormId] = useState<null | string>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [preview, setPreview] = useState(false);
   const [slugEdited, setSlugEdited] = useState(false);
@@ -287,6 +307,34 @@ export function ModernFormStudioScreen() {
     } catch { setNotice({ text: "The link could not be copied. Open the preview and copy it from the address bar.", tone: "error" }); }
   }
 
+  /**
+   * The Shared Drive snapshot returns JSON rather than a file, so unlike CSV and
+   * XLSX it cannot be a plain link.
+   */
+  async function createSheet(form: FormInventoryItem) {
+    setSheetFormId(form.id); setNotice(null);
+    try {
+      const response = await fetch(
+        `/api/admin/forms/${form.id}/submissions/export?format=google-sheet`,
+        { cache: "no-store" }
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; success?: boolean; webViewLink?: null | string }
+        | null;
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.error || "The Google Sheet snapshot could not be created.");
+      }
+      setNotice({
+        text: payload.webViewLink
+          ? `Google Sheet created: ${payload.webViewLink}`
+          : "Google Sheet created in the configured Shared Drive.",
+        tone: "success",
+      });
+    } catch (error) {
+      fail(error, "The Google Sheet snapshot could not be created.");
+    } finally { setSheetFormId(null); }
+  }
+
   const banner = notice || (inventoryError ? { text: inventoryError, tone: "error" as const } : null);
 
   return <div className="grid gap-7">
@@ -311,14 +359,30 @@ export function ModernFormStudioScreen() {
                     : "No event is currently open to internal registration."}
               </span>
             </label>
-          : <section className="rounded-xl border border-[var(--line)] p-4"><p className="admin-section-label">Application details</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{Object.entries(mapping).map(([key, value]) => <label className="input-label" key={key}>{key.replace(/([A-Z])/g, " $1")}<select value={value} onChange={(event) => setMapping((current) => ({ ...current, [key]: event.target.value }))}><option value="">Not collected</option>{mappable.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}</select></label>)}</div></section>}
+          : <section className="rounded-xl border border-[var(--line)] p-4">
+              <p className="admin-section-label">Application details</p>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Choose which question answers the reviewer queue should read for each detail.</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {Object.entries(mapping).map(([key, value]) => {
+                  const descriptor = mappingLabel(key);
+                  return <label className="input-label" key={key}>
+                    {descriptor.label}
+                    <select value={value} onChange={(event) => setMapping((current) => ({ ...current, [key]: event.target.value }))}>
+                      <option value="">Not collected</option>
+                      {mappable.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
+                    </select>
+                    {descriptor.hint ? <span className="mt-1 block text-xs font-normal text-[var(--muted-foreground)]">{descriptor.hint}</span> : null}
+                  </label>;
+                })}
+              </div>
+            </section>}
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="admin-section-label">Questions</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">Question IDs are generated automatically and stay stable after saving.</p></div><button className="admin-btn admin-btn--ghost" onClick={addQuestion} type="button"><Plus size={15} /> Add question</button></div>
         <div className="grid gap-3">{fields.map((field, index) => <article className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4" key={field.id}><div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs text-[var(--muted-foreground)]">Question {index + 1}</span><details><summary className="cursor-pointer text-xs font-semibold">Advanced details</summary><code className="mt-2 block text-xs">ID: {field.id}</code></details></div><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="input-label">Question<input value={field.label} onChange={(event) => renameField(index, event.target.value)} required /></label><label className="input-label">Question type<select value={field.type} onChange={(event) => updateField(index, { required: event.target.value === "consent" || field.required, type: event.target.value as StudioFieldType })}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{["select", "multi_select"].includes(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
         {preview ? <section className="rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-5" aria-label="Form preview"><p className="admin-section-label">Respondent preview</p><h3 className="mt-2 text-2xl font-semibold">{title}</h3><p className="mt-1 text-sm text-[var(--muted-foreground)]">{description}</p><div className="mt-5 grid gap-4">{fields.map((field) => <div key={field.id}><p className="font-semibold">{field.label}{field.required ? " *" : ""}</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">{TYPES[field.type]}</p></div>)}</div></section> : null}
         {banner ? <p className={banner.tone === "error" ? "status-pill status-pill--danger" : "status-pill"} role={banner.tone === "error" ? "alert" : "status"} aria-live="polite">{banner.text}</p> : null}
         <div className="flex flex-wrap justify-end gap-3"><button className="admin-btn admin-btn--ghost" onClick={() => setPreview((value) => !value)} type="button"><Eye size={15} /> {preview ? "Hide preview" : "Preview"}</button><button className="admin-btn admin-btn--primary" disabled={busy !== null || !canSave} onClick={() => void save()} type="button"><Plus size={15} /> {busy === "save" ? "Saving…" : draft ? "Save draft" : editingId ? "Save as new draft" : "Create draft"}</button>{draft ? <button className="admin-btn admin-btn--primary" disabled={busy !== null} onClick={() => void publish()} type="button"><Send size={15} /> {busy === "publish" ? "Publishing…" : "Publish"}</button> : null}</div>
       </section>
-      <aside className="grid content-start gap-4"><section className="admin-review-card"><p className="admin-section-label">Your forms</p><h2 className="admin-card-row__title">Edit, share, and export</h2>{forms.length ? <div className="mt-4 grid gap-3">{forms.map((form) => <article className="rounded-xl border border-[var(--line)] p-3" key={form.id}><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{form.title}</h3><p className="mt-1 text-xs text-[var(--muted-foreground)]">{KINDS[form.kind]} · {form.lifecycle}</p></div></div>{form.lifecycle !== "archived" ? <button className="queue-link mt-3" disabled={busy === "load"} onClick={() => void openForm(form.id)} type="button">{form.lifecycle === "draft" ? "Resume draft" : "Edit"}</button> : null}{form.lifecycle === "published" ? <div className="mt-3 flex flex-wrap gap-3"><Link className="queue-link" href={`/forms/${form.slug}`} target="_blank">Preview</Link><button className="queue-link" onClick={() => void copyLink(form)} type="button"><Copy size={13} /> Share link</button><Link className="queue-link" href={`/admin/content/forms?review=${form.id}#submission-review`}>Review responses</Link>{form.kind !== "event_registration" ? <><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=csv`}>CSV</a><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=xlsx`}>XLSX</a></> : null}</div> : null}</article>)}</div> : <p className="mt-4 text-sm text-[var(--muted-foreground)]">No forms yet. Create your first draft.</p>}</section></aside>
+      <aside className="grid content-start gap-4"><section className="admin-review-card"><p className="admin-section-label">Your forms</p><h2 className="admin-card-row__title">Edit, share, and export</h2>{forms.length ? <div className="mt-4 grid gap-3">{forms.map((form) => <article className="rounded-xl border border-[var(--line)] p-3" key={form.id}><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{form.title}</h3><p className="mt-1 text-xs text-[var(--muted-foreground)]">{KINDS[form.kind]} · {form.lifecycle}</p></div></div>{form.lifecycle !== "archived" ? <button className="queue-link mt-3" disabled={busy === "load"} onClick={() => void openForm(form.id)} type="button">{form.lifecycle === "draft" ? "Resume draft" : "Edit"}</button> : null}{form.lifecycle === "published" ? <div className="mt-3 flex flex-wrap gap-3"><Link className="queue-link" href={`/forms/${form.slug}`} target="_blank">Preview</Link><button className="queue-link" onClick={() => void copyLink(form)} type="button"><Copy size={13} /> Share link</button><Link className="queue-link" href={`/admin/content/forms?review=${form.id}#submission-review`}>Review responses</Link>{form.kind !== "event_registration" ? <><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=csv`}>CSV</a><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=xlsx`}>XLSX</a><button className="queue-link" disabled={sheetFormId !== null} onClick={() => void createSheet(form)} type="button"><Sheet size={13} /> {sheetFormId === form.id ? "Creating…" : "Google Sheet"}</button></> : null}</div> : null}</article>)}</div> : <p className="mt-4 text-sm text-[var(--muted-foreground)]">No forms yet. Create your first draft.</p>}</section></aside>
     </div>
   </div>;
 }
