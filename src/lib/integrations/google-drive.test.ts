@@ -58,6 +58,7 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env = originalEnv;
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -137,6 +138,56 @@ describe("Google Shared Drive integration", () => {
 
     expect(snapshot).toMatchObject({ id: "newly-uploaded-file", reused: false });
     expect(seen.filter((url) => url.startsWith(UPLOAD_URL))).toHaveLength(1);
+  });
+
+  it("looks up the token before retrying an ambiguous multipart upload", async () => {
+    vi.useFakeTimers();
+    let lookups = 0;
+    let uploads = 0;
+    const fetchStub = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("https://oauth2.googleapis.com/token")) {
+        return json({ access_token: "test-access-token" });
+      }
+      if (url.includes(`/drive/v3/files/${FOLDER_ID}`)) {
+        return json({
+          driveId: SHARED_DRIVE_ID,
+          id: FOLDER_ID,
+          mimeType: "application/vnd.google-apps.folder",
+        });
+      }
+      if (url.startsWith("https://www.googleapis.com/drive/v3/files?")) {
+        lookups += 1;
+        return json({
+          files:
+            lookups === 1
+              ? []
+              : [{ driveId: SHARED_DRIVE_ID, id: "completed-despite-503" }],
+        });
+      }
+      if (url.startsWith(UPLOAD_URL)) {
+        uploads += 1;
+        return json({ error: "temporary" }, 503);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchStub);
+
+    const pending = uploadGoogleDriveFile({
+      data: Buffer.from("row", "utf8"),
+      filename: "archive.csv",
+      idempotencyKey: "form:job-1:form-1:archive.csv",
+      mimeType: "text/csv",
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    const snapshot = await pending;
+
+    expect(snapshot).toMatchObject({
+      id: "completed-despite-503",
+      reused: true,
+    });
+    expect(uploads).toBe(1);
+    expect(lookups).toBe(2);
   });
 
   it("reuses the existing file on replay and issues no upload", async () => {
