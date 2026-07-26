@@ -106,13 +106,6 @@ async function handleGet(request: NextRequest, context: { params: Promise<{ form
     const table = formSubmissionsToExportTable(rows);
     const csv = createCsv(table);
     const exportName = `form-${form.id}-approved-submissions`;
-    const googleSheet =
-      format.data === "google-sheet"
-        ? await uploadGoogleSheetSnapshot({
-            csv,
-            filename: `${exportName}-${new Date().toISOString().slice(0, 10)}`,
-          })
-        : null;
     const body =
       format.data === "csv"
         ? Buffer.from(csv, "utf8")
@@ -120,6 +113,16 @@ async function handleGet(request: NextRequest, context: { params: Promise<{ form
           ? createXlsxWorkbook(table, "Approved submissions")
           : null;
     const checksum = sha256(body || csv);
+    // Content-addressed, so a double-clicked action or a retry resolves to the
+    // same Drive file, while newly approved rows still produce a new snapshot.
+    const googleSheet =
+      format.data === "google-sheet"
+        ? await uploadGoogleSheetSnapshot({
+            csv,
+            filename: `${exportName}-${new Date().toISOString().slice(0, 10)}`,
+            idempotencyKey: `form-export:${form.id}:google-sheet:${checksum}`,
+          })
+        : null;
     const { error: jobError } = await admin.from("form_export_jobs").insert({
       checksum_sha256: checksum,
       completed_at: new Date().toISOString(),
@@ -151,6 +154,7 @@ async function handleGet(request: NextRequest, context: { params: Promise<{ form
         destination: googleSheet ? "google_sheet" : "download",
         format: format.data,
         google_drive_file_id: googleSheet?.id || null,
+        reused_snapshot: googleSheet?.reused || false,
         review_status: "approved",
         row_count: rows.length,
       },
