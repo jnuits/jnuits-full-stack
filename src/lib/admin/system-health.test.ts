@@ -29,11 +29,28 @@ function queryResult() {
 }
 
 const originalEnv = process.env;
+
+/**
+ * Every server-only secret the snapshot can see gets a unique canary. A value
+ * that is seeded but never asserted proves nothing, so all of these are checked
+ * against the serialized snapshot.
+ */
 const secretCanaries = {
   google: "CANARY_GOOGLE_PRIVATE_7c8f3d",
+  rateLimitSalt: "CANARY_RATE_LIMIT_SALT_5f1c84a2d7e309b6",
   resend: "CANARY_RESEND_WEBHOOK_4e2a91",
+  retention: "CANARY_RETENTION_SIGNING_1a7be4",
   supabase: "CANARY_SUPABASE_PRIVILEGED_9b6d20",
+  turnstile: "CANARY_TURNSTILE_SECRET_3d90fc",
 };
+
+function expectNoCanaryLeak(value: unknown) {
+  const serialized = JSON.stringify(value);
+
+  for (const [name, canary] of Object.entries(secretCanaries)) {
+    expect(serialized, `${name} canary leaked`).not.toContain(canary);
+  }
+}
 
 describe("system health", () => {
   const criticalLabels = ["Public certificate safe view", "Gallery album card view", "Rate-limit table", "Admin invitation metadata", "Server-only Auth lookup"];
@@ -51,13 +68,13 @@ describe("system health", () => {
       NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: "site",
       RATE_LIMIT_BACKEND: "supabase",
-      RATE_LIMIT_SECRET_SALT: "1".repeat(32),
+      RATE_LIMIT_SECRET_SALT: secretCanaries.rateLimitSalt,
       RESEND_API_KEY: "resend",
       RESEND_FROM_EMAIL: "JnUITS <no-reply@example.test>",
       RESEND_WEBHOOK_SECRET: secretCanaries.resend,
-      RETENTION_MANIFEST_SIGNING_SECRET: "retention-canary-value",
+      RETENTION_MANIFEST_SIGNING_SECRET: secretCanaries.retention,
       SUPABASE_SECRET_KEY: secretCanaries.supabase,
-      TURNSTILE_SECRET_KEY: "turnstile-canary-value",
+      TURNSTILE_SECRET_KEY: secretCanaries.turnstile,
     };
     mocks.isCloudinaryConfigured.mockReturnValue(true);
     mocks.createAdminClient.mockReturnValue({
@@ -81,21 +98,48 @@ describe("system health", () => {
 
   it("exposes safe grouped integration status without raw secret values", async () => {
     const snapshot = await buildSystemHealthSnapshot();
+
     for (const label of ["CAPTCHA", "Resend delivery", "Google Shared Drive", "Retention manifest signing", "Cloudinary", "Sentry"]) {
       expect(snapshot.checks.find((check) => check.label === label)?.status).toBe("ok");
     }
-    const serialized = JSON.stringify(snapshot);
-    for (const canary of Object.values(secretCanaries)) {
-      expect(serialized).not.toContain(canary);
-    }
+
+    expectNoCanaryLeak(snapshot);
+  });
+
+  it("reports the rate-limit salt by length without echoing it", async () => {
+    const snapshot = await buildSystemHealthSnapshot();
+    const salt = snapshot.checks.find((check) => check.label === "Rate-limit salt");
+
+    expect(salt).toMatchObject({ status: "ok" });
+    expect(salt?.detail).not.toContain(secretCanaries.rateLimitSalt);
   });
 
   it("names missing configuration without exposing neighboring values", async () => {
     delete process.env.GOOGLE_DRIVE_EXPORTS_FOLDER_ID;
     const snapshot = await buildSystemHealthSnapshot();
     const drive = snapshot.checks.find((check) => check.label === "Google Shared Drive");
+
     expect(drive).toMatchObject({ status: "fail" });
     expect(drive?.detail).toContain("GOOGLE_DRIVE_EXPORTS_FOLDER_ID");
     expect(drive?.detail).not.toContain(process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID!);
+    expectNoCanaryLeak(snapshot);
+  });
+
+  it("reports every missing secret by name when nothing is configured", async () => {
+    for (const name of [
+      "GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY",
+      "RESEND_WEBHOOK_SECRET",
+      "RETENTION_MANIFEST_SIGNING_SECRET",
+      "TURNSTILE_SECRET_KEY",
+    ]) {
+      delete process.env[name];
+    }
+
+    const snapshot = await buildSystemHealthSnapshot();
+
+    expect(snapshot.checks.find((check) => check.label === "CAPTCHA")?.detail).toContain("TURNSTILE_SECRET_KEY");
+    expect(snapshot.checks.find((check) => check.label === "Resend delivery")?.detail).toContain("RESEND_WEBHOOK_SECRET");
+    expect(snapshot.checks.find((check) => check.label === "Retention manifest signing")?.detail).toContain("RETENTION_MANIFEST_SIGNING_SECRET");
+    expectNoCanaryLeak(snapshot);
   });
 });
