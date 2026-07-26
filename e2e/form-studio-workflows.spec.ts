@@ -119,7 +119,7 @@ test.describe("Form Studio authenticated workflows", () => {
     expect(await readFieldId(page, index - 1)).toBe(originalId);
   });
 
-  test("preview renders every question without leaving the builder", async ({ page }) => {
+  test("preview renders the real respondent controls, inert", async ({ page }) => {
     if (!(await signInAsAdmin(page))) test.skip(true, "Account requires MFA onboarding.");
 
     await page.goto(STUDIO, { waitUntil: "domcontentloaded" });
@@ -127,11 +127,44 @@ test.describe("Form Studio authenticated workflows", () => {
 
     const preview = page.getByRole("region", { name: "Form preview" });
     await expect(preview).toBeVisible();
-    await expect(preview).toContainText("Full name");
-    await expect(preview).toContainText("Email address");
+
+    // The preview previously showed "Full name / Short answer" rather than the
+    // control a respondent actually gets, so a wrong field type was invisible.
+    const name = preview.locator("#form-studio-preview-full_name");
+    const email = preview.locator("#form-studio-preview-email");
+    await expect(name).toHaveAttribute("type", "text");
+    await expect(email).toHaveAttribute("type", "email");
+
+    // Inert: nothing in a preview may be typed into or submitted.
+    for (const control of await preview.locator("input, select, textarea").all()) {
+      await expect(control).toBeDisabled();
+      expect(await control.getAttribute("name")).toBeNull();
+    }
 
     await page.getByRole("button", { name: "Hide preview" }).click();
     await expect(preview).toBeHidden();
+  });
+
+  test("preview shows dropdown choices and reports an invalid definition", async ({ page }) => {
+    if (!(await signInAsAdmin(page))) test.skip(true, "Account requires MFA onboarding.");
+
+    await page.goto(STUDIO, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Add question" }).click();
+
+    const index = (await page.getByLabel("Question", { exact: true }).count()) - 1;
+    await questionInput(page, index).fill("Preferred track");
+    await page.getByLabel("Question type").nth(index).selectOption("select");
+    await page.getByRole("button", { name: /^Preview$/ }).click();
+
+    const preview = page.getByRole("region", { name: "Form preview" });
+
+    // A dropdown with no choices is invalid, and the preview now says so rather
+    // than letting the operator discover it on save.
+    await expect(preview.getByRole("alert")).toBeVisible();
+
+    await page.getByLabel("Choices, one per line").fill("Web\nMobile");
+    await expect(preview.locator("#form-studio-preview-preferred_track")).toBeVisible();
+    await expect(preview.getByText("Mobile")).toBeVisible();
   });
 
   test("event registration offers titled events and never asks for a UUID", async ({ page }) => {
@@ -244,12 +277,16 @@ test.describe("public form lifecycle gates", () => {
     const publicPage = await anonymous.newPage();
     await publicPage.goto(`/forms/${slug}`, { waitUntil: "domcontentloaded" });
 
-    // Questions from the studio must reach the respondent.
-    await expect(publicPage.getByText("Full name")).toBeVisible();
-    await expect(publicPage.getByText("Email address")).toBeVisible();
+    // The same renderer the preview used, now live: controls must be real.
+    const email = publicPage.locator(`#form-${slug}-email`);
+    await expect(email).toHaveAttribute("type", "email");
+    await expect(email).toBeEnabled();
+    await expect(email).toHaveAttribute("name", "email");
 
     // CAPTCHA protection must survive publication.
-    await expect(publicPage.locator("[data-testid='captcha'], .cf-turnstile, iframe[src*='turnstile']")).toHaveCount(1);
+    await expect(
+      publicPage.locator("[data-testid='captcha'], .cf-turnstile, iframe[src*='turnstile']")
+    ).toHaveCount(1);
 
     // Payment is rejected server-side and must never surface publicly.
     await expect(publicPage.locator("body")).not.toContainText(/payment|pay now|amount due|bkash|nagad/i);
