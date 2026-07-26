@@ -29,7 +29,9 @@ async function signInAsAdmin(page: Page) {
   await page.locator("#admin-login-password").fill(adminAccount.password);
   await page.getByRole("button", { name: "Sign in to admin" }).click();
   await page.waitForURL(
-    (url) => /\/admin(?:\/dashboard)?(?:\?|$)/.test(`${url.pathname}${url.search}`) || url.pathname.startsWith("/admin/mfa"),
+    (url) =>
+      /\/admin(?:\/dashboard)?(?:\?|$)/.test(`${url.pathname}${url.search}`) ||
+      url.pathname.startsWith("/admin/mfa"),
     { timeout: 30_000 }
   );
 
@@ -46,6 +48,22 @@ async function readFieldId(page: Page, index: number) {
 
 function questionInput(page: Page, index: number) {
   return page.getByLabel("Question", { exact: true }).nth(index);
+}
+
+/** Creates and publishes a form, returning its public slug. */
+async function publishForm(page: Page, title: string) {
+  await page.goto(STUDIO, { waitUntil: "domcontentloaded" });
+  await page.getByLabel("Form title").fill(title);
+  const slug = await page.getByLabel("Public address").inputValue();
+
+  await page.getByRole("button", { name: /Create draft/ }).click();
+  await expect(page.getByRole("status")).toContainText(/Draft saved/i, { timeout: 20_000 });
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: /^Publish$/ }).click();
+  await expect(page.getByRole("status")).toContainText(/Form published/i, { timeout: 20_000 });
+
+  return slug;
 }
 
 test.describe("Form Studio authenticated workflows", () => {
@@ -97,7 +115,7 @@ test.describe("Form Studio authenticated workflows", () => {
     expect(duplicateId).not.toBe(originalId);
     expect(await readFieldId(page, index)).toBe(originalId);
 
-    await page.getByRole("button", { name: `Move Dietary requirement up` }).first().click();
+    await page.getByRole("button", { name: "Move Dietary requirement up" }).first().click();
     expect(await readFieldId(page, index - 1)).toBe(originalId);
   });
 
@@ -139,19 +157,8 @@ test.describe("Form Studio authenticated workflows", () => {
   test("publishing clears the draft and exposes preview and share actions", async ({ page }) => {
     if (!(await signInAsAdmin(page))) test.skip(true, "Account requires MFA onboarding.");
 
-    const suffix = uniqueSuffix();
-    const title = `Studio publish ${suffix}`;
-
-    await page.goto(STUDIO, { waitUntil: "domcontentloaded" });
-    await page.getByLabel("Form title").fill(title);
-    const slug = await page.getByLabel("Public address").inputValue();
-
-    await page.getByRole("button", { name: /Create draft/ }).click();
-    await expect(page.getByRole("status")).toContainText(/Draft saved/i, { timeout: 20_000 });
-
-    page.once("dialog", (dialog) => void dialog.accept());
-    await page.getByRole("button", { name: /^Publish$/ }).click();
-    await expect(page.getByRole("status")).toContainText(/Form published/i, { timeout: 20_000 });
+    const title = `Studio publish ${uniqueSuffix()}`;
+    const slug = await publishForm(page, title);
 
     // F10: the draft used to persist, leaving Publish live and the next save
     // patching an immutable published version.
@@ -203,14 +210,12 @@ test.describe("Form Studio authenticated workflows", () => {
 
     // Single shared inventory: the studio sidebar must reflect the change
     // without a manual reload.
-    await expect(
-      page.locator("aside").locator("article", { hasText: title })
-    ).toContainText("closed");
+    await expect(page.locator("aside").locator("article", { hasText: title })).toContainText("closed");
   });
 });
 
 test.describe("public form lifecycle gates", () => {
-  test.skip(!enabled, "Set E2E_AUTH_SMOKE=1 to seed a draft form for the public gate check.");
+  test.skip(!enabled, "Set E2E_AUTH_SMOKE=1 to seed forms for the public gate checks.");
 
   test("a draft form is never publicly reachable", async ({ browser, page }) => {
     if (!(await signInAsAdmin(page))) test.skip(true, "Account requires MFA onboarding.");
@@ -223,17 +228,32 @@ test.describe("public form lifecycle gates", () => {
     await page.getByRole("button", { name: /Create draft/ }).click();
     await expect(page.getByRole("status")).toContainText(/Draft saved/i, { timeout: 20_000 });
 
-    // Anonymous context: a draft must not be served to the public.
     const anonymous = await browser.newContext();
     const response = await anonymous.request.get(`/forms/${slug}`);
     expect(response.status()).toBe(404);
     await anonymous.close();
   });
 
-  test("a published form renders questions, keeps CAPTCHA, and shows no payment UI", async ({ page }) => {
-    const response = await page.request.get("/api/admin/forms?pageSize=1");
-    if (response.status() !== 200) {
-      test.skip(true, "Form inventory is not readable anonymously, which is expected.");
-    }
+  test("a published form renders publicly with CAPTCHA and no payment UI", async ({ browser, page }) => {
+    if (!(await signInAsAdmin(page))) test.skip(true, "Account requires MFA onboarding.");
+
+    const title = `Studio public gate ${uniqueSuffix()}`;
+    const slug = await publishForm(page, title);
+
+    const anonymous = await browser.newContext();
+    const publicPage = await anonymous.newPage();
+    await publicPage.goto(`/forms/${slug}`, { waitUntil: "domcontentloaded" });
+
+    // Questions from the studio must reach the respondent.
+    await expect(publicPage.getByText("Full name")).toBeVisible();
+    await expect(publicPage.getByText("Email address")).toBeVisible();
+
+    // CAPTCHA protection must survive publication.
+    await expect(publicPage.locator("[data-testid='captcha'], .cf-turnstile, iframe[src*='turnstile']")).toHaveCount(1);
+
+    // Payment is rejected server-side and must never surface publicly.
+    await expect(publicPage.locator("body")).not.toContainText(/payment|pay now|amount due|bkash|nagad/i);
+
+    await anonymous.close();
   });
 });
