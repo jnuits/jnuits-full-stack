@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { signRetentionArchiveManifest } from "./archive";
+import { sha256 } from "@/lib/exports/tabular";
 import { parseVerifiedRetentionArchiveRecord, RetentionArchiveVerificationError } from "./approval";
 
 const originalSecret = process.env.RETENTION_MANIFEST_SIGNING_SECRET;
@@ -21,14 +22,45 @@ function signedManifest() {
   });
 }
 
+function manifestChecksum(archive: ReturnType<typeof signedManifest>) {
+  return sha256(Buffer.from(JSON.stringify(archive, null, 2), "utf8"));
+}
+
 describe("retention purge approval archive gate", () => {
   it("accepts only an archived job with checksum and valid signature", () => {
     const archive = signedManifest();
     expect(parseVerifiedRetentionArchiveRecord({
       archive_manifest: archive,
-      manifest_checksum_sha256: "b".repeat(64),
+      manifest_checksum_sha256: manifestChecksum(archive),
       status: "archived",
     })).toEqual(archive);
+  });
+
+  it("accepts a purge-approved job only when that status is explicitly allowed", () => {
+    const archive = signedManifest();
+
+    expect(
+      parseVerifiedRetentionArchiveRecord(
+        {
+          archive_manifest: archive,
+          manifest_checksum_sha256: manifestChecksum(archive),
+          status: "purge_approved",
+        },
+        { allowedStatuses: ["purge_approved"] }
+      )
+    ).toEqual(archive);
+  });
+
+  it("rejects a checksum that does not match the signed manifest bytes", () => {
+    const archive = signedManifest();
+
+    expect(() =>
+      parseVerifiedRetentionArchiveRecord({
+        archive_manifest: archive,
+        manifest_checksum_sha256: "b".repeat(64),
+        status: "archived",
+      })
+    ).toThrow("Archive manifest checksum verification failed.");
   });
 
   it.each([
