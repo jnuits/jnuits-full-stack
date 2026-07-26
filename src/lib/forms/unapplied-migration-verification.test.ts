@@ -31,6 +31,8 @@ describe("unapplied migration verification harness", () => {
     expect(harness).toContain("scratch_ack=DISPOSABLE_SCRATCH");
     expect(harness).toContain("current_database() = :'expected_database'");
     expect(harness).toContain("migrations remain in scratch");
+    expect(harness).toContain("\\set ON_ERROR_STOP on");
+    expect(harness).not.toContain("\\quit");
     expect(finalMigration).toBeGreaterThan(0);
     expect(fixtureTransaction).toBeGreaterThan(finalMigration);
     expect(harness.trimEnd()).toMatch(/rollback;$/);
