@@ -520,24 +520,25 @@ async function uploadArchiveBundle({
 }) {
   // Deterministic per logical file, so a retry after a partial failure reuses
   // whatever already landed in the Shared Drive instead of duplicating it.
-  const dataKey = (kind: string) => `${scope}:${jobId}:${resourceId}:${kind}`;
+  const dataKey = (kind: string, data: Buffer) =>
+    `${scope}:${jobId}:${resourceId}:${kind}:${sha256(data)}`;
   const uploads = await Promise.all([
     uploadGoogleDriveFile({
       data: materials.csv,
       filename: `${prefix}.csv`,
-      idempotencyKey: dataKey("csv"),
+      idempotencyKey: dataKey("csv", materials.csv),
       mimeType: "text/csv",
     }),
     uploadGoogleDriveFile({
       data: materials.json,
       filename: `${prefix}.json`,
-      idempotencyKey: dataKey("json"),
+      idempotencyKey: dataKey("json", materials.json),
       mimeType: "application/json",
     }),
     uploadGoogleDriveFile({
       data: materials.xlsx,
       filename: `${prefix}.xlsx`,
-      idempotencyKey: dataKey("xlsx"),
+      idempotencyKey: dataKey("xlsx", materials.xlsx),
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
   ]);
