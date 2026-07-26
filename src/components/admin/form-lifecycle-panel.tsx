@@ -1,51 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   availableFormLifecycleActions,
   formLifecycleActionLabel,
   type FormLifecycleAction,
   type ManagedFormLifecycle,
 } from "@/lib/forms/lifecycle-actions";
-
-type FormSummary = {
-  currentPublishedVersionId: null | string;
-  id: string;
-  kind: "alumni_onboarding" | "event_registration" | "membership_application";
-  lifecycle: ManagedFormLifecycle;
-  slug: string;
-  title: string;
-};
+import {
+  useFormInventory,
+  type FormInventoryItem,
+} from "@/components/admin/form-inventory-context";
 
 export function FormLifecyclePanel() {
-  const [forms, setForms] = useState<FormSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { error, forms, loading, refresh } = useFormInventory();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function loadForms() {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/admin/forms?pageSize=100", {
-        cache: "no-store",
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; items?: FormSummary[] }
-        | null;
-      if (!response.ok) throw new Error(payload?.error || "Forms could not be loaded.");
-      setForms(payload?.items || []);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Forms could not be loaded.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void loadForms();
-  }, []);
-
-  async function transition(form: FormSummary, target: FormLifecycleAction) {
+  async function transition(form: FormInventoryItem, target: FormLifecycleAction) {
     const destructive = target === "archived";
     if (
       destructive &&
@@ -72,17 +44,20 @@ export function FormLifecyclePanel() {
       }
 
       setMessage(`${form.title} is now ${payload.lifecycle}.`);
-      await loadForms();
-    } catch (error) {
+      // Shared inventory, so the studio and review panels update together.
+      await refresh();
+    } catch (caught) {
       setMessage(
-        error instanceof Error
-          ? error.message
+        caught instanceof Error
+          ? caught.message
           : "The form lifecycle could not be updated."
       );
     } finally {
       setPendingId(null);
     }
   }
+
+  const notice = message || error;
 
   return (
     <section className="admin-review-card mt-6" aria-labelledby="form-lifecycle-heading">
@@ -95,9 +70,13 @@ export function FormLifecyclePanel() {
         new public intake. Archiving is terminal.
       </p>
 
-      {message ? (
-        <p className="status-pill mt-4" role="status" aria-live="polite">
-          {message}
+      {notice ? (
+        <p
+          className={error ? "status-pill status-pill--danger mt-4" : "status-pill mt-4"}
+          role={error ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {notice}
         </p>
       ) : null}
 
