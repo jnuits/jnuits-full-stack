@@ -28,6 +28,12 @@ const VERSION_ID = "55555555-5555-4555-8555-555555555555";
 const SIGNED_URL =
   "https://res.cloudinary.com/demo/raw/authenticated/s--secret-signature--/v1/private/object.pdf";
 
+const MALFORMED_IDENTIFIER_CASES: Array<Record<string, string>> = [
+  { formId: "not-a-uuid" },
+  { submissionId: "not-a-uuid" },
+  { assetId: "not-a-uuid" },
+];
+
 type Call = { filters: string[]; op: "insert" | "select"; payload?: unknown; table: string };
 type Settled = { data?: unknown; error?: unknown };
 type Chain = {
@@ -163,11 +169,7 @@ describe("private form upload download proxy", () => {
   });
 
   it("returns 404 for malformed identifiers without touching the database", async () => {
-    for (const overrides of [
-      { formId: "not-a-uuid" },
-      { submissionId: "not-a-uuid" },
-      { assetId: "not-a-uuid" },
-    ]) {
+    for (const overrides of MALFORMED_IDENTIFIER_CASES) {
       calls = [];
       const response = await GET(request(), params(overrides));
 
