@@ -203,6 +203,20 @@ describe("retention archive boundary", () => {
     expect(completion?.filters).toContain('in:status=["archive_requested"]');
   });
 
+  it("content-addresses every archive data upload", async () => {
+    const { admin } = createAdmin(archiveHandler());
+
+    await archiveForm(admin);
+
+    const keys = mocks.uploadGoogleDriveFile.mock.calls
+      .slice(0, 3)
+      .map((call) => call[0].idempotencyKey);
+    expect(keys).toHaveLength(3);
+    for (const key of keys) {
+      expect(key).toMatch(/:[a-f0-9]{64}$/);
+    }
+  });
+
   it("refuses to archive a job that has not reached its boundary", async () => {
     const { admin, calls } = createAdmin((call) =>
       call.table === "form_archive_jobs" && call.op === "select"
