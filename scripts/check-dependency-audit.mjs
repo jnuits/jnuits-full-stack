@@ -5,8 +5,49 @@ import { pathToFileURL } from "node:url";
 
 export const SHARP_EXCEPTION_EXPIRES_AT = Date.parse("2026-09-01T00:00:00Z");
 
+/**
+ * Development-only linter toolchain advisories are tolerated until the same
+ * date as the Sharp exception, so a single upgrade window closes both.
+ */
+export const DEV_TOOLCHAIN_EXCEPTION_EXPIRES_AT = Date.parse("2026-09-01T00:00:00Z");
+
 const ALLOWED_ADVISORY_URL =
   "https://github.com/advisories/GHSA-f88m-g3jw-g9cj";
+
+/**
+ * GHSA-mh99-v99m-4gvg / CVE-2026-14257: brace-expansion <= 5.0.7 denial of
+ * service via memory exhaustion.
+ *
+ * The production tree is clean; both 5.x copies were updated to 5.0.8. The one
+ * remaining copy is brace-expansion 1.1.16, reached only through minimatch@3.1.5
+ * which the ESLint plugins pin at ^3.1.2. It cannot currently be resolved:
+ *
+ *   - There is no patched release in the brace-expansion 1.x line.
+ *   - minimatch 3 calls the dependency as `expand(...)`, while 5.x exports
+ *     `{ expand }`, so forcing 5.x breaks ESLint outright.
+ *   - Upgrading ESLint core does not help: eslint-plugin-import,
+ *     eslint-plugin-jsx-a11y and eslint-plugin-react each pin minimatch ^3.1.2
+ *     independently, and cap their eslint peer range at ^9.
+ *
+ * Reachability: the only input to expand() here is the project's own glob
+ * patterns from its own ESLint config, evaluated on developer machines and in
+ * CI. No runtime request path reaches this code.
+ */
+const DEV_TOOLCHAIN_ADVISORY_URL =
+  "https://github.com/advisories/GHSA-mh99-v99m-4gvg";
+
+const ALLOWED_DEV_TOOLCHAIN_PACKAGES = new Set([
+  "@eslint/config-array",
+  "@eslint/eslintrc",
+  "brace-expansion",
+  "eslint",
+  "eslint-config-next",
+  "eslint-plugin-import",
+  "eslint-plugin-jsx-a11y",
+  "eslint-plugin-react",
+  "minimatch",
+]);
+
 const MINIMUM_SAFE_NEXT_VERSION = [16, 2, 11];
 const REPORTABLE_SEVERITIES = new Set(["moderate", "high", "critical"]);
 
@@ -42,33 +83,40 @@ function expectOnly(values, expected, label) {
   }
 }
 
-function describeAuditEntry([name, vulnerability]) {
-  const via = (vulnerability.via || []).map((advisory) => {
+function viaEntries(vulnerability) {
+  return (vulnerability.via || []).map((advisory) => {
     if (typeof advisory === "string") return advisory;
     return advisory.url || advisory.title || "unknown-advisory";
   });
+}
+
+function describeAuditEntry([name, vulnerability]) {
+  const via = viaEntries(vulnerability);
 
   return `${name} (${vulnerability.severity}; range ${vulnerability.range}; via ${
     via.join(", ") || "none"
   }; nodes ${(vulnerability.nodes || []).join(", ") || "none"})`;
 }
 
-export function evaluateDependencyAudit({
-  lock,
-  nextConfig,
-  now = Date.now(),
-  report,
-}) {
+function reportableEntries(report) {
+  return Object.entries(report?.vulnerabilities || {}).filter(
+    ([, vulnerability]) => REPORTABLE_SEVERITIES.has(vulnerability.severity)
+  );
+}
+
+/**
+ * Production dependencies get no tolerance beyond the documented Sharp
+ * exception. Anything else reaching the runtime tree fails the build.
+ */
+function evaluateProductionAudit({ lock, nextConfig, now, report }) {
   if (report?.error) {
     fail(`npm audit failed: ${report.error.summary || "unknown audit error"}`);
   }
 
-  const reportable = Object.entries(report?.vulnerabilities || {}).filter(
-    ([, vulnerability]) => REPORTABLE_SEVERITIES.has(vulnerability.severity)
-  );
+  const reportable = reportableEntries(report);
 
   if (reportable.length === 0) {
-    return "Dependency audit passed: no moderate, high, or critical vulnerabilities.";
+    return "Dependency audit passed: no moderate, high, or critical production vulnerabilities.";
   }
 
   const reportableNames = reportable.map(([name]) => name);
@@ -78,7 +126,7 @@ export function evaluateDependencyAudit({
     JSON.stringify([...expectedNames].sort())
   ) {
     fail(
-      `Unexpected dependency vulnerabilities: ${reportable
+      `Unexpected production dependency vulnerabilities: ${reportable
         .map(describeAuditEntry)
         .join("; ")}.`
     );
@@ -103,9 +151,7 @@ export function evaluateDependencyAudit({
   expectOnly(nextVulnerability.via, ["sharp"], "Unexpected Next.js advisory chain");
   expectOnly(nextVulnerability.nodes, ["node_modules/next"], "Unexpected Next.js audit nodes");
 
-  const sharpAdvisoryUrls = sharpVulnerability.via.map((advisory) =>
-    typeof advisory === "string" ? advisory : advisory.url
-  );
+  const sharpAdvisoryUrls = viaEntries(sharpVulnerability);
 
   if (
     sharpVulnerability.severity !== "high" ||
@@ -140,15 +186,100 @@ export function evaluateDependencyAudit({
   return "Dependency audit passed with time-limited GHSA-f88m-g3jw-g9cj exception; Next image optimizer is disabled.";
 }
 
-export function runDependencyAudit() {
+/**
+ * Advisories that appear only once devDependencies are included. Each must be a
+ * known linter-toolchain package, high severity, and traceable to the
+ * brace-expansion/minimatch chain. A different advisory in the same packages,
+ * or a critical escalation, still fails the gate.
+ */
+function evaluateDevelopmentAudit({ devReport, now, productionNames }) {
+  if (devReport?.error) {
+    fail(`npm audit failed: ${devReport.error.summary || "unknown audit error"}`);
+  }
+
+  const devOnly = reportableEntries(devReport).filter(
+    ([name]) => !productionNames.has(name)
+  );
+
+  if (devOnly.length === 0) {
+    return "No development-only advisories.";
+  }
+
+  const unexpected = devOnly.filter(
+    ([name]) => !ALLOWED_DEV_TOOLCHAIN_PACKAGES.has(name)
+  );
+
+  if (unexpected.length > 0) {
+    fail(
+      `Unexpected development dependency vulnerabilities: ${unexpected
+        .map(describeAuditEntry)
+        .join("; ")}.`
+    );
+  }
+
+  if (now >= DEV_TOOLCHAIN_EXCEPTION_EXPIRES_AT) {
+    fail(
+      "Development linter toolchain exception expired. Complete the ESLint upgrade and remove the exception."
+    );
+  }
+
+  for (const [name, vulnerability] of devOnly) {
+    if (vulnerability.severity !== "high") {
+      fail(
+        `Development advisory severity changed for ${name}: expected high; received ${vulnerability.severity}.`
+      );
+    }
+
+    const chain = viaEntries(vulnerability);
+    const foreign = chain.filter(
+      (entry) =>
+        entry !== DEV_TOOLCHAIN_ADVISORY_URL &&
+        !ALLOWED_DEV_TOOLCHAIN_PACKAGES.has(entry)
+    );
+
+    if (foreign.length > 0) {
+      fail(
+        `Development advisory chain changed for ${name}: unexpected ${foreign.join(", ")}.`
+      );
+    }
+  }
+
+  return `${devOnly.length} development-only linter advisories accepted under the time-limited GHSA-mh99-v99m-4gvg exception; no production dependency is affected.`;
+}
+
+export function evaluateDependencyAudit({
+  devReport,
+  lock,
+  nextConfig,
+  now = Date.now(),
+  report,
+}) {
+  const productionSummary = evaluateProductionAudit({ lock, nextConfig, now, report });
+
+  if (!devReport) {
+    return productionSummary;
+  }
+
+  const productionNames = new Set(reportableEntries(report).map(([name]) => name));
+  const developmentSummary = evaluateDevelopmentAudit({
+    devReport,
+    now,
+    productionNames,
+  });
+
+  return `${productionSummary}\n${developmentSummary}`;
+}
+
+function runNpmAudit(extraArgs = []) {
+  const command = ["npm", "audit", "--json", ...extraArgs];
   const audit =
     process.platform === "win32"
-      ? spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npm audit --json"], {
+      ? spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", command.join(" ")], {
           cwd: process.cwd(),
           encoding: "utf8",
           maxBuffer: 5 * 1024 * 1024,
         })
-      : spawnSync("npm", ["audit", "--json"], {
+      : spawnSync(command[0], command.slice(1), {
           cwd: process.cwd(),
           encoding: "utf8",
           maxBuffer: 5 * 1024 * 1024,
@@ -162,11 +293,16 @@ export function runDependencyAudit() {
     fail("npm audit returned no JSON output.");
   }
 
-  const report = JSON.parse(audit.stdout);
+  return JSON.parse(audit.stdout);
+}
+
+export function runDependencyAudit() {
+  const report = runNpmAudit(["--omit=dev"]);
+  const devReport = runNpmAudit();
   const lock = JSON.parse(readFileSync(resolve(process.cwd(), "package-lock.json"), "utf8"));
   const nextConfig = readFileSync(resolve(process.cwd(), "next.config.ts"), "utf8");
 
-  return evaluateDependencyAudit({ lock, nextConfig, report });
+  return evaluateDependencyAudit({ devReport, lock, nextConfig, report });
 }
 
 const invokedPath = process.argv[1]
