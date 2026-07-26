@@ -1,15 +1,13 @@
--- Forward-only migration. Unapplied until explicit approval.
--- Repairs publish_form_version PL/pgSQL name ambiguity and tightens
--- post-migration indexes and privileges without destructive DML.
+-- Forward-only migration. UNAPPLIED until explicit approval.
+-- Repairs publish_form_version PL/pgSQL name ambiguity and reasserts
+-- post-migration privileges without destructive DML.
 
 begin;
 
-create index if not exists form_upload_sessions_form_definition_idx
-  on public.form_upload_sessions (form_definition_id);
-
-create index if not exists form_upload_sessions_form_version_idx
-  on public.form_upload_sessions (form_version_id);
-
+-- Deliberate reassertion. These statements duplicate 20260723233000 and are
+-- idempotent; they restore the intended privilege state if it was altered
+-- manually in production after that migration ran, and they keep this file
+-- self-contained for review.
 alter table public.form_upload_sessions enable row level security;
 revoke all on table public.form_upload_sessions from public, anon, authenticated;
 grant select, insert, update, delete on table public.form_upload_sessions to service_role;
@@ -19,8 +17,10 @@ revoke all on function public.consume_form_upload_session(uuid, uuid, uuid, text
 grant execute on function public.consume_form_upload_session(uuid, uuid, uuid, text)
   to service_role;
 
--- Trigger functions do not require callers to hold EXECUTE. Removing direct
--- execution prevents bypass while preserving the existing BEFORE INSERT trigger.
+-- Trigger functions do not require callers to hold EXECUTE. PostgreSQL checks
+-- that privilege at CREATE TRIGGER time, not when the trigger fires, so
+-- removing direct execution prevents bypass while preserving the existing
+-- BEFORE INSERT trigger.
 revoke all on function public.bind_membership_application_cycle()
   from public, anon, authenticated;
 

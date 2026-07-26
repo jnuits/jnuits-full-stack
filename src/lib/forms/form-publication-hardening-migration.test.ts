@@ -43,12 +43,19 @@ describe("form publication and upload-session hardening migration", () => {
     expect(migration).toContain("grant select, insert, update, delete on table public.form_upload_sessions to service_role");
   });
 
-  it("adds covering indexes and removes direct trigger-function execution", () => {
-    expect(migration).toContain("form_upload_sessions_form_definition_idx");
-    expect(migration).toContain("on public.form_upload_sessions (form_definition_id)");
-    expect(migration).toContain("form_upload_sessions_form_version_idx");
-    expect(migration).toContain("on public.form_upload_sessions (form_version_id)");
+  it("removes direct trigger-function execution without destructive statements", () => {
     expect(migration).toContain("revoke all on function public.bind_membership_application_cycle()");
     expect(migration).not.toMatch(/\b(delete|truncate)\s+from\b/i);
+    expect(migration).not.toMatch(/\bdrop\s+(table|function|index)\b/i);
+  });
+
+  it("adds no index without a querying code path", () => {
+    // consume_form_upload_session filters on the primary key and the existing
+    // partial expiry index covers cleanup. Indexing the foreign-key columns
+    // would only help parent deletes, which never occur because form
+    // definitions and versions use lifecycle states rather than deletion.
+    expect(migration).not.toContain("form_upload_sessions_form_definition_idx");
+    expect(migration).not.toContain("form_upload_sessions_form_version_idx");
+    expect(migration).not.toMatch(/create\s+index/i);
   });
 });
