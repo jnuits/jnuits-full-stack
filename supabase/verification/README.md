@@ -16,10 +16,12 @@ Two migrations are currently **unapplied**:
 
 ## Running the harness
 
-**Never point this at production.** The script refuses to start unless the
-database name looks non-production, and every statement runs inside one
-transaction that ends in `ROLLBACK`, but the connection string is still yours to
-get right.
+**Never point this at production.** The harness requires both an explicit
+`DISPOSABLE_SCRATCH` acknowledgement and an exact `current_database()` name
+match. The two migrations contain their own `COMMIT` statements and therefore
+remain installed in the scratch database. Only the synthetic verification
+fixtures are rolled back. Delete or reset the scratch database after capturing
+the evidence.
 
 Against a local Supabase stack:
 
@@ -27,6 +29,8 @@ Against a local Supabase stack:
 supabase db reset
 psql "$(supabase status -o env | grep DB_URL | cut -d= -f2- | tr -d '\"')" \
   -v ON_ERROR_STOP=1 \
+  -v scratch_ack=DISPOSABLE_SCRATCH \
+  -v expected_database=postgres \
   -f supabase/verification/verify-unapplied-migrations.sql
 ```
 
@@ -35,6 +39,8 @@ Against a Supabase branch or scratch instance:
 ```bash
 psql "$SCRATCH_DATABASE_URL" \
   -v ON_ERROR_STOP=1 \
+  -v scratch_ack=DISPOSABLE_SCRATCH \
+  -v expected_database="$SCRATCH_DATABASE_NAME" \
   -f supabase/verification/verify-unapplied-migrations.sql
 ```
 
@@ -42,7 +48,7 @@ psql "$SCRATCH_DATABASE_URL" \
 
 Every check raises a notice. A failed assertion aborts the run with
 `ON_ERROR_STOP=1`, so **any** non-zero exit means the migration is not safe to
-apply. Success ends with `VERIFICATION COMPLETE` followed by the rollback.
+apply. Success ends with `VERIFICATION COMPLETE`; fixtures roll back, while the migrations remain applied only to the disposable scratch database.
 
 Capture the full output. The `pg_get_functiondef` blocks at the top are the
 recovery snapshot for the two functions being replaced; store them with the
