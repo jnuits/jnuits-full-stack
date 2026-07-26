@@ -25,9 +25,14 @@ vi.mock("@/lib/supabase/flexible", () => ({ asFlexibleClient: <T>(client: T) => 
 import { GET, POST } from "./route";
 
 const jobId = "22222222-2222-4222-8222-222222222222";
-function actionRequest(action: "approve_purge" | "archive") {
+function actionRequest(action: "approve_purge" | "archive" | "purge") {
   return new NextRequest("https://jnuits.example.test/api/admin/retention", {
-    body: JSON.stringify({ action, jobId, scope: "form" }),
+    body: JSON.stringify({
+      action,
+      jobId,
+      scope: "form",
+      ...(action === "purge" ? { confirmation: "PURGE" } : {}),
+    }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
@@ -59,6 +64,23 @@ describe("retention admin route", () => {
     const response = await POST(actionRequest("approve_purge"), { params: Promise.resolve({}) });
     expect(response.status).toBe(200);
     expect(mocks.requireVerifiedRetentionArchive).toHaveBeenCalledWith({}, "form", jobId);
+    expect(mocks.requireVerifiedRetentionArchive.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.runRetentionAction.mock.invocationCallOrder[0]);
+  });
+
+  it("re-verifies the signed archive immediately before purge", async () => {
+    const response = await POST(actionRequest("purge"), { params: Promise.resolve({}) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.requireVerifiedRetentionArchive).toHaveBeenCalledWith(
+      {},
+      "form",
+      jobId,
+      {
+        allowedStatuses: ["purge_approved"],
+        statusMessage: "Purge requires an archived, approved job.",
+      }
+    );
     expect(mocks.requireVerifiedRetentionArchive.mock.invocationCallOrder[0])
       .toBeLessThan(mocks.runRetentionAction.mock.invocationCallOrder[0]);
   });
