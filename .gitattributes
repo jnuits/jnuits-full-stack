@@ -1,3 +1,12 @@
+# Shell scripts must always use LF. bash reads a trailing CR as part of the
+# token, so a CRLF checkout turns `set -euo pipefail` into an invalid option and
+# the script dies before its first real statement.
+*.sh text eol=lf
+
+# SQL fed to psql is normalised for the same reason: a stray CR can end up
+# inside a dollar-quoted string or a psql meta-command.
+supabase/verification/*.sql text eol=lf
+
 # Migrations are historical records. Git must never rewrite their bytes,
 # including line endings, so that a checkout on Windows and a checkout on Linux
 # produce identical files and a diff always reflects a real change.
@@ -7,4 +16,7 @@
 # because normalising it would rewrite the bytes of already-applied migrations.
 # Do not run `git add --renormalize` on this directory.
 supabase/migrations/*.sql -text
+
+# The verification-only bootstrap helper is copied verbatim from schema.sql and
+# is treated with the same care as a migration.
 supabase/verification/baseline/*.sql -text
