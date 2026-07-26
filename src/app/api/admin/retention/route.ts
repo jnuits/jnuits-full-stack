@@ -70,6 +70,11 @@ async function handlePost(request: NextRequest) {
     const admin = asFlexibleClient(createAdminClient());
     if (parsed.data.action === "approve_purge") {
       await requireVerifiedRetentionArchive(admin, parsed.data.scope, parsed.data.jobId);
+    } else if (parsed.data.action === "purge") {
+      await requireVerifiedRetentionArchive(admin, parsed.data.scope, parsed.data.jobId, {
+        allowedStatuses: ["purge_approved"],
+        statusMessage: "Purge requires an archived, approved job.",
+      });
     }
     const result = await runRetentionAction(admin, {
       ...parsed.data,
