@@ -37,7 +37,11 @@ describe("Form Studio kind scoping", () => {
   it("grants every kind only to admin and super admin", () => {
     for (const roles of [["admin"], ["super_admin"]]) {
       expect(getFormStudioKindScope(roles)).toBe("all");
-      for (const kind of ["event_registration", "membership_application", "alumni_onboarding"] as const) {
+      for (const kind of [
+        "event_registration",
+        "membership_application",
+        "alumni_onboarding",
+      ] as const) {
         expect(canAccessFormStudioKind(roles, kind)).toBe(true);
       }
     }
@@ -46,7 +50,11 @@ describe("Form Studio kind scoping", () => {
   it("denies every kind to roles outside the studio", () => {
     for (const roles of [[], ["member"], ["alumni"], ["unknown_role"], ["Admin"], ["ADMIN"]]) {
       expect(getFormStudioKindScope(roles)).toBeNull();
-      for (const kind of ["event_registration", "membership_application", "alumni_onboarding"] as const) {
+      for (const kind of [
+        "event_registration",
+        "membership_application",
+        "alumni_onboarding",
+      ] as const) {
         expect(canAccessFormStudioKind(roles, kind)).toBe(false);
       }
     }
@@ -84,13 +92,15 @@ describe("membership and alumni PII denial", () => {
 
   it("grants review and export exclusively to admin and super admin", () => {
     for (const permission of PII_PERMISSIONS) {
-      expect(PLATFORM_MIGRATION).toContain(`('admin', '${permission}')`);
-      expect(PLATFORM_MIGRATION).toContain(`('super_admin', '${permission}')`);
-
+      const escaped = permission.replace(/\./g, "\\.");
       const grants = PLATFORM_MIGRATION.match(
-        new RegExp(`\\('([a-z_]+)', '${permission.replace(/\./g, "\\.")}'\\)`, "g")
+        new RegExp(`\\('([a-z_]+)', '${escaped}'\\)`, "g")
       );
-      expect(grants?.sort()).toEqual([`('admin', '${permission}')`, `('super_admin', '${permission}')`]);
+
+      expect(grants?.slice().sort()).toEqual([
+        `('admin', '${permission}')`,
+        `('super_admin', '${permission}')`,
+      ]);
     }
   });
 });
@@ -98,7 +108,9 @@ describe("membership and alumni PII denial", () => {
 describe("form table grants and RLS", () => {
   it("keeps every form table server-only with row level security enabled", () => {
     for (const table of FORM_TABLES) {
-      expect(PLATFORM_MIGRATION).toContain(`alter table public.${table} enable row level security`);
+      expect(PLATFORM_MIGRATION).toContain(
+        `alter table public.${table} enable row level security`
+      );
       expect(PLATFORM_MIGRATION).toContain(
         `revoke all on table public.${table} from public, anon, authenticated`
       );
@@ -119,9 +131,13 @@ function sourceFiles(directory: string): string[] {
 
   for (const entry of readdirSync(root)) {
     const path = join(root, entry);
+
     if (statSync(path).isDirectory()) {
       found.push(...sourceFiles(join(directory, entry)));
- hodnot   } else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
+      continue;
+    }
+
+    if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
       found.push(path);
     }
   }
