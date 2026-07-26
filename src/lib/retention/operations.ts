@@ -301,16 +301,18 @@ async function discoverRetentionCandidates(
     if (!oldestByForm.has(formId)) oldestByForm.set(formId, createdAt);
   }
 
-  const eventResult = await admin
-    .from("events")
-    .select("id, starts_at, ends_at")
-    .or(`ends_at.lte.${boundary},and(ends_at.is.null,starts_at.lte.${boundary})`)
-    .order("starts_at", { ascending: true })
-    .range(0, 999);
-
-  if (eventResult.error) {
-    throw new RetentionWorkflowError("Retention-eligible events could not be scanned.");
-  }
+  // Paged like submissions. A single fixed range silently dropped every event
+  // past the first page while still reporting the run as successful.
+  const eligibleEvents = await loadPagedRows(
+    (from, to) =>
+      admin
+        .from("events")
+        .select("id, starts_at, ends_at")
+        .or(`ends_at.lte.${boundary},and(ends_at.is.null,starts_at.lte.${boundary})`)
+        .order("starts_at", { ascending: true })
+        .range(from, to),
+    "Retention-eligible events could not be scanned."
+  );
 
   const formCreated = await insertCandidates(
     admin,
@@ -324,7 +326,7 @@ async function discoverRetentionCandidates(
   const eventCreated = await insertCandidates(
     admin,
     "event",
-    (eventResult.data || []).flatMap((row: Record<string, unknown>) => {
+    eligibleEvents.flatMap((row) => {
       const id = row.id;
       const sourceDate = row.ends_at || row.starts_at;
       return typeof id === "string" && typeof sourceDate === "string"
