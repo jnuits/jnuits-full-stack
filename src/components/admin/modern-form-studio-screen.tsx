@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Copy, Eye, Plus, Send, Sheet, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { FormDefinitionSchema } from "@/lib/forms/definition";
+import { FormFieldControls } from "@/components/forms/form-field-controls";
+import { FormDefinitionSchema, type FormDefinition } from "@/lib/forms/definition";
 import {
   createUniqueStudioFieldId,
   duplicateStudioField,
@@ -161,6 +162,22 @@ export function ModernFormStudioScreen() {
   const mappable = useMemo(() => fields.filter((field) => !UNMAPPABLE_TYPES.includes(field.type)), [fields]);
   const canSave = Boolean(title.trim()) && Boolean(slug.trim()) && fields.every((field) => field.label.trim());
   const needsEvent = kind === "event_registration" && !editingId;
+
+  /**
+   * The preview renders the same controls the public page renders, so building
+   * it through the real conversion also surfaces schema problems (an empty
+   * dropdown, for example) before the operator saves.
+   */
+  const previewDefinition = useMemo<{ definition: FormDefinition | null; error: null | string }>(() => {
+    try {
+      return { definition: studioFieldsToDefinition(fields), error: null };
+    } catch (error) {
+      return {
+        definition: null,
+        error: error instanceof Error ? error.message : "This form cannot be previewed yet.",
+      };
+    }
+  }, [fields]);
 
   function fail(error: unknown, fallback: string) {
     setNotice({ text: error instanceof Error ? error.message : fallback, tone: "error" });
@@ -378,7 +395,27 @@ export function ModernFormStudioScreen() {
             </section>}
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="admin-section-label">Questions</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">Question IDs are generated automatically and stay stable after saving.</p></div><button className="admin-btn admin-btn--ghost" onClick={addQuestion} type="button"><Plus size={15} /> Add question</button></div>
         <div className="grid gap-3">{fields.map((field, index) => <article className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4" key={field.id}><div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs text-[var(--muted-foreground)]">Question {index + 1}</span><details><summary className="cursor-pointer text-xs font-semibold">Advanced details</summary><code className="mt-2 block text-xs">ID: {field.id}</code></details></div><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="input-label">Question<input value={field.label} onChange={(event) => renameField(index, event.target.value)} required /></label><label className="input-label">Question type<select value={field.type} onChange={(event) => updateField(index, { required: event.target.value === "consent" || field.required, type: event.target.value as StudioFieldType })}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{["select", "multi_select"].includes(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
-        {preview ? <section className="rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-5" aria-label="Form preview"><p className="admin-section-label">Respondent preview</p><h3 className="mt-2 text-2xl font-semibold">{title}</h3><p className="mt-1 text-sm text-[var(--muted-foreground)]">{description}</p><div className="mt-5 grid gap-4">{fields.map((field) => <div key={field.id}><p className="font-semibold">{field.label}{field.required ? " *" : ""}</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">{TYPES[field.type]}</p></div>)}</div></section> : null}
+        {preview ? (
+          <section className="rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-5" aria-label="Form preview">
+            <p className="admin-section-label">Respondent preview</p>
+            <h3 className="mt-2 text-2xl font-semibold">{title}</h3>
+            {description ? <p className="mt-1 text-sm text-[var(--muted-foreground)]">{description}</p> : null}
+            {previewDefinition.definition ? (
+              <div className="mt-5 grid gap-5">
+                <FormFieldControls
+                  definition={previewDefinition.definition}
+                  idPrefix="form-studio-preview"
+                  preview
+                />
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Respondents also complete a verification challenge before submitting.
+                </p>
+              </div>
+            ) : (
+              <p className="status-pill status-pill--danger mt-4" role="alert">{previewDefinition.error}</p>
+            )}
+          </section>
+        ) : null}
         {banner ? <p className={banner.tone === "error" ? "status-pill status-pill--danger" : "status-pill"} role={banner.tone === "error" ? "alert" : "status"} aria-live="polite">{banner.text}</p> : null}
         <div className="flex flex-wrap justify-end gap-3"><button className="admin-btn admin-btn--ghost" onClick={() => setPreview((value) => !value)} type="button"><Eye size={15} /> {preview ? "Hide preview" : "Preview"}</button><button className="admin-btn admin-btn--primary" disabled={busy !== null || !canSave} onClick={() => void save()} type="button"><Plus size={15} /> {busy === "save" ? "Saving…" : draft ? "Save draft" : editingId ? "Save as new draft" : "Create draft"}</button>{draft ? <button className="admin-btn admin-btn--primary" disabled={busy !== null} onClick={() => void publish()} type="button"><Send size={15} /> {busy === "publish" ? "Publishing…" : "Publish"}</button> : null}</div>
       </section>
