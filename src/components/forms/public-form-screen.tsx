@@ -3,6 +3,7 @@
 import { type FormEvent, useState } from "react";
 
 import { TurnstileField } from "@/components/auth/turnstile-field";
+import { FormFieldControls } from "@/components/forms/form-field-controls";
 import type { FormDefinition, FormField, FormKind } from "@/lib/forms/definition";
 import { getEventRegistrationSuccessContent } from "@/lib/forms/event-registration-result";
 import { resolvePublicFormSubmissionTarget } from "@/lib/forms/submission-target";
@@ -184,160 +185,6 @@ async function uploadToCloudinary(upload: PendingFormUpload, instruction: FormUp
   };
 }
 
-function FieldHelp({ field }: { field: FormField }) {
-  return field.helpText ? (
-    <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{field.helpText}</p>
-  ) : null;
-}
-
-function FieldLabel({ field, inputId }: { field: Exclude<FormField, { type: "section" }>; inputId: string }) {
-  return (
-    <label className="input-label" htmlFor={inputId}>
-      {field.label}
-      {field.required ? <span aria-hidden="true"> *</span> : null}
-    </label>
-  );
-}
-
-function TextField({ field, inputId }: { field: Extract<FormField, { type: "email" | "telephone" | "text" | "textarea" }>; inputId: string }) {
-  const inputType =
-    field.type === "email" ? "email" : field.type === "telephone" ? "tel" : "text";
-  const maxLength = "maxLength" in field ? field.maxLength : undefined;
-
-  return (
-    <div>
-      <FieldLabel field={field} inputId={inputId} />
-      {field.type === "textarea" ? (
-        <textarea
-          className="input-field mt-1 min-h-32 w-full"
-          id={inputId}
-          maxLength={maxLength}
-          name={field.id}
-          required={field.required}
-        />
-      ) : (
-        <input
-          autoComplete={field.type === "email" ? "email" : field.type === "telephone" ? "tel" : "off"}
-          className="input-field mt-1 w-full"
-          id={inputId}
-          maxLength={maxLength}
-          name={field.id}
-          required={field.required}
-          type={inputType}
-        />
-      )}
-      <FieldHelp field={field} />
-    </div>
-  );
-}
-
-function SelectField({ field, inputId }: { field: Extract<FormField, { type: "multi_select" | "select" }>; inputId: string }) {
-  const multiple = field.type === "multi_select";
-
-  return (
-    <div>
-      <FieldLabel field={field} inputId={inputId} />
-      <select
-        className="input-field mt-1 w-full"
-        id={inputId}
-        multiple={multiple}
-        name={field.id}
-        required={field.required}
-        size={multiple ? Math.min(Math.max(field.options.length, 3), 6) : undefined}
-      >
-        {!multiple ? <option value="">Choose an option</option> : null}
-        {field.options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <FieldHelp field={field} />
-    </div>
-  );
-}
-
-function FormFieldControl({ field, formSlug }: { field: FormField; formSlug: string }) {
-  const inputId = `form-${formSlug}-${field.id}`;
-
-  if (field.type === "section") {
-    return (
-      <section className="border-t border-[var(--line)] pt-6 first:border-t-0 first:pt-0" aria-labelledby={inputId}>
-        <h2 className="text-xl font-bold text-[var(--brand-ink)]" id={inputId}>
-          {field.label}
-        </h2>
-        <FieldHelp field={field} />
-      </section>
-    );
-  }
-
-  if (field.type === "text" || field.type === "textarea" || field.type === "email" || field.type === "telephone") {
-    return <TextField field={field} inputId={inputId} />;
-  }
-
-  if (field.type === "select" || field.type === "multi_select") {
-    return <SelectField field={field} inputId={inputId} />;
-  }
-
-  if (field.type === "number" || field.type === "date") {
-    return (
-      <div>
-        <FieldLabel field={field} inputId={inputId} />
-        <input
-          className="input-field mt-1 w-full"
-          id={inputId}
-          max={field.type === "number" ? field.max : undefined}
-          min={field.type === "number" ? field.min : undefined}
-          name={field.id}
-          required={field.required}
-          type={field.type}
-        />
-        <FieldHelp field={field} />
-      </div>
-    );
-  }
-
-  if (field.type === "checkbox" || field.type === "consent") {
-    return (
-      <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-3">
-        <label className="flex cursor-pointer items-start gap-3" htmlFor={inputId}>
-          <input
-            className="mt-1 size-4 accent-[var(--brand-blue)]"
-            id={inputId}
-            name={field.id}
-            required={field.type === "consent" || field.required}
-            type="checkbox"
-          />
-          <span className="text-sm font-semibold leading-6 text-[var(--brand-ink)]">
-            {field.label}
-            {field.type === "consent" ? <span aria-hidden="true"> *</span> : null}
-          </span>
-        </label>
-        <FieldHelp field={field} />
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <FieldLabel field={field} inputId={inputId} />
-      <input
-        accept={field.type === "pdf" ? "application/pdf" : "image/jpeg,image/png,image/webp"}
-        className="input-field mt-1 w-full"
-        id={inputId}
-        multiple={field.maxFiles > 1}
-        name={field.id}
-        required={field.required}
-        type="file"
-      />
-      <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
-        PDF, JPEG, PNG, or WebP only. Maximum 10 MB per file. Files are stored privately.
-      </p>
-      <FieldHelp field={field} />
-    </div>
-  );
-}
-
 function toAnswers(
   formData: FormData,
   definition: FormDefinition,
@@ -479,7 +326,6 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
     }
   }
 
-  if (state.status === "success") {
   async function handleConfirmationResend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!confirmationEmail || isEventRegistration) return;
@@ -517,6 +363,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
     }
   }
 
+  if (state.status === "success") {
     const eventSuccessContent = isEventRegistration
       ? getEventRegistrationSuccessContent(state.waitlisted)
       : null;
@@ -578,9 +425,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
       ) : null}
 
       <form className="mt-8 grid gap-5" noValidate onSubmit={handleSubmit}>
-        {form.definition.fields.map((field) => (
-          <FormFieldControl field={field} formSlug={form.slug} key={field.id} />
-        ))}
+        <FormFieldControls definition={form.definition} idPrefix={`form-${form.slug}`} />
 
         <div className="contact-honeypot" aria-hidden="true">
           <label htmlFor="form-website">Website</label>
