@@ -26,7 +26,7 @@ the evidence.
 Against a local Supabase stack:
 
 ```bash
-supabase db reset
+supabase db reset --local --version 20260723233000
 psql "$(supabase status -o env | grep DB_URL | cut -d= -f2- | tr -d '\"')" \
   -v ON_ERROR_STOP=1 \
   -v scratch_ack=DISPOSABLE_SCRATCH \
@@ -34,15 +34,10 @@ psql "$(supabase status -o env | grep DB_URL | cut -d= -f2- | tr -d '\"')" \
   -f supabase/verification/verify-unapplied-migrations.sql
 ```
 
-Against a Supabase branch or scratch instance:
-
-```bash
-psql "$SCRATCH_DATABASE_URL" \
-  -v ON_ERROR_STOP=1 \
-  -v scratch_ack=DISPOSABLE_SCRATCH \
-  -v expected_database="$SCRATCH_DATABASE_NAME" \
-  -f supabase/verification/verify-unapplied-migrations.sql
-```
+The reset must stop at `20260723233000_form_upload_sessions.sql`, the last
+migration applied to production. Running an unbounded reset would install both
+migrations under test before the recovery snapshot is captured. Never add
+`--linked` or `--db-url`; this workflow is local-only.
 
 ## Reading the result
 

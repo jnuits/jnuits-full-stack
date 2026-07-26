@@ -6,9 +6,11 @@
 -- back.
 --
 -- Usage:
---   psql "$SCRATCH_DATABASE_URL" -v ON_ERROR_STOP=1 \
+--   supabase db reset --local --version 20260723233000
+--   psql "$(supabase status -o env | grep DB_URL | cut -d= -f2- | tr -d '\"')" \
+--     -v ON_ERROR_STOP=1 \
 --     -v scratch_ack=DISPOSABLE_SCRATCH \
---     -v expected_database="$SCRATCH_DATABASE_NAME" \
+--     -v expected_database=postgres \
 --     -f supabase/verification/verify-unapplied-migrations.sql
 
 \set ON_ERROR_STOP on
