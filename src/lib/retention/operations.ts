@@ -4,6 +4,7 @@ import type { FlexibleSupabaseClient } from "@/lib/supabase/flexible";
 import {
   archiveRetentionDriveFile,
   createFormArchiveMaterials,
+  serializeRetentionArchiveManifest,
   signRetentionArchiveManifest,
   type RetentionArchiveAssetReference,
   type RetentionArchiveSubmissionRow,
@@ -555,7 +556,7 @@ async function uploadArchiveBundle({
     rowCount,
     scope,
   });
-  const manifestData = Buffer.from(JSON.stringify(signed, null, 2), "utf8");
+  const manifestData = Buffer.from(serializeRetentionArchiveManifest(signed), "utf8");
   // The manifest embeds its own archive time, so its bytes differ per attempt.
   // Keying it by that time keeps the stored checksum matching the file that
   // actually exists in Drive instead of an earlier manifest.
