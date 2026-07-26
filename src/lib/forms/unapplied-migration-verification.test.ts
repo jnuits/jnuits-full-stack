@@ -25,7 +25,7 @@ describe("unapplied migration verification harness", () => {
       "\\i supabase/migrations/20260726020000_retention_purge_boundary_enforcement.sql"
     );
     const fixtureTransaction = harness.indexOf(
-      "\nbegin;\n\n-- Only synthetic fixtures are rollback-scoped."
+      "\n-- Only synthetic fixtures are rollback-scoped. The migration definitions above\n-- intentionally remain installed in this disposable scratch database.\nbegin;\n"
     );
 
     expect(harness).toContain("scratch_ack=DISPOSABLE_SCRATCH");
