@@ -97,6 +97,12 @@ function pageReads(calls: Call[], table: string) {
   );
 }
 
+function statusUpdate(calls: Call[], status: string) {
+  return calls.find(
+    (call) => call.op === "update" && (call.payload as Record<string, unknown>)?.status === status
+  );
+}
+
 function eventPage(size: number) {
   return Array.from({ length: size }, (_unused, index) => ({
     ends_at: "2022-01-01T00:00:00.000Z",
@@ -126,10 +132,14 @@ function formJobRow(status = "candidate") {
   };
 }
 
-function archiveHandler(options: { submissionError?: unknown; transitionRows?: unknown[] } = {}): Handler {
+function archiveHandler(options: {
+  jobStatus?: string;
+  submissionError?: unknown;
+  transitionRows?: unknown[];
+} = {}): Handler {
   return (call) => {
     if (call.table === "form_archive_jobs" && call.op === "select") {
-      return { data: formJobRow() };
+      return { data: formJobRow(options.jobStatus) };
     }
     if (call.table === "form_archive_jobs" && call.op === "update") {
       return { data: options.transitionRows ?? [{ id: JOB_ID }] };
@@ -143,13 +153,22 @@ function archiveHandler(options: { submissionError?: unknown; transitionRows?: u
   };
 }
 
+function archiveForm(admin: FlexibleSupabaseClient) {
+  return runRetentionAction(admin, {
+    action: "archive",
+    actorUserId: ACTOR,
+    jobId: JOB_ID,
+    scope: "form",
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   process.env.RETENTION_MANIFEST_SIGNING_SECRET = "test-only-retention-secret";
   mocks.uploadGoogleDriveFile.mockImplementation(({ filename }: { filename: string }) =>
-    Promise.resolve({ id: `drive-${filename}`, webViewLink: null })
+    Promise.resolve({ id: `drive-${filename}`, reused: false, webViewLink: null })
   );
 });
 
@@ -162,12 +181,7 @@ describe("retention archive boundary", () => {
   it("selects only rows at or before the three-year boundary", async () => {
     const { admin, calls } = createAdmin(archiveHandler());
 
-    const result = await runRetentionAction(admin, {
-      action: "archive",
-      actorUserId: ACTOR,
-      jobId: JOB_ID,
-      scope: "form",
-    });
+    const result = await archiveForm(admin);
 
     expect(result).toMatchObject({ boundary: BOUNDARY, success: true });
     expect(filterFor(calls, "form_submissions", "lte:created_at")).toBe(`lte:created_at=${BOUNDARY}`);
@@ -177,12 +191,7 @@ describe("retention archive boundary", () => {
   it("seals the boundary into the signed manifest so purge cannot widen it", async () => {
     const { admin, calls } = createAdmin(archiveHandler());
 
-    await runRetentionAction(admin, {
-      action: "archive",
-      actorUserId: ACTOR,
-      jobId: JOB_ID,
-      scope: "form",
-    });
+    await archiveForm(admin);
 
     const completion = calls.find(
       (call) => call.op === "update" && Boolean((call.payload as Record<string, unknown>)?.archive_manifest)
@@ -201,9 +210,9 @@ describe("retention archive boundary", () => {
         : { data: [] }
     );
 
-    await expect(
-      runRetentionAction(admin, { action: "archive", actorUserId: ACTOR, jobId: JOB_ID, scope: "form" })
-    ).rejects.toThrow("has not reached its three-year retention boundary");
+    await expect(archiveForm(admin)).rejects.toThrow(
+      "has not reached its three-year retention boundary"
+    );
     expect(calls.some((call) => call.op === "update")).toBe(false);
     expect(mocks.uploadGoogleDriveFile).not.toHaveBeenCalled();
   });
@@ -213,12 +222,7 @@ describe("retention transition safety", () => {
   it("treats a zero-row transition as a lost race instead of success", async () => {
     const { admin } = createAdmin(archiveHandler({ transitionRows: [] }));
 
-    const error = await runRetentionAction(admin, {
-      action: "archive",
-      actorUserId: ACTOR,
-      jobId: JOB_ID,
-      scope: "form",
-    }).catch((thrown: unknown) => thrown);
+    const error = await archiveForm(admin).catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(RetentionWorkflowError);
     expect((error as RetentionWorkflowError).status).toBe(409);
@@ -230,14 +234,9 @@ describe("retention transition safety", () => {
       archiveHandler({ submissionError: { message: "boom" } })
     );
 
-    await expect(
-      runRetentionAction(admin, { action: "archive", actorUserId: ACTOR, jobId: JOB_ID, scope: "form" })
-    ).rejects.toThrow("Form archive rows could not be loaded.");
+    await expect(archiveForm(admin)).rejects.toThrow("Form archive rows could not be loaded.");
 
-    const failure = calls.find(
-      (call) => call.op === "update" && (call.payload as Record<string, unknown>)?.status === "failed"
-    );
-    expect(failure?.filters).toContain('in:status=["archive_requested"]');
+    expect(statusUpdate(calls, "failed")?.filters).toContain('in:status=["archive_requested"]');
   });
 
   it("refuses purge approval when the archived row moved underneath it", async () => {
@@ -258,6 +257,103 @@ describe("retention transition safety", () => {
 
     expect((error as RetentionWorkflowError).status).toBe(409);
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("retention partial provider failure and recovery", () => {
+  it("leaves a half-uploaded archive in failed, never archived", async () => {
+    const { admin, calls } = createAdmin(archiveHandler());
+    // The bundle uploads CSV, JSON and XLSX together; one provider failure must
+    // take the whole archive down rather than record a partial success.
+    mocks.uploadGoogleDriveFile.mockImplementation(({ filename }: { filename: string }) =>
+      filename.endsWith(".xlsx")
+        ? Promise.reject(new Error("Google Drive archive upload failed."))
+        : Promise.resolve({ id: `drive-${filename}`, reused: false, webViewLink: null })
+    );
+
+    await expect(archiveForm(admin)).rejects.toThrow("Google Drive archive upload failed.");
+
+    expect(statusUpdate(calls, "failed")).toBeDefined();
+    expect(statusUpdate(calls, "archived")).toBeUndefined();
+    expect(
+      calls.some((call) => Boolean((call.payload as Record<string, unknown>)?.archive_manifest))
+    ).toBe(false);
+  });
+
+  it("cannot approve purge for a job left failed by a partial archive", async () => {
+    const { admin, calls, rpc } = createAdmin(archiveHandler({ jobStatus: "failed" }));
+
+    const error = await runRetentionAction(admin, {
+      action: "approve_purge",
+      actorUserId: ACTOR,
+      jobId: JOB_ID,
+      scope: "form",
+    }).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(RetentionWorkflowError);
+    expect((error as RetentionWorkflowError).status).toBe(409);
+    expect((error as RetentionWorkflowError).message).toContain("Archive must complete");
+    expect(rpc).not.toHaveBeenCalled();
+    expect(calls.some((call) => call.op === "update")).toBe(false);
+  });
+
+  it("cannot purge a job left failed by a partial archive", async () => {
+    const { admin, rpc } = createAdmin(archiveHandler({ jobStatus: "failed" }));
+
+    const error = await runRetentionAction(admin, {
+      action: "purge",
+      actorUserId: ACTOR,
+      jobId: JOB_ID,
+      scope: "form",
+    }).catch((thrown: unknown) => thrown);
+
+    expect((error as RetentionWorkflowError).status).toBe(409);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("resumes a failed archive by reusing the files that already landed", async () => {
+    const { admin, calls } = createAdmin(archiveHandler({ jobStatus: "failed" }));
+    // Deterministic keys mean the previous attempt's CSV and JSON are found and
+    // reused; only the XLSX that never completed is uploaded again.
+    mocks.uploadGoogleDriveFile.mockImplementation(({ filename }: { filename: string }) =>
+      Promise.resolve({
+        id: `drive-${filename}`,
+        reused: filename.endsWith(".csv") || filename.endsWith(".json"),
+        webViewLink: null,
+      })
+    );
+
+    const result = await archiveForm(admin);
+
+    expect(result).toMatchObject({ reusedFiles: 2, success: true });
+    expect(statusUpdate(calls, "archived")).toBeDefined();
+
+    // A failed job re-enters through the same guarded transition.
+    expect(statusUpdate(calls, "archive_requested")?.filters).toContain(
+      'in:status=["candidate","failed"]'
+    );
+  });
+
+  it("records the reuse count in the archive audit rather than hiding the retry", async () => {
+    const { admin, calls } = createAdmin(archiveHandler({ jobStatus: "failed" }));
+    mocks.uploadGoogleDriveFile.mockImplementation(({ filename }: { filename: string }) =>
+      Promise.resolve({
+        id: `drive-${filename}`,
+        reused: !filename.endsWith("-manifest.json"),
+        webViewLink: null,
+      })
+    );
+
+    await archiveForm(admin);
+
+    const audit = calls.find(
+      (call) =>
+        call.op === "insert" &&
+        (call.payload as Record<string, unknown>)?.action === "retention.archive_completed"
+    );
+    // Three data files reused; the manifest is always fresh because it embeds
+    // its own archive timestamp.
+    expect((audit?.payload as { metadata: { reused_files: number } }).metadata.reused_files).toBe(3);
   });
 });
 
