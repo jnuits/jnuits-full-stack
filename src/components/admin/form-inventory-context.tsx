@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from "react";
 
+import type { ManagedFormLifecycle } from "@/lib/forms/lifecycle-actions";
+
 export type FormInventoryKind =
   | "alumni_onboarding"
   | "event_registration"
@@ -19,7 +21,8 @@ export type FormInventoryItem = {
   currentPublishedVersionId: null | string;
   id: string;
   kind: FormInventoryKind;
-  lifecycle: "archived" | "draft" | "published";
+  /** Canonical union, so the studio and lifecycle panel cannot drift apart. */
+  lifecycle: ManagedFormLifecycle;
   slug: string;
   title: string;
   updatedAt?: string;
