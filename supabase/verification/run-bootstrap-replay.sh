@@ -17,6 +17,11 @@
 #   SUPABASE_BIN           path to a single binary
 #   supabase               on PATH
 # If none resolve, falls back to npx with the same version CI pins.
+#
+# Windows note: under Git Bash, MSYS rewrites POSIX-looking arguments before
+# handing them to native binaries. Host paths are therefore converted with
+# cygpath, and argument conversion is disabled around docker so that
+# container-side paths survive intact.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -26,6 +31,21 @@ pinned_cli_version="2.109.1"
 scratch_ack="${SCRATCH_ACK:-DISPOSABLE_SCRATCH}"
 scratch_parent="${TMPDIR:-/tmp}"
 stack_started=0
+
+# Converts a bash path to the form a native Windows binary expects. A no-op on
+# Linux and macOS, where cygpath does not exist.
+to_native() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+# Container paths such as /tmp/jnuits-replay must reach docker untouched.
+docker_run() {
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' docker "$@"
+}
 
 if [[ "$scratch_ack" != "DISPOSABLE_SCRATCH" ]]; then
   printf 'Refusing to run without SCRATCH_ACK=DISPOSABLE_SCRATCH.\n' >&2
@@ -42,12 +62,11 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! docker info >/dev/null 2>&1; then
+if ! docker_run info >/dev/null 2>&1; then
   printf 'Docker is installed but not running. Start Docker and retry.\n' >&2
   exit 1
 fi
 
-# Resolve the CLI into an array so a multi-word command works.
 if [[ -n "${SUPABASE_CLI_COMMAND:-}" ]]; then
   read -r -a supabase_cli <<<"$SUPABASE_CLI_COMMAND"
 elif [[ -n "${SUPABASE_BIN:-}" ]]; then
@@ -69,11 +88,12 @@ fi
 printf 'Supabase CLI: %s (%s)\n' "${supabase_cli[*]}" "$("${supabase_cli[@]}" --version 2>/dev/null | tr -d '\r')"
 
 scratch_dir="$(mktemp -d "${scratch_parent%/}/jnuits-bootstrap-replay.XXXXXX")"
+native_scratch_dir="$(to_native "$scratch_dir")"
 
 cleanup() {
   set +e
   if [[ "$stack_started" -eq 1 ]]; then
-    "${supabase_cli[@]}" stop --workdir "$scratch_dir" --no-backup >/dev/null 2>&1
+    "${supabase_cli[@]}" stop --workdir "$native_scratch_dir" --no-backup >/dev/null 2>&1
   fi
 
   case "$scratch_dir" in
@@ -87,7 +107,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"${supabase_cli[@]}" init --workdir "$scratch_dir"
+"${supabase_cli[@]}" init --workdir "$native_scratch_dir"
+
+config_file="$scratch_dir/supabase/config.toml"
+if [[ ! -f "$config_file" ]]; then
+  printf 'Supabase init did not produce %s\n' "$config_file" >&2
+  printf 'The CLI and this shell disagree about where the scratch directory is.\n' >&2
+  exit 1
+fi
+
 scratch_migrations="$scratch_dir/supabase/migrations"
 mkdir -p "$scratch_migrations"
 
@@ -114,7 +142,7 @@ printf 'Replaying %s repository migrations plus the bootstrap helper.\n' "$migra
 stack_started=1
 start_log="$scratch_dir/supabase-start.log"
 if ! "${supabase_cli[@]}" start \
-  --workdir "$scratch_dir" \
+  --workdir "$native_scratch_dir" \
   --exclude edge-runtime,gotrue,imgproxy,kong,logflare,mailpit,postgres-meta,postgrest,realtime,storage-api,studio,supavisor,vector \
   --yes >"$start_log" 2>&1; then
   printf 'Clean replay FAILED while applying the migration chain.\n' >&2
@@ -123,10 +151,20 @@ if ! "${supabase_cli[@]}" start \
   cat "$start_log" >&2
   exit 1
 fi
-printf 'Clean replay applied every migration through the latest file.\n'
+
+# `supabase start` exiting zero means the stack booted. It is NOT proof that
+# the migration chain applied. Only the assertions below establish that, so no
+# success is claimed here.
+printf 'Disposable stack started. Verifying that the chain actually applied.\n'
+
+if grep -qiE 'skipping migration|already applied|no migrations' "$start_log"; then
+  printf 'The start log suggests migrations were skipped rather than applied:\n' >&2
+  grep -iE 'skipping migration|already applied|no migrations' "$start_log" >&2
+  exit 1
+fi
 
 project_id="$(
-  sed -n 's/^project_id = "\(.*\)"/\1/p' "$scratch_dir/supabase/config.toml" | tr -d '\r'
+  sed -n 's/^project_id = "\(.*\)"/\1/p' "$config_file" | tr -d '\r'
 )"
 if [[ -z "$project_id" ]]; then
   printf 'Could not resolve the disposable Supabase project ID.\n' >&2
@@ -134,12 +172,18 @@ if [[ -z "$project_id" ]]; then
 fi
 db_container="supabase_db_${project_id}"
 
-if docker exec "$db_container" \
+if ! docker_run inspect "$db_container" >/dev/null 2>&1; then
+  printf 'Expected database container %s was not found.\n' "$db_container" >&2
+  docker_run ps --format '{{.Names}}' >&2
+  exit 1
+fi
+
+if docker_run exec "$db_container" \
   psql -X -U postgres -d postgres -Atqc \
   "select id from auth.users order by created_at limit 1" | grep -q .; then
   printf 'Using an existing disposable auth.users row.\n'
 else
-  docker exec "$db_container" \
+  docker_run exec "$db_container" \
     psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c \
     "begin; set local session_replication_role = replica; insert into auth.users (id, email, created_at, updated_at) values ('00000000-0000-4000-8000-000000000002', 'replay-harness@local.invalid', now(), now()); commit;"
   printf 'Seeded one disposable auth.users row.\n'
@@ -157,23 +201,23 @@ for migration in "$scratch_migrations"/*.sql; do
   expected_values+=",('${version}')"
 done
 
-docker exec "$db_container" \
+docker_run exec "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c \
   "drop table if exists public._jnuits_replay_expectations;
    create table public._jnuits_replay_expectations (version text primary key);
    insert into public._jnuits_replay_expectations (version) values ${expected_values};"
 
-docker exec "$db_container" mkdir -p /tmp/jnuits-replay
-docker cp \
-  "$repo_root/supabase/verification/assert-bootstrap-replay.sql" \
+docker_run exec "$db_container" mkdir -p /tmp/jnuits-replay
+docker_run cp \
+  "$(to_native "$repo_root/supabase/verification/assert-bootstrap-replay.sql")" \
   "$db_container:/tmp/jnuits-replay/assert-bootstrap-replay.sql"
 
-docker exec "$db_container" \
+docker_run exec "$db_container" \
   psql -X -U postgres -d postgres \
   -v ON_ERROR_STOP=1 \
   -f /tmp/jnuits-replay/assert-bootstrap-replay.sql
 
-docker exec "$db_container" \
+docker_run exec "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c \
   "drop table if exists public._jnuits_replay_expectations;"
 
