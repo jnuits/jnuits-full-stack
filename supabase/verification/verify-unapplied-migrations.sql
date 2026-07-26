@@ -1,30 +1,59 @@
 -- Runtime verification for the two unapplied migrations.
 --
--- Safe by construction:
---   * Refuses to run against a production-looking database.
---   * Every statement runs inside one transaction that ends in ROLLBACK.
---   * Seeds only synthetic rows with fixed UUIDs in a reserved range.
+-- SCRATCH-ONLY. The migrations under test contain COMMIT statements, so they
+-- remain applied to the disposable scratch database after this script exits.
+-- Synthetic verification fixtures run in a later transaction and are rolled
+-- back.
 --
 -- Usage:
 --   psql "$SCRATCH_DATABASE_URL" -v ON_ERROR_STOP=1 \
+--     -v scratch_ack=DISPOSABLE_SCRATCH \
+--     -v expected_database="$SCRATCH_DATABASE_NAME" \
 --     -f supabase/verification/verify-unapplied-migrations.sql
 
 \set ON_ERROR_STOP on
 \timing off
 
 -- ---------------------------------------------------------------------------
--- Guard: refuse to touch anything that looks like production.
+-- Guard: require an explicit disposable-target acknowledgement and an exact
+-- database-name match. This is not authorization to use production.
 -- ---------------------------------------------------------------------------
+\if :{?scratch_ack}
+\else
+  \echo 'ERROR: pass -v scratch_ack=DISPOSABLE_SCRATCH.'
+  \quit 3
+\endif
+
+\if :{?expected_database}
+\else
+  \echo 'ERROR: pass -v expected_database=<current_database>.'
+  \quit 3
+\endif
+
+select :'scratch_ack' = 'DISPOSABLE_SCRATCH' as scratch_ack_matches,
+       current_database() = :'expected_database' as expected_database_matches
+\gset
+
+\if :scratch_ack_matches
+\else
+  \echo 'ERROR: scratch acknowledgement is invalid.'
+  \quit 3
+\endif
+
+\if :expected_database_matches
+\else
+  \echo 'ERROR: connected database does not match expected_database.'
+  \quit 3
+\endif
+
 do $guard$
 begin
   if current_database() ~* '(prod|production|live)' then
     raise exception 'Refusing to run verification against database %.', current_database();
   end if;
-  raise notice 'Verifying against database % as %.', current_database(), current_user;
+  raise notice 'Verifying disposable scratch database % as %.', current_database(), current_user;
 end;
 $guard$;
-
-begin;
 
 -- ---------------------------------------------------------------------------
 -- SCOPE 1: recovery snapshot.
@@ -51,6 +80,10 @@ where pronamespace = 'public'::regnamespace
 \i supabase/migrations/20260724140000_form_publication_and_upload_session_hardening.sql
 \i supabase/migrations/20260726020000_retention_purge_boundary_enforcement.sql
 
+-- Only synthetic fixtures are rollback-scoped. The migration definitions above
+-- intentionally remain installed in this disposable scratch database.
+begin;
+
 -- ---------------------------------------------------------------------------
 -- SCOPE 2: publication regression (the original 42702 failure).
 -- ---------------------------------------------------------------------------
@@ -60,8 +93,8 @@ do $publication$
 declare
   v_actor uuid;
   v_definition uuid := '00000000-0000-4000-8000-00000000d001';
-  v_first_version uuid := '00000000-0000-4000-8000-00000000v001';
-  v_second_version uuid := '00000000-0000-4000-8000-00000000v002';
+  v_first_version uuid := '00000000-0000-4000-8000-00000000a001';
+  v_second_version uuid := '00000000-0000-4000-8000-00000000a002';
   v_result record;
   v_schema jsonb := '{"fields": [], "payment": {"enabled": false}}'::jsonb;
 begin
@@ -138,12 +171,12 @@ declare
   v_actor uuid;
   v_boundary timestamptz := now() - interval '3 years';
   v_definition uuid := '00000000-0000-4000-8000-00000000d002';
-  v_job uuid := '00000000-0000-4000-8000-00000000j001';
+  v_job uuid := '00000000-0000-4000-8000-00000000b001';
   v_manifest jsonb;
-  v_old_submission uuid := '00000000-0000-4000-8000-00000000s001';
-  v_recent_submission uuid := '00000000-0000-4000-8000-00000000s002';
+  v_old_submission uuid := '00000000-0000-4000-8000-00000000c001';
+  v_recent_submission uuid := '00000000-0000-4000-8000-00000000c002';
   v_schema jsonb := '{"fields": [], "payment": {"enabled": false}}'::jsonb;
-  v_version uuid := '00000000-0000-4000-8000-00000000v003';
+  v_version uuid := '00000000-0000-4000-8000-00000000a003';
 begin
   select id into v_actor from auth.users order by created_at limit 1;
 
@@ -231,9 +264,9 @@ do $unbounded$
 declare
   v_actor uuid;
   v_definition uuid := '00000000-0000-4000-8000-00000000d003';
-  v_job uuid := '00000000-0000-4000-8000-00000000j002';
+  v_job uuid := '00000000-0000-4000-8000-00000000b002';
   v_schema jsonb := '{"fields": [], "payment": {"enabled": false}}'::jsonb;
-  v_version uuid := '00000000-0000-4000-8000-00000000v004';
+  v_version uuid := '00000000-0000-4000-8000-00000000a004';
 begin
   select id into v_actor from auth.users order by created_at limit 1;
 
@@ -308,5 +341,5 @@ end;
 $privileges$;
 
 \echo ''
-\echo '=== VERIFICATION COMPLETE — rolling back ==='
+\echo '=== VERIFICATION COMPLETE — rolling back fixtures; migrations remain in scratch ==='
 rollback;
