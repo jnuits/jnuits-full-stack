@@ -29,6 +29,13 @@ const SIGNED_URL =
   "https://res.cloudinary.com/demo/raw/authenticated/s--secret-signature--/v1/private/object.pdf";
 
 type Call = { filters: string[]; op: "insert" | "select"; payload?: unknown; table: string };
+type Settled = { data?: unknown; error?: unknown };
+type Chain = {
+  eq: (column: string, value: unknown) => Chain;
+  maybeSingle: () => Promise<Settled>;
+  select: (columns?: string) => Chain;
+  then: <T>(resolve: (value: Settled) => T) => Promise<T>;
+};
 
 let calls: Call[] = [];
 let submissionRow: unknown = null;
@@ -36,18 +43,18 @@ let assetRow: unknown = null;
 let assetError: unknown = null;
 let auditError: unknown = null;
 
-function chain(call: Call, settle: () => Promise<unknown>) {
-  const api = {
-    eq(column: string, value: unknown) {
+function chain(call: Call, settle: () => Promise<Settled>): Chain {
+  const api: Chain = {
+    eq(column, value) {
       call.filters.push(`eq:${column}=${String(value)}`);
       return api;
     },
     maybeSingle: settle,
-    select(columns?: string) {
+    select(columns) {
       if (columns) call.filters.push("select");
       return api;
     },
-    then: (resolve: (value: unknown) => unknown) => settle().then(resolve),
+    then: (resolve) => settle().then(resolve),
   };
   return api;
 }
@@ -92,6 +99,10 @@ function params(overrides: Record<string, string> = {}) {
 
 function tableCall(table: string) {
   return calls.find((call) => call.table === table);
+}
+
+function fetchMock() {
+  return fetch as unknown as { mock: { invocationCallOrder: number[] } };
 }
 
 beforeEach(() => {
@@ -214,9 +225,9 @@ describe("private form upload download proxy", () => {
       }),
       { expectedFormDefinitionId: FORM_ID, expectedFormVersionId: VERSION_ID }
     );
-    expect(
-      mocks.loadVerifiedCloudinaryFormAsset.mock.invocationCallOrder[0]
-    ).toBeLessThan((fetch as unknown as { mock: { invocationCallOrder: number[] } }).mock.invocationCallOrder[0]);
+    expect(mocks.loadVerifiedCloudinaryFormAsset.mock.invocationCallOrder[0]).toBeLessThan(
+      fetchMock().mock.invocationCallOrder[0]
+    );
   });
 
   it("delivers as a non-cacheable attachment and audits the download", async () => {
@@ -230,8 +241,7 @@ describe("private form upload download proxy", () => {
       `attachment; filename="form-upload-${ASSET_ID}.pdf"`
     );
 
-    const audit = tableCall("audit_events");
-    expect(audit?.payload).toMatchObject({
+    expect(tableCall("audit_events")?.payload).toMatchObject({
       action: "form.upload_downloaded",
       actor_user_id: ACTOR_ID,
       entity_id: ASSET_ID,
