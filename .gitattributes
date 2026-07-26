@@ -1,0 +1,10 @@
+# Migration bytes are hashed for the applied-migration integrity manifest
+# (issue #19). Git must never translate their line endings, or the same file
+# would hash differently on Windows and Linux and a CRLF rewrite could be used
+# to disguise a real SQL edit.
+supabase/migrations/*.sql -text
+supabase/verification/baseline/*.sql -text
+
+# The manifest and its remote-evidence companion are compared byte for byte.
+supabase/migration-manifest.json -text
+supabase/migration-remote-evidence.json -text
