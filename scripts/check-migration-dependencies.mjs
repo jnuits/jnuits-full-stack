@@ -11,18 +11,37 @@
  *      before any earlier migration creates it. This is exactly the
  *      rls_auto_enable() defect behind #18.
  *
- * References inside a CREATE FUNCTION body are ignored, because those resolve
- * when the function is called, not when the migration runs. References in DO
- * blocks and bare statements are checked, because those execute immediately.
+ * ## Distinguishing a call from a DDL object reference
+ *
+ * `public.name(` is ambiguous in SQL. All of these match that shape and none
+ * of them is a function call:
+ *
+ *   create table public.audit_events (          -- table definition
+ *   create index foo on public.members (id)     -- index target
+ *   references public.members (id)              -- foreign key
+ *   insert into public.events (a, b)            -- insert target
+ *   revoke all on function public.foo(uuid)     -- privilege statement
+ *   drop function if exists public.foo(uuid)    -- drop statement
+ *
+ * A match is therefore rejected when the word immediately before it marks the
+ * reference as a DDL object rather than an invocation. `select public.foo()`,
+ * `perform public.foo()`, and `default public.foo()` survive, because their
+ * preceding token is not in that set.
+ *
+ * ## What is deliberately not detected
+ *
+ * - Unqualified calls that rely on `search_path`. Only `public.`-qualified
+ *   references are considered.
+ * - References inside a CREATE FUNCTION body. Those resolve when the function
+ *   is called, not when the migration runs.
  *
  * Functions that legitimately predate the migration chain live in
  * BOOTSTRAP_FUNCTIONS. That list is the machine-readable statement of the gap
  * between a full historical replay and the supported baseline replay.
  *
  * Repo-wide mode is REPORT-ONLY by default. Pass --strict to make findings
- * fail. Strict mode is not wired into CI yet: the true bootstrap allowlist has
- * never been confirmed against a real replay, and guessing it would produce
- * false failures. Confirm locally, extend the list, then enable --strict.
+ * fail. Promote CI to --strict once a run reports zero findings; see
+ * docs/operations/migration-bootstrap-and-integrity.md section 4.
  */
 
 import { readFileSync, readdirSync } from "node:fs";
@@ -38,26 +57,83 @@ export const BOOTSTRAP_FUNCTIONS = new Set([
   "rls_auto_enable",
 ]);
 
+/**
+ * When one of these is the word immediately preceding `public.name(`, the
+ * match is a DDL object reference, not a function invocation.
+ *
+ * `from` and `join` are intentionally absent: `select * from public.f(x)` is a
+ * genuine table-function call, and `from public.tbl (` is not valid syntax.
+ */
+export const DDL_OBJECT_KEYWORDS = new Set([
+  "aggregate",
+  "alter",
+  "column",
+  "constraint",
+  "database",
+  "delete",
+  "domain",
+  "drop",
+  "exists",
+  "extension",
+  "function",
+  "index",
+  "inherits",
+  "insert",
+  "into",
+  "materialized",
+  "on",
+  "only",
+  "operator",
+  "owner",
+  "partition",
+  "policy",
+  "procedure",
+  "publication",
+  "references",
+  "rule",
+  "schema",
+  "sequence",
+  "table",
+  "temp",
+  "temporary",
+  "trigger",
+  "truncate",
+  "type",
+  "unlogged",
+  "update",
+  "view",
+]);
+
 const MIGRATION_FILENAME_PATTERN = /^(\d{14})_([a-z0-9_]+)\.sql$/;
 
-function stripComments(sql) {
-  return sql
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/--[^\n]*/g, " ");
+function blankRun(text) {
+  return text.replace(/[^\n]/g, " ");
 }
 
 /**
- * Removes CREATE FUNCTION bodies so deferred references are not mistaken for
- * immediate ones. Handles arbitrary dollar-quote tags.
+ * Blanks comments and single-quoted literals in place. Length is preserved so
+ * that match offsets still line up with the original source.
+ */
+export function blankNonCode(sql) {
+  return sql
+    .replace(/\/\*[\s\S]*?\*\//g, blankRun)
+    .replace(/--[^\n]*/g, blankRun)
+    .replace(/'(?:[^']|'')*'/g, blankRun);
+}
+
+/**
+ * Blanks CREATE FUNCTION / CREATE PROCEDURE bodies so deferred references are
+ * not mistaken for immediate ones. The header is left intact so the definition
+ * is still discoverable. Length is preserved.
  */
 export function stripFunctionBodies(sql) {
-  const createFunction = /create\s+(?:or\s+replace\s+)?function\b/gi;
-  let result = "";
-  let cursor = 0;
+  const chars = [...sql];
+  const header = /create\s+(?:or\s+replace\s+)?(?:function|procedure)\b/gi;
   let match;
 
-  while ((match = createFunction.exec(sql)) !== null) {
-    const openTag = /\$([a-z0-9_]*)\$/i.exec(sql.slice(match.index));
+  while ((match = header.exec(sql)) !== null) {
+    const rest = sql.slice(match.index);
+    const openTag = /\$([a-z0-9_]*)\$/i.exec(rest);
     if (!openTag) {
       continue;
     }
@@ -69,33 +145,65 @@ export function stripFunctionBodies(sql) {
       continue;
     }
 
-    result += sql.slice(cursor, bodyStart);
-    cursor = bodyEnd + tag.length;
-    createFunction.lastIndex = cursor;
+    for (let i = bodyStart; i < bodyEnd + tag.length; i += 1) {
+      if (chars[i] !== "\n") {
+        chars[i] = " ";
+      }
+    }
+
+    header.lastIndex = bodyEnd + tag.length;
   }
 
-  return result + sql.slice(cursor);
+  return chars.join("");
 }
 
-export function extractDefinedFunctions(sql) {
-  const pattern =
-    /create\s+(?:or\s+replace\s+)?function\s+(?:public\s*\.\s*)?"?([a-z0-9_]+)"?\s*\(/gi;
-  const defined = new Set();
-  for (const match of stripComments(sql).matchAll(pattern)) {
-    defined.add(match[1].toLowerCase());
+/** The bare word immediately before `index`, lowercased. Empty when none. */
+export function precedingWord(text, index) {
+  let cursor = index - 1;
+  while (cursor >= 0 && /\s/.test(text[cursor])) {
+    cursor -= 1;
   }
+
+  const end = cursor + 1;
+  while (cursor >= 0 && /[A-Za-z0-9_]/.test(text[cursor])) {
+    cursor -= 1;
+  }
+
+  return text.slice(cursor + 1, end).toLowerCase();
+}
+
+/** @returns {Map<string, number>} function name to its first definition offset. */
+export function extractDefinedFunctions(sql) {
+  const cleaned = blankNonCode(sql);
+  const pattern =
+    /create\s+(?:or\s+replace\s+)?(?:function|procedure)\s+(?:public\s*\.\s*)?"?([a-z0-9_]+)"?\s*\(/gi;
+  const defined = new Map();
+
+  for (const match of cleaned.matchAll(pattern)) {
+    const name = match[1].toLowerCase();
+    if (!defined.has(name)) {
+      defined.set(name, match.index);
+    }
+  }
+
   return defined;
 }
 
+/** @returns {{ index: number, name: string }[]} immediate invocations, in order. */
 export function extractImmediateReferences(sql) {
-  const withoutComments = stripComments(sql);
-  const executable = stripFunctionBodies(withoutComments);
+  const executable = stripFunctionBodies(blankNonCode(sql));
   const pattern = /\bpublic\s*\.\s*"?([a-z0-9_]+)"?\s*\(/gi;
-  const referenced = new Set();
+  const references = [];
+
   for (const match of executable.matchAll(pattern)) {
-    referenced.add(match[1].toLowerCase());
+    if (DDL_OBJECT_KEYWORDS.has(precedingWord(executable, match.index))) {
+      continue;
+    }
+
+    references.push({ index: match.index, name: match[1].toLowerCase() });
   }
-  return referenced;
+
+  return references;
 }
 
 export function listMigrationFilenames(migrationsDir) {
@@ -111,7 +219,7 @@ export function analyzeMigrations(migrations) {
   const findings = [];
   const seenVersions = new Map();
   const seenLogicalNames = new Map();
-  const definedSoFar = new Set(BOOTSTRAP_FUNCTIONS);
+  const definedByEarlierMigrations = new Set(BOOTSTRAP_FUNCTIONS);
   let previousVersion = "";
 
   for (const migration of migrations) {
@@ -158,21 +266,38 @@ export function analyzeMigrations(migrations) {
     }
     previousVersion = version;
 
+    const definedHere = extractDefinedFunctions(migration.sql);
     const referenced = extractImmediateReferences(migration.sql);
-    const defined = extractDefinedFunctions(migration.sql);
+    const reported = new Set();
 
-    for (const name of [...referenced].sort()) {
-      if (!definedSoFar.has(name) && !defined.has(name)) {
-        findings.push({
-          filename: migration.filename,
-          kind: "forward-reference",
-          message: `Executes public.${name}() before any earlier migration creates it`,
-        });
+    for (const reference of referenced) {
+      if (definedByEarlierMigrations.has(reference.name)) {
+        continue;
       }
+
+      // A definition later in the same file does not satisfy an earlier call.
+      const definitionOffset = definedHere.get(reference.name);
+      if (definitionOffset !== undefined && definitionOffset < reference.index) {
+        continue;
+      }
+
+      if (reported.has(reference.name)) {
+        continue;
+      }
+      reported.add(reference.name);
+
+      findings.push({
+        filename: migration.filename,
+        kind: "forward-reference",
+        message:
+          definitionOffset === undefined
+            ? `Executes public.${reference.name}() before any earlier migration creates it`
+            : `Executes public.${reference.name}() before its definition later in this same file`,
+      });
     }
 
-    for (const name of defined) {
-      definedSoFar.add(name);
+    for (const name of definedHere.keys()) {
+      definedByEarlierMigrations.add(name);
     }
   }
 
@@ -210,7 +335,7 @@ function main() {
 
   if (findings.length > 0 && !strict) {
     console.log(
-      "\nReport-only mode. Confirm these findings locally, extend BOOTSTRAP_FUNCTIONS where a gap is genuinely historical, then run with --strict."
+      "\nReport-only mode. Investigate each finding: extend BOOTSTRAP_FUNCTIONS only where a gap is genuinely historical, and fix the rest. Once this reports zero, switch CI to --strict."
     );
   }
 
