@@ -1,0 +1,72 @@
+name: Setup Supabase CLI
+description: >-
+  Installs a pinned Supabase CLI from its release tarball and verifies the
+  version. Replaces supabase/setup-cli, which fails on persistent self-hosted
+  runners because its bun dependency does not restore to the expected path.
+
+inputs:
+  version:
+    description: Exact Supabase CLI version to install.
+    required: false
+    default: 2.109.1
+
+runs:
+  using: composite
+  steps:
+    - name: Install and verify the Supabase CLI
+      shell: bash
+      env:
+        SUPABASE_CLI_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        install_root="$HOME/.local/share/jnuits-supabase-cli"
+        install_dir="$install_root/$SUPABASE_CLI_VERSION"
+        binary="$install_dir/supabase"
+
+        case "$(uname -m)" in
+          x86_64) arch=amd64 ;;
+          aarch64|arm64) arch=arm64 ;;
+          *)
+            printf 'Unsupported architecture: %s\n' "$(uname -m)" >&2
+            exit 1
+            ;;
+        esac
+
+        if [[ ! -x "$binary" ]]; then
+          printf 'Installing Supabase CLI %s (%s).\n' "$SUPABASE_CLI_VERSION" "$arch"
+          mkdir -p "$install_dir"
+          tmp="$(mktemp -d)"
+          trap 'rm -rf -- "$tmp"' EXIT
+
+          url="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_linux_${arch}.tar.gz"
+          if ! curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
+            --output "$tmp/supabase.tar.gz" "$url"; then
+            printf 'Could not download the Supabase CLI from %s\n' "$url" >&2
+            exit 1
+          fi
+
+          tar -xzf "$tmp/supabase.tar.gz" -C "$tmp"
+          if [[ ! -f "$tmp/supabase" ]]; then
+            printf 'The release tarball did not contain a supabase binary.\n' >&2
+            ls -la "$tmp" >&2
+            exit 1
+          fi
+
+          install -m 0755 "$tmp/supabase" "$binary"
+        else
+          printf 'Reusing cached Supabase CLI %s.\n' "$SUPABASE_CLI_VERSION"
+        fi
+
+        # Verify before trusting it. A silently wrong version would make every
+        # downstream migration result unreliable.
+        reported="$("$binary" --version 2>/dev/null | tr -d '\r' | tr -d ' ')"
+        if [[ "$reported" != "$SUPABASE_CLI_VERSION" ]]; then
+          printf 'Supabase CLI version mismatch. Expected %s, got "%s".\n' \
+            "$SUPABASE_CLI_VERSION" "$reported" >&2
+          rm -f "$binary"
+          exit 1
+        fi
+
+        printf 'Supabase CLI %s verified at %s\n' "$reported" "$binary"
+        echo "$install_dir" >>"$GITHUB_PATH"
