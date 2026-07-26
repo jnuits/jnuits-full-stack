@@ -54,3 +54,6 @@ next-env.d.ts
 .playwright-mcp
 skills-lock.json
 artifacts/backups/
+
+# disposable migration replay scratch stacks (supabase/verification)
+/.replay-scratch/

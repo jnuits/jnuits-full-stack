@@ -18,10 +18,13 @@
 #   supabase               on PATH
 # If none resolve, falls back to npx with the same version CI pins.
 #
-# Windows note: under Git Bash, MSYS rewrites POSIX-looking arguments before
-# handing them to native binaries. Host paths are therefore converted with
-# cygpath, and argument conversion is disabled around docker so that
-# container-side paths survive intact.
+# Windows note: the scratch project is created under the repository root and
+# entered with cd, rather than passed as --workdir. Under Git Bash, MSYS
+# rewrites POSIX-looking arguments before native binaries see them, so bash's
+# /tmp and the CLI's view of that same string resolve to different directories.
+# Inheriting the working directory from the process sidesteps the translation
+# entirely. Argument conversion is also disabled around docker so container
+# paths survive intact.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -29,7 +32,7 @@ bootstrap_helper="$repo_root/supabase/verification/baseline/20260608092959_resto
 bootstrap_version="20260608092959"
 pinned_cli_version="2.109.1"
 scratch_ack="${SCRATCH_ACK:-DISPOSABLE_SCRATCH}"
-scratch_parent="${TMPDIR:-/tmp}"
+scratch_root="$repo_root/.replay-scratch"
 stack_started=0
 
 # Converts a bash path to the form a native Windows binary expects. A no-op on
@@ -87,18 +90,19 @@ if ! "${supabase_cli[@]}" --version >/dev/null 2>&1; then
 fi
 printf 'Supabase CLI: %s (%s)\n' "${supabase_cli[*]}" "$("${supabase_cli[@]}" --version 2>/dev/null | tr -d '\r')"
 
-scratch_dir="$(mktemp -d "${scratch_parent%/}/jnuits-bootstrap-replay.XXXXXX")"
-native_scratch_dir="$(to_native "$scratch_dir")"
+mkdir -p "$scratch_root"
+scratch_dir="$(mktemp -d "$scratch_root/replay.XXXXXX")"
 
 cleanup() {
   set +e
   if [[ "$stack_started" -eq 1 ]]; then
-    "${supabase_cli[@]}" stop --workdir "$native_scratch_dir" --no-backup >/dev/null 2>&1
+    (cd "$scratch_dir" && "${supabase_cli[@]}" stop --no-backup >/dev/null 2>&1)
   fi
 
   case "$scratch_dir" in
-    "${scratch_parent%/}"/jnuits-bootstrap-replay.*)
+    "$scratch_root"/replay.*)
       rm -rf -- "$scratch_dir"
+      rmdir "$scratch_root" 2>/dev/null
       ;;
     *)
       printf 'Refusing to remove unexpected scratch path: %s\n' "$scratch_dir" >&2
@@ -107,17 +111,38 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"${supabase_cli[@]}" init --workdir "$native_scratch_dir"
+printf 'Scratch project: %s\n' "$scratch_dir"
 
-config_file="$scratch_dir/supabase/config.toml"
-if [[ ! -f "$config_file" ]]; then
-  printf 'Supabase init did not produce %s\n' "$config_file" >&2
-  printf 'The CLI and this shell disagree about where the scratch directory is.\n' >&2
+# cd, rather than --workdir, so the CLI inherits its working directory from the
+# process instead of from a string that MSYS may rewrite.
+(cd "$scratch_dir" && "${supabase_cli[@]}" init)
+
+# Locate config.toml rather than assuming where init placed it.
+config_file=""
+for candidate in \
+  "$scratch_dir/supabase/config.toml" \
+  "$scratch_dir/config.toml"; do
+  if [[ -f "$candidate" ]]; then
+    config_file="$candidate"
+    break
+  fi
+done
+
+if [[ -z "$config_file" ]]; then
+  config_file="$(find "$scratch_dir" -name config.toml -type f 2>/dev/null | head -n 1)"
+fi
+
+if [[ -z "$config_file" || ! -f "$config_file" ]]; then
+  printf 'Supabase init produced no config.toml inside %s\n' "$scratch_dir" >&2
+  printf 'Scratch contents:\n' >&2
+  find "$scratch_dir" -maxdepth 3 >&2 2>/dev/null || true
   exit 1
 fi
 
-scratch_migrations="$scratch_dir/supabase/migrations"
+project_dir="$(cd "$(dirname "$config_file")/.." && pwd)"
+scratch_migrations="$(dirname "$config_file")/migrations"
 mkdir -p "$scratch_migrations"
+printf 'Using project directory: %s\n' "$project_dir"
 
 # The bootstrap helper reconstructs public.rls_auto_enable(), which an old
 # applied migration depends on but which no migration in the chain creates.
@@ -141,10 +166,9 @@ printf 'Replaying %s repository migrations plus the bootstrap helper.\n' "$migra
 
 stack_started=1
 start_log="$scratch_dir/supabase-start.log"
-if ! "${supabase_cli[@]}" start \
-  --workdir "$native_scratch_dir" \
+if ! (cd "$project_dir" && "${supabase_cli[@]}" start \
   --exclude edge-runtime,gotrue,imgproxy,kong,logflare,mailpit,postgres-meta,postgrest,realtime,storage-api,studio,supavisor,vector \
-  --yes >"$start_log" 2>&1; then
+  --yes) >"$start_log" 2>&1; then
   printf 'Clean replay FAILED while applying the migration chain.\n' >&2
   # The start log contains local container output only. It carries no project
   # ref, no access token, and no remote connection string.
@@ -167,13 +191,14 @@ project_id="$(
   sed -n 's/^project_id = "\(.*\)"/\1/p' "$config_file" | tr -d '\r'
 )"
 if [[ -z "$project_id" ]]; then
-  printf 'Could not resolve the disposable Supabase project ID.\n' >&2
+  printf 'Could not resolve the disposable Supabase project ID from %s\n' "$config_file" >&2
   exit 1
 fi
 db_container="supabase_db_${project_id}"
 
 if ! docker_run inspect "$db_container" >/dev/null 2>&1; then
   printf 'Expected database container %s was not found.\n' "$db_container" >&2
+  printf 'Running containers:\n' >&2
   docker_run ps --format '{{.Names}}' >&2
   exit 1
 fi
