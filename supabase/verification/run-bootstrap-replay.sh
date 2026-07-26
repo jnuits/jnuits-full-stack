@@ -11,15 +11,20 @@
 #
 # Never point this at a linked or production project. There is no --linked and
 # no --db-url path, by design.
+#
+# CLI resolution, first match wins:
+#   SUPABASE_CLI_COMMAND   multi-word, e.g. "npx --yes supabase@2.109.1"
+#   SUPABASE_BIN           path to a single binary
+#   supabase               on PATH
+# If none resolve, falls back to npx with the same version CI pins.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 bootstrap_helper="$repo_root/supabase/verification/baseline/20260608092959_restore_rls_auto_enable.sql"
 bootstrap_version="20260608092959"
-supabase_bin="${SUPABASE_BIN:-supabase}"
+pinned_cli_version="2.109.1"
 scratch_ack="${SCRATCH_ACK:-DISPOSABLE_SCRATCH}"
 scratch_parent="${TMPDIR:-/tmp}"
-scratch_dir="$(mktemp -d "${scratch_parent%/}/jnuits-bootstrap-replay.XXXXXX")"
 stack_started=0
 
 if [[ "$scratch_ack" != "DISPOSABLE_SCRATCH" ]]; then
@@ -32,10 +37,43 @@ if [[ ! -f "$bootstrap_helper" ]]; then
   exit 1
 fi
 
+if ! command -v docker >/dev/null 2>&1; then
+  printf 'Docker is required but was not found on PATH.\n' >&2
+  exit 1
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  printf 'Docker is installed but not running. Start Docker and retry.\n' >&2
+  exit 1
+fi
+
+# Resolve the CLI into an array so a multi-word command works.
+if [[ -n "${SUPABASE_CLI_COMMAND:-}" ]]; then
+  read -r -a supabase_cli <<<"$SUPABASE_CLI_COMMAND"
+elif [[ -n "${SUPABASE_BIN:-}" ]]; then
+  supabase_cli=("$SUPABASE_BIN")
+elif command -v supabase >/dev/null 2>&1; then
+  supabase_cli=(supabase)
+elif command -v npx >/dev/null 2>&1; then
+  supabase_cli=(npx --yes "supabase@${pinned_cli_version}")
+  printf 'Supabase CLI not on PATH. Using npx with pinned %s.\n' "$pinned_cli_version"
+else
+  printf 'No Supabase CLI available. Install it, or set SUPABASE_CLI_COMMAND or SUPABASE_BIN.\n' >&2
+  exit 1
+fi
+
+if ! "${supabase_cli[@]}" --version >/dev/null 2>&1; then
+  printf 'The resolved Supabase CLI could not be executed: %s\n' "${supabase_cli[*]}" >&2
+  exit 1
+fi
+printf 'Supabase CLI: %s (%s)\n' "${supabase_cli[*]}" "$("${supabase_cli[@]}" --version 2>/dev/null | tr -d '\r')"
+
+scratch_dir="$(mktemp -d "${scratch_parent%/}/jnuits-bootstrap-replay.XXXXXX")"
+
 cleanup() {
   set +e
   if [[ "$stack_started" -eq 1 ]]; then
-    "$supabase_bin" stop --workdir "$scratch_dir" --no-backup >/dev/null 2>&1
+    "${supabase_cli[@]}" stop --workdir "$scratch_dir" --no-backup >/dev/null 2>&1
   fi
 
   case "$scratch_dir" in
@@ -49,7 +87,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"$supabase_bin" init --workdir "$scratch_dir"
+"${supabase_cli[@]}" init --workdir "$scratch_dir"
 scratch_migrations="$scratch_dir/supabase/migrations"
 mkdir -p "$scratch_migrations"
 
@@ -75,7 +113,7 @@ printf 'Replaying %s repository migrations plus the bootstrap helper.\n' "$migra
 
 stack_started=1
 start_log="$scratch_dir/supabase-start.log"
-if ! "$supabase_bin" start \
+if ! "${supabase_cli[@]}" start \
   --workdir "$scratch_dir" \
   --exclude edge-runtime,gotrue,imgproxy,kong,logflare,mailpit,postgres-meta,postgrest,realtime,storage-api,studio,supavisor,vector \
   --yes >"$start_log" 2>&1; then
@@ -88,7 +126,7 @@ fi
 printf 'Clean replay applied every migration through the latest file.\n'
 
 project_id="$(
-  sed -n 's/^project_id = "\(.*\)"/\1/p' "$scratch_dir/supabase/config.toml"
+  sed -n 's/^project_id = "\(.*\)"/\1/p' "$scratch_dir/supabase/config.toml" | tr -d '\r'
 )"
 if [[ -z "$project_id" ]]; then
   printf 'Could not resolve the disposable Supabase project ID.\n' >&2
