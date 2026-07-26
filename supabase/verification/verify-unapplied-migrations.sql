@@ -20,14 +20,20 @@
 -- ---------------------------------------------------------------------------
 \if :{?scratch_ack}
 \else
-  \echo 'ERROR: pass -v scratch_ack=DISPOSABLE_SCRATCH.'
-  \quit 3
+  do $missing_scratch_ack$
+  begin
+    raise exception 'Pass -v scratch_ack=DISPOSABLE_SCRATCH.';
+  end;
+  $missing_scratch_ack$;
 \endif
 
 \if :{?expected_database}
 \else
-  \echo 'ERROR: pass -v expected_database=<current_database>.'
-  \quit 3
+  do $missing_expected_database$
+  begin
+    raise exception 'Pass -v expected_database=<current_database>.';
+  end;
+  $missing_expected_database$;
 \endif
 
 select :'scratch_ack' = 'DISPOSABLE_SCRATCH' as scratch_ack_matches,
@@ -36,14 +42,20 @@ select :'scratch_ack' = 'DISPOSABLE_SCRATCH' as scratch_ack_matches,
 
 \if :scratch_ack_matches
 \else
-  \echo 'ERROR: scratch acknowledgement is invalid.'
-  \quit 3
+  do $invalid_scratch_ack$
+  begin
+    raise exception 'Scratch acknowledgement is invalid.';
+  end;
+  $invalid_scratch_ack$;
 \endif
 
 \if :expected_database_matches
 \else
-  \echo 'ERROR: connected database does not match expected_database.'
-  \quit 3
+  do $unexpected_database$
+  begin
+    raise exception 'Connected database does not match expected_database.';
+  end;
+  $unexpected_database$;
 \endif
 
 do $guard$
