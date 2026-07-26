@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { signRetentionArchiveManifest } from "./archive";
+import {
+  serializeRetentionArchiveManifest,
+  signRetentionArchiveManifest,
+} from "./archive";
 import { sha256 } from "@/lib/exports/tabular";
 import { parseVerifiedRetentionArchiveRecord, RetentionArchiveVerificationError } from "./approval";
 
@@ -23,7 +26,7 @@ function signedManifest() {
 }
 
 function manifestChecksum(archive: ReturnType<typeof signedManifest>) {
-  return sha256(Buffer.from(JSON.stringify(archive, null, 2), "utf8"));
+  return sha256(Buffer.from(serializeRetentionArchiveManifest(archive), "utf8"));
 }
 
 describe("retention purge approval archive gate", () => {
