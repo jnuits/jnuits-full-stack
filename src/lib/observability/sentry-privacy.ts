@@ -4,6 +4,32 @@ const REDACTED = "[REDACTED]";
 const REDACTED_EMAIL = "[REDACTED_EMAIL]";
 const PRIVATE_BREADCRUMB_CATEGORIES = new Set(["console", "fetch", "navigation", "xhr"]);
 const SENSITIVE_KEY_PATTERN = /address|answer|authorization|captcha|cloudinary|cookie|credential|drive[_-]?id|email|export[_-]?row|full[_-]?name|google|ip(?:[_-]?address)?|jnuits[_-]?id|name|otp|pass(?:word|code)?|phone|private[_-]?key|query|resend|secret|session|signature|student[_-]?id|token|upload[_-]?proof|user(name)?/i;
+
+/**
+ * Structural keys that carry no user data but do carry the information that
+ * makes an exception actionable. `filename` in particular matches the `name`
+ * branch of SENSITIVE_KEY_PATTERN, so without this exemption every stack frame
+ * path was replaced with [REDACTED] and errors arrived unreadable.
+ *
+ * These keys are exempt from key-based redaction and from string scrubbing.
+ * They are never a place where answers, contact details or credentials appear;
+ * local variables, which could, are disabled separately via
+ * includeLocalVariables and stackFrameVariables.
+ */
+const DIAGNOSTIC_KEYS = new Set([
+  "abs_path",
+  "colno",
+  "context_line",
+  "filename",
+  "function",
+  "in_app",
+  "lineno",
+  "module",
+  "platform",
+  "post_context",
+  "pre_context",
+]);
+
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const PHONE_PATTERN = /(?:\+?\d[\d\s().-]*){9,}\d/g;
 const SIGNED_URL_PATTERN = /https?:\/\/[^\s"']+(?:s--[^/]+--|[?&](?:signature|token|proof)=)[^\s"']*/gi;
@@ -17,6 +43,8 @@ function scrubValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(scrubValue);
   if (!isRecord(value)) return value;
   return Object.fromEntries(Object.entries(value).map(([key, entry]) => {
+    // Keep the parts of a stack frame that make an error diagnosable.
+    if (DIAGNOSTIC_KEYS.has(key)) return [key, entry];
     if (SENSITIVE_KEY_PATTERN.test(key)) return [key, REDACTED];
     if (key === "url" && typeof entry === "string") return [key, stripUrlDetails(entry)];
     return [key, scrubValue(entry)];
