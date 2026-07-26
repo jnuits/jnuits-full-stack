@@ -84,11 +84,15 @@ function insertedInto(table: string) {
   return inserted[table]?.[0];
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
+function resetRecording() {
   rangeCalls = [];
   submissionFilters = [];
   inserted = {};
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  resetRecording();
   submissionPages = pagesOf(1);
 
   mocks.requireAdminApiPermission.mockResolvedValue({
@@ -110,16 +114,17 @@ beforeEach(() => {
     select: vi.fn().mockReturnThis(),
   };
 
-  let page = 0;
   const submissionsQuery = {
     eq: vi.fn((column: string, value: unknown) => {
       submissionFilters.push(`${column}=${String(value)}`);
       return submissionsQuery;
     }),
     order: vi.fn().mockReturnThis(),
+    // Indexed by offset rather than a counter, so calling the route repeatedly
+    // in one test does not walk off the end of the fixture.
     range: vi.fn((from: number, to: number) => {
       rangeCalls.push([from, to]);
-      return Promise.resolve({ data: submissionPages[page++] ?? [], error: null });
+      return Promise.resolve({ data: submissionPages[from / PAGE_SIZE] ?? [], error: null });
     }),
     select: vi.fn().mockReturnThis(),
   };
@@ -189,9 +194,7 @@ describe("export paging at scale", () => {
     const large = await GET(request(), params());
     const largeChecksum = large.headers.get("X-Export-Checksum");
 
-    vi.clearAllMocks();
-    rangeCalls = [];
-    inserted = {};
+    resetRecording();
     submissionPages = pagesOf(500);
     const small = await GET(request(), params());
 
@@ -202,7 +205,8 @@ describe("export paging at scale", () => {
 
   it("refuses to emit a silently truncated export", async () => {
     // Every page comes back full, so the scan can never complete.
-    submissionPages = Array.from({ length: 25 }, () => pagesOf(500)[0]);
+    const fullPage = pagesOf(500)[0];
+    submissionPages = Array.from({ length: 25 }, () => fullPage);
 
     const response = await GET(request(), params());
 
@@ -268,15 +272,14 @@ describe("Google Sheet snapshot idempotency", () => {
   it("reuses the key for identical data and changes it when rows change", async () => {
     submissionPages = pagesOf(3);
     await GET(request("google-sheet"), params());
-    const first = mocks.uploadGoogleSheetSnapshot.mock.calls[0][0].idempotencyKey;
-
-    submissionPages = pagesOf(3);
     await GET(request("google-sheet"), params());
-    const repeat = mocks.uploadGoogleSheetSnapshot.mock.calls[1][0].idempotencyKey;
 
     submissionPages = pagesOf(4);
     await GET(request("google-sheet"), params());
-    const changed = mocks.uploadGoogleSheetSnapshot.mock.calls[2][0].idempotencyKey;
+
+    const [first, repeat, changed] = mocks.uploadGoogleSheetSnapshot.mock.calls.map(
+      (call) => call[0].idempotencyKey
+    );
 
     expect(repeat).toBe(first);
     expect(changed).not.toBe(first);
