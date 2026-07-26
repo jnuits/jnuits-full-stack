@@ -1,6 +1,10 @@
 import "server-only";
 
-import { verifyRetentionArchiveManifest, type SignedRetentionArchiveManifest } from "./archive";
+import {
+  serializeRetentionArchiveManifest,
+  verifyRetentionArchiveManifest,
+  type SignedRetentionArchiveManifest,
+} from "./archive";
 import { sha256 } from "@/lib/exports/tabular";
 import type { RetentionScope } from "./operations";
 import type { FlexibleSupabaseClient } from "@/lib/supabase/flexible";
@@ -45,15 +49,7 @@ export function parseVerifiedRetentionArchiveRecord(
   }
 
   const checksumPayload = Buffer.from(
-    JSON.stringify(
-      {
-        algorithm: candidate.algorithm,
-        manifest: candidate.manifest,
-        signature: candidate.signature,
-      },
-      null,
-      2
-    ),
+    serializeRetentionArchiveManifest(candidate),
     "utf8"
   );
   if (sha256(checksumPayload) !== record.manifest_checksum_sha256) {
