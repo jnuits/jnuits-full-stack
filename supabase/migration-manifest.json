@@ -1,0 +1,768 @@
+{
+  "checksumAlgorithm": "sha256",
+  "checksumScope": "raw file bytes, no newline normalisation",
+  "generatedBy": "npm run migration:manifest:write",
+  "manifestVersion": 1,
+  "migrations": [
+    {
+      "localFilename": "20260408000000_extensions_and_helpers.sql",
+      "localVersion": "20260408000000",
+      "logicalName": "extensions_and_helpers",
+      "remoteAppliedVersion": null,
+      "sha256": "b25559f14a1bcd736207e4ce4b65169880b7ea53eb6df80283a7e2b3c623e843",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260408001000_identity_certificates_rls.sql",
+      "localVersion": "20260408001000",
+      "logicalName": "identity_certificates_rls",
+      "remoteAppliedVersion": null,
+      "sha256": "f875729f1e33ffa35ac27d06a62de63fbca0f7f187c029fe09571d2ad8b26b55",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260408002000_fix_function_search_path.sql",
+      "localVersion": "20260408002000",
+      "logicalName": "fix_function_search_path",
+      "remoteAppliedVersion": null,
+      "sha256": "410596d30813b1ee790864a8eb481ae137fc87d36f38d5cea92b1f4368edda18",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260408003000_lock_membership_applications.sql",
+      "localVersion": "20260408003000",
+      "logicalName": "lock_membership_applications",
+      "remoteAppliedVersion": null,
+      "sha256": "6cf3f57b58fe5535678441d46f0ef5f00c89340a7e1a2cdde607cb9f44c3cde0",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260408004000_seed_departments.sql",
+      "localVersion": "20260408004000",
+      "logicalName": "seed_departments",
+      "remoteAppliedVersion": null,
+      "sha256": "498004b22a08f9b33831f228ab7f7bae8e13c6759568cb4edb39cf3eb7002dce",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260408005000_membership_review_queue.sql",
+      "localVersion": "20260408005000",
+      "logicalName": "membership_review_queue",
+      "remoteAppliedVersion": null,
+      "sha256": "e241172e29e4014ec3fc324c2542bc1d926ec2033b6643abb3e779f51ed80be7",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260408006000_committee_reports_content_media.sql",
+      "localVersion": "20260408006000",
+      "logicalName": "committee_reports_content_media",
+      "remoteAppliedVersion": null,
+      "sha256": "727d987fe630d6f7287269300b0fc74be3121cff97e14f69f2d847f2cf99f7f7",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260408007000_cloudinary_stepup_blog_rollover.sql",
+      "localVersion": "20260408007000",
+      "logicalName": "cloudinary_stepup_blog_rollover",
+      "remoteAppliedVersion": null,
+      "sha256": "146af1f9810cab58d8cb53c22c035ee0a3163a8fd7ba2e435818ebb56ad26e16",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260409040000_super_admin_role_hierarchy.sql",
+      "localVersion": "20260409040000",
+      "logicalName": "super_admin_role_hierarchy",
+      "remoteAppliedVersion": null,
+      "sha256": "370cf53eb66f3bda6e0bab144860386f3d11d3f9d30482917a5d5245429a9d44",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260409051000_membership_cycles_and_batches.sql",
+      "localVersion": "20260409051000",
+      "logicalName": "membership_cycles_and_batches",
+      "remoteAppliedVersion": null,
+      "sha256": "b5f8ebd4508c99968f6f6f4fe761156ab9da53fcc0a1595305d9e53ea8309735",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260409060000_optimize_performance_and_rls.sql",
+      "localVersion": "20260409060000",
+      "logicalName": "optimize_performance_and_rls",
+      "remoteAppliedVersion": null,
+      "sha256": "d9ee12df5baaf9fad29252a9e64437d083f50755ac12e108a299cdc5f0497316",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260410000000_consolidate_permissive_policies.sql",
+      "localVersion": "20260410000000",
+      "logicalName": "consolidate_permissive_policies",
+      "remoteAppliedVersion": null,
+      "sha256": "3471a4660562dfe2ac267e3f3513efc661ba118d6e3b4360eed358b5cc382c45",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260411000000_event_registration.sql",
+      "localVersion": "20260411000000",
+      "logicalName": "event_registration",
+      "remoteAppliedVersion": null,
+      "sha256": "09c9b1e3db511c80fa8f97450bc51dcf38387a207e3e1231624d9e32aaa53149",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260412000000_project_showcase.sql",
+      "localVersion": "20260412000000",
+      "logicalName": "project_showcase",
+      "remoteAppliedVersion": null,
+      "sha256": "a1bb6d96ba79623db7829fbc8707de0e73439ba2eecda5b5816976361f24f6dd",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260420000000_gallery_album_rebuild.sql",
+      "localVersion": "20260420000000",
+      "logicalName": "gallery_album_rebuild",
+      "remoteAppliedVersion": null,
+      "sha256": "6d227d12ee1ea2d8e2305225a0ea7748366fed24c56302134f2c620750f335f6",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260421000000_events_module_rebuild.sql",
+      "localVersion": "20260421000000",
+      "logicalName": "events_module_rebuild",
+      "remoteAppliedVersion": null,
+      "sha256": "842a68466c9045b3e77a8505b109255dbfd6e3e5d557add9a02c1490bd1cbfd2",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260421010000_event_registrations_legacy_fk_nullable.sql",
+      "localVersion": "20260421010000",
+      "logicalName": "event_registrations_legacy_fk_nullable",
+      "remoteAppliedVersion": null,
+      "sha256": "c0d002df4ac29c7e65968dbc5b6f6f18f81917c7b09cfc54310c2b58da743ff8",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260423000000_rbac_role_scopes_and_permissions.sql",
+      "localVersion": "20260423000000",
+      "logicalName": "rbac_role_scopes_and_permissions",
+      "remoteAppliedVersion": null,
+      "sha256": "16f9398e210f2c0b64d384ad7903695e89079942dd2094cf5b4368c4fd5c07a6",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260423001000_rbac_claim_hook_and_helpers.sql",
+      "localVersion": "20260423001000",
+      "logicalName": "rbac_claim_hook_and_helpers",
+      "remoteAppliedVersion": null,
+      "sha256": "858ca670b6c064d0208d526503603ae115c5c0ca55d4c337d77f1f166ecaed91",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260423002000_rbac_role_policies.sql",
+      "localVersion": "20260423002000",
+      "logicalName": "rbac_role_policies",
+      "remoteAppliedVersion": null,
+      "sha256": "813cd745a8b5471e64265420eceedb78ff9c9d207b6dcc480535ae6cc4980830",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260424000000_multi_portal_phase3_features.sql",
+      "localVersion": "20260424000000",
+      "logicalName": "multi_portal_phase3_features",
+      "remoteAppliedVersion": null,
+      "sha256": "7ea9fd62576ddcc8aaa833dd351ed58a08e642f536466b69947fe4b8a035aeb7",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260424001000_multi_portal_phase3_permission_completion.sql",
+      "localVersion": "20260424001000",
+      "logicalName": "multi_portal_phase3_permission_completion",
+      "remoteAppliedVersion": null,
+      "sha256": "5e0aca1df44225689991fe682282289c7a9d5b3ea683ac0f59c48ac0f65ec339",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260424002000_rbac_non_recursive_policies.sql",
+      "localVersion": "20260424002000",
+      "logicalName": "rbac_non_recursive_policies",
+      "remoteAppliedVersion": null,
+      "sha256": "eadc52bd318aea7ec3a1dda4080ec861d61414cff6ef4de1d23d3746f069ebc2",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260424003000_rbac_support_table_read_policies.sql",
+      "localVersion": "20260424003000",
+      "logicalName": "rbac_support_table_read_policies",
+      "remoteAppliedVersion": null,
+      "sha256": "89bfbfa5d3300e4200b7c2bbae7e754322207bd9a0043c5109c1812d5710e78d",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260424004000_event_registration_no_direct_public_insert.sql",
+      "localVersion": "20260424004000",
+      "logicalName": "event_registration_no_direct_public_insert",
+      "remoteAppliedVersion": null,
+      "sha256": "e399ef8cd2970498bdce41a204c51aaac18448c45df970209cdc5e85e5f47e4a",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260425000000_admin_totp_enforcement_setting.sql",
+      "localVersion": "20260425000000",
+      "logicalName": "admin_totp_enforcement_setting",
+      "remoteAppliedVersion": null,
+      "sha256": "0da5fb28faba954ce702f87a409597f4c8c50e135cbc4d3ac7c5a5528bb9c78f",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260425001000_profile_identity_change_requests.sql",
+      "localVersion": "20260425001000",
+      "logicalName": "profile_identity_change_requests",
+      "remoteAppliedVersion": null,
+      "sha256": "42220c98d24e762d2223cee4ec28e1c547deb77b5ed0000f4dc7c660d99230a2",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260426000000_auth_hardening_findings.sql",
+      "localVersion": "20260426000000",
+      "logicalName": "auth_hardening_findings",
+      "remoteAppliedVersion": null,
+      "sha256": "d77ac8a3c046efbf671a3f0384a29508459d71534b6a625500b88916cf831d98",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260426002000_auth_hardening_drift_repair.sql",
+      "localVersion": "20260426002000",
+      "logicalName": "auth_hardening_drift_repair",
+      "remoteAppliedVersion": null,
+      "sha256": "38ca615c5f80b5a5fc93d314226574a380498a8a9746c792cc58bd4c51c753f7",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260426003000_membership_identity_foundation.sql",
+      "localVersion": "20260426003000",
+      "logicalName": "membership_identity_foundation",
+      "remoteAppliedVersion": null,
+      "sha256": "6b3c9cae3210a1459d387d5a72a52a93cab21fb985c2716c157ddcb4223bdac6",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260426004000_membership_identity_advisor_fixes.sql",
+      "localVersion": "20260426004000",
+      "logicalName": "membership_identity_advisor_fixes",
+      "remoteAppliedVersion": null,
+      "sha256": "f40eed0fe0db5b757d4c158c8dfc0e5cacfd3e8905d0bab820167838b8e66ac8",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260426005000_membership_id_sequence_sync.sql",
+      "localVersion": "20260426005000",
+      "logicalName": "membership_id_sequence_sync",
+      "remoteAppliedVersion": null,
+      "sha256": "f2785a2ee5cff7fc95d78155ffd75d6a9d59517f50b49320d6615dfcb45983b4",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260429000000_migrate_legacy_alumni_ids.sql",
+      "localVersion": "20260429000000",
+      "logicalName": "migrate_legacy_alumni_ids",
+      "remoteAppliedVersion": null,
+      "sha256": "e78b8043948bd9448d514e7573393f0f24207b8107bc3a7fa50dce510179dc44",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260430001000_members_facebook_profile_url.sql",
+      "localVersion": "20260430001000",
+      "logicalName": "members_facebook_profile_url",
+      "remoteAppliedVersion": null,
+      "sha256": "dc02b0a66902816bb4d4fbe776244bfbdd2e8ef95afb97cb48458c6484d5d8ac",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260501165717_invitation_workspace.sql",
+      "localVersion": "20260501165717",
+      "logicalName": "invitation_workspace",
+      "remoteAppliedVersion": null,
+      "sha256": "3566fead38695ed5d9c411c6c729bea589c29790f13393aad780e44d8fb1d64f",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260502000000_workplace_workspace.sql",
+      "localVersion": "20260502000000",
+      "logicalName": "workplace_workspace",
+      "remoteAppliedVersion": null,
+      "sha256": "9e221f6ae9805ba4c486b52b360d40970352ed8d915b45215112c1ee22f04124",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260502171751_committee_advisors_portal.sql",
+      "localVersion": "20260502171751",
+      "logicalName": "committee_advisors_portal",
+      "remoteAppliedVersion": null,
+      "sha256": "3a4022163bb7cfa94ca118e8b83f2d446a4525a81c19e0b38cb3178823e7b126",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260506090544_committee_advisor_identity_history.sql",
+      "localVersion": "20260506090544",
+      "logicalName": "committee_advisor_identity_history",
+      "remoteAppliedVersion": null,
+      "sha256": "21d8f62d7be260b9dcf1d9e43042c046a3242b34c52daa58d91f073a5bcb4e76",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260508211434_add_uzzal_honorable_advisor_profile.sql",
+      "localVersion": "20260508211434",
+      "logicalName": "add_uzzal_honorable_advisor_profile",
+      "remoteAppliedVersion": null,
+      "sha256": "e505a5c1a90bc82dee747e13250171c2ba0102aa0639bd44fb912b9509f3b522",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260509090000_contact_settings.sql",
+      "localVersion": "20260509090000",
+      "logicalName": "contact_settings",
+      "remoteAppliedVersion": null,
+      "sha256": "d461f042b22b73cab659ea810d7224f86ea25a761f8a71341bfeb304fb8fb602",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260513150815_mark_sajeeb_saha_former_honorable_advisor.sql",
+      "localVersion": "20260513150815",
+      "logicalName": "mark_sajeeb_saha_former_honorable_advisor",
+      "remoteAppliedVersion": null,
+      "sha256": "fe7a0867aa5542db6695c70479e803e4c53cd225850a2d7d06cfcff2405269a6",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260516042440_fix_advisor_jnuits_id_search_path.sql",
+      "localVersion": "20260516042440",
+      "logicalName": "fix_advisor_jnuits_id_search_path",
+      "remoteAppliedVersion": null,
+      "sha256": "1e3df23fd8093ccf9b7c060fcec1c685ac12389b826711bd5b600dd7e667f3a4",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260517035310_advisor_speeches.sql",
+      "localVersion": "20260517035310",
+      "logicalName": "advisor_speeches",
+      "remoteAppliedVersion": null,
+      "sha256": "f71acc86f7f5fbbaafb933360d5db6450ebd680669bf766007fee9b53822fedb",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260518090000_rename_main_advisor_labels.sql",
+      "localVersion": "20260518090000",
+      "logicalName": "rename_main_advisor_labels",
+      "remoteAppliedVersion": null,
+      "sha256": "c9e226e67bf90fec20c017439b4cc07387eafa999e1723397a0c9bfdda50463f",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260518091500_fix_abu_layek_duplicate_university.sql",
+      "localVersion": "20260518091500",
+      "logicalName": "fix_abu_layek_duplicate_university",
+      "remoteAppliedVersion": null,
+      "sha256": "de8eec2632e99d53865b0e810065eb97fd382fbcf52b3dc1dd3e1ae7a4c01260",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260518093000_data_api_explicit_grants.sql",
+      "localVersion": "20260518093000",
+      "logicalName": "data_api_explicit_grants",
+      "remoteAppliedVersion": null,
+      "sha256": "9ed0ee4ead260428bb50740be3ab5b4190107933d542cad48d67e2db4fd6fa59",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260518102000_notice_workspace_content_post_grants.sql",
+      "localVersion": "20260518102000",
+      "logicalName": "notice_workspace_content_post_grants",
+      "remoteAppliedVersion": null,
+      "sha256": "40fe6ff164c0c40322f768d622328a15ca91bad786ab43d43a54ccc6dad45469",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260525033833_harden_member_invitation_claims.sql",
+      "localVersion": "20260525033833",
+      "logicalName": "harden_member_invitation_claims",
+      "remoteAppliedVersion": null,
+      "sha256": "1cabd84f1fc6d7aa7152829b8135007a3d8e3a31c48b3066af3644a1df730792",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260608093000_admin_permission_policy_hardening.sql",
+      "localVersion": "20260608093000",
+      "logicalName": "admin_permission_policy_hardening",
+      "remoteAppliedVersion": null,
+      "sha256": "54b799bd87cff3d8f89e2b2f323ec7f25acff1f19ab5766e95ed852b6a5c5969",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260612090000_security_performance_remediation.sql",
+      "localVersion": "20260612090000",
+      "logicalName": "security_performance_remediation",
+      "remoteAppliedVersion": null,
+      "sha256": "b5100ecb521e0ce57c8baf7a7c8e53797d157401de49cd6cbf7fb48f38751e1f",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260613090000_public_certificate_safe_view.sql",
+      "localVersion": "20260613090000",
+      "logicalName": "public_certificate_safe_view",
+      "remoteAppliedVersion": null,
+      "sha256": "f6936344a736ec60d22a90f039ceca5f875a5aa8f6aed0a44d9cd7153e142223",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260628034000_tighten_public_view_and_function_grants.sql",
+      "localVersion": "20260628034000",
+      "logicalName": "tighten_public_view_and_function_grants",
+      "remoteAppliedVersion": null,
+      "sha256": "8e11959054ac35d6ea0b55ef1c2b0444f5c3a564fa35524b49403be3813cfc30",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260630190842_admin_account_lifecycle.sql",
+      "localVersion": "20260630190842",
+      "logicalName": "admin_account_lifecycle",
+      "remoteAppliedVersion": null,
+      "sha256": "2524f3cb4c92d20889b69d7f291f9697a50d022caf7f374aef53b242e65860f2",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260630191141_admin_invitation_member_search_hardening.sql",
+      "localVersion": "20260630191141",
+      "logicalName": "admin_invitation_member_search_hardening",
+      "remoteAppliedVersion": null,
+      "sha256": "27a3f9696e9d46b975c2c9b03beff4a0a97f5c5f98cd04b1c88b60e982680cb9",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260703020515_certificate_full_name.sql",
+      "localVersion": "20260703020515",
+      "logicalName": "certificate_full_name",
+      "remoteAppliedVersion": null,
+      "sha256": "6469d5c00f8ca845dce7b741fd2dd4f0758f9b1f8dcb1e1e5cec29d8fec175de",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260703040706_cleanup_certificate_legacy_names.sql",
+      "localVersion": "20260703040706",
+      "logicalName": "cleanup_certificate_legacy_names",
+      "remoteAppliedVersion": null,
+      "sha256": "41fe9341ded3943c4511d9822e5dd166fa44c813b2cb3ffd2d2cc2787587266a",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260705013614_tighten_certificate_public_access.sql",
+      "localVersion": "20260705013614",
+      "logicalName": "tighten_certificate_public_access",
+      "remoteAppliedVersion": null,
+      "sha256": "bf66838da97c007eb28618764487132bc946c4adbfa7818a62095cb8e803c4a8",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260705013928_public_certificate_view_access.sql",
+      "localVersion": "20260705013928",
+      "logicalName": "public_certificate_view_access",
+      "remoteAppliedVersion": null,
+      "sha256": "a1d389323351e912f5ccc83dbd7bca3b3856f70d0079fcb0749ff6f376d211cc",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260705020732_public_certificate_security_invoker_view.sql",
+      "localVersion": "20260705020732",
+      "logicalName": "public_certificate_security_invoker_view",
+      "remoteAppliedVersion": null,
+      "sha256": "5cb205c6df6040f54f8f04219b745ca836a5404fafd525b17ff4cc1ec7fd3f45",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260705022356_revoke_anon_admin_totp_helper.sql",
+      "localVersion": "20260705022356",
+      "logicalName": "revoke_anon_admin_totp_helper",
+      "remoteAppliedVersion": null,
+      "sha256": "7359e3e9c409f5f175816d4c2a92775c9cd5c05d4d72fe56ac954534d9c816dd",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260705151405_restrict_authenticated_security_definer_exec.sql",
+      "localVersion": "20260705151405",
+      "logicalName": "restrict_authenticated_security_definer_exec",
+      "remoteAppliedVersion": null,
+      "sha256": "d04e71c3c29deff0a4059fd5682626762f1ab4ba69bedc561961a6c6de0021a0",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260705202621_tighten_public_certificate_view_grants.sql",
+      "localVersion": "20260705202621",
+      "logicalName": "tighten_public_certificate_view_grants",
+      "remoteAppliedVersion": null,
+      "sha256": "2d82f28f7cb8d12c1bb24f28d81ed80050c797f06d00cf05021f896a8fa94187",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260705205024_add_operational_foreign_key_indexes.sql",
+      "localVersion": "20260705205024",
+      "logicalName": "add_operational_foreign_key_indexes",
+      "remoteAppliedVersion": null,
+      "sha256": "152de88c8dcd95c9433727352c40f45adb9b2723e6b67d71603d4ee1e5f57b01",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260706025103_tighten_admin_operational_grants.sql",
+      "localVersion": "20260706025103",
+      "logicalName": "tighten_admin_operational_grants",
+      "remoteAppliedVersion": null,
+      "sha256": "2b81c4396249e4956b97bd66bf5f79010a5d5542a3569a87f79ae8ff272e5069",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260706030908_drop_duplicate_fk_indexes.sql",
+      "localVersion": "20260706030908",
+      "logicalName": "drop_duplicate_fk_indexes",
+      "remoteAppliedVersion": null,
+      "sha256": "5181147097a974e136e6e66e032532d7a1d11636c61df287e99fadef015f7614",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260706031032_add_remaining_advisor_fk_indexes.sql",
+      "localVersion": "20260706031032",
+      "logicalName": "add_remaining_advisor_fk_indexes",
+      "remoteAppliedVersion": null,
+      "sha256": "8c81a7d6fe247ca85d8b79bd844314f04efff80a7030ac7ad2287b422fa1f3b9",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260706035422_drop_duplicate_content_post_indexes.sql",
+      "localVersion": "20260706035422",
+      "logicalName": "drop_duplicate_content_post_indexes",
+      "remoteAppliedVersion": null,
+      "sha256": "cd97a492c721d176f11e29ddbb330aa9138e6c88cdeb90d902224c1c0d9d6a45",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260706074012_phase2_rls_policy_advisor_cleanup.sql",
+      "localVersion": "20260706074012",
+      "logicalName": "phase2_rls_policy_advisor_cleanup",
+      "remoteAppliedVersion": null,
+      "sha256": "f264d6f549accece851cb5eeb6dfc47846da9b542557ddaadc942361f6febd9a",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260710073007_phase2_rls_initplan_uid_wrap.sql",
+      "localVersion": "20260710073007",
+      "logicalName": "phase2_rls_initplan_uid_wrap",
+      "remoteAppliedVersion": null,
+      "sha256": "1430a4096d7bd40d5636328200671e4065cacc926a13748ed87d47fb6a76f0e0",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260710073629_tighten_sensitive_table_grants.sql",
+      "localVersion": "20260710073629",
+      "logicalName": "tighten_sensitive_table_grants",
+      "remoteAppliedVersion": null,
+      "sha256": "9d23c430f14e0d2e1392bb05274f81ae26b0024a3212fb81a4861950b415af72",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260710074151_archive_legacy_gallery_entries.sql",
+      "localVersion": "20260710074151",
+      "logicalName": "archive_legacy_gallery_entries",
+      "remoteAppliedVersion": null,
+      "sha256": "c4b4593e27ace913522fafa73c8708539fa13f56b5588d340bcc3ef035b0eb0d",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260710213516_find_auth_user_by_email.sql",
+      "localVersion": "20260710213516",
+      "logicalName": "find_auth_user_by_email",
+      "remoteAppliedVersion": null,
+      "sha256": "d87b8150cf8b05133327d17e5fee54e765d3574b887de7649fa82dfb96cb3a4e",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260714060450_add_event_registration_counts_rpc.sql",
+      "localVersion": "20260714060450",
+      "logicalName": "add_event_registration_counts_rpc",
+      "remoteAppliedVersion": null,
+      "sha256": "3d112ca251a8515dc43a5931d237fb657df801c9159cd5be2a40065abd198b02",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260718131116_event_registration_operations.sql",
+      "localVersion": "20260718131116",
+      "logicalName": "event_registration_operations",
+      "remoteAppliedVersion": null,
+      "sha256": "ebfd7b58903a804999260993df08fbb069a44b076c91d88e11b5e12ddd841c21",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260718131143_event_export_retention.sql",
+      "localVersion": "20260718131143",
+      "logicalName": "event_export_retention",
+      "remoteAppliedVersion": null,
+      "sha256": "ba2714db35e34d9dfefd0f6a37893bb35587535b10a915f48888fbf5906df6f2",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260718131228_create_versioned_form_platform.sql",
+      "localVersion": "20260718131228",
+      "logicalName": "create_versioned_form_platform",
+      "remoteAppliedVersion": null,
+      "sha256": "b947734858919f13323c62b9c981cbfccf256ff4c6d5f237a31c92822256c132",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260718131600_form_confirmation_workflow.sql",
+      "localVersion": "20260718131600",
+      "logicalName": "form_confirmation_workflow",
+      "remoteAppliedVersion": null,
+      "sha256": "dc09ea62590b455965b718aeb8a24dfb9fff778cb5c4142f5e8688be423a3e0c",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260718131617_form_draft_management.sql",
+      "localVersion": "20260718131617",
+      "logicalName": "form_draft_management",
+      "remoteAppliedVersion": null,
+      "sha256": "76bdac437177584c15354063a75c8c434b125601ec9abeabf8444ca4187f474f",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260718131634_event_form_atomic_registration.sql",
+      "localVersion": "20260718131634",
+      "logicalName": "event_form_atomic_registration",
+      "remoteAppliedVersion": null,
+      "sha256": "790f17d28db6d729be91cc2054d327ecfcfa6321d596033ba6a7d52ee48e495e",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260718220709_event_form_assets_atomic_registration.sql",
+      "localVersion": "20260718220709",
+      "logicalName": "event_form_assets_atomic_registration",
+      "remoteAppliedVersion": null,
+      "sha256": "50ef88063bbea2de8f6944c277fca5e5146ffdda04321b9cb0356e3329eda662",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260719060148_form_draft_version_updates.sql",
+      "localVersion": "20260719060148",
+      "logicalName": "form_draft_version_updates",
+      "remoteAppliedVersion": null,
+      "sha256": "04b678ec53cfc55ceff1b96599b6789b74d20846d5e3948ff5aa0e8188ddbab1",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260719071435_resend_delivery_webhook_events.sql",
+      "localVersion": "20260719071435",
+      "logicalName": "resend_delivery_webhook_events",
+      "remoteAppliedVersion": null,
+      "sha256": "871f873a0c51829c34cca0c25682528553072c441a285d89fa0070fc415ebf6d",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260719101454_form_confirmation_resend.sql",
+      "localVersion": "20260719101454",
+      "logicalName": "form_confirmation_resend",
+      "remoteAppliedVersion": null,
+      "sha256": "16cc1e306f20a08c8a049a0c441a0318c0429b2f8970ededa2921389dd9c398d",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260719120000_event_registration_delivery_webhooks.sql",
+      "localVersion": "20260719120000",
+      "logicalName": "event_registration_delivery_webhooks",
+      "remoteAppliedVersion": null,
+      "sha256": "9627cd197ad21ed42ae8484a89f8c6783aad05f917bf485aa61c9fe6cb863155",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260722120000_event_form_publication_compatibility.sql",
+      "localVersion": "20260722120000",
+      "logicalName": "event_form_publication_compatibility",
+      "remoteAppliedVersion": null,
+      "sha256": "87511c10a137f3484248b7f1210d4142a80d6346f1c53b139ffe557a09b0ac09",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260722150000_retention_purge_rpc.sql",
+      "localVersion": "20260722150000",
+      "logicalName": "retention_purge_rpc",
+      "remoteAppliedVersion": null,
+      "sha256": "8d95f2a055d69404174e7fa601245beb8892ecd7312dce824f5892f6e9dfc91d",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260723123000_form_definition_lifecycle_transitions.sql",
+      "localVersion": "20260723123000",
+      "logicalName": "form_definition_lifecycle_transitions",
+      "remoteAppliedVersion": null,
+      "sha256": "0aac54a1a27d3e556f0b7c55daddaef36331aaceab2056485053d4fc3d9030ab",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260723151000_event_waitlist_promotion_idempotency.sql",
+      "localVersion": "20260723151000",
+      "logicalName": "event_waitlist_promotion_idempotency",
+      "remoteAppliedVersion": null,
+      "sha256": "3f86ce0c8de2eed106ab1485da39af5b8313a7346b39cc6ec88b39ad6f33fee2",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260723163000_event_atomic_checkin.sql",
+      "localVersion": "20260723163000",
+      "logicalName": "event_atomic_checkin",
+      "remoteAppliedVersion": null,
+      "sha256": "7bed51d7c46866522dc44a75229a7cd1c862256b43d5475ebb71b015d38d6897",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260723171500_membership_application_cycles.sql",
+      "localVersion": "20260723171500",
+      "logicalName": "membership_application_cycles",
+      "remoteAppliedVersion": null,
+      "sha256": "8d4753a9f0b689b13feacdebc8e10abedcb8a1cc8fb649e28bea5a9b23bad9f0",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260723174500_membership_application_decisions.sql",
+      "localVersion": "20260723174500",
+      "logicalName": "membership_application_decisions",
+      "remoteAppliedVersion": null,
+      "sha256": "fa458b5cc5f494967bb55ca12f5628d7e19c5eaab49a54b0d7dab0bd89f18adb",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260723193000_alumni_onboarding_decisions.sql",
+      "localVersion": "20260723193000",
+      "logicalName": "alumni_onboarding_decisions",
+      "remoteAppliedVersion": null,
+      "sha256": "8e1eb86900d72d654c2f928d55b3cbeac28f71212f229b7dea86bebbd4f125d7",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260723233000_form_upload_sessions.sql",
+      "localVersion": "20260723233000",
+      "logicalName": "form_upload_sessions",
+      "remoteAppliedVersion": null,
+      "sha256": "91a7ff9623769784666e098617c3c1fb41496da982d2334806cef6ba36cea03b",
+      "state": "recorded"
+    },
+    {
+      "localFilename": "20260724140000_form_publication_and_upload_session_hardening.sql",
+      "localVersion": "20260724140000",
+      "logicalName": "form_publication_and_upload_session_hardening",
+      "remoteAppliedVersion": "20260726105745",
+      "sha256": "b254eea2fecf58c9f739c25ca9bf5cbb032e3bc1bd14104ba8cdc6b16a67c022",
+      "state": "applied"
+    },
+    {
+      "localFilename": "20260726020000_retention_purge_boundary_enforcement.sql",
+      "localVersion": "20260726020000",
+      "logicalName": "retention_purge_boundary_enforcement",
+      "remoteAppliedVersion": "20260726105843",
+      "sha256": "d7b7a60cd377491464210acb0d84aac039c5c375dcd922b1dc1e5689a7daf251",
+      "state": "applied"
+    }
+  ]
+}
