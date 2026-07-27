@@ -183,15 +183,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      # A cancelled or crashed run leaves Supabase containers holding the fixed
-      # local ports. On a self-hosted runner those survive into the next job and
-      # break it with a misleading error, so reap them first. These runners are
-      # dedicated to this repository.
-      - name: Reap orphaned Supabase containers
-        run: |
-          docker ps -aq --filter 'name=supabase_' | xargs -r docker rm -f
-          docker volume ls -q --filter 'name=supabase_' | xargs -r docker volume rm -f
-          rm -rf /tmp/jnuits-migration-verify.* || true
+      - name: Docker preflight and reap
+        uses: ./.github/actions/docker-preflight
+        with:
+          scratch-paths: /tmp/jnuits-migration-verify.*
 
       - name: Setup Supabase CLI
         uses: ./.github/actions/setup-supabase-cli
@@ -214,12 +209,11 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Reap containers after the run
+      - name: Reap after the run
         if: always()
-        run: |
-          docker ps -aq --filter 'name=supabase_' | xargs -r docker rm -f
-          docker volume ls -q --filter 'name=supabase_' | xargs -r docker volume rm -f
-          rm -rf /tmp/jnuits-migration-verify.* || true
+        uses: ./.github/actions/docker-preflight
+        with:
+          scratch-paths: /tmp/jnuits-migration-verify.*
 
   # Issue #18. Offline ordering and forward-reference analysis.
   #
@@ -263,11 +257,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: Reap orphaned Supabase containers
-        run: |
-          docker ps -aq --filter 'name=supabase_' | xargs -r docker rm -f
-          docker volume ls -q --filter 'name=supabase_' | xargs -r docker volume rm -f
-          rm -rf "$GITHUB_WORKSPACE/.replay-scratch" || true
+      - name: Docker preflight and reap
+        uses: ./.github/actions/docker-preflight
+        with:
+          scratch-paths: ${{ github.workspace }}/.replay-scratch
 
       - name: Setup Supabase CLI
         uses: ./.github/actions/setup-supabase-cli
@@ -290,12 +283,11 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Reap containers after the run
+      - name: Reap after the run
         if: always()
-        run: |
-          docker ps -aq --filter 'name=supabase_' | xargs -r docker rm -f
-          docker volume ls -q --filter 'name=supabase_' | xargs -r docker volume rm -f
-          rm -rf "$GITHUB_WORKSPACE/.replay-scratch" || true
+        uses: ./.github/actions/docker-preflight
+        with:
+          scratch-paths: ${{ github.workspace }}/.replay-scratch
 
   build_and_browser:
     name: Build and browser smoke
