@@ -24,6 +24,30 @@ export function FieldHelp({ field }: { field: FormField }) {
   ) : null;
 }
 
+/**
+ * The marker and the caption must share one inline box.
+ *
+ * `.input-label` stacks its children, because everywhere else it wraps a
+ * caption and its input together. A bare sibling span therefore landed on its
+ * own line, so every required field rendered as a label followed by a lone
+ * asterisk.
+ *
+ * The asterisk is decorative and carries the visual weight; the `sr-only` text
+ * beside it is what a screen reader announces. Previously the marker was
+ * `aria-hidden` with no replacement, leaving the `required` attribute as the
+ * only signal.
+ */
+export function RequiredMarker() {
+  return (
+    <>
+      <span aria-hidden="true" className="text-destructive">
+        *
+      </span>
+      <span className="sr-only">(required)</span>
+    </>
+  );
+}
+
 export function FieldLabel({
   field,
   inputId,
@@ -33,8 +57,10 @@ export function FieldLabel({
 }) {
   return (
     <label className="input-label" htmlFor={inputId}>
-      {field.label}
-      {field.required ? <span aria-hidden="true"> *</span> : null}
+      <span className="inline-flex flex-wrap items-baseline gap-1">
+        {field.label}
+        {field.required ? <RequiredMarker /> : null}
+      </span>
     </label>
   );
 }
@@ -182,7 +208,12 @@ export function FormFieldControl({
           />
           <span className="text-sm font-semibold leading-6 text-[var(--brand-ink)]">
             {field.label}
-            {field.type === "consent" ? <span aria-hidden="true"> *</span> : null}
+            {field.type === "consent" || field.required ? (
+              <>
+                {" "}
+                <RequiredMarker />
+              </>
+            ) : null}
           </span>
         </label>
         <FieldHelp field={field} />
