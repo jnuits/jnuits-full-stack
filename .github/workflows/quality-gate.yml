@@ -219,10 +219,14 @@ jobs:
   #
   # The fixture tests are blocking: they prove the checker detects every
   # failure class it claims to, including the DDL false positives that made an
-  # earlier version report 198 findings. The repo-wide report is advisory until
-  # one run reports zero findings, at which point switch the step to
-  # `npm run migration:check-order:strict` and add this job to the Required CI
-  # needs list below.
+  # earlier version report 198 findings.
+  #
+  # The repo-wide scan is blocking too, as of 2026-07-27. The verify-then-
+  # promote condition in docs/operations/migration-bootstrap-and-integrity.md
+  # section 4 was satisfied on this branch: a Linux run reported
+  # `Inspected 95 migrations.` followed by `Migration ordering and dependency
+  # check: no findings.` The step now runs --strict, so any new finding exits
+  # 2, and this job is in the Required CI needs list below.
   migration_dependencies:
     name: Migration ordering and dependencies
     runs-on: [self-hosted, Linux, X64]
@@ -243,8 +247,8 @@ jobs:
       - name: Dependency checker unit tests
         run: npx --no-install vitest run scripts/check-migration-dependencies.test.mjs
 
-      - name: Migration ordering and forward-reference report
-        run: npm run migration:check-order
+      - name: Migration ordering and forward-reference scan
+        run: npm run migration:check-order:strict
 
   # Issue #18. Supported baseline replay of the entire chain on a disposable
   # local stack. Executed successfully on 2026-07-27: 96 migrations applied,
@@ -361,6 +365,7 @@ jobs:
         unit_and_integration,
         migration_integrity,
         migration_runtime,
+        migration_dependencies,
         migration_bootstrap_replay,
         build_and_browser,
         secret_scan,
@@ -375,6 +380,7 @@ jobs:
           UNIT_AND_INTEGRATION_RESULT: ${{ needs.unit_and_integration.result }}
           MIGRATION_INTEGRITY_RESULT: ${{ needs.migration_integrity.result }}
           MIGRATION_RUNTIME_RESULT: ${{ needs.migration_runtime.result }}
+          MIGRATION_DEPENDENCIES_RESULT: ${{ needs.migration_dependencies.result }}
           MIGRATION_BOOTSTRAP_REPLAY_RESULT: ${{ needs.migration_bootstrap_replay.result }}
           BUILD_AND_BROWSER_RESULT: ${{ needs.build_and_browser.result }}
           SECRET_SCAN_RESULT: ${{ needs.secret_scan.result }}
@@ -383,6 +389,7 @@ jobs:
           echo "unit_and_integration=$UNIT_AND_INTEGRATION_RESULT"
           echo "migration_integrity=$MIGRATION_INTEGRITY_RESULT"
           echo "migration_runtime=$MIGRATION_RUNTIME_RESULT"
+          echo "migration_dependencies=$MIGRATION_DEPENDENCIES_RESULT"
           echo "migration_bootstrap_replay=$MIGRATION_BOOTSTRAP_REPLAY_RESULT"
           echo "build_and_browser=$BUILD_AND_BROWSER_RESULT"
           echo "secret_scan=$SECRET_SCAN_RESULT"
@@ -390,6 +397,7 @@ jobs:
           test "$UNIT_AND_INTEGRATION_RESULT" = "success"
           test "$MIGRATION_INTEGRITY_RESULT" = "success"
           test "$MIGRATION_RUNTIME_RESULT" = "success"
+          test "$MIGRATION_DEPENDENCIES_RESULT" = "success"
           test "$MIGRATION_BOOTSTRAP_REPLAY_RESULT" = "success"
           test "$BUILD_AND_BROWSER_RESULT" = "success"
           case "$SECRET_SCAN_RESULT" in
