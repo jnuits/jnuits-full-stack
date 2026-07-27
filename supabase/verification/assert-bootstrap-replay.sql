@@ -6,18 +6,27 @@
 --
 -- Two tiers, deliberately:
 --
---   ENFORCED  - replay completeness, the bootstrap dependency, and non-empty
---               object inventories. These cannot produce a false failure.
---   EVIDENCE  - RLS coverage, SECURITY DEFINER search_path pinning, and anon
---               write grants. These are raised as notices, not exceptions,
---               because their legitimate allowlists have never been confirmed
---               against a real replay. Promote them to ENFORCED after one
---               local run establishes the allowlist. Do not promote them by
---               guessing.
+--   ENFORCED  - replay completeness, the bootstrap dependency, non-empty
+--               object inventories, and SECURITY DEFINER search_path pinning.
+--               None of these can produce a false failure.
+--   EVIDENCE  - installed extensions, RLS coverage, anon and authenticated
+--               write grants, and the applied version range. Raised as
+--               notices rather than exceptions, because their legitimate
+--               allowlists are not empty yet. Promote each one after a real
+--               run establishes its allowlist. Do not promote by guessing.
 --
--- The 2026-07-27 run established: RLS excludes only membership_id_sequences,
--- all 34 SECURITY DEFINER functions pin search_path, and anon holds TRUNCATE
--- on 39 tables via default privileges (issue #75).
+-- What the Linux replay on 2026-07-27 established:
+--
+--   96 migrations applied (95 repository migrations plus the bootstrap helper)
+--   68 tables, 2 views, 66 functions, 142 policies, 51 triggers,
+--   413 constraints, 8 extensions
+--   34 of 34 SECURITY DEFINER functions pin search_path  -> now ENFORCED 4
+--   1 table without RLS, membership_id_sequences         -> issue #76
+--   anon and authenticated hold TRUNCATE by default ACL  -> issue #75
+--
+-- The membership_id_sequences finding is recovery drift, not a production
+-- hole: production has RLS on that table, and a database rebuilt from the
+-- migration chain does not. That is why EVIDENCE rls is still a notice.
 --
 -- No connection string, project ref, key, or PII is emitted anywhere below.
 
@@ -204,51 +213,21 @@ end
 $inventory$;
 
 -- ---------------------------------------------------------------------------
--- EVIDENCE 1: installed extensions.
--- ---------------------------------------------------------------------------
-do $extensions$
-declare
-  installed text;
-begin
-  select string_agg(extname, ', ' order by extname) into installed
-  from pg_extension;
-
-  raise notice 'EVIDENCE extensions: %', coalesce(installed, '(none)');
-end
-$extensions$;
-
--- ---------------------------------------------------------------------------
--- EVIDENCE 2: tables in public without RLS enabled.
+-- ENFORCED 4: every SECURITY DEFINER function in public pins search_path.
 --
--- Not an exception. Some tables may be intentionally public. The 2026-07-27
--- run found exactly one: membership_id_sequences. Confirm whether that is
--- deliberate, record it as an allowlist, then promote this block.
--- ---------------------------------------------------------------------------
-do $rls$
-declare
-  offenders text;
-begin
-  select string_agg(relname, ', ' order by relname) into offenders
-  from pg_class
-  where relnamespace = 'public'::regnamespace
-    and relkind = 'r'
-    and relname not like '\_jnuits\_%'
-    and not relrowsecurity;
-
-  if offenders is null then
-    raise notice 'EVIDENCE rls: every table in public has RLS enabled.';
-  else
-    raise notice 'EVIDENCE rls: tables WITHOUT RLS enabled: %', offenders;
-  end if;
-end
-$rls$;
-
--- ---------------------------------------------------------------------------
--- EVIDENCE 3: SECURITY DEFINER functions without a pinned search_path.
+-- Promoted from EVIDENCE on 2026-07-27. The Linux replay found 34 definer
+-- functions and zero offenders, so the allowlist is empty, and an empty
+-- allowlist is the right moment to lock a security invariant.
 --
--- The 2026-07-27 run found 34 definer functions and zero offenders, so this
--- block can be promoted to ENFORCED as-is. Cross-check against
--- docs/operations/security-definer-function-register.md first.
+-- A SECURITY DEFINER function that does not pin search_path executes
+-- privileged code against whatever schema resolution the caller supplies. An
+-- attacker who can create an object in an earlier schema on the search path
+-- can have the privileged function call theirs instead. There is no benign
+-- reason to omit the pin, so there is deliberately no allowlist mechanism
+-- here: a new exemption is a design discussion, not a config line.
+--
+-- Cross-check new definer functions against
+-- docs/operations/security-definer-function-register.md.
 -- ---------------------------------------------------------------------------
 do $definer$
 declare
@@ -272,25 +251,76 @@ begin
       )
     );
 
-  raise notice 'EVIDENCE security_definer: % definer functions in public.', definer_count;
-
-  if offenders is null then
-    raise notice 'EVIDENCE security_definer: every definer function pins search_path.';
-  else
-    raise notice 'EVIDENCE security_definer: NOT pinning search_path: %', offenders;
+  if offenders is not null then
+    raise exception
+      'ENFORCED 4 failed. SECURITY DEFINER functions in public that do not pin search_path: %. Add `set search_path = ''''` to each, or justify the exemption in review.',
+      offenders;
   end if;
+
+  raise notice 'ENFORCED 4 passed: all % SECURITY DEFINER functions in public pin search_path.',
+    definer_count;
 end
 $definer$;
 
 -- ---------------------------------------------------------------------------
--- EVIDENCE 4: anon write grants on public tables.
+-- EVIDENCE 1: installed extensions.
+-- ---------------------------------------------------------------------------
+do $extensions$
+declare
+  installed text;
+begin
+  select string_agg(extname, ', ' order by extname) into installed
+  from pg_extension;
+
+  raise notice 'EVIDENCE extensions: %', coalesce(installed, '(none)');
+end
+$extensions$;
+
+-- ---------------------------------------------------------------------------
+-- EVIDENCE 2: tables in public without RLS enabled.
+--
+-- Still a notice, and the allowlist is NOT empty. The 2026-07-27 run found
+-- exactly one offender, membership_id_sequences, which production does have
+-- RLS on. That difference is recovery drift, tracked in issue #76: a database
+-- rebuilt from the migration chain does not reproduce production's posture.
+--
+-- Promote this block to ENFORCED once #76 lands a forward migration and this
+-- reports nothing. Do not promote it by allowlisting the offender; that would
+-- bless the drift instead of fixing it.
+-- ---------------------------------------------------------------------------
+do $rls$
+declare
+  offenders text;
+begin
+  select string_agg(relname, ', ' order by relname) into offenders
+  from pg_class
+  where relnamespace = 'public'::regnamespace
+    and relkind = 'r'
+    and relname not like '\_jnuits\_%'
+    and not relrowsecurity;
+
+  if offenders is null then
+    raise notice 'EVIDENCE rls: every table in public has RLS enabled.';
+  else
+    raise notice 'EVIDENCE rls: tables WITHOUT RLS enabled (see issue #76): %', offenders;
+  end if;
+end
+$rls$;
+
+-- ---------------------------------------------------------------------------
+-- EVIDENCE 3: anon and authenticated write grants on public tables.
 --
 -- The public Data API must never be able to insert, update, delete, or
 -- truncate. The 2026-07-27 run found TRUNCATE on 39 tables, arriving through
 -- ALTER DEFAULT PRIVILEGES rather than per-table grants. Tracked as issue #75.
 -- RLS does not apply to TRUNCATE, so policies provide no cover here.
 --
--- `authenticated` is checked alongside anon because it had never been audited.
+-- Read-only production inspection on the same date found worse: both roles
+-- hold DELETE, INSERT, UPDATE, and TRUNCATE across 36-38 tables, from default
+-- ACLs owned by both postgres and supabase_admin. So this replay UNDERSTATES
+-- production exposure. Treat its output as a floor, never a ceiling.
+--
+-- Still a notice, because the offender list is not empty. Promote after #75.
 -- ---------------------------------------------------------------------------
 do $grants$
 declare
@@ -309,24 +339,24 @@ begin
   from information_schema.role_table_grants
   where table_schema = 'public'
     and grantee = 'authenticated'
-    and privilege_type = 'TRUNCATE';
+    and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE');
 
   if anon_offenders is null then
     raise notice 'EVIDENCE grants: anon holds no write privilege on public tables.';
   else
-    raise notice 'EVIDENCE grants: anon WRITE privileges present: %', anon_offenders;
+    raise notice 'EVIDENCE grants: anon WRITE privileges present (see issue #75): %', anon_offenders;
   end if;
 
   if authenticated_offenders is null then
-    raise notice 'EVIDENCE grants: authenticated holds no TRUNCATE on public tables.';
+    raise notice 'EVIDENCE grants: authenticated holds no write privilege on public tables.';
   else
-    raise notice 'EVIDENCE grants: authenticated TRUNCATE privileges present: %', authenticated_offenders;
+    raise notice 'EVIDENCE grants: authenticated WRITE privileges present (see issue #75): %', authenticated_offenders;
   end if;
 end
 $grants$;
 
 -- ---------------------------------------------------------------------------
--- EVIDENCE 5: applied migration range.
+-- EVIDENCE 4: applied migration range.
 --
 -- `oldest` is the first migration in the chain. It is NOT the bootstrap
 -- helper, which is inserted by the harness at 20260608092959, one second
