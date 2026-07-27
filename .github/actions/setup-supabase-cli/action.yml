@@ -1,0 +1,185 @@
+name: Setup Supabase CLI
+description: >-
+  Installs a pinned Supabase CLI from its official release tarball, verifies
+  that tarball against a SHA-256 digest committed to this repository before
+  anything is extracted, rebuilds the install directory from the verified
+  archive, and proves the result can actually execute. Replaces
+  supabase/setup-cli, which fails on persistent self-hosted runners because its
+  bun dependency does not restore to the expected path.
+
+inputs:
+  version:
+    description: >-
+      Exact Supabase CLI version to install. It must have a pinned digest in
+      the case statement below; anything else fails closed.
+    required: false
+    default: 2.109.1
+
+runs:
+  using: composite
+  steps:
+    - name: Install and verify the Supabase CLI
+      shell: bash
+      env:
+        SUPABASE_CLI_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        # === Root of trust ===================================================
+        #
+        # The digests below are the only thing authenticating this executable.
+        # They live in version control so that changing them requires a
+        # reviewed diff, and they are checked on every run.
+        #
+        # Do NOT replace this with a download of checksums.txt from the same
+        # release. Anyone able to alter the tarball can alter that file too,
+        # so verifying one against the other proves nothing. Circular
+        # verification is worse than none, because it looks like a control.
+        #
+        # To add a version: fetch both tarballs on a trusted machine, record
+        # `sha256sum`, and add the case arms in the same commit as the bump.
+        #
+        #   supabase_<version>_linux_amd64.tar.gz
+        #   supabase_<version>_linux_arm64.tar.gz
+
+        case "$(uname -m)" in
+          x86_64) arch=amd64 ;;
+          aarch64|arm64) arch=arm64 ;;
+          *)
+            printf 'Unsupported architecture: %s\n' "$(uname -m)" >&2
+            exit 1
+            ;;
+        esac
+
+        case "${SUPABASE_CLI_VERSION}:${arch}" in
+          "2.109.1:amd64")
+            expected_digest=36d87b7fe6b4bcfe89ac47a4354e526cff22480224de426d7b370f6934556976
+            ;;
+          "2.109.1:arm64")
+            expected_digest=a7f7c771acd3a2a13938b5832029beb24787b165d5119ed57ad6e964f3593291
+            ;;
+          *)
+            printf 'No pinned SHA-256 digest for Supabase CLI %s on linux/%s.\n' \
+              "$SUPABASE_CLI_VERSION" "$arch" >&2
+            printf 'Refusing to install an unauthenticated executable. Add the\n' >&2
+            printf 'digest to .github/actions/setup-supabase-cli/action.yml in\n' >&2
+            printf 'the same commit that bumps the version.\n' >&2
+            exit 1
+            ;;
+        esac
+
+        # The CLI ships TWO co-located binaries:
+        #
+        #   supabase      a shim
+        #   supabase-go   the Go CLI the shim forwards to
+        #
+        # The shim resolves `supabase-go` next to itself. Copying out only the
+        # shim produces a CLI that answers --version and fails on every real
+        # command, so the whole archive is extracted and kept together.
+        archive_dir="$HOME/.cache/jnuits-supabase-cli"
+        archive="$archive_dir/supabase_${SUPABASE_CLI_VERSION}_linux_${arch}.tar.gz"
+        install_root="$HOME/.local/share/jnuits-supabase-cli"
+        install_dir="$install_root/${SUPABASE_CLI_VERSION}-${arch}"
+        shim="$install_dir/supabase"
+        go_binary="$install_dir/supabase-go"
+
+        mkdir -p "$archive_dir"
+
+        archive_digest() {
+          sha256sum "$1" | cut -d' ' -f1
+        }
+
+        # Cache the ARCHIVE, never the extracted tree, and re-verify it every
+        # single run. $HOME on a persistent runner is writable by every job
+        # that lands on the host, so "it was fine last time" is not a property
+        # this action is entitled to assume.
+        if [[ -f "$archive" ]]; then
+          cached_digest="$(archive_digest "$archive")"
+          if [[ "$cached_digest" == "$expected_digest" ]]; then
+            printf 'Cached archive matches the pinned SHA-256 digest.\n'
+          else
+            printf 'Cached Supabase CLI archive FAILED SHA-256 verification.\n' >&2
+            printf '  expected %s\n' "$expected_digest" >&2
+            printf '  actual   %s\n' "$cached_digest" >&2
+            printf 'Discarding the cached archive and any extracted tree.\n' >&2
+            rm -f -- "$archive"
+            rm -rf -- "$install_dir"
+          fi
+        fi
+
+        if [[ ! -f "$archive" ]]; then
+          url="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_${SUPABASE_CLI_VERSION}_linux_${arch}.tar.gz"
+          printf 'Downloading Supabase CLI %s (linux/%s).\n' "$SUPABASE_CLI_VERSION" "$arch"
+
+          if ! curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
+            --output "$archive.part" "$url"; then
+            rm -f -- "$archive.part"
+            printf 'Could not download the Supabase CLI from %s\n' "$url" >&2
+            exit 1
+          fi
+
+          downloaded_digest="$(archive_digest "$archive.part")"
+          if [[ "$downloaded_digest" != "$expected_digest" ]]; then
+            printf 'Downloaded Supabase CLI archive FAILED SHA-256 verification.\n' >&2
+            printf '  expected %s\n' "$expected_digest" >&2
+            printf '  actual   %s\n' "$downloaded_digest" >&2
+            rm -f -- "$archive.part"
+            rm -rf -- "$install_dir"
+            exit 1
+          fi
+
+          mv -- "$archive.part" "$archive"
+          printf 'Downloaded archive verified against the pinned SHA-256 digest.\n'
+        fi
+
+        # Never reuse a previously extracted tree. An executable that runs is
+        # not an executable that is authentic, so --version and --help below
+        # are liveness checks, not integrity checks. Rebuild from the archive
+        # that was just verified.
+        rm -rf -- "$install_dir"
+        mkdir -p "$install_dir"
+
+        # Extract everything. Do not cherry-pick files out of this archive.
+        tar -xzf "$archive" -C "$install_dir"
+        chmod -R u+rwX "$install_dir"
+        find "$install_dir" -maxdepth 1 -type f -name 'supabase*' -exec chmod 0755 {} +
+
+        if [[ ! -x "$shim" ]]; then
+          printf 'The archive did not produce an executable supabase shim.\n' >&2
+          ls -la "$install_dir" >&2
+          rm -rf -- "$install_dir"
+          rm -f -- "$archive"
+          exit 1
+        fi
+
+        if [[ ! -x "$go_binary" ]]; then
+          printf 'The archive did not produce supabase-go alongside the shim.\n' >&2
+          printf 'Without it the shim resolves on PATH but every command fails.\n' >&2
+          ls -la "$install_dir" >&2
+          rm -rf -- "$install_dir"
+          rm -f -- "$archive"
+          exit 1
+        fi
+
+        reported="$("$shim" --version 2>/dev/null | tr -d '\r' | tr -d ' ')"
+        if [[ "$reported" != "$SUPABASE_CLI_VERSION" ]]; then
+          printf 'Supabase CLI version mismatch. Expected %s, got "%s".\n' \
+            "$SUPABASE_CLI_VERSION" "$reported" >&2
+          rm -rf -- "$install_dir"
+          rm -f -- "$archive"
+          exit 1
+        fi
+
+        # --version is answered by the shim alone, so it proves nothing about
+        # supabase-go. Run a real subcommand that must reach the Go binary.
+        if ! "$shim" --help >/dev/null 2>"$RUNNER_TEMP/supabase-help.err"; then
+          printf 'The Supabase CLI is installed but cannot execute:\n' >&2
+          cat "$RUNNER_TEMP/supabase-help.err" >&2
+          rm -rf -- "$install_dir"
+          rm -f -- "$archive"
+          exit 1
+        fi
+
+        printf 'Supabase CLI %s verified (sha256 %s) and executable at %s\n' \
+          "$reported" "$expected_digest" "$install_dir"
+        echo "$install_dir" >>"$GITHUB_PATH"

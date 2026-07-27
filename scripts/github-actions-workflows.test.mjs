@@ -43,6 +43,39 @@ describe("GitHub Actions workflows", () => {
     );
   });
 
+  it("runs the repository-wide migration dependency scan in strict mode", () => {
+    // Promoted on 2026-07-27, after a Linux run reported zero findings across
+    // all 95 migrations. Report-only mode exits zero on a finding, so leaving
+    // it in place would make the job decorative.
+    const workflow = readWorkflow("quality-gate.yml");
+
+    expect(workflow).toContain("migration_dependencies:");
+    expect(workflow).toContain("run: npm run migration:check-order:strict");
+    expect(workflow).not.toMatch(/run: npm run migration:check-order$/m);
+  });
+
+  it("requires the migration dependency scan in the aggregate gate", () => {
+    const workflow = readWorkflow("quality-gate.yml");
+    const aggregateStart = workflow.indexOf("application_quality:");
+    const aggregateEnd = workflow.indexOf("\n  secret_scan:", aggregateStart);
+
+    expect(aggregateStart).toBeGreaterThan(-1);
+    expect(aggregateEnd).toBeGreaterThan(aggregateStart);
+
+    const aggregate = workflow.slice(aggregateStart, aggregateEnd);
+
+    // In the needs list.
+    expect(aggregate).toContain("migration_dependencies,");
+    // Result exposed to the step.
+    expect(aggregate).toContain(
+      "MIGRATION_DEPENDENCIES_RESULT: ${{ needs.migration_dependencies.result }}"
+    );
+    // Printed alongside the other shards, so a no-log failure stays diagnosable.
+    expect(aggregate).toContain('echo "migration_dependencies=$MIGRATION_DEPENDENCIES_RESULT"');
+    // And actually asserted, not merely echoed.
+    expect(aggregate).toContain('test "$MIGRATION_DEPENDENCIES_RESULT" = "success"');
+  });
+
   it("validates Google Drive and retention settings in production readiness", () => {
     const workflow = readWorkflow("production-readiness.yml");
 

@@ -1,0 +1,80 @@
+name: Docker preflight and reap
+description: >-
+  Verifies the runner can reach the Docker daemon, then removes Supabase
+  containers and volumes left behind by a cancelled or crashed run.
+
+inputs:
+  scratch-paths:
+    description: Newline-separated paths to delete after reaping containers.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Verify Docker access
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if ! command -v docker >/dev/null 2>&1; then
+          printf 'Docker is not installed on this runner (%s).\n' "$(hostname)" >&2
+          exit 1
+        fi
+
+        # Run docker directly. Do NOT pipe it: a pipeline reports the exit
+        # status of the last command, so `docker ps | xargs` silently swallows a
+        # permission-denied and lets the job continue to a confusing failure
+        # deep inside the Supabase CLI.
+        if ! docker info >/dev/null 2>"$RUNNER_TEMP/docker-info.err"; then
+          printf 'The runner cannot reach the Docker daemon on %s.\n\n' "$(hostname)" >&2
+          cat "$RUNNER_TEMP/docker-info.err" >&2
+          printf '\nRunner user: %s\n' "$(id -un)" >&2
+          printf 'Runner groups: %s\n\n' "$(id -Gn)" >&2
+          printf 'If "docker" is absent from the group list above, the runner\n' >&2
+          printf 'service was started before the user was added to the docker\n' >&2
+          printf 'group. Group membership is fixed at process start, so on that\n' >&2
+          printf 'host run:\n\n' >&2
+          printf '  sudo usermod -aG docker %s\n' "$(id -un)" >&2
+          printf "  sudo systemctl restart 'actions.runner.*'\n\n" >&2
+          printf 'Ignore any "Docker Desktop is a prerequisite" hint from the\n' >&2
+          printf 'Supabase CLI. It prints that on every failed daemon connection\n' >&2
+          printf 'regardless of platform, and is irrelevant on a headless server.\n' >&2
+          exit 1
+        fi
+
+        printf 'Docker reachable on %s as %s (%s). Server %s\n' \
+          "$(hostname)" "$(id -un)" "$(id -Gn)" \
+          "$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo unknown)"
+
+    - name: Reap orphaned Supabase containers
+      shell: bash
+      env:
+        SCRATCH_PATHS: ${{ inputs.scratch-paths }}
+      run: |
+        set -euo pipefail
+
+        # These runners are dedicated to this repository, so matching the
+        # supabase_ prefix is safe here. It would not be on a shared host.
+        containers="$(docker ps -aq --filter 'name=supabase_')"
+        if [[ -n "$containers" ]]; then
+          printf 'Removing %s orphaned container(s).\n' "$(printf '%s\n' "$containers" | wc -l)"
+          printf '%s\n' "$containers" | xargs -r docker rm -f
+        else
+          printf 'No orphaned Supabase containers.\n'
+        fi
+
+        volumes="$(docker volume ls -q --filter 'name=supabase_')"
+        if [[ -n "$volumes" ]]; then
+          printf 'Removing %s orphaned volume(s).\n' "$(printf '%s\n' "$volumes" | wc -l)"
+          printf '%s\n' "$volumes" | xargs -r docker volume rm -f
+        else
+          printf 'No orphaned Supabase volumes.\n'
+        fi
+
+        if [[ -n "${SCRATCH_PATHS//[[:space:]]/}" ]]; then
+          while IFS= read -r path; do
+            [[ -z "${path// /}" ]] && continue
+            rm -rf -- $path || true
+          done <<<"$SCRATCH_PATHS"
+        fi

@@ -1,5 +1,41 @@
 name: Quality Gate
 
+# Runs on three dedicated self-hosted runners (jnuits-full-stack-1..3).
+#
+# The jnuits account exhausted its 2,000 included GitHub-hosted Actions minutes
+# on 2026-07-27. Rather than block all delivery until the 1 August reset, every
+# job runs on self-hosted hardware. This is TEMPORARY; reassessment after the
+# reset is tracked in issue #78.
+#
+# Self-hosted runners differ from GitHub-hosted ones in ways that matter here:
+#
+#   * State persists between jobs. actions/checkout runs `git clean -ffdx`, so
+#     the workspace is reset, but Docker containers, volumes, and anything
+#     outside the workspace are NOT. The Docker jobs reap their own leftovers.
+#   * There is no pre-installed tooling. Node arrives via setup-node; Docker
+#     and the Playwright system libraries must exist on the host. See
+#     docs/operations/self-hosted-runners.md.
+#   * supabase/setup-cli does NOT work here. It depends on bun via
+#     oven-sh/setup-bun, whose cache does not restore to the expected path on a
+#     reused workspace. Use the local composite action instead, which also
+#     authenticates the release archive against a pinned SHA-256 digest.
+#   * Only three runners exist, so jobs queue rather than all starting at once.
+#
+# Standing security conditions while these runners are attached. All of them
+# must hold; see docs/operations/self-hosted-runners.md and issue #78.
+#
+#   * The repository stays PRIVATE. On a public repository any fork pull
+#     request can execute arbitrary code on the runner host.
+#   * The runner group is restricted to this repository only. The reap steps
+#     match `name=supabase_` and would destroy an unrelated Supabase stack.
+#   * Only trusted collaborators may trigger workflows. secret_scan already
+#     refuses fork pull requests; require approval for outside collaborators
+#     as the backstop.
+#   * Hosts stay dedicated and hold no production credentials. Every env var
+#     below is a placeholder, and both migration harnesses are local-only.
+#   * Cached executables are re-verified every run, never trusted because they
+#     ran last time.
+
 on:
   pull_request:
     branches: [main]
@@ -18,7 +54,7 @@ concurrency:
 jobs:
   static_analysis:
     name: Static analysis
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 20
     env:
       APP_BASE_URL: https://jnuits.org.bd
@@ -73,7 +109,7 @@ jobs:
 
   unit_and_integration:
     name: Unit and integration
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 25
     env:
       APP_BASE_URL: https://jnuits.org.bd
@@ -122,7 +158,7 @@ jobs:
 
   migration_integrity:
     name: Migration integrity
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -153,17 +189,21 @@ jobs:
 
   migration_runtime:
     name: Migration runtime
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
+      - name: Docker preflight and reap
+        uses: ./.github/actions/docker-preflight
+        with:
+          scratch-paths: /tmp/jnuits-migration-verify.*
+
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: 2.109.1
-          github-token: ${{ github.token }}
 
       - name: Verify unapplied migrations on disposable Supabase
         run: |
@@ -178,12 +218,100 @@ jobs:
         with:
           name: unapplied-migration-verification
           path: artifacts/reports/unapplied-migration-verification.log
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
+
+      - name: Reap after the run
+        if: always()
+        uses: ./.github/actions/docker-preflight
+        with:
+          scratch-paths: /tmp/jnuits-migration-verify.*
+
+  # Issue #18. Offline ordering and forward-reference analysis.
+  #
+  # The fixture tests are blocking: they prove the checker detects every
+  # failure class it claims to, including the DDL false positives that made an
+  # earlier version report 198 findings.
+  #
+  # The repo-wide scan is blocking too, as of 2026-07-27. The verify-then-
+  # promote condition in docs/operations/migration-bootstrap-and-integrity.md
+  # section 4 was satisfied on this branch: a Linux run reported
+  # `Inspected 95 migrations.` followed by `Migration ordering and dependency
+  # check: no findings.` The step now runs --strict, so any new finding exits
+  # 2, and this job is in the Required CI needs list below.
+  migration_dependencies:
+    name: Migration ordering and dependencies
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Dependency checker unit tests
+        run: npx --no-install vitest run scripts/check-migration-dependencies.test.mjs
+
+      - name: Migration ordering and forward-reference scan
+        run: npm run migration:check-order:strict
+
+  # Issue #18. Supported baseline replay of the entire chain on a disposable
+  # local stack. First executed in CI on 2026-07-27: 96 migrations applied,
+  # every ENFORCED assertion passed. Required since then.
+  #
+  # NOTE: this job and migration_runtime both reap every supabase_* container
+  # on their host and both bind fixed local ports, with no ordering between
+  # them. On three shared runners they can collide. See issue #78.
+  migration_bootstrap_replay:
+    name: Clean migration replay
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Docker preflight and reap
+        uses: ./.github/actions/docker-preflight
+        with:
+          scratch-paths: ${{ github.workspace }}/.replay-scratch
+
+      - name: Setup Supabase CLI
+        uses: ./.github/actions/setup-supabase-cli
+        with:
+          version: 2.109.1
+
+      - name: Replay the full chain from the supported bootstrap point
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/reports
+          bash supabase/verification/run-bootstrap-replay.sh |
+            tee artifacts/reports/bootstrap-replay-verification.log
+
+      - name: Upload replay evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: bootstrap-replay-verification
+          path: artifacts/reports/bootstrap-replay-verification.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Reap after the run
+        if: always()
+        uses: ./.github/actions/docker-preflight
+        with:
+          scratch-paths: ${{ github.workspace }}/.replay-scratch
 
   build_and_browser:
     name: Build and browser smoke
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 35
     env:
       APP_BASE_URL: https://jnuits.org.bd
@@ -200,6 +328,10 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: ci-placeholder-turnstile-site-key
       PLAYWRIGHT_PORT: 3100
+      # Keep browsers outside the workspace: actions/checkout runs
+      # `git clean -ffdx` on a reused self-hosted workspace, which would delete
+      # a cache stored inside it.
+      PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
       RATE_LIMIT_BACKEND: supabase
       RATE_LIMIT_SECRET_SALT: ci-placeholder-rate-limit-secret-salt-000000
       RESEND_API_KEY: re_ci_placeholder
@@ -224,14 +356,8 @@ jobs:
       - name: Production build
         run: npm run build
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
+      # No actions/cache here. The browser directory persists on the runner
+      # between jobs, so `playwright install` is a no-op once it is populated.
       - name: Install Playwright Chromium
         run: npm run test:e2e:install
 
@@ -249,9 +375,19 @@ jobs:
 
   application_quality:
     name: Required CI
-    needs: [static_analysis, unit_and_integration, migration_integrity, migration_runtime, build_and_browser, secret_scan]
+    needs:
+      [
+        static_analysis,
+        unit_and_integration,
+        migration_integrity,
+        migration_runtime,
+        migration_dependencies,
+        migration_bootstrap_replay,
+        build_and_browser,
+        secret_scan,
+      ]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 5
     steps:
       - name: Require every quality shard to pass
@@ -260,13 +396,25 @@ jobs:
           UNIT_AND_INTEGRATION_RESULT: ${{ needs.unit_and_integration.result }}
           MIGRATION_INTEGRITY_RESULT: ${{ needs.migration_integrity.result }}
           MIGRATION_RUNTIME_RESULT: ${{ needs.migration_runtime.result }}
+          MIGRATION_DEPENDENCIES_RESULT: ${{ needs.migration_dependencies.result }}
+          MIGRATION_BOOTSTRAP_REPLAY_RESULT: ${{ needs.migration_bootstrap_replay.result }}
           BUILD_AND_BROWSER_RESULT: ${{ needs.build_and_browser.result }}
           SECRET_SCAN_RESULT: ${{ needs.secret_scan.result }}
         run: |
+          echo "static_analysis=$STATIC_ANALYSIS_RESULT"
+          echo "unit_and_integration=$UNIT_AND_INTEGRATION_RESULT"
+          echo "migration_integrity=$MIGRATION_INTEGRITY_RESULT"
+          echo "migration_runtime=$MIGRATION_RUNTIME_RESULT"
+          echo "migration_dependencies=$MIGRATION_DEPENDENCIES_RESULT"
+          echo "migration_bootstrap_replay=$MIGRATION_BOOTSTRAP_REPLAY_RESULT"
+          echo "build_and_browser=$BUILD_AND_BROWSER_RESULT"
+          echo "secret_scan=$SECRET_SCAN_RESULT"
           test "$STATIC_ANALYSIS_RESULT" = "success"
           test "$UNIT_AND_INTEGRATION_RESULT" = "success"
           test "$MIGRATION_INTEGRITY_RESULT" = "success"
           test "$MIGRATION_RUNTIME_RESULT" = "success"
+          test "$MIGRATION_DEPENDENCIES_RESULT" = "success"
+          test "$MIGRATION_BOOTSTRAP_REPLAY_RESULT" = "success"
           test "$BUILD_AND_BROWSER_RESULT" = "success"
           case "$SECRET_SCAN_RESULT" in
             success|skipped) ;;
@@ -276,7 +424,7 @@ jobs:
   secret_scan:
     name: Secret scan
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 20
     steps:
       - name: Checkout full history
