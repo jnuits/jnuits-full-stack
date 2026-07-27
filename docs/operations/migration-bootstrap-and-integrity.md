@@ -12,7 +12,7 @@ built, why it was removed, and what to know if it is ever picked back up.
 | --- | --- | --- |
 | Starts from | An empty database, migration one | An empty database plus one version-controlled bootstrap helper |
 | Status | **Impossible today** | **Supported. This is the real recovery path.** |
-| Proven by | Nothing. It cannot pass. | `npm run db:replay-bootstrap` |
+| Proven by | Nothing. It cannot pass. | `npm run db:replay-bootstrap`, and the required `Clean migration replay` CI job |
 
 ### Why full historical replay is impossible
 
@@ -52,7 +52,12 @@ SUPABASE_BIN=/path/to/supabase bash supabase/verification/run-bootstrap-replay.s
 
 What it does:
 
-1. Creates a uniquely named scratch project with `mktemp -d`.
+1. Creates a uniquely named scratch project with `mktemp -d` under
+   **`.replay-scratch/` at the repository root**, not under `TMPDIR`. That
+   directory is git-ignored, and `actions/checkout` removes it on a reused
+   self-hosted workspace. It lives inside the repo deliberately: under Git
+   Bash, MSYS rewrites POSIX-looking paths before native binaries see them, so
+   bash's `/tmp` and the CLI's view of the same string resolve differently.
 2. Copies `supabase/verification/baseline/20260608092959_restore_rls_auto_enable.sql`
    into the scratch migration set. **This file must never move into
    `supabase/migrations`.**
@@ -89,24 +94,62 @@ Two tiers, deliberately.
 3. The replay produced a real schema: non-zero tables, functions, policies,
    triggers, and constraints. Guards against an empty database passing every
    other check vacuously.
+4. **Every `SECURITY DEFINER` function in `public` pins `search_path`.**
+   Promoted from evidence on 2026-07-27, once a real run established that the
+   allowlist is empty: 34 definer functions, zero offenders. A definer
+   function without a pinned `search_path` runs privileged code against
+   caller-controlled schema resolution, so there is no allowlist mechanism
+   here on purpose. A new exemption is a design discussion, not a config line.
+   Cross-check new definer functions against
+   `security-definer-function-register.md`.
 
 **Recorded as evidence.** Raised as notices, not exceptions.
 
-4. Installed extensions.
-5. Tables in `public` without RLS enabled.
-6. `SECURITY DEFINER` functions in `public` that do not pin `search_path`.
-   Cross-check against `security-definer-function-register.md`.
-7. `anon` write privileges on `public` tables.
+5. Installed extensions.
+6. Tables in `public` without RLS enabled.
+7. `anon` and `authenticated` write privileges on `public` tables.
 8. Oldest and newest applied versions.
 
-Checks 5 through 7 are security invariants and should become blocking. They are
-not blocking yet because their legitimate allowlists have never been confirmed
-against a real replay, and inventing an allowlist would produce false failures.
-**Promote them after one local run establishes the true list. Do not promote
-them by guessing.**
+Checks 6 and 7 are security invariants and should become blocking. They are
+not blocking yet because **their offender lists are not empty**, and promoting
+them today would report a known control gap as a code failure on every
+unrelated change:
+
+- Check 6 finds one table, `membership_id_sequences`. Production has RLS on
+  it; a database rebuilt from the chain does not. That is recovery drift, and
+  it is tracked in **#76**. Promote after that forward migration lands. Do not
+  promote by allowlisting the offender, which would bless the drift.
+- Check 7 finds `anon` and `authenticated` holding TRUNCATE through default
+  privileges. Tracked in **#75**. Promote after that forward migration lands.
+
+### The replay understates production
+
+Read-only production inspection on 2026-07-27 found both roles holding the
+full write set (DELETE, INSERT, UPDATE, TRUNCATE) across 36-38 tables, from
+default ACLs owned by **both** `postgres` and `supabase_admin`. The replay
+only surfaced TRUNCATE.
+
+A database built purely from migrations receives fewer inherited grants than
+one that has accumulated platform defaults over its life. **Treat replay
+privilege evidence as a floor, never a ceiling.** Verify production
+separately, read-only, before drawing conclusions about it.
 
 No assertion or notice emits a connection string, project ref, key, or PII. The
 only log surfaced on failure is local container output.
+
+### Evidence from the Linux run on 2026-07-27
+
+The first execution of this harness inside GitHub Actions, on a self-hosted
+Linux runner. Previously it had only ever run once, locally, on Windows.
+
+```
+ENFORCED 1 passed: 96 migrations replayed and recorded.
+ENFORCED 2 passed: bootstrap dependency public.rls_auto_enable() present.
+ENFORCED 3 passed. tables=68 views=2 functions=66 policies=142 triggers=51 constraints=413 extensions=8
+ENFORCED 4 passed: all 34 SECURITY DEFINER functions in public pin search_path.
+```
+
+96 = 95 repository migrations plus the verification-only bootstrap helper.
 
 ## 4. Static ordering and forward-reference check
 
@@ -132,11 +175,25 @@ Known historical gaps live in `BOOTSTRAP_FUNCTIONS` in
 statement of the difference between full historical replay and supported
 baseline replay. Adding an entry is an admission of a new gap, not a fix.
 
-**Repo-wide strict mode is not wired into CI.** The true allowlist has never
-been confirmed against a real run. Confirm locally, extend the list, then
-enable `--strict`. The fixture tests in
-`scripts/check-migration-dependencies.test.mjs` already prove the checker
-detects every failure class.
+**Strict mode is wired into CI as of 2026-07-27.** The verify-then-promote
+condition was met: a Linux run reported `Inspected 95 migrations.` followed by
+`Migration ordering and dependency check: no findings.` The
+`migration_dependencies` job now runs `--strict` and is in the `Required CI`
+`needs` list, so a new finding exits 2 and blocks the merge. The fixture tests
+in `scripts/check-migration-dependencies.test.mjs` prove the checker detects
+every failure class it claims to, and three subprocess tests prove the CLI
+actually exits non-zero when it finds something.
+
+### Known limitation
+
+The checker treats `function` as a DDL object keyword, so
+`for each row execute function public.f()` is **not** counted as an
+invocation. Twenty-two migrations use that pattern. There is no live defect
+today, because every trigger function in the chain is defined before first
+use, but a trigger function referenced before creation would not be caught.
+`CREATE TRIGGER` fails immediately when the function is absent, so this is a
+real gap in the same failure class the checker exists for. Tracked as
+follow-up from the PR #74 review.
 
 ## 5. Line endings in `supabase/migrations`
 
@@ -198,21 +255,30 @@ check, and it compares filename versions against linked remote history only. It
 does not detect edited content. Treat migration files as append-only by
 convention, not by enforcement.
 
-## 7. Promoting the replay gate to required
+## 7. The replay gate is required
 
-The `migration_bootstrap_replay` job runs but is deliberately absent from the
-`Required CI` `needs` list in `.github/workflows/quality-gate.yml`.
+`migration_bootstrap_replay`, named `Clean migration replay` in the checks
+list, is in the `Required CI` `needs` list in
+`.github/workflows/quality-gate.yml` and has its own result assertion. The
+aggregate job echoes every shard result before asserting, so a future no-log
+failure stays diagnosable.
 
-The full chain has never been replayed, so requiring it today would report a
-control gap as a code failure and block every unrelated change. Promote in this
-order:
+It was promoted on 2026-07-27 in the order this section previously prescribed:
 
-1. Run `npm run db:replay-bootstrap` locally. If the chain fails, that failure
-   is the answer #18 was asking for; fix it forward before promoting.
-2. Confirm the job is green on a pull request.
-3. Add `migration_bootstrap_replay` to the `Required CI` `needs` list and to
-   its result assertions.
-4. Only then rely on it as release evidence.
+1. The chain was replayed and all enforced assertions passed. ✅
+2. The job ran green on a pull request. ✅
+3. It was added to the `Required CI` `needs` list and its result assertions. ✅
+4. It is now release evidence.
 
-Until step 3 lands, the job is not a release gate, and the release checklist
-must not claim otherwise.
+**The release checklist may rely on it.** A red `Clean migration replay` means
+the migration chain does not build from the supported bootstrap point, and
+that is a merge blocker, not a flaky job.
+
+### Operational caveat while self-hosted runners are in use
+
+`migration_runtime` and `migration_bootstrap_replay` both reap every
+`supabase_*` container and volume on their host, before and after, and both
+bind fixed local ports. They have no ordering between them and there are only
+three runners. If they land on the same host concurrently, the later job's
+preflight reap will kill the earlier job's live stack and the failure will
+look like a code defect. See `self-hosted-runners.md` and issue #78.

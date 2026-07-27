@@ -4,7 +4,8 @@ name: Quality Gate
 #
 # The jnuits account exhausted its 2,000 included GitHub-hosted Actions minutes
 # on 2026-07-27. Rather than block all delivery until the 1 August reset, every
-# job runs on self-hosted hardware.
+# job runs on self-hosted hardware. This is TEMPORARY; reassessment after the
+# reset is tracked in issue #78.
 #
 # Self-hosted runners differ from GitHub-hosted ones in ways that matter here:
 #
@@ -16,13 +17,24 @@ name: Quality Gate
 #     docs/operations/self-hosted-runners.md.
 #   * supabase/setup-cli does NOT work here. It depends on bun via
 #     oven-sh/setup-bun, whose cache does not restore to the expected path on a
-#     reused workspace. Use the local composite action instead.
+#     reused workspace. Use the local composite action instead, which also
+#     authenticates the release archive against a pinned SHA-256 digest.
 #   * Only three runners exist, so jobs queue rather than all starting at once.
 #
-# Security note: this repository is private and secret_scan already refuses to
-# run for fork pull requests. Do not make the repository public while
-# self-hosted runners are attached without first restricting who can trigger
-# workflows.
+# Standing security conditions while these runners are attached. All of them
+# must hold; see docs/operations/self-hosted-runners.md and issue #78.
+#
+#   * The repository stays PRIVATE. On a public repository any fork pull
+#     request can execute arbitrary code on the runner host.
+#   * The runner group is restricted to this repository only. The reap steps
+#     match `name=supabase_` and would destroy an unrelated Supabase stack.
+#   * Only trusted collaborators may trigger workflows. secret_scan already
+#     refuses fork pull requests; require approval for outside collaborators
+#     as the backstop.
+#   * Hosts stay dedicated and hold no production credentials. Every env var
+#     below is a placeholder, and both migration harnesses are local-only.
+#   * Cached executables are re-verified every run, never trusted because they
+#     ran last time.
 
 on:
   pull_request:
@@ -251,8 +263,12 @@ jobs:
         run: npm run migration:check-order:strict
 
   # Issue #18. Supported baseline replay of the entire chain on a disposable
-  # local stack. Executed successfully on 2026-07-27: 96 migrations applied,
-  # all three ENFORCED assertions passed. Now required.
+  # local stack. First executed in CI on 2026-07-27: 96 migrations applied,
+  # every ENFORCED assertion passed. Required since then.
+  #
+  # NOTE: this job and migration_runtime both reap every supabase_* container
+  # on their host and both bind fixed local ports, with no ordering between
+  # them. On three shared runners they can collide. See issue #78.
   migration_bootstrap_replay:
     name: Clean migration replay
     runs-on: [self-hosted, Linux, X64]

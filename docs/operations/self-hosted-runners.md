@@ -7,6 +7,9 @@ with no step logs and no artifacts. No code was at fault.
 
 The Quality Gate now runs on three dedicated self-hosted runners.
 
+**This is a temporary measure with an expiry date.** Reassessment after the
+2026-08-01 reset is tracked in issue #78.
+
 ## Runners
 
 | Name | Labels | Spec |
@@ -15,8 +18,33 @@ The Quality Gate now runs on three dedicated self-hosted runners.
 | `jnuits-full-stack-2` | same | same |
 | `jnuits-full-stack-3` | same | same |
 
-Three runners, eight jobs. Jobs queue in dependency order rather than all
+Three runners, nine jobs. Jobs queue in dependency order rather than all
 starting at once. A full green run takes roughly three waves.
+
+## Standing conditions
+
+These are not optional. They are what makes self-hosted execution acceptable
+for this repository, and every one of them must hold for as long as the
+runners are attached.
+
+- **The repository stays private.** On a public repository, any fork pull
+  request can execute arbitrary code on the runner host.
+- **The runner group is restricted to this repository only.** The reap steps
+  match `name=supabase_` and would destroy an unrelated Supabase stack sharing
+  a host.
+- **Only trusted collaborators may trigger workflows.** `secret_scan` already
+  refuses fork pull requests; set *Settings → Actions → Require approval for
+  all outside collaborators* as the backstop.
+- **Hosts stay dedicated and hold no production credentials.** CI environment
+  variables are placeholders, and both migration harnesses are local-only with
+  no `--linked` and no `--db-url` path.
+- **Cached executable integrity is re-verified every run.**
+  `.github/actions/setup-supabase-cli` authenticates the release archive
+  against a SHA-256 digest committed to this repository, then rebuilds the
+  extraction directory from that verified archive. `$HOME` on a persistent
+  runner is writable by every job that lands on the host, so a previously
+  extracted binary that still runs proves nothing about its authenticity.
+- **Reassess after 2026-08-01.** See §Reverting and issue #78.
 
 ## Required host setup
 
@@ -63,6 +91,8 @@ Consequences already handled in `quality-gate.yml`:
 - **Playwright browsers.** `PLAYWRIGHT_BROWSERS_PATH` points outside the
   workspace so the download survives `git clean`. `actions/cache` was removed
   from that job; on a persistent host it is pure overhead.
+- **Cached tool archives.** See the Supabase CLI note under Standing
+  conditions. Anything cached under `$HOME` is re-verified, never trusted.
 
 ### Reaping is repository-scoped by assumption
 
@@ -71,10 +101,23 @@ Supabase stack on the same host. These runners are dedicated to this
 repository, so that is acceptable. **Do not** attach these runners to another
 project that runs Supabase locally without narrowing the filter.
 
+### Known risk: the two Docker jobs can collide
+
+`migration_runtime` and `migration_bootstrap_replay` both reap every
+`supabase_*` container and volume on their host, before and after, with
+`if: always()`. They have no ordering between them, both bind fixed local
+ports, and both are inside `Required CI`.
+
+Three runners, nine jobs. When those two land on the same host concurrently,
+the later job's preflight reap kills the earlier job's live stack and the
+failure reads like a code defect. Expect intermittent red on unrelated pull
+requests until they are serialised (`needs: migration_runtime` on the replay
+job is the cheapest fix) or given a dedicated runner label. Tracked in #78.
+
 ### Disk
 
-160 GB per host. Docker images, npm caches, and Playwright browsers accumulate.
-If a runner starts failing on disk pressure:
+160 GB per host. Docker images, npm caches, Supabase CLI archives, and
+Playwright browsers accumulate. If a runner starts failing on disk pressure:
 
 ```bash
 docker system prune -af --volumes
@@ -94,16 +137,51 @@ on the runner host.
 - Runner hosts hold no production credentials. CI env vars are placeholders,
   and the migration harnesses are local-only with no `--linked` path.
 
+### Residual risk of persistent runners
+
+These runners are **persistent, not ephemeral**. `npm ci` runs dependency
+lifecycle scripts, and the Supabase CLI archive is cached under `$HOME` and
+reused across runs. Anything a workflow writes to `$HOME` is available to
+every later run on that host.
+
+That is acceptable on a private repository with trusted collaborators. It
+stops being acceptable the moment fork pull requests can trigger workflows.
+The archive digest check exists precisely because a cached executable on a
+shared, long-lived filesystem is not self-authenticating. If these runners
+outlive the billing reset, move to **ephemeral** runners.
+
 ## Reverting to GitHub-hosted runners
 
-After the 1 August reset, or if a paid plan is adopted, replace every
-`runs-on: [self-hosted, Linux, X64]` with `runs-on: ubuntu-latest`.
+The included minutes reset on **2026-08-01**. A decision is due then: revert,
+adopt a paid plan, or keep self-hosted deliberately and make the runners
+ephemeral. Tracked in issue #78.
+
+To revert, replace every `runs-on: [self-hosted, Linux, X64]` with
+`runs-on: ubuntu-latest`.
 
 The reap steps and `PLAYWRIGHT_BROWSERS_PATH` become unnecessary but remain
 harmless: a GitHub-hosted runner is a fresh VM, so the reaps find nothing.
 The `actions/cache` step for Playwright should be restored at that point,
-since an ephemeral runner has no persistent browser directory.
+since an ephemeral runner has no persistent browser directory. The Supabase
+CLI digest check should be kept regardless; it costs nothing and it is the
+only thing authenticating that binary on any runner.
 
 Running on both simultaneously is also possible by making the label set a
 workflow input, but that adds a knob nobody will remember. Prefer a single
 deliberate switch.
+
+## Workflows still on GitHub-hosted runners
+
+These were left alone on purpose, but they are **not usable until the reset**.
+Dispatching any of them before 2026-08-01 will produce the same instant,
+logless refusal.
+
+| Workflow | Trigger | Why it was left |
+| --- | --- | --- |
+| `e2e-matrix.yml` | Weekly cron, Sundays 20:00 UTC | Next fire is 2 August, after the reset |
+| `production-readiness.yml` | `workflow_dispatch` | Manual, and it links a remote project |
+| `preproduction-verify.yml` | `workflow_dispatch` | Manual, and it links a remote project |
+| `preproduction-alumni.yml` | `workflow_dispatch` | Manual |
+
+Practical consequence: **there is no working release-verification path before
+2026-08-01.** Do not plan a production release inside that window.
