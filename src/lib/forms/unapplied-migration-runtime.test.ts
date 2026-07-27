@@ -21,6 +21,14 @@ const supabaseCliActionPath = resolve(
 
 const PINNED_SUPABASE_CLI_VERSION = "2.109.1";
 
+// Official release digests for supabase_2.109.1_linux_<arch>.tar.gz. These are
+// duplicated here on purpose: the test fails if someone edits the action's
+// pinned digest without a matching, reviewed change here.
+const PINNED_SUPABASE_CLI_DIGESTS = {
+  amd64: "36d87b7fe6b4bcfe89ac47a4354e526cff22480224de426d7b370f6934556976",
+  arm64: "a7f7c771acd3a2a13938b5832029beb24787b165d5119ed57ad6e964f3593291",
+} as const;
+
 describe("unapplied migration runtime verification", () => {
   it("reconstructs production through form_upload_sessions without copying target migrations", () => {
     expect(existsSync(runnerPath)).toBe(true);
@@ -105,7 +113,7 @@ describe("unapplied migration runtime verification", () => {
 
     // Cherry-picking a single file out of the archive is the defect. Require a
     // whole-archive extraction.
-    expect(action).toContain('tar -xzf "$tmp/supabase.tar.gz" -C "$install_dir"');
+    expect(action).toContain('tar -xzf "$archive" -C "$install_dir"');
     expect(action).not.toContain('install -m 0755 "$tmp/supabase"');
 
     // Verification must go beyond --version, which the shim answers alone.
@@ -119,5 +127,61 @@ describe("unapplied migration runtime verification", () => {
     expect(action).not.toContain("--linked");
     expect(action).not.toContain("--db-url");
     expect(action).not.toContain("SUPABASE_ACCESS_TOKEN");
+  });
+
+  it("authenticates the release archive against a pinned SHA-256 digest", () => {
+    expect(existsSync(supabaseCliActionPath)).toBe(true);
+    if (!existsSync(supabaseCliActionPath)) return;
+
+    const action = readFileSync(supabaseCliActionPath, "utf8");
+
+    // A digest per supported architecture, committed in version control.
+    expect(action).toContain(PINNED_SUPABASE_CLI_DIGESTS.amd64);
+    expect(action).toContain(PINNED_SUPABASE_CLI_DIGESTS.arm64);
+    expect(action).toContain("sha256sum");
+
+    // Fail closed. An unpinned version or architecture must not install
+    // anything rather than installing something unauthenticated.
+    expect(action).toContain("No pinned SHA-256 digest for Supabase CLI");
+    expect(action).toContain("Refusing to install an unauthenticated executable");
+
+    // Circular verification is not verification: an attacker who can replace
+    // the tarball can replace the release's own checksum file too.
+    expect(action).not.toContain("checksums.txt");
+  });
+
+  it("verifies before extracting and rebuilds the install directory every run", () => {
+    expect(existsSync(supabaseCliActionPath)).toBe(true);
+    if (!existsSync(supabaseCliActionPath)) return;
+
+    const action = readFileSync(supabaseCliActionPath, "utf8");
+
+    const downloadCheckIndex = action.indexOf(
+      '[[ "$downloaded_digest" != "$expected_digest" ]]'
+    );
+    const cachedCheckIndex = action.indexOf(
+      '[[ "$cached_digest" == "$expected_digest" ]]'
+    );
+    const freshExtractIndex = action.indexOf(
+      'rm -rf -- "$install_dir"\n        mkdir -p "$install_dir"'
+    );
+    const extractIndex = action.indexOf('tar -xzf "$archive" -C "$install_dir"');
+
+    expect(cachedCheckIndex).toBeGreaterThan(-1);
+    expect(downloadCheckIndex).toBeGreaterThan(-1);
+    expect(freshExtractIndex).toBeGreaterThan(-1);
+    expect(extractIndex).toBeGreaterThan(-1);
+
+    // Nothing is extracted until the archive has been authenticated.
+    expect(extractIndex).toBeGreaterThan(cachedCheckIndex);
+    expect(extractIndex).toBeGreaterThan(downloadCheckIndex);
+
+    // A previously extracted tree is never trusted; it is rebuilt from the
+    // archive that was just verified.
+    expect(extractIndex).toBeGreaterThan(freshExtractIndex);
+
+    // A mismatch removes the invalid cached material rather than keeping it.
+    expect(action).toContain('rm -f -- "$archive"');
+    expect(action).toContain("FAILED SHA-256 verification");
   });
 });
