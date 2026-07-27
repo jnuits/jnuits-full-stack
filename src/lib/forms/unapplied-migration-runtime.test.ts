@@ -29,6 +29,19 @@ const PINNED_SUPABASE_CLI_DIGESTS = {
   arm64: "a7f7c771acd3a2a13938b5832029beb24787b165d5119ed57ad6e964f3593291",
 } as const;
 
+/**
+ * Drops `#` comment lines so a behavioural assertion cannot be satisfied, or
+ * broken, by prose. The action documents at length why checksums.txt must not
+ * be used, and a naive substring check cannot tell that explanation apart from
+ * an actual use of it.
+ */
+function executableLines(shellSource: string) {
+  return shellSource
+    .split("\n")
+    .filter((line) => !/^\s*#/.test(line))
+    .join("\n");
+}
+
 describe("unapplied migration runtime verification", () => {
   it("reconstructs production through form_upload_sessions without copying target migrations", () => {
     expect(existsSync(runnerPath)).toBe(true);
@@ -144,10 +157,27 @@ describe("unapplied migration runtime verification", () => {
     // anything rather than installing something unauthenticated.
     expect(action).toContain("No pinned SHA-256 digest for Supabase CLI");
     expect(action).toContain("Refusing to install an unauthenticated executable");
+  });
+
+  it("never verifies the archive against a checksum file from the same release", () => {
+    expect(existsSync(supabaseCliActionPath)).toBe(true);
+    if (!existsSync(supabaseCliActionPath)) return;
+
+    const action = readFileSync(supabaseCliActionPath, "utf8");
+    const code = executableLines(action);
 
     // Circular verification is not verification: an attacker who can replace
-    // the tarball can replace the release's own checksum file too.
-    expect(action).not.toContain("checksums.txt");
+    // the tarball can replace the release's own checksum file too. The action
+    // is expected to *explain* that in a comment, so the prohibition is on
+    // fetching the file, not on naming it.
+    expect(code).not.toMatch(/\bcurl\b[^\n]*checksums\.txt/i);
+    expect(code).not.toMatch(/\bwget\b[^\n]*checksums\.txt/i);
+    expect(code).not.toMatch(/-o[^\n]*checksums\.txt/i);
+
+    // `sha256sum -c` reads expected digests from a file. The only trusted
+    // source here is the pinned literal, compared directly.
+    expect(code).not.toMatch(/sha256sum\s+(-c|--check)\b/);
+    expect(code).toContain('"$downloaded_digest" != "$expected_digest"');
   });
 
   it("verifies before extracting and rebuilds the install directory every run", () => {
