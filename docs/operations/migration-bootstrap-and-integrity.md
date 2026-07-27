@@ -50,6 +50,20 @@ Or directly, when the CLI is not on `PATH`:
 SUPABASE_BIN=/path/to/supabase bash supabase/verification/run-bootstrap-replay.sh
 ```
 
+If the default local database port `54322` is unavailable, choose a free,
+unreserved port and set `SUPABASE_REPLAY_DB_PORT`. On Windows PowerShell:
+
+```powershell
+netsh interface ipv4 show excludedportrange protocol=tcp
+$env:SUPABASE_REPLAY_DB_PORT = "55122" # Replace with a free, unreserved port.
+npm run db:replay-bootstrap
+Remove-Item Env:SUPABASE_REPLAY_DB_PORT
+```
+
+The runner accepts only integer ports from `1024` through `65535`, changes
+only the scratch project's `[db].port`, and refuses an unexpected generated
+config shape. It never changes the repository's `supabase/config.toml`.
+
 What it does:
 
 1. Creates a uniquely named scratch project with `mktemp -d` under

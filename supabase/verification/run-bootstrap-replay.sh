@@ -29,9 +29,11 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 bootstrap_helper="$repo_root/supabase/verification/baseline/20260608092959_restore_rls_auto_enable.sql"
+port_helper="$repo_root/supabase/verification/configure-bootstrap-replay-port.mjs"
 bootstrap_version="20260608092959"
 pinned_cli_version="2.109.1"
 scratch_ack="${SCRATCH_ACK:-DISPOSABLE_SCRATCH}"
+replay_db_port="${SUPABASE_REPLAY_DB_PORT:-}"
 scratch_root="$repo_root/.replay-scratch"
 stack_started=0
 
@@ -57,6 +59,11 @@ fi
 
 if [[ ! -f "$bootstrap_helper" ]]; then
   printf 'Bootstrap helper is missing: %s\n' "$bootstrap_helper" >&2
+  exit 1
+fi
+
+if [[ -n "$replay_db_port" && ! -f "$port_helper" ]]; then
+  printf 'Database port helper is missing: %s\n' "$port_helper" >&2
   exit 1
 fi
 
@@ -137,6 +144,15 @@ if [[ -z "$config_file" || ! -f "$config_file" ]]; then
   printf 'Scratch contents:\n' >&2
   find "$scratch_dir" -maxdepth 3 >&2 2>/dev/null || true
   exit 1
+fi
+
+if [[ -n "$replay_db_port" ]]; then
+  if ! command -v node >/dev/null 2>&1; then
+    printf 'Node.js is required when SUPABASE_REPLAY_DB_PORT is set.\n' >&2
+    exit 1
+  fi
+  node "$port_helper" "$config_file" "$replay_db_port"
+  printf 'Disposable database port override: %s\n' "$replay_db_port"
 fi
 
 project_dir="$(cd "$(dirname "$config_file")/.." && pwd)"
