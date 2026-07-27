@@ -17,6 +17,10 @@ import {
 } from "@/lib/forms/form-studio-definition";
 import { moveItem } from "@/lib/forms/field-order";
 import {
+  buildPublicFormUrl,
+  formatPublicFormUrlForDisplay,
+} from "@/lib/forms/public-url";
+import {
   useFormInventory,
   type FormInventoryItem,
   type FormInventoryKind,
@@ -48,6 +52,18 @@ const KINDS: Record<FormKind, string> = {
   membership_application: "Membership application",
   alumni_onboarding: "Alumni onboarding",
 };
+
+/**
+ * Written lifecycle labels. The raw union values are database states, not
+ * operator language, and "closed" alone does not say what was closed.
+ */
+const LIFECYCLE_LABELS: Record<FormInventoryItem["lifecycle"], string> = {
+  archived: "Archived",
+  closed: "Intake closed",
+  draft: "Draft",
+  published: "Published",
+};
+
 const TYPES: Record<StudioFieldType, string> = {
   section: "Section heading",
   text: "Short answer",
@@ -141,7 +157,7 @@ function eventLabel(event: LinkableEvent) {
 }
 
 export function ModernFormStudioScreen() {
-  const { error: inventoryError, forms, refresh } = useFormInventory();
+  const { error: inventoryError, forms, publicBaseUrl, refresh } = useFormInventory();
   const [kind, setKind] = useState<FormKind>("membership_application");
   const [title, setTitle] = useState("Membership application");
   const [slug, setSlug] = useState("membership-application");
@@ -317,11 +333,32 @@ export function ModernFormStudioScreen() {
     finally { setBusy(null); }
   }
 
-  async function copyLink(form: FormInventoryItem) {
+  /**
+   * The canonical URL is passed in, never derived from the current host, so a
+   * link copied from a preview deployment or localhost is still the address a
+   * member can actually open.
+   */
+  async function copyLink(url: string) {
+    // navigator.clipboard is undefined in an insecure context, so this is a
+    // reachable path rather than a theoretical one. The address is displayed on
+    // the card, so there is always a manual route.
+    if (!navigator.clipboard?.writeText) {
+      setNotice({
+        text: "Copying is unavailable in this browser. Select the address shown on the form and copy it manually.",
+        tone: "error",
+      });
+      return;
+    }
+
     try {
-      await navigator.clipboard.writeText(new URL(`/forms/${form.slug}`, window.location.origin).toString());
+      await navigator.clipboard.writeText(url);
       setNotice({ text: "Published form link copied.", tone: "success" });
-    } catch { setNotice({ text: "The link could not be copied. Open the preview and copy it from the address bar.", tone: "error" }); }
+    } catch {
+      setNotice({
+        text: "The link could not be copied. Select the address shown on the form and copy it manually.",
+        tone: "error",
+      });
+    }
   }
 
   /**
@@ -419,7 +456,89 @@ export function ModernFormStudioScreen() {
         {banner ? <p className={banner.tone === "error" ? "status-pill status-pill--danger" : "status-pill"} role={banner.tone === "error" ? "alert" : "status"} aria-live="polite">{banner.text}</p> : null}
         <div className="flex flex-wrap justify-end gap-3"><button className="admin-btn admin-btn--ghost" onClick={() => setPreview((value) => !value)} type="button"><Eye size={15} /> {preview ? "Hide preview" : "Preview"}</button><button className="admin-btn admin-btn--primary" disabled={busy !== null || !canSave} onClick={() => void save()} type="button"><Plus size={15} /> {busy === "save" ? "Saving…" : draft ? "Save draft" : editingId ? "Save as new draft" : "Create draft"}</button>{draft ? <button className="admin-btn admin-btn--primary" disabled={busy !== null} onClick={() => void publish()} type="button"><Send size={15} /> {busy === "publish" ? "Publishing…" : "Publish"}</button> : null}</div>
       </section>
-      <aside className="grid content-start gap-4"><section className="admin-review-card"><p className="admin-section-label">Your forms</p><h2 className="admin-card-row__title">Edit, share, and export</h2>{forms.length ? <div className="mt-4 grid gap-3">{forms.map((form) => <article className="rounded-xl border border-[var(--line)] p-3" key={form.id}><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{form.title}</h3><p className="mt-1 text-xs text-[var(--muted-foreground)]">{KINDS[form.kind]} · {form.lifecycle}</p></div></div>{form.lifecycle !== "archived" ? <button className="queue-link mt-3" disabled={busy === "load"} onClick={() => void openForm(form.id)} type="button">{form.lifecycle === "draft" ? "Resume draft" : "Edit"}</button> : null}{form.lifecycle === "published" ? <div className="mt-3 flex flex-wrap gap-3"><Link className="queue-link" href={`/forms/${form.slug}`} target="_blank">Preview</Link><button className="queue-link" onClick={() => void copyLink(form)} type="button"><Copy size={13} /> Share link</button><Link className="queue-link" href={`/admin/content/forms?review=${form.id}#submission-review`}>Review responses</Link>{form.kind !== "event_registration" ? <><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=csv`}>CSV</a><a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=xlsx`}>XLSX</a><button className="queue-link" disabled={sheetFormId !== null} onClick={() => void createSheet(form)} type="button"><Sheet size={13} /> {sheetFormId === form.id ? "Creating…" : "Google Sheet"}</button></> : null}</div> : null}</article>)}</div> : <p className="mt-4 text-sm text-[var(--muted-foreground)]">No forms yet. Create your first draft.</p>}</section></aside>
+      <aside className="grid content-start gap-4">
+        <section className="admin-review-card">
+          <p className="admin-section-label">Your forms</p>
+          <h2 className="admin-card-row__title">Edit, share, and export</h2>
+          {forms.length ? (
+            <div className="mt-4 grid gap-3">
+              {forms.map((form) => {
+                // Null when the form is not published, or when the canonical
+                // base cannot produce a URL. Never falls back to the current
+                // host: a wrong address is worse than no address.
+                const publicUrl =
+                  form.lifecycle === "published"
+                    ? buildPublicFormUrl({ baseUrl: publicBaseUrl, slug: form.slug })
+                    : null;
+
+                return (
+                  <article className="rounded-xl border border-[var(--line)] p-3" key={form.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold">{form.title}</h3>
+                        <p className="mt-1 text-xs text-[var(--muted-foreground)]">{KINDS[form.kind]}</p>
+                      </div>
+                      <span
+                        className={
+                          form.lifecycle === "archived"
+                            ? "status-pill status-pill--danger"
+                            : "status-pill"
+                        }
+                      >
+                        {LIFECYCLE_LABELS[form.lifecycle]}
+                      </span>
+                    </div>
+
+                    {publicUrl ? (
+                      <p
+                        className="mt-2 break-all text-xs text-[var(--muted-foreground)]"
+                        title={publicUrl}
+                      >
+                        {formatPublicFormUrlForDisplay(publicUrl)}
+                      </p>
+                    ) : null}
+
+                    {form.lifecycle !== "archived" ? (
+                      <button className="queue-link mt-3" disabled={busy === "load"} onClick={() => void openForm(form.id)} type="button">
+                        {form.lifecycle === "draft" ? "Resume draft" : "Edit"}
+                      </button>
+                    ) : null}
+
+                    {form.lifecycle === "published" ? (
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        {publicUrl ? (
+                          <>
+                            <Link className="queue-link" href={publicUrl} rel="noreferrer" target="_blank">
+                              Open
+                            </Link>
+                            <button className="queue-link" onClick={() => void copyLink(publicUrl)} type="button">
+                              <Copy size={13} /> Copy link
+                            </button>
+                          </>
+                        ) : null}
+                        <Link className="queue-link" href={`/admin/content/forms?review=${form.id}#submission-review`}>
+                          Review responses
+                        </Link>
+                        {form.kind !== "event_registration" ? (
+                          <>
+                            <a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=csv`}>CSV</a>
+                            <a className="queue-link" href={`/api/admin/forms/${form.id}/submissions/export?format=xlsx`}>XLSX</a>
+                            <button className="queue-link" disabled={sheetFormId !== null} onClick={() => void createSheet(form)} type="button">
+                              <Sheet size={13} /> {sheetFormId === form.id ? "Creating…" : "Google Sheet"}
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-[var(--muted-foreground)]">No forms yet. Create your first draft.</p>
+          )}
+        </section>
+      </aside>
     </div>
   </div>;
 }
