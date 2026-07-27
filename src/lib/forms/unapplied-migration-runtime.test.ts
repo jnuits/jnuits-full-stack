@@ -88,19 +88,32 @@ describe("unapplied migration runtime verification", () => {
     expect(callSites?.length).toBe(2);
   });
 
-  it("verifies the installed CLI version instead of trusting the download", () => {
+  it("keeps the shim and supabase-go together and proves the CLI can execute", () => {
     expect(existsSync(supabaseCliActionPath)).toBe(true);
     if (!existsSync(supabaseCliActionPath)) return;
 
     const action = readFileSync(supabaseCliActionPath, "utf8");
 
     expect(action).toContain(`default: ${PINNED_SUPABASE_CLI_VERSION}`);
-    expect(action).toContain("--version");
-    expect(action).toContain("Supabase CLI version mismatch");
     expect(action).toContain("set -euo pipefail");
 
-    // A wrong binary must be removed, not left cached for the next run.
-    expect(action).toContain('rm -f "$binary"');
+    // The CLI ships a shim plus supabase-go. Extracting only the shim yields a
+    // binary that answers --version and fails on every real command, which is
+    // exactly what broke both Docker jobs on 2026-07-27.
+    expect(action).toContain("supabase-go");
+    expect(action).toContain("did not produce supabase-go alongside the shim");
+
+    // Cherry-picking a single file out of the archive is the defect. Require a
+    // whole-archive extraction.
+    expect(action).toContain('tar -xzf "$tmp/supabase.tar.gz" -C "$install_dir"');
+    expect(action).not.toContain('install -m 0755 "$tmp/supabase"');
+
+    // Verification must go beyond --version, which the shim answers alone.
+    expect(action).toContain("Supabase CLI version mismatch");
+    expect(action).toContain('"$shim" --help');
+
+    // A broken install must be wiped, never cached for the next run.
+    expect(action).toContain('rm -rf -- "$install_dir"');
 
     // Installing the CLI must never touch a linked or remote project.
     expect(action).not.toContain("--linked");

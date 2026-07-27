@@ -1,8 +1,9 @@
 name: Setup Supabase CLI
 description: >-
-  Installs a pinned Supabase CLI from its release tarball and verifies the
-  version. Replaces supabase/setup-cli, which fails on persistent self-hosted
-  runners because its bun dependency does not restore to the expected path.
+  Installs a pinned Supabase CLI from its release tarball and verifies it can
+  actually execute. Replaces supabase/setup-cli, which fails on persistent
+  self-hosted runners because its bun dependency does not restore to the
+  expected path.
 
 inputs:
   version:
@@ -20,9 +21,18 @@ runs:
       run: |
         set -euo pipefail
 
+        # The CLI ships TWO co-located binaries:
+        #
+        #   supabase      a shim
+        #   supabase-go   the Go CLI the shim forwards to
+        #
+        # The shim resolves `supabase-go` next to itself. Copying out only the
+        # shim produces a CLI that answers --version and fails on every real
+        # command, so the whole archive is extracted and kept together.
         install_root="$HOME/.local/share/jnuits-supabase-cli"
         install_dir="$install_root/$SUPABASE_CLI_VERSION"
-        binary="$install_dir/supabase"
+        shim="$install_dir/supabase"
+        go_binary="$install_dir/supabase-go"
 
         case "$(uname -m)" in
           x86_64) arch=amd64 ;;
@@ -33,40 +43,60 @@ runs:
             ;;
         esac
 
-        if [[ ! -x "$binary" ]]; then
+        if [[ -x "$shim" && -x "$go_binary" ]]; then
+          printf 'Reusing cached Supabase CLI %s.\n' "$SUPABASE_CLI_VERSION"
+        else
           printf 'Installing Supabase CLI %s (%s).\n' "$SUPABASE_CLI_VERSION" "$arch"
+          rm -rf -- "$install_dir"
           mkdir -p "$install_dir"
+
           tmp="$(mktemp -d)"
           trap 'rm -rf -- "$tmp"' EXIT
 
-          url="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_linux_${arch}.tar.gz"
+          url="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_${SUPABASE_CLI_VERSION}_linux_${arch}.tar.gz"
           if ! curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
             --output "$tmp/supabase.tar.gz" "$url"; then
             printf 'Could not download the Supabase CLI from %s\n' "$url" >&2
             exit 1
           fi
 
-          tar -xzf "$tmp/supabase.tar.gz" -C "$tmp"
-          if [[ ! -f "$tmp/supabase" ]]; then
-            printf 'The release tarball did not contain a supabase binary.\n' >&2
-            ls -la "$tmp" >&2
-            exit 1
-          fi
-
-          install -m 0755 "$tmp/supabase" "$binary"
-        else
-          printf 'Reusing cached Supabase CLI %s.\n' "$SUPABASE_CLI_VERSION"
+          # Extract everything. Do not cherry-pick files out of this archive.
+          tar -xzf "$tmp/supabase.tar.gz" -C "$install_dir"
+          chmod -R u+rwX "$install_dir"
+          find "$install_dir" -maxdepth 1 -type f -name 'supabase*' -exec chmod 0755 {} +
         fi
 
-        # Verify before trusting it. A silently wrong version would make every
-        # downstream migration result unreliable.
-        reported="$("$binary" --version 2>/dev/null | tr -d '\r' | tr -d ' ')"
-        if [[ "$reported" != "$SUPABASE_CLI_VERSION" ]]; then
-          printf 'Supabase CLI version mismatch. Expected %s, got "%s".\n' \
-            "$SUPABASE_CLI_VERSION" "$reported" >&2
-          rm -f "$binary"
+        if [[ ! -x "$shim" ]]; then
+          printf 'The archive did not produce an executable supabase shim.\n' >&2
+          ls -la "$install_dir" >&2
+          rm -rf -- "$install_dir"
           exit 1
         fi
 
-        printf 'Supabase CLI %s verified at %s\n' "$reported" "$binary"
+        if [[ ! -x "$go_binary" ]]; then
+          printf 'The archive did not produce supabase-go alongside the shim.\n' >&2
+          printf 'Without it the shim resolves on PATH but every command fails.\n' >&2
+          ls -la "$install_dir" >&2
+          rm -rf -- "$install_dir"
+          exit 1
+        fi
+
+        reported="$("$shim" --version 2>/dev/null | tr -d '\r' | tr -d ' ')"
+        if [[ "$reported" != "$SUPABASE_CLI_VERSION" ]]; then
+          printf 'Supabase CLI version mismatch. Expected %s, got "%s".\n' \
+            "$SUPABASE_CLI_VERSION" "$reported" >&2
+          rm -rf -- "$install_dir"
+          exit 1
+        fi
+
+        # --version is answered by the shim alone, so it proves nothing about
+        # supabase-go. Run a real subcommand that must reach the Go binary.
+        if ! "$shim" --help >/dev/null 2>"$RUNNER_TEMP/supabase-help.err"; then
+          printf 'The Supabase CLI is installed but cannot execute:\n' >&2
+          cat "$RUNNER_TEMP/supabase-help.err" >&2
+          rm -rf -- "$install_dir"
+          exit 1
+        fi
+
+        printf 'Supabase CLI %s verified and executable at %s\n' "$reported" "$install_dir"
         echo "$install_dir" >>"$GITHUB_PATH"
