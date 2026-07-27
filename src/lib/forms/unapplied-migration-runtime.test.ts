@@ -184,7 +184,10 @@ describe("unapplied migration runtime verification", () => {
     expect(existsSync(supabaseCliActionPath)).toBe(true);
     if (!existsSync(supabaseCliActionPath)) return;
 
-    const action = readFileSync(supabaseCliActionPath, "utf8");
+    const action = readFileSync(supabaseCliActionPath, "utf8").replace(
+      /\r\n/g,
+      "\n"
+    );
 
     const downloadCheckIndex = action.indexOf(
       '[[ "$downloaded_digest" != "$expected_digest" ]]'
