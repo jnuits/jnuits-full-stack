@@ -8,6 +8,21 @@ import type { FormDefinition, FormField, FormKind } from "@/lib/forms/definition
 import { getEventRegistrationSuccessContent } from "@/lib/forms/event-registration-result";
 import { resolvePublicFormSubmissionTarget } from "@/lib/forms/submission-target";
 
+/**
+ * Every status surface on this screen previously hardcoded `red-500`/`red-700`
+ * with no dark variant, while the site header ships a theme toggle. The
+ * `destructive` semantic token resolves per theme and is what
+ * contact-form-card.tsx already uses.
+ *
+ * Kept as one constant rather than repeated inline: there are four of these,
+ * and repetition is how three of them drifted apart.
+ */
+const NOTICE_ERROR_CLASS =
+  "rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive";
+
+/** Centred, because `max-w-2xl` alone pins the card to the left edge. */
+const FORM_CARD_CLASS = "glass-card mx-auto w-full max-w-2xl px-6 py-8 sm:px-8";
+
 type PublicFormScreenProps = {
   captcha: {
     required: boolean;
@@ -369,7 +384,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
       : null;
 
     return (
-      <section className="glass-card max-w-2xl px-6 py-8 sm:px-8" role="status" aria-live="polite">
+      <section className={FORM_CARD_CLASS} role="status" aria-live="polite">
         <h1 className="section-title">
           {eventSuccessContent ? eventSuccessContent.heading : "Check your email"}
         </h1>
@@ -390,7 +405,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
               </p>
             ) : null}
             {resendState.status === "error" ? (
-              <p className="text-sm font-semibold text-red-700" role="alert">
+              <p className="text-sm font-semibold text-destructive" role="alert">
                 {resendState.message}
               </p>
             ) : null}
@@ -409,17 +424,17 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
   }
 
   return (
-    <section className="glass-card max-w-2xl px-6 py-8 sm:px-8">
+    <section className={FORM_CARD_CLASS}>
       <h1 className="section-title">{form.title}</h1>
       {form.description ? <p className="section-copy mt-4">{form.description}</p> : null}
 
       {!submissionTarget ? (
-        <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700" role="alert">
+        <p className={`mt-6 ${NOTICE_ERROR_CLASS}`} role="alert">
           This event registration form is unavailable. Please return to the event page.
         </p>
       ) : null}
       {captchaUnavailable ? (
-        <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700" role="alert">
+        <p className={`mt-6 ${NOTICE_ERROR_CLASS}`} role="alert">
           Verification is temporarily unavailable. Please try again later.
         </p>
       ) : null}
@@ -435,7 +450,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
         {captchaRequired ? <TurnstileField siteKey={captcha.siteKey} /> : null}
 
         {state.status === "error" ? (
-          <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700" role="alert" aria-live="polite">
+          <p className={NOTICE_ERROR_CLASS} role="alert" aria-live="polite">
             {state.message}
           </p>
         ) : null}
