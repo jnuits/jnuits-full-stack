@@ -14,6 +14,10 @@ function readWorkflow(name) {
   return readFileSync(resolve(process.cwd(), ".github", "workflows", name), "utf8");
 }
 
+function readAction(name) {
+  return readFileSync(resolve(process.cwd(), ".github", "actions", name, "action.yml"), "utf8");
+}
+
 describe("GitHub Actions workflows", () => {
   it("pins every external action to an immutable commit SHA", () => {
     for (const name of workflowNames) {
@@ -41,6 +45,25 @@ describe("GitHub Actions workflows", () => {
     expect(workflow).toContain(
       "RETENTION_MANIFEST_SIGNING_SECRET: ci-placeholder-retention-manifest-signing-secret"
     );
+  });
+
+  it("uses a verified local Gitleaks installer on self-hosted runners", () => {
+    const workflow = readWorkflow("quality-gate.yml");
+    const action = readAction("setup-gitleaks");
+
+    expect(workflow).toContain("uses: ./.github/actions/setup-gitleaks");
+    expect(workflow).toContain(
+      'run: gitleaks git --redact=100 --verbose --log-opts="--all" .'
+    );
+    expect(workflow).not.toContain("gitleaks/gitleaks-action@");
+
+    expect(action).toContain(
+      "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c"
+    );
+    expect(action).toContain('archive_dir="$HOME/.cache/jnuits-gitleaks"');
+    expect(action).toContain('downloaded_digest="$(archive_digest "$archive.part")"');
+    expect(action).toContain('rm -rf -- "$install_dir"');
+    expect(action).not.toContain("/tmp/gitleaks");
   });
 
   it("runs the repository-wide migration dependency scan in strict mode", () => {
