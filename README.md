@@ -1,4 +1,4 @@
-# JnUITS Full Stack 16.2.11 [510f136]
+# JnUITS Full Stack 16.2.11
 
 Unified Next.js + Supabase application for the JnUITS public site, member portal, certificate verification, and technical admin workflows.
 
@@ -33,21 +33,9 @@ claims are verified through `supabase.auth.getClaims()`, which uses the project'
 infrastructure. Any manual verifier must load keys from
 `${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/.well-known/jwks.json`; do not configure a shared JWT secret.
 
-Deferred until their phases:
-
-- `RESEND_API_KEY`
-- `RESEND_FROM_EMAIL`
-- `RESEND_REPLY_TO`
-- `CLOUDINARY_CLOUD_NAME`
-- `CLOUDINARY_API_KEY`
-- `CLOUDINARY_API_SECRET`
-- `CLOUDINARY_UPLOAD_PRESET`
-- `SENTRY_DSN`
-- `NEXT_PUBLIC_SENTRY_DSN`
-- `SENTRY_AUTH_TOKEN`
-- `SENTRY_ORG`
-- `SENTRY_PROJECT`
-- `SENTRY_RELEASE`
+Production and preview builds require the additional delivery, CAPTCHA, rate-limit, media,
+Google Drive, retention, and observability variables documented in [`.env.example`](./.env.example).
+That file mirrors `scripts/validate-env.mjs`, the build-blocking source of truth.
 
 Optional for script-persisted operator reports:
 
@@ -92,6 +80,21 @@ curl http://localhost:3000/api/debug/sentry
 - Sentry is configured with `@sentry/nextjs`, a `/monitoring` tunnel route, and App Router global error capture.
 - `NEXT_PUBLIC_SENTRY_DSN` and `SENTRY_DSN` are required for runtime telemetry.
 - `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` are needed if you want source maps uploaded during `next build`.
+
+## Continuous integration
+
+The required `Quality Gate` runs linting, type checks, tests, a production build, browser smoke,
+migration contract checks, disposable Supabase replays, and a full-history secret scan.
+
+The temporary self-hosted Linux runners are persistent machines, so executable caches are never
+trusted by location alone. Gitleaks `8.24.3` is installed by
+[`.github/actions/setup-gitleaks`](./.github/actions/setup-gitleaks/action.yml) from its official
+release archive; the repository-pinned SHA-256 digest is checked before extraction and on every
+reuse. The upstream action's `/tmp`-backed cache is intentionally not used because it cannot be
+restored safely from this runner workspace layout.
+
+Runner ownership, isolation requirements, cleanup behavior, and the return-to-hosted-runner plan
+are documented in [`docs/operations/self-hosted-runners.md`](./docs/operations/self-hosted-runners.md).
 
 ## Reports and evidence
 

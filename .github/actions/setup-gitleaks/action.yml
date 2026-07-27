@@ -1,0 +1,128 @@
+name: Setup Gitleaks
+description: >-
+  Installs a pinned Gitleaks binary from its official release archive, verifies
+  the archive against a SHA-256 digest committed to this repository before
+  extraction, rebuilds the install directory on every run, and proves the
+  scanner can execute. This avoids gitleaks-action's /tmp-backed cache, which
+  cannot be restored safely on the persistent self-hosted runner layout.
+
+inputs:
+  version:
+    description: >-
+      Exact Gitleaks version to install. It must have a pinned digest below;
+      every other version or architecture fails closed.
+    required: false
+    default: 8.24.3
+
+runs:
+  using: composite
+  steps:
+    - name: Install and verify Gitleaks
+      shell: bash
+      env:
+        GITLEAKS_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        case "$(uname -m)" in
+          x86_64) arch=x64 ;;
+          *)
+            printf 'Unsupported Gitleaks architecture: %s\n' "$(uname -m)" >&2
+            exit 1
+            ;;
+        esac
+
+        # Root of trust: changing this digest requires a reviewed repository
+        # diff. Do not replace it with a checksum downloaded beside the archive;
+        # an attacker able to replace one release asset can replace both.
+        case "${GITLEAKS_VERSION}:${arch}" in
+          "8.24.3:x64")
+            expected_digest=9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
+            ;;
+          *)
+            printf 'No pinned SHA-256 digest for Gitleaks %s on linux/%s.\n' \
+              "$GITLEAKS_VERSION" "$arch" >&2
+            printf 'Refusing to install an unauthenticated executable.\n' >&2
+            exit 1
+            ;;
+        esac
+
+        archive_name="gitleaks_${GITLEAKS_VERSION}_linux_${arch}.tar.gz"
+        archive_dir="$HOME/.cache/jnuits-gitleaks"
+        archive="$archive_dir/$archive_name"
+        install_root="$HOME/.local/share/jnuits-gitleaks"
+        install_dir="$install_root/${GITLEAKS_VERSION}-${arch}"
+        binary="$install_dir/gitleaks"
+
+        mkdir -p "$archive_dir"
+
+        archive_digest() {
+          sha256sum "$1" | cut -d' ' -f1
+        }
+
+        # Cache only the archive, and authenticate it on every run. A persistent
+        # self-hosted runner's home directory is writable state, not trust.
+        if [[ -f "$archive" ]]; then
+          cached_digest="$(archive_digest "$archive")"
+          if [[ "$cached_digest" == "$expected_digest" ]]; then
+            printf 'Cached Gitleaks archive matches the pinned SHA-256 digest.\n'
+          else
+            printf 'Cached Gitleaks archive FAILED SHA-256 verification.\n' >&2
+            printf '  expected %s\n' "$expected_digest" >&2
+            printf '  actual   %s\n' "$cached_digest" >&2
+            rm -f -- "$archive"
+            rm -rf -- "$install_dir"
+          fi
+        fi
+
+        if [[ ! -f "$archive" ]]; then
+          url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive_name}"
+          printf 'Downloading Gitleaks %s (linux/%s).\n' "$GITLEAKS_VERSION" "$arch"
+
+          if ! curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
+            --output "$archive.part" "$url"; then
+            rm -f -- "$archive.part"
+            printf 'Could not download Gitleaks from %s\n' "$url" >&2
+            exit 1
+          fi
+
+          downloaded_digest="$(archive_digest "$archive.part")"
+          if [[ "$downloaded_digest" != "$expected_digest" ]]; then
+            printf 'Downloaded Gitleaks archive FAILED SHA-256 verification.\n' >&2
+            printf '  expected %s\n' "$expected_digest" >&2
+            printf '  actual   %s\n' "$downloaded_digest" >&2
+            rm -f -- "$archive.part"
+            rm -rf -- "$install_dir"
+            exit 1
+          fi
+
+          mv -- "$archive.part" "$archive"
+          printf 'Downloaded archive verified against the pinned SHA-256 digest.\n'
+        fi
+
+        # Never reuse an extracted binary. Rebuild it from the archive that was
+        # authenticated above, so executable persistence cannot bypass the hash.
+        rm -rf -- "$install_dir"
+        mkdir -p "$install_dir"
+        tar -xzf "$archive" -C "$install_dir"
+        chmod 0755 "$binary"
+
+        reported="$("$binary" version 2>/dev/null | tr -d '\r' | tr -d ' ')"
+        if [[ "$reported" != "$GITLEAKS_VERSION" ]]; then
+          printf 'Gitleaks version mismatch. Expected %s, got "%s".\n' \
+            "$GITLEAKS_VERSION" "$reported" >&2
+          rm -rf -- "$install_dir"
+          rm -f -- "$archive"
+          exit 1
+        fi
+
+        if ! "$binary" git --help >/dev/null; then
+          printf 'Gitleaks is installed but the git scanner cannot execute.\n' >&2
+          rm -rf -- "$install_dir"
+          rm -f -- "$archive"
+          exit 1
+        fi
+
+        printf 'Gitleaks %s verified (sha256 %s) and executable at %s\n' \
+          "$reported" "$expected_digest" "$install_dir"
+        echo "$install_dir" >>"$GITHUB_PATH"
