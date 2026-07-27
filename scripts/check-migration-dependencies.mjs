@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Static migration ordering and forward-reference checker (issue #18).
  *
