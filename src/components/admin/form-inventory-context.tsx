@@ -32,6 +32,12 @@ type FormInventoryValue = {
   error: null | string;
   forms: FormInventoryItem[];
   loading: boolean;
+  /**
+   * Canonical public origin, resolved on the server and passed in. Panels must
+   * use this rather than `window.location.origin`, which produces a share link
+   * for whatever host the operator happens to be browsing.
+   */
+  publicBaseUrl: string;
   refresh: () => Promise<void>;
 };
 
@@ -50,7 +56,13 @@ export function useFormInventory() {
   return value;
 }
 
-export function FormInventoryProvider({ children }: { children: ReactNode }) {
+export function FormInventoryProvider({
+  children,
+  publicBaseUrl,
+}: {
+  children: ReactNode;
+  publicBaseUrl: string;
+}) {
   const [forms, setForms] = useState<FormInventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<null | string>(null);
@@ -77,8 +89,8 @@ export function FormInventoryProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ error, forms, loading, refresh }),
-    [error, forms, loading, refresh]
+    () => ({ error, forms, loading, publicBaseUrl, refresh }),
+    [error, forms, loading, publicBaseUrl, refresh]
   );
 
   return (

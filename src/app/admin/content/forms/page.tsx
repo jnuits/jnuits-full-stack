@@ -2,12 +2,16 @@ import { FormInventoryProvider } from "@/components/admin/form-inventory-context
 import { FormLifecyclePanel } from "@/components/admin/form-lifecycle-panel";
 import { ModernFormStudioScreen } from "@/components/admin/modern-form-studio-screen";
 import { FormSubmissionReviewPanel } from "@/components/admin/form-submission-review-panel";
+import { getAppBaseUrl } from "@/lib/env";
 
 export const metadata = { title: "Form Studio — Admin | JnUITS" };
 
 export default function FormStudioPage() {
+  // Resolved here, in a server component, because APP_BASE_URL is not inlined
+  // into client bundles. A client component calling getAppBaseUrl() would fall
+  // through to a weaker source and produce a link for the wrong host.
   return (
-    <FormInventoryProvider>
+    <FormInventoryProvider publicBaseUrl={getAppBaseUrl()}>
       <ModernFormStudioScreen />
       <FormLifecyclePanel />
       <FormSubmissionReviewPanel />
