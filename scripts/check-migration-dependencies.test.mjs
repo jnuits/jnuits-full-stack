@@ -1,3 +1,9 @@
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -235,5 +241,74 @@ describe("parsing helpers", () => {
     expect(
       [...extractDefinedFunctions("create or replace function without_prefix() returns void").keys()]
     ).toContain("without_prefix");
+  });
+});
+
+describe("strict mode exit codes", () => {
+  // The migration_dependencies job runs `npm run migration:check-order:strict`
+  // and sits inside Required CI. If a finding did not make the process exit
+  // non-zero, that gate would be decorative. The unit tests above prove the
+  // analysis; these prove the CLI contract the workflow actually depends on.
+  //
+  // The checker is spawned through process.execPath rather than its shebang,
+  // so this behaves identically everywhere and does not depend on the script
+  // being marked executable or on its line endings.
+  const scriptPath = fileURLToPath(
+    new URL("./check-migration-dependencies.mjs", import.meta.url)
+  );
+
+  function runChecker(files, args = []) {
+    const workdir = mkdtempSync(join(tmpdir(), "jnuits-migration-scan-"));
+    const migrationsDir = join(workdir, "supabase", "migrations");
+    mkdirSync(migrationsDir, { recursive: true });
+
+    for (const [filename, sql] of Object.entries(files)) {
+      writeFileSync(join(migrationsDir, filename), sql, "utf8");
+    }
+
+    try {
+      return spawnSync(process.execPath, [scriptPath, ...args], {
+        cwd: workdir,
+        encoding: "utf8",
+      });
+    } finally {
+      rmSync(workdir, { recursive: true, force: true });
+    }
+  }
+
+  const cleanChain = {
+    "20260101000000_define.sql":
+      "create or replace function public.helper() returns void as $$ begin end $$ language plpgsql;\n",
+    "20260102000000_use.sql": "select public.helper();\n",
+  };
+
+  const forwardReferenceChain = {
+    "20260101000000_use_too_early.sql": "select public.helper();\n",
+    "20260102000000_define.sql":
+      "create or replace function public.helper() returns void as $$ begin end $$ language plpgsql;\n",
+  };
+
+  it("exits zero on a clean chain under --strict", () => {
+    const result = runChecker(cleanChain, ["--strict"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Inspected 2 migrations.");
+    expect(result.stdout).toContain("no findings");
+  });
+
+  it("exits non-zero on a finding under --strict", () => {
+    const result = runChecker(forwardReferenceChain, ["--strict"]);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("forward-reference");
+    expect(result.stdout).toContain("public.helper()");
+  });
+
+  it("still exits zero on the same finding in report mode", () => {
+    const result = runChecker(forwardReferenceChain);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("forward-reference");
+    expect(result.stdout).toContain("Report-only mode");
   });
 });
