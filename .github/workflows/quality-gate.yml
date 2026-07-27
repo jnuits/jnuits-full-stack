@@ -19,6 +19,9 @@ name: Quality Gate
 #     oven-sh/setup-bun, whose cache does not restore to the expected path on a
 #     reused workspace. Use the local composite action instead, which also
 #     authenticates the release archive against a pinned SHA-256 digest.
+#   * gitleaks/gitleaks-action caches its extracted binary under /tmp. That
+#     cache cannot be restored safely from this deeper persistent workspace,
+#     so the secret scan uses the verified local setup-gitleaks action.
 #   * Only three runners exist, so jobs queue rather than all starting at once.
 #
 # Standing security conditions while these runners are attached. All of them
@@ -432,10 +435,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Gitleaks
+        uses: ./.github/actions/setup-gitleaks
+        with:
+          version: 8.24.3
+
       - name: Scan committed history
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: "false"
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        run: gitleaks git --redact=100 --verbose --log-opts="--all" .
