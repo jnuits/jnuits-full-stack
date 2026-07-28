@@ -10,6 +10,15 @@ import {
 } from "@/lib/security/turnstile-client";
 
 type TurnstileFieldProps = {
+  /**
+   * Optional. Reports the current token, empty when unverified.
+   *
+   * Exists so a parent can collapse the widget once it is satisfied and confirm
+   * success in its own design language. The hidden input below remains the
+   * submission mechanism either way, so a consumer that ignores this keeps the
+   * previous behaviour exactly.
+   */
+  onTokenChange?: (token: string) => void;
   siteKey: string;
 };
 
@@ -19,11 +28,27 @@ declare global {
   }
 }
 
-export function TurnstileField({ siteKey }: TurnstileFieldProps) {
+export function TurnstileField({ onTokenChange, siteKey }: TurnstileFieldProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const onTokenChangeRef = useRef(onTokenChange);
   const [token, setToken] = useState("");
   const [scriptReady, setScriptReady] = useState(false);
+
+  useEffect(() => {
+    onTokenChangeRef.current = onTokenChange;
+  }, [onTokenChange]);
+
+  /**
+   * Reported from here rather than from inside `setToken` because the error and
+   * expiry paths clear the token too. One effect keyed on the token means every
+   * transition is reported, including recovery, so a parent that collapses on
+   * success re-expands on expiry without extra wiring. Otherwise a respondent
+   * whose challenge expired would be left facing a hidden widget.
+   */
+  useEffect(() => {
+    onTokenChangeRef.current?.(token);
+  }, [token]);
 
   const renderWidget = useCallback(() => {
     if (!siteKey || !containerRef.current || !window.turnstile || widgetIdRef.current) {
