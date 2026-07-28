@@ -290,12 +290,31 @@ describe("submission feedback", () => {
     expect(screen).toMatch(/rounded-full border border-border bg-primary\/10 text-primary/);
   });
 
-  it("keeps the live-region semantics of both status surfaces", () => {
+  it("never nests one live region inside another", () => {
     const screen = readScreen();
+    const statusRegions = screen.match(/role="status"/g);
 
-    // Presentation changed; what is announced did not.
-    expect(screen).toContain('role="status" aria-live="polite"');
-    expect(screen).toContain('role="alert"');
+    // The success card used to carry `aria-live` on the whole `<section>`, so
+    // the two chips added in this slice became live regions inside a live
+    // region, which either double-announces or is dropped entirely depending on
+    // the screen reader.
+    //
+    // Three, each around exactly one thing that changes: the success block, the
+    // verification chip, and the resend confirmation.
+    expect(statusRegions?.length).toBe(3);
+    expect(screen).not.toMatch(/className=\{FORM_CARD_CLASS\}[^>]*aria-live/);
+    expect(screen).toContain('<div aria-live="polite" className="text-center" role="status">');
+  });
+
+  it("keeps failures assertive and separate from status", () => {
+    const screen = readScreen();
+    const alerts = screen.match(/role="alert"/g);
+
+    // Unavailable target, unavailable captcha, submit failure, resend failure.
+    // `aria-live="polite"` was removed from the submit error: `role="alert"`
+    // already implies assertive, and pairing it with polite contradicts itself.
+    expect(alerts?.length).toBe(4);
+    expect(screen).not.toMatch(/role="alert" aria-live="polite"/);
   });
 });
 

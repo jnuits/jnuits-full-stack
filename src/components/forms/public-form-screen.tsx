@@ -501,10 +501,22 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
     return (
       <div className={PAGE_WRAPPER_CLASS}>
         {header}
-        <section className={FORM_CARD_CLASS} role="status" aria-live="polite">
+        <section className={FORM_CARD_CLASS}>
           <div aria-hidden="true" className={FORM_CARD_ACCENT_CLASS} />
           <div className={FORM_CARD_BODY_CLASS}>
-            <div className="text-center">
+            {/*
+             * The live region wraps only what changes. It used to wrap the whole
+             * card, so the resend challenge mounting inside it was announced as
+             * though it were a status update, and the two chips this slice added
+             * became live regions nested inside another one.
+             *
+             * Caveat, pre-existing and not fixed here: this region mounts with
+             * its content already in it, because success replaces the form
+             * wholesale, and several screen readers only announce mutations to a
+             * region that already existed. Moving focus to this heading is the
+             * reliable answer and is task 2.2.
+             */}
+            <div aria-live="polite" className="text-center" role="status">
               <span className="mb-4 inline-flex size-11 items-center justify-center rounded-full border border-border bg-primary/10 text-primary">
                 <CheckCircle2 aria-hidden="true" size={22} />
               </span>
@@ -585,7 +597,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
             {captchaRequired ? <VerifiedTurnstileField siteKey={captcha.siteKey} /> : null}
 
             {state.status === "error" ? (
-              <p className={NOTICE_ERROR_CLASS} role="alert" aria-live="polite">
+              <p className={NOTICE_ERROR_CLASS} role="alert">
                 {state.message}
               </p>
             ) : null}
