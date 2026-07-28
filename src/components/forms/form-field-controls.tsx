@@ -1,4 +1,5 @@
 import type { FormDefinition, FormField } from "@/lib/forms/definition";
+import { groupFormFields } from "@/lib/forms/public-form-presentation";
 
 /**
  * Shared field renderer for the public form and the Form Studio preview.
@@ -14,6 +15,19 @@ export type FormFieldControlOptions = {
   preview?: boolean;
 };
 
+/**
+ * The visible part of a file input is the browser's own button, which no class
+ * on the input element can reach. `file:` targets `::file-selector-button`.
+ *
+ * Not replaced with a custom widget on purpose. Doing that means a visually
+ * hidden input, a button, and JS to relay the click and mirror the chosen
+ * filename, which reimplements keyboard focus, drag-and-drop, and the
+ * assistive-technology mapping the native control already handles. Task 2.8
+ * adds upload progress around this control rather than instead of it.
+ */
+const FILE_INPUT_CLASS =
+  "input-field mt-1 w-full cursor-pointer file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[var(--brand-blue)] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white";
+
 function controlName(field: FormField, preview: boolean | undefined) {
   return preview ? undefined : field.id;
 }
@@ -22,6 +36,24 @@ export function FieldHelp({ field }: { field: FormField }) {
   return field.helpText ? (
     <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{field.helpText}</p>
   ) : null;
+}
+
+/**
+ * `<input type="date">` renders in the browser's locale and accepts no display
+ * format, so this site cannot show dd/mm/yyyy to a Bangladeshi respondent even
+ * though that is what they expect.
+ *
+ * No data is at risk: the submitted value is ISO `yyyy-mm-dd` whatever the
+ * display shows, and the server parses it as ISO. The risk is a respondent
+ * misreading which box is the month, so the note says where the format comes
+ * from and points at the calendar, which is unambiguous.
+ */
+function DateFormatNote() {
+  return (
+    <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+      Shown in your browser&apos;s date format. Use the calendar button if you are unsure.
+    </p>
+  );
 }
 
 /**
@@ -149,6 +181,9 @@ export function FormFieldControl({
   const inputId = `${idPrefix}-${field.id}`;
 
   if (field.type === "section") {
+    // Fallback for a direct caller rendering one field at a time.
+    // `FormFieldControls` no longer reaches this branch: it groups sections with
+    // the questions they introduce, which a single-field renderer cannot do.
     return (
       <section
         className="border-t border-[var(--line)] pt-6 first:border-t-0 first:pt-0"
@@ -190,6 +225,7 @@ export function FormFieldControl({
           type={field.type}
         />
         <FieldHelp field={field} />
+        {field.type === "date" ? <DateFormatNote /> : null}
       </div>
     );
   }
@@ -226,7 +262,7 @@ export function FormFieldControl({
       <FieldLabel field={field} inputId={inputId} />
       <input
         accept={field.type === "pdf" ? "application/pdf" : "image/jpeg,image/png,image/webp"}
-        className="input-field mt-1 w-full"
+        className={FILE_INPUT_CLASS}
         disabled={preview}
         id={inputId}
         multiple={field.maxFiles > 1}
@@ -242,16 +278,59 @@ export function FormFieldControl({
   );
 }
 
+/**
+ * Renders the definition as heading-owned groups.
+ *
+ * Previously every field was emitted as a flat sibling list, so a `section`
+ * produced a labelled region containing nothing and the questions it introduced
+ * belonged to no region at all. Grouping fixes both the semantics and the
+ * visual reading order.
+ */
 export function FormFieldControls({
   definition,
   idPrefix,
   preview,
 }: { definition: FormDefinition } & FormFieldControlOptions) {
+  const groups = groupFormFields(definition);
+
   return (
     <>
-      {definition.fields.map((field) => (
-        <FormFieldControl field={field} idPrefix={idPrefix} key={field.id} preview={preview} />
-      ))}
+      {groups.map((group, index) => {
+        const questions = group.fields.map((field) => (
+          <FormFieldControl
+            field={field}
+            idPrefix={idPrefix}
+            key={field.id}
+            preview={preview}
+          />
+        ));
+
+        if (!group.section) {
+          return (
+            <div className="grid gap-5" key={group.fields[0]?.id || `group-${index}`}>
+              {questions}
+            </div>
+          );
+        }
+
+        const headingId = `${idPrefix}-${group.section.id}`;
+
+        return (
+          <section
+            aria-labelledby={headingId}
+            className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-5"
+            key={group.section.id}
+          >
+            <h2 className="text-lg font-bold text-[var(--brand-ink)]" id={headingId}>
+              {group.section.label}
+            </h2>
+            <FieldHelp field={group.section} />
+            {group.fields.length ? (
+              <div className="mt-5 grid gap-5">{questions}</div>
+            ) : null}
+          </section>
+        );
+      })}
     </>
   );
 }
