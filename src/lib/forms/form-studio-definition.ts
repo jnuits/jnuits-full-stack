@@ -7,6 +7,18 @@ import {
 export type StudioFieldType = FormFieldType;
 export type StudioEditorField = {
   automaticId?: boolean;
+  /**
+   * Stable identity for the editor row, distinct from the schema `id`.
+   *
+   * While a question is unsaved its `id` is regenerated from the label on
+   * every keystroke, so keying React on `id` unmounts and remounts the row as
+   * the operator types and the label input loses focus after one character.
+   *
+   * This value is assigned once when the row appears and never changes. It is
+   * client-only: `studioFieldsToDefinition` builds its output field by field,
+   * so it never reaches a published schema.
+   */
+  editorKey: string;
   id: string;
   label: string;
   maxFiles?: number;
@@ -17,6 +29,18 @@ export type StudioEditorField = {
 
 const RESERVED_FIELD_IDS = new Set(["__proto__", "constructor", "prototype"]);
 const MAX_FIELD_ID_LENGTH = 64;
+
+/**
+ * A counter rather than a random value: it needs to be unique within one
+ * editing session, not globally, and a deterministic sequence keeps tests
+ * readable. It is never persisted, so uniqueness across reloads is irrelevant.
+ */
+let editorKeySequence = 0;
+
+export function createStudioEditorKey() {
+  editorKeySequence += 1;
+  return `studio-field-${editorKeySequence}`;
+}
 
 function stableLabelHash(value: string) {
   let hash = 2166136261;
@@ -47,6 +71,10 @@ export function createUniqueStudioFieldId(label: string, existingIds: Iterable<s
   throw new Error("A unique field identifier could not be generated.");
 }
 
+/**
+ * Note that `editorKey` is carried through untouched. The whole point is that
+ * relabelling moves `id` and nothing else.
+ */
 export function updateAutomaticStudioFieldLabel(fields: readonly StudioEditorField[], index: number, label: string) {
   return fields.map((field, position) => {
     if (position !== index) return field;
@@ -68,13 +96,24 @@ export function markStudioFieldIdsPersisted(fields: readonly StudioEditorField[]
 }
 
 export function duplicateStudioField(field: StudioEditorField, existingIds: Iterable<string>): StudioEditorField {
-  return { ...field, automaticId: true, id: createUniqueStudioFieldId(field.label, existingIds) };
+  return {
+    ...field,
+    automaticId: true,
+    // A fresh key is not optional. Inheriting the source's key would give two
+    // rows the same key, and React would reconcile them as a single row.
+    editorKey: createStudioEditorKey(),
+    id: createUniqueStudioFieldId(field.label, existingIds),
+  };
 }
 
 function toOptionValue(label: string) {
   return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 120);
 }
 
+/**
+ * Builds the published schema field by field, so no editor-only property can
+ * reach a stored definition.
+ */
 export function studioFieldsToDefinition(fields: StudioEditorField[]): FormDefinition {
   return parseFormDefinition({
     fields: fields.map((field) => {
@@ -96,14 +135,15 @@ export function studioFieldsToDefinition(fields: StudioEditorField[]): FormDefin
 
 export function formDefinitionToStudioFields(definition: FormDefinition): StudioEditorField[] {
   return definition.fields.map((field) => {
-    if (field.type === "section") return { id: field.id, label: field.label, optionsText: "", required: false, type: field.type };
-    if (field.type === "consent") return { id: field.id, label: field.label, optionsText: "", required: true, type: field.type };
+    const editorKey = createStudioEditorKey();
+    if (field.type === "section") return { editorKey, id: field.id, label: field.label, optionsText: "", required: false, type: field.type };
+    if (field.type === "consent") return { editorKey, id: field.id, label: field.label, optionsText: "", required: true, type: field.type };
     if (field.type === "select" || field.type === "multi_select") return {
-      id: field.id, label: field.label, optionsText: field.options.map((option) => option.label).join("\n"), required: field.required, type: field.type,
+      editorKey, id: field.id, label: field.label, optionsText: field.options.map((option) => option.label).join("\n"), required: field.required, type: field.type,
     };
     if (field.type === "image" || field.type === "pdf") return {
-      id: field.id, label: field.label, maxFiles: field.maxFiles, optionsText: "", required: field.required, type: field.type,
+      editorKey, id: field.id, label: field.label, maxFiles: field.maxFiles, optionsText: "", required: field.required, type: field.type,
     };
-    return { id: field.id, label: field.label, optionsText: "", required: field.required, type: field.type };
+    return { editorKey, id: field.id, label: field.label, optionsText: "", required: field.required, type: field.type };
   });
 }

@@ -22,7 +22,9 @@ name: Quality Gate
 #   * gitleaks/gitleaks-action caches its extracted binary under /tmp. That
 #     cache cannot be restored safely from this deeper persistent workspace,
 #     so the secret scan uses the verified local setup-gitleaks action.
-#   * Only three runners exist, so jobs queue rather than all starting at once.
+#   * Only three runners exist, so jobs queue rather than all starting at once,
+#     and two jobs can land on the same host concurrently. The two Docker jobs
+#     are serialised as a precaution; see migration_bootstrap_replay.
 #
 # Standing security conditions while these runners are attached. All of them
 # must hold; see docs/operations/self-hosted-runners.md and issue #78.
@@ -269,11 +271,37 @@ jobs:
   # local stack. First executed in CI on 2026-07-27: 96 migrations applied,
   # every ENFORCED assertion passed. Required since then.
   #
-  # NOTE: this job and migration_runtime both reap every supabase_* container
-  # on their host and both bind fixed local ports, with no ordering between
-  # them. On three shared runners they can collide. See issue #78.
+  # SERIALISED AFTER migration_runtime as a precaution against an unobserved
+  # hazard, NOT as a fix for a diagnosed failure. Read the whole of this before
+  # removing the `needs:`.
+  #
+  # The hazard is real but has never been seen to fire. Both jobs reap every
+  # supabase_* container and volume on their host, before and after, with
+  # `if: always()`, and both bind fixed local ports. With three shared runners
+  # the scheduler is free to place them on the same host at the same time, and
+  # it does: run 30375799852 started both at 15:56:10Z on a branch without this
+  # ordering. Both passed. So the collision is reachable and nondeterministic,
+  # which is the kind of thing that is cheapest to design out and most
+  # expensive to debug later.
+  #
+  # WHAT THIS IS NOT, because an earlier version of this comment got it wrong
+  # and would have argued for its own removal. That version blamed the 17-19
+  # second Docker failures on PR #74 and PR #86 on this collision, and claimed
+  # it had been observed twice. Both claims were false. The preflight action
+  # captured the real cause: `permission denied ... /var/run/docker.sock` on
+  # jnuits-full-stack-2, whose runner service had started before its user
+  # joined the `docker` group. One misconfigured host, fixed on all three on
+  # 2026-07-28. A reap collision would surface as a port conflict or a vanished
+  # container, never as permission-denied before any container is touched.
+  # Corrected on issue #78.
+  #
+  # Cost is roughly 80 seconds of wall time. A per-host mutex or a dedicated
+  # `docker` runner label would keep the parallelism; both are more machinery
+  # than this earns while the self-hosted runners remain temporary. Revisit
+  # with the rest of issue #78 after the 2026-08-01 reset.
   migration_bootstrap_replay:
     name: Clean migration replay
+    needs: migration_runtime
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 30
     steps:

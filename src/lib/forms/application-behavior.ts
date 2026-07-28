@@ -24,6 +24,56 @@ const applicationBehaviorSchema = z
 
 type FieldMapping = z.infer<typeof fieldMappingSchema>;
 
+/**
+ * Field types whose validated answer is a string.
+ *
+ * `extractApplicationIdentity` reads every mapped answer through
+ * `readMappedString`, which requires `typeof value === "string"`. That is the
+ * whole constraint. A mapping target is compatible exactly when the field
+ * produces a string, and the detail it feeds does not narrow it further.
+ *
+ * Excluded, per `validateFormAnswers`: `number` yields a number,
+ * `multi_select`, `image`, and `pdf` yield arrays, and `checkbox` and
+ * `consent` yield booleans. None of those can back an identity detail, so
+ * allowing them here would only move the failure from publish time to
+ * submission time, where it would surface as a confusing "missing from the
+ * submitted form answers" error against a question the respondent did answer.
+ *
+ * This replaces a set of hand-maintained per-key allowlists that had drifted
+ * out of sync: `departmentCode` accepted `select` while `batchLabel` did not,
+ * with no runtime reason for the difference.
+ */
+const STRING_ANSWER_FIELD_TYPES: FormField["type"][] = [
+  "date",
+  "email",
+  "select",
+  "telephone",
+  "text",
+  "textarea",
+];
+
+/**
+ * Operator-facing names for the mapping keys.
+ *
+ * The camelCase key is an internal contract that never appears in the Form
+ * Studio UI, so an error naming `batchLabel` gave the operator nothing to act
+ * on. These match the labels rendered in the Application details panel.
+ */
+const MAPPING_KEY_LABELS: Record<keyof FieldMapping, string> = {
+  batchLabel: "Batch",
+  departmentCode: "Department",
+  email: "Email address",
+  facebookUrl: "Facebook URL",
+  fullName: "Full name",
+  jnuitsId: "Previous JnUITS ID",
+  linkedinUrl: "LinkedIn URL",
+  phone: "Phone number",
+  studentId: "Student ID",
+};
+
+const COMPATIBLE_TYPE_GUIDANCE =
+  "Choose a short answer, paragraph, email, telephone, date, or dropdown question.";
+
 export type FormApplicationBehavior = {
   fieldMapping: FieldMapping;
 };
@@ -40,11 +90,27 @@ export type FormApplicationIdentity = {
   studentId?: string;
 };
 
-function findField(definition: FormDefinition, id: string, mappingKey: string): FormField {
+function mappingKeyLabel(mappingKey: keyof FieldMapping) {
+  return MAPPING_KEY_LABELS[mappingKey] || mappingKey;
+}
+
+function findField(
+  definition: FormDefinition,
+  id: string,
+  mappingKey: keyof FieldMapping
+): FormField {
   const field = definition.fields.find((candidate) => candidate.id === id);
 
-  if (!field || field.type === "section") {
-    throw new Error(`${mappingKey} must map to a form field.`);
+  if (!field) {
+    throw new Error(
+      `${mappingKeyLabel(mappingKey)} is mapped to a question that no longer exists. Choose another question or set it to "Not collected".`
+    );
+  }
+
+  if (field.type === "section") {
+    throw new Error(
+      `${mappingKeyLabel(mappingKey)} is mapped to a section heading, which collects no answer. ${COMPATIBLE_TYPE_GUIDANCE}`
+    );
   }
 
   return field;
@@ -53,38 +119,47 @@ function findField(definition: FormDefinition, id: string, mappingKey: string): 
 function assertStringField(
   definition: FormDefinition,
   id: string,
-  mappingKey: string,
+  mappingKey: keyof FieldMapping,
   types: FormField["type"][]
 ) {
   const field = findField(definition, id, mappingKey);
 
-  if (!types.includes(field.type)) {
-    throw new Error(
-      mappingKey === "email"
-        ? "email must map to an email field."
-        : `${mappingKey} must map to a compatible form field.`
-    );
+  if (types.includes(field.type)) {
+    return;
   }
+
+  const label = mappingKeyLabel(mappingKey);
+  const questionType = field.type.replaceAll("_", " ");
+
+  throw new Error(
+    mappingKey === "email"
+      ? `${label} must map to an email question, so the address is validated before it becomes the applicant's identity. "${field.label}" is a ${questionType} question.`
+      : `${label} must map to a question that produces a text answer. "${field.label}" is a ${questionType} question. ${COMPATIBLE_TYPE_GUIDANCE}`
+  );
 }
 
 function assertFieldMapping(definition: FormDefinition, mapping: FieldMapping) {
-  assertStringField(definition, mapping.fullName, "fullName", ["text", "textarea"]);
+  // The email address backs confirmation tokens, deduplication, and every
+  // notice sent about the application. Only the `email` field type is run
+  // through z.string().email() and lowercased by validateFormAnswers, so this
+  // one stays strict while the rest are free.
   assertStringField(definition, mapping.email, "email", ["email"]);
+  assertStringField(definition, mapping.fullName, "fullName", STRING_ANSWER_FIELD_TYPES);
 
-  const optionalTextFields: Array<[keyof FieldMapping, FormField["type"][]]> = [
-    ["batchLabel", ["text", "textarea"]],
-    ["departmentCode", ["text", "textarea", "select"]],
-    ["facebookUrl", ["text", "textarea"]],
-    ["jnuitsId", ["text", "textarea"]],
-    ["linkedinUrl", ["text", "textarea"]],
-    ["phone", ["telephone", "text"]],
-    ["studentId", ["text", "textarea"]],
+  const optionalKeys: Array<keyof FieldMapping> = [
+    "batchLabel",
+    "departmentCode",
+    "facebookUrl",
+    "jnuitsId",
+    "linkedinUrl",
+    "phone",
+    "studentId",
   ];
 
-  for (const [key, types] of optionalTextFields) {
+  for (const key of optionalKeys) {
     const fieldId = mapping[key];
     if (fieldId) {
-      assertStringField(definition, fieldId, key, types);
+      assertStringField(definition, fieldId, key, STRING_ANSWER_FIELD_TYPES);
     }
   }
 }

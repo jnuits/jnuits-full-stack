@@ -52,14 +52,37 @@ describe("form application behavior", () => {
     });
   });
 
-  it("rejects mappings to missing or wrong field types", () => {
+  // One defect per fixture. These previously shared a fixture that supplied a
+  // bad email AND a missing fullName; assertFieldMapping validates email
+  // first, so the fullName assertion could never have been reached whatever it
+  // asserted.
+  //
+  // The fragments matter, not the full sentences. This is operator-facing copy
+  // and will be reworded; what must survive rewording is that the error names
+  // the Application details label and the offending question rather than the
+  // internal camelCase key.
+  it("rejects a mapping to a question that does not exist", () => {
     expect(() =>
       parseFormApplicationBehavior(
         "membership_application",
-        { fieldMapping: { email: "student_id", fullName: "missing" } },
+        { fieldMapping: { email: "email", fullName: "missing" } },
         definition
       )
-    ).toThrow("fullName must map to a form field");
+    ).toThrow(/Full name is mapped to a question that no longer exists/);
+  });
+
+  it("rejects an email mapped to a non-email question, naming that question", () => {
+    // Only the `email` field type is run through z.string().email() and
+    // lowercased by validateFormAnswers, and the address backs confirmation
+    // tokens and deduplication. A text question would let an unvalidated
+    // string become the applicant's identity.
+    expect(() =>
+      parseFormApplicationBehavior(
+        "membership_application",
+        { fieldMapping: { email: "student_id", fullName: "full_name" } },
+        definition
+      )
+    ).toThrow(/Email address must map to an email question/);
 
     expect(() =>
       parseFormApplicationBehavior(
@@ -67,7 +90,7 @@ describe("form application behavior", () => {
         { fieldMapping: { email: "student_id", fullName: "full_name" } },
         definition
       )
-    ).toThrow("email must map to an email field");
+    ).toThrow(/"Student ID" is a text question/);
   });
 
   it("requires a canonical mapping for confirmation-based applications", () => {

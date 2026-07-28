@@ -99,6 +99,47 @@ describe("GitHub Actions workflows", () => {
     expect(aggregate).toContain('test "$MIGRATION_DEPENDENCIES_RESULT" = "success"');
   });
 
+  it("serialises the two Docker jobs so their concurrent reaps cannot collide", () => {
+    // Precautionary, not a fix for a diagnosed failure.
+    //
+    // The hazard: both jobs reap every supabase_* container on their host,
+    // before and after, with `if: always()`, and both bind fixed local ports.
+    // With three shared runners they do land concurrently -- run 30375799852
+    // started both at 15:56:10Z on a branch without this ordering. Both passed,
+    // so the collision is reachable but has never been observed to fire.
+    //
+    // The 17-19 second Docker failures on PR #74 and PR #86 were NOT this, and
+    // an earlier version of this comment wrongly said they were. The real cause
+    // was one host whose runner service started before its user joined the
+    // docker group, giving permission denied on /var/run/docker.sock. Fixed on
+    // all three hosts 2026-07-28 and corrected on issue #78. Stated here so the
+    // false cause cannot be reintroduced from the git history.
+    const workflow = readWorkflow("quality-gate.yml");
+    const replayStart = workflow.indexOf("  migration_bootstrap_replay:");
+    const replayEnd = workflow.indexOf("\n  build_and_browser:", replayStart);
+
+    expect(replayStart).toBeGreaterThan(-1);
+    expect(replayEnd).toBeGreaterThan(replayStart);
+
+    const replay = workflow.slice(replayStart, replayEnd);
+
+    expect(replay).toContain("needs: migration_runtime");
+
+    // The ordering exists because of the reaping. Removing the reap steps and
+    // keeping the dependency, or the reverse, both reintroduce the hazard.
+    const reaps = replay.match(/uses: \.\/\.github\/actions\/docker-preflight/g);
+    expect(reaps?.length).toBe(2);
+
+    const runtimeStart = workflow.indexOf("  migration_runtime:");
+    const runtimeEnd = workflow.indexOf("\n  # Issue #18. Offline ordering", runtimeStart);
+    const runtime = workflow.slice(runtimeStart, runtimeEnd);
+
+    expect(runtime.match(/uses: \.\/\.github\/actions\/docker-preflight/g)?.length).toBe(2);
+
+    // migration_runtime must stay first. A cycle would deadlock the workflow.
+    expect(runtime).not.toContain("needs: migration_bootstrap_replay");
+  });
+
   it("validates Google Drive and retention settings in production readiness", () => {
     const workflow = readWorkflow("production-readiness.yml");
 
