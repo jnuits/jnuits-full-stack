@@ -131,6 +131,39 @@ describe("section grouping", () => {
   });
 });
 
+describe("field control treatment", () => {
+  it("themes the file input's native button", () => {
+    const controls = readControls();
+
+    // `input-field` cannot reach ::file-selector-button, so the file control
+    // rendered as the browser's grey default beside fully themed neighbours.
+    expect(controls).toContain("FILE_INPUT_CLASS");
+    expect(controls).toContain("file:rounded-lg");
+    expect(controls).toContain("file:bg-[var(--brand-blue)]");
+    expect(controls).toContain('className={FILE_INPUT_CLASS}');
+  });
+
+  it("keeps the native file input rather than a custom widget", () => {
+    const controls = readControls();
+
+    // A replacement widget reimplements focus, drag-and-drop, and the AT
+    // mapping the native control already provides. Task 2.8 adds progress
+    // around it, not instead of it.
+    expect(controls).toContain('type="file"');
+  });
+
+  it("says where a date field's displayed format comes from", () => {
+    const controls = readControls();
+
+    // <input type="date"> follows the browser locale and takes no display
+    // format, so mm/dd/yyyy can appear on a Bangladeshi site. The stored value
+    // is ISO regardless; the risk is misreading which box is the month.
+    expect(controls).toContain("DateFormatNote");
+    expect(controls).toContain("Shown in your browser");
+    expect(controls).toContain('{field.type === "date" ? <DateFormatNote /> : null}');
+  });
+});
+
 describe("required field marker", () => {
   it("keeps the marker inline with the label text", () => {
     const controls = readControls();

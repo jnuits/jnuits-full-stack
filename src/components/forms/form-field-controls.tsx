@@ -15,6 +15,19 @@ export type FormFieldControlOptions = {
   preview?: boolean;
 };
 
+/**
+ * The visible part of a file input is the browser's own button, which no class
+ * on the input element can reach. `file:` targets `::file-selector-button`.
+ *
+ * Not replaced with a custom widget on purpose. Doing that means a visually
+ * hidden input, a button, and JS to relay the click and mirror the chosen
+ * filename, which reimplements keyboard focus, drag-and-drop, and the
+ * assistive-technology mapping the native control already handles. Task 2.8
+ * adds upload progress around this control rather than instead of it.
+ */
+const FILE_INPUT_CLASS =
+  "input-field mt-1 w-full cursor-pointer file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[var(--brand-blue)] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white";
+
 function controlName(field: FormField, preview: boolean | undefined) {
   return preview ? undefined : field.id;
 }
@@ -23,6 +36,24 @@ export function FieldHelp({ field }: { field: FormField }) {
   return field.helpText ? (
     <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{field.helpText}</p>
   ) : null;
+}
+
+/**
+ * `<input type="date">` renders in the browser's locale and accepts no display
+ * format, so this site cannot show dd/mm/yyyy to a Bangladeshi respondent even
+ * though that is what they expect.
+ *
+ * No data is at risk: the submitted value is ISO `yyyy-mm-dd` whatever the
+ * display shows, and the server parses it as ISO. The risk is a respondent
+ * misreading which box is the month, so the note says where the format comes
+ * from and points at the calendar, which is unambiguous.
+ */
+function DateFormatNote() {
+  return (
+    <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+      Shown in your browser&apos;s date format. Use the calendar button if you are unsure.
+    </p>
+  );
 }
 
 /**
@@ -194,6 +225,7 @@ export function FormFieldControl({
           type={field.type}
         />
         <FieldHelp field={field} />
+        {field.type === "date" ? <DateFormatNote /> : null}
       </div>
     );
   }
@@ -230,7 +262,7 @@ export function FormFieldControl({
       <FieldLabel field={field} inputId={inputId} />
       <input
         accept={field.type === "pdf" ? "application/pdf" : "image/jpeg,image/png,image/webp"}
-        className="input-field mt-1 w-full"
+        className={FILE_INPUT_CLASS}
         disabled={preview}
         id={inputId}
         multiple={field.maxFiles > 1}
