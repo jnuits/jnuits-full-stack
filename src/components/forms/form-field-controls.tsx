@@ -1,4 +1,5 @@
 import type { FormDefinition, FormField } from "@/lib/forms/definition";
+import { groupFormFields } from "@/lib/forms/public-form-presentation";
 
 /**
  * Shared field renderer for the public form and the Form Studio preview.
@@ -149,6 +150,9 @@ export function FormFieldControl({
   const inputId = `${idPrefix}-${field.id}`;
 
   if (field.type === "section") {
+    // Fallback for a direct caller rendering one field at a time.
+    // `FormFieldControls` no longer reaches this branch: it groups sections with
+    // the questions they introduce, which a single-field renderer cannot do.
     return (
       <section
         className="border-t border-[var(--line)] pt-6 first:border-t-0 first:pt-0"
@@ -242,16 +246,59 @@ export function FormFieldControl({
   );
 }
 
+/**
+ * Renders the definition as heading-owned groups.
+ *
+ * Previously every field was emitted as a flat sibling list, so a `section`
+ * produced a labelled region containing nothing and the questions it introduced
+ * belonged to no region at all. Grouping fixes both the semantics and the
+ * visual reading order.
+ */
 export function FormFieldControls({
   definition,
   idPrefix,
   preview,
 }: { definition: FormDefinition } & FormFieldControlOptions) {
+  const groups = groupFormFields(definition);
+
   return (
     <>
-      {definition.fields.map((field) => (
-        <FormFieldControl field={field} idPrefix={idPrefix} key={field.id} preview={preview} />
-      ))}
+      {groups.map((group, index) => {
+        const questions = group.fields.map((field) => (
+          <FormFieldControl
+            field={field}
+            idPrefix={idPrefix}
+            key={field.id}
+            preview={preview}
+          />
+        ));
+
+        if (!group.section) {
+          return (
+            <div className="grid gap-5" key={group.fields[0]?.id || `group-${index}`}>
+              {questions}
+            </div>
+          );
+        }
+
+        const headingId = `${idPrefix}-${group.section.id}`;
+
+        return (
+          <section
+            aria-labelledby={headingId}
+            className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-5"
+            key={group.section.id}
+          >
+            <h2 className="text-lg font-bold text-[var(--brand-ink)]" id={headingId}>
+              {group.section.label}
+            </h2>
+            <FieldHelp field={group.section} />
+            {group.fields.length ? (
+              <div className="mt-5 grid gap-5">{questions}</div>
+            ) : null}
+          </section>
+        );
+      })}
     </>
   );
 }
