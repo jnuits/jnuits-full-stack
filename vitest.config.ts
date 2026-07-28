@@ -1,5 +1,7 @@
 import path from "node:path";
-import { configDefaults, defineConfig } from "vitest/config";
+import { defineConfig } from "vitest/config";
+
+import { buildTestProjects } from "./test/config/test-projects";
 
 /**
  * Two projects, not one environment.
@@ -11,9 +13,11 @@ import { configDefaults, defineConfig } from "vitest/config";
  * than a stylistic choice.
  *
  * Component tests are named `*.dom.test.tsx`. The suffix, not a config lookup,
- * is what tells a reader which environment a test runs in. The node project
- * excludes it and the dom project includes only it, so a file cannot end up in
- * the wrong environment by accident.
+ * is what tells a reader which environment a test runs in.
+ *
+ * The split itself lives in `test/config/test-projects.ts`, which owns no Node
+ * globals and is therefore testable. This file owns `__dirname` and nothing
+ * else.
  */
 
 const alias = {
@@ -21,34 +25,7 @@ const alias = {
   "server-only": path.resolve(__dirname, "test/mocks/server-only.ts"),
 };
 
-const DOM_TEST_GLOB = "**/*.dom.test.{ts,tsx}";
-
-const sharedExclude = [...configDefaults.exclude, ".agents/**", "e2e/**"];
-
 export default defineConfig({
   resolve: { alias },
-  test: {
-    projects: [
-      {
-        resolve: { alias },
-        test: {
-          environment: "node",
-          exclude: [...sharedExclude, DOM_TEST_GLOB],
-          globals: false,
-          name: "node",
-        },
-      },
-      {
-        resolve: { alias },
-        test: {
-          environment: "jsdom",
-          exclude: sharedExclude,
-          globals: false,
-          include: [DOM_TEST_GLOB],
-          name: "dom",
-          setupFiles: ["./test/setup/dom.ts"],
-        },
-      },
-    ],
-  },
+  test: { projects: buildTestProjects(alias) },
 });
