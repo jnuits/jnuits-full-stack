@@ -27,12 +27,28 @@ const controlsPath = resolve(
   "src/components/forms/form-field-controls.tsx"
 );
 
+/**
+ * Every guard below is a statement about rendered output, so comments are not
+ * part of the subject.
+ *
+ * This is not hygiene. The h1 guard failed on its own subject: the JSDoc that
+ * explains why there is exactly one `<h1>` says so twice, and both sentences
+ * contain the literal, so the count came back as three. A guard that prose can
+ * break measures the wrong thing.
+ *
+ * It also means documenting a colour literal in a comment no longer trips the
+ * dark-mode guards, which is right, because a comment renders nothing.
+ */
+function stripComments(source: string) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+}
+
 function readScreen() {
-  return readFileSync(screenPath, "utf8");
+  return stripComments(readFileSync(screenPath, "utf8"));
 }
 
 function readControls() {
-  return readFileSync(controlsPath, "utf8");
+  return stripComments(readFileSync(controlsPath, "utf8"));
 }
 
 describe("public form dark mode", () => {
