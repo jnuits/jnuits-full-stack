@@ -23,6 +23,7 @@ name: Quality Gate
 #     cache cannot be restored safely from this deeper persistent workspace,
 #     so the secret scan uses the verified local setup-gitleaks action.
 #   * Only three runners exist, so jobs queue rather than all starting at once.
+#     The two Docker jobs are therefore serialised; see migration_bootstrap_replay.
 #
 # Standing security conditions while these runners are attached. All of them
 # must hold; see docs/operations/self-hosted-runners.md and issue #78.
@@ -269,11 +270,26 @@ jobs:
   # local stack. First executed in CI on 2026-07-27: 96 migrations applied,
   # every ENFORCED assertion passed. Required since then.
   #
-  # NOTE: this job and migration_runtime both reap every supabase_* container
-  # on their host and both bind fixed local ports, with no ordering between
-  # them. On three shared runners they can collide. See issue #78.
+  # SERIALISED AFTER migration_runtime, deliberately. Both jobs reap every
+  # supabase_* container and volume on their host, before and after, with
+  # `if: always()`, and both bind fixed local ports. With no ordering and only
+  # three runners they collided: the later job's preflight reap destroyed the
+  # earlier job's live stack, and the failure read like a code defect.
+  #
+  # Observed twice. PR #74 run 30266041327: migration_runtime died in 17s, then
+  # passed in 82s on the next run purely because the queue placed it later.
+  # PR #86 run 30283009860: this job died in 19s on a branch touching four
+  # TypeScript files, while PR #89 ran the identical replay code on the same
+  # runners and passed in 76s.
+  #
+  # `needs` costs roughly 80 seconds of wall time and removes the collision. A
+  # per-host mutex or a dedicated `docker` runner label would keep the
+  # parallelism; both are more machinery than this earns while the self-hosted
+  # runners remain temporary. Revisit with the rest of issue #78 after the
+  # 2026-08-01 reset.
   migration_bootstrap_replay:
     name: Clean migration replay
+    needs: migration_runtime
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 30
     steps:

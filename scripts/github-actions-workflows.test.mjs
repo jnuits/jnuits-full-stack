@@ -99,6 +99,38 @@ describe("GitHub Actions workflows", () => {
     expect(aggregate).toContain('test "$MIGRATION_DEPENDENCIES_RESULT" = "success"');
   });
 
+  it("serialises the two Docker jobs so their container reaps cannot collide", () => {
+    // Both jobs reap every supabase_* container on their host, before and
+    // after, with `if: always()`, and both bind fixed local ports. With no
+    // ordering and three shared runners they killed each other's live stack,
+    // producing 17-19 second failures that read like code defects. Observed on
+    // PR #74 run 30266041327 and PR #86 run 30283009860. Issue #78.
+    const workflow = readWorkflow("quality-gate.yml");
+    const replayStart = workflow.indexOf("  migration_bootstrap_replay:");
+    const replayEnd = workflow.indexOf("\n  build_and_browser:", replayStart);
+
+    expect(replayStart).toBeGreaterThan(-1);
+    expect(replayEnd).toBeGreaterThan(replayStart);
+
+    const replay = workflow.slice(replayStart, replayEnd);
+
+    expect(replay).toContain("needs: migration_runtime");
+
+    // The ordering exists because of the reaping. Removing the reap steps and
+    // keeping the dependency, or the reverse, both reintroduce the flake.
+    const reaps = replay.match(/uses: \.\/\.github\/actions\/docker-preflight/g);
+    expect(reaps?.length).toBe(2);
+
+    const runtimeStart = workflow.indexOf("  migration_runtime:");
+    const runtimeEnd = workflow.indexOf("\n  # Issue #18. Offline ordering", runtimeStart);
+    const runtime = workflow.slice(runtimeStart, runtimeEnd);
+
+    expect(runtime.match(/uses: \.\/\.github\/actions\/docker-preflight/g)?.length).toBe(2);
+
+    // migration_runtime must stay first. A cycle would deadlock the workflow.
+    expect(runtime).not.toContain("needs: migration_bootstrap_replay");
+  });
+
   it("validates Google Drive and retention settings in production readiness", () => {
     const workflow = readWorkflow("production-readiness.yml");
 
