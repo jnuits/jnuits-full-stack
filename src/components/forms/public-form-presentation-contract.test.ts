@@ -12,6 +12,9 @@ import { describe, expect, it } from "vitest";
  * Mirrors the existing pattern in
  * src/lib/forms/unapplied-migration-runtime.test.ts.
  *
+ * Logic that can be extracted lives in src/lib/forms/public-form-presentation.ts
+ * and has real unit tests. These guards cover only what is unavoidably inline.
+ *
  * Replace with real component tests once #52 lands.
  */
 
@@ -61,23 +64,70 @@ describe("public form dark mode", () => {
 });
 
 describe("public form layout", () => {
-  it("centres the card rather than pinning it to the left edge", () => {
+  it("centres the form rather than pinning it to the left edge", () => {
     const screen = readScreen();
 
-    // `max-w-2xl` alone leaves the card against the left edge on any viewport
-    // wider than the cap.
+    // Centring moved from the card to the wrapper when the header block landed
+    // above the card: both have to share one measure. `max-w-2xl` on the card
+    // alone left everything against the left edge on a wide viewport.
+    expect(screen).toContain("PAGE_WRAPPER_CLASS");
+    expect(screen).toContain("mx-auto w-full max-w-2xl");
     expect(screen).toContain("FORM_CARD_CLASS");
-    expect(screen).toContain("glass-card mx-auto w-full max-w-2xl");
   });
 
-  it("applies one card class to both the form and the success state", () => {
+  it("wraps both the form and the success state in the centred shell", () => {
     const screen = readScreen();
-    const usages = screen.match(/className=\{FORM_CARD_CLASS\}/g);
+    const wrappers = screen.match(/className=\{PAGE_WRAPPER_CLASS\}/g);
+    const cards = screen.match(/className=\{FORM_CARD_CLASS\}/g);
 
     // Success and form. They drifted apart before because each carried its own
     // copy of the class string.
-    expect(usages?.length).toBe(2);
+    expect(wrappers?.length).toBe(2);
+    expect(cards?.length).toBe(2);
     expect(screen).not.toContain('className="glass-card max-w-2xl');
+  });
+
+  it("renders the form title as the page's only h1", () => {
+    const screen = readScreen();
+    const headingOnes = screen.match(/<h1\b/g);
+
+    // The title used to live inside the card, which meant an h1 per card and
+    // h2 section headings as its siblings rather than its children.
+    expect(headingOnes?.length).toBe(1);
+    expect(screen).toContain("PublicFormHeader");
+    // The success card sits under that h1, so its heading is a level down.
+    expect(screen).toMatch(/<h2[^>]*>\s*\{eventSuccessContent \? eventSuccessContent\.heading/);
+  });
+
+  it("shows the eyebrow and length affordance only when resolved", () => {
+    const screen = readScreen();
+
+    // Both helpers return null deliberately; rendering an empty pill or a bare
+    // "0 questions" line would be worse than omitting them.
+    expect(screen).toContain("resolveFormEyebrow");
+    expect(screen).toContain("resolveFormLengthSummary");
+    expect(screen).toContain("{eyebrow ? (");
+    expect(screen).toContain("{lengthSummary ? (");
+  });
+});
+
+describe("section grouping", () => {
+  it("renders each section as a region owning its questions", () => {
+    const controls = readControls();
+
+    // The section heading used to sit in a `<section>` that wrapped nothing but
+    // itself, so aria-labelledby pointed at a region with no controls in it.
+    expect(controls).toContain("groupFormFields");
+    expect(controls).toContain("aria-labelledby={headingId}");
+    expect(controls).toContain('<div className="mt-5 grid gap-5">{questions}</div>');
+  });
+
+  it("gives a section a visible container rather than only a top border", () => {
+    const controls = readControls();
+
+    expect(controls).toContain(
+      'className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-5"'
+    );
   });
 });
 

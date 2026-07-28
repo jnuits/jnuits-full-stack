@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { parseFormDefinition } from "@/lib/forms/definition";
-import { groupFormFields } from "@/lib/forms/public-form-presentation";
+import {
+  groupFormFields,
+  resolveFormEyebrow,
+  resolveFormLengthSummary,
+} from "@/lib/forms/public-form-presentation";
 
 function definitionOf(fields: unknown[]) {
   return parseFormDefinition({ fields, payment: { enabled: false } });
@@ -9,6 +13,10 @@ function definitionOf(fields: unknown[]) {
 
 const question = (id: string) => ({ id, label: id, required: false, type: "text" });
 const section = (id: string) => ({ id, label: id, type: "section" });
+
+function questions(count: number) {
+  return Array.from({ length: count }, (_, index) => question(`q${index + 1}`));
+}
 
 describe("grouping fields under their section heading", () => {
   it("returns a single unsectioned group when the form has no headings", () => {
@@ -99,5 +107,74 @@ describe("grouping fields under their section heading", () => {
       .map((field) => field.id);
 
     expect(grouped).toEqual(expected);
+  });
+});
+
+describe("form eyebrow", () => {
+  it("labels the form kind above an unrelated title", () => {
+    expect(resolveFormEyebrow("membership_application", "Join JnUITS for 2026")).toBe(
+      "Membership application"
+    );
+    expect(resolveFormEyebrow("event_registration", "Hackathon 2026")).toBe(
+      "Event registration"
+    );
+  });
+
+  it("suppresses itself when it would repeat the title", () => {
+    // Both published forms are titled exactly after their kind today, so this
+    // is the common case rather than an edge case.
+    expect(resolveFormEyebrow("membership_application", "Membership application")).toBeNull();
+    expect(resolveFormEyebrow("alumni_onboarding", "Alumni onboarding")).toBeNull();
+  });
+
+  it("ignores case and surrounding whitespace when comparing", () => {
+    expect(resolveFormEyebrow("alumni_onboarding", "  ALUMNI ONBOARDING ")).toBeNull();
+  });
+});
+
+describe("form length summary", () => {
+  it("says nothing about a short flat form", () => {
+    // "3 questions" above a three-question form is noise.
+    expect(resolveFormLengthSummary(definitionOf(questions(3)))).toBeNull();
+    expect(resolveFormLengthSummary(definitionOf(questions(6)))).toBeNull();
+  });
+
+  it("counts questions once the form is long enough to warrant it", () => {
+    expect(resolveFormLengthSummary(definitionOf(questions(7)))).toBe("7 questions");
+  });
+
+  it("reports structure whenever there are several sections, however short", () => {
+    const definition = definitionOf([
+      section("s1"),
+      question("a"),
+      section("s2"),
+      question("b"),
+    ]);
+
+    expect(resolveFormLengthSummary(definition)).toBe("2 questions in 2 sections");
+  });
+
+  it("does not count a single section as structure worth previewing", () => {
+    const definition = definitionOf([section("s1"), question("a"), question("b")]);
+
+    expect(resolveFormLengthSummary(definition)).toBeNull();
+  });
+
+  it("excludes section headings from the question count", () => {
+    const definition = definitionOf([
+      section("s1"),
+      ...questions(4),
+      section("s2"),
+      question("extra"),
+    ]);
+
+    // Five questions, not seven fields.
+    expect(resolveFormLengthSummary(definition)).toBe("5 questions in 2 sections");
+  });
+
+  it("pluralises a single question correctly", () => {
+    const definition = definitionOf([section("s1"), question("a"), section("s2")]);
+
+    expect(resolveFormLengthSummary(definition)).toBe("1 question in 2 sections");
   });
 });

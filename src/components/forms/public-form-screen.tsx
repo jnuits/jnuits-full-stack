@@ -6,6 +6,10 @@ import { TurnstileField } from "@/components/auth/turnstile-field";
 import { FormFieldControls } from "@/components/forms/form-field-controls";
 import type { FormDefinition, FormField, FormKind } from "@/lib/forms/definition";
 import { getEventRegistrationSuccessContent } from "@/lib/forms/event-registration-result";
+import {
+  resolveFormEyebrow,
+  resolveFormLengthSummary,
+} from "@/lib/forms/public-form-presentation";
 import { resolvePublicFormSubmissionTarget } from "@/lib/forms/submission-target";
 
 /**
@@ -20,8 +24,13 @@ import { resolvePublicFormSubmissionTarget } from "@/lib/forms/submission-target
 const NOTICE_ERROR_CLASS =
   "rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive";
 
-/** Centred, because `max-w-2xl` alone pins the card to the left edge. */
-const FORM_CARD_CLASS = "glass-card mx-auto w-full max-w-2xl px-6 py-8 sm:px-8";
+/**
+ * Centring lives on the wrapper, not the card, because the header block above
+ * the card has to share the same measure. `max-w-2xl` on the card alone used to
+ * pin it to the left edge.
+ */
+const PAGE_WRAPPER_CLASS = "mx-auto w-full max-w-2xl";
+const FORM_CARD_CLASS = "glass-card px-6 py-8 sm:px-8";
 
 type PublicFormScreenProps = {
   captcha: {
@@ -239,6 +248,42 @@ function toAnswers(
   return answers;
 }
 
+/**
+ * Eyebrow, title, description, and length affordance above the card.
+ *
+ * The title is the page's only `<h1>`. Section headings inside the card and the
+ * success heading are `<h2>`, so the document has one heading root rather than
+ * an `<h1>` per card.
+ */
+function PublicFormHeader({
+  description,
+  eyebrow,
+  lengthSummary,
+  title,
+}: {
+  description: null | string;
+  eyebrow: null | string;
+  lengthSummary: null | string;
+  title: string;
+}) {
+  return (
+    <header className="mb-6 text-center sm:mb-8">
+      {eyebrow ? (
+        <span className="inline-flex items-center rounded-full border border-border bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+          {eyebrow}
+        </span>
+      ) : null}
+      <h1 className={eyebrow ? "section-title mt-4" : "section-title"}>{title}</h1>
+      {description ? (
+        <p className="section-copy mx-auto mt-3 max-w-xl">{description}</p>
+      ) : null}
+      {lengthSummary ? (
+        <p className="mt-3 text-sm text-[var(--muted-foreground)]">{lengthSummary}</p>
+      ) : null}
+    </header>
+  );
+}
+
 export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicFormScreenProps) {
   const [state, setState] = useState<SubmissionState>({ status: "idle" });
   const [confirmationEmail, setConfirmationEmail] = useState("");
@@ -253,6 +298,14 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
   const captchaRequired = captcha.required;
   const captchaUnavailable = captchaRequired && !captcha.siteKey;
   const cannotSubmit = !submissionTarget || captchaUnavailable;
+  const header = (
+    <PublicFormHeader
+      description={form.description}
+      eyebrow={resolveFormEyebrow(kind, form.title)}
+      lengthSummary={resolveFormLengthSummary(form.definition)}
+      title={form.title}
+    />
+  );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -384,86 +437,89 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
       : null;
 
     return (
-      <section className={FORM_CARD_CLASS} role="status" aria-live="polite">
-        <h1 className="section-title">
-          {eventSuccessContent ? eventSuccessContent.heading : "Check your email"}
-        </h1>
-        <p className="section-copy mt-4">
-          {eventSuccessContent
-            ? eventSuccessContent.message
-            : "We sent a confirmation link to your email address. Open it to send your submission to the JnUITS review team."}
-        </p>
-        {!eventSuccessContent && confirmationEmail ? (
-          <form className="mt-6 grid gap-3" onSubmit={handleConfirmationResend}>
-            <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-              Did not receive it? Complete a new verification challenge to request another link.
-            </p>
-            {captchaRequired ? <TurnstileField siteKey={captcha.siteKey} /> : null}
-            {resendState.status === "sent" ? (
-              <p className="text-sm font-semibold text-[var(--brand-green)]" role="status">
-                If this email has a pending application, another confirmation link is on its way.
+      <div className={PAGE_WRAPPER_CLASS}>
+        {header}
+        <section className={FORM_CARD_CLASS} role="status" aria-live="polite">
+          <h2 className="text-2xl font-bold text-[var(--brand-ink)]">
+            {eventSuccessContent ? eventSuccessContent.heading : "Check your email"}
+          </h2>
+          <p className="section-copy mt-4">
+            {eventSuccessContent
+              ? eventSuccessContent.message
+              : "We sent a confirmation link to your email address. Open it to send your submission to the JnUITS review team."}
+          </p>
+          {!eventSuccessContent && confirmationEmail ? (
+            <form className="mt-6 grid gap-3" onSubmit={handleConfirmationResend}>
+              <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+                Did not receive it? Complete a new verification challenge to request another link.
               </p>
-            ) : null}
-            {resendState.status === "error" ? (
-              <p className="text-sm font-semibold text-destructive" role="alert">
-                {resendState.message}
-              </p>
-            ) : null}
-            <button
-              aria-busy={resendState.status === "sending"}
-              className="secondary-button w-full"
-              disabled={resendState.status === "sending"}
-              type="submit"
-            >
-              {resendState.status === "sending" ? "Requesting…" : "Resend confirmation email"}
-            </button>
-          </form>
-        ) : null}
-      </section>
+              {captchaRequired ? <TurnstileField siteKey={captcha.siteKey} /> : null}
+              {resendState.status === "sent" ? (
+                <p className="text-sm font-semibold text-[var(--brand-green)]" role="status">
+                  If this email has a pending application, another confirmation link is on its way.
+                </p>
+              ) : null}
+              {resendState.status === "error" ? (
+                <p className="text-sm font-semibold text-destructive" role="alert">
+                  {resendState.message}
+                </p>
+              ) : null}
+              <button
+                aria-busy={resendState.status === "sending"}
+                className="secondary-button w-full"
+                disabled={resendState.status === "sending"}
+                type="submit"
+              >
+                {resendState.status === "sending" ? "Requesting…" : "Resend confirmation email"}
+              </button>
+            </form>
+          ) : null}
+        </section>
+      </div>
     );
   }
 
   return (
-    <section className={FORM_CARD_CLASS}>
-      <h1 className="section-title">{form.title}</h1>
-      {form.description ? <p className="section-copy mt-4">{form.description}</p> : null}
-
-      {!submissionTarget ? (
-        <p className={`mt-6 ${NOTICE_ERROR_CLASS}`} role="alert">
-          This event registration form is unavailable. Please return to the event page.
-        </p>
-      ) : null}
-      {captchaUnavailable ? (
-        <p className={`mt-6 ${NOTICE_ERROR_CLASS}`} role="alert">
-          Verification is temporarily unavailable. Please try again later.
-        </p>
-      ) : null}
-
-      <form className="mt-8 grid gap-5" noValidate onSubmit={handleSubmit}>
-        <FormFieldControls definition={form.definition} idPrefix={`form-${form.slug}`} />
-
-        <div className="contact-honeypot" aria-hidden="true">
-          <label htmlFor="form-website">Website</label>
-          <input autoComplete="off" id="form-website" name="website" tabIndex={-1} />
-        </div>
-
-        {captchaRequired ? <TurnstileField siteKey={captcha.siteKey} /> : null}
-
-        {state.status === "error" ? (
-          <p className={NOTICE_ERROR_CLASS} role="alert" aria-live="polite">
-            {state.message}
+    <div className={PAGE_WRAPPER_CLASS}>
+      {header}
+      <section className={FORM_CARD_CLASS}>
+        {!submissionTarget ? (
+          <p className={`mb-6 ${NOTICE_ERROR_CLASS}`} role="alert">
+            This event registration form is unavailable. Please return to the event page.
+          </p>
+        ) : null}
+        {captchaUnavailable ? (
+          <p className={`mb-6 ${NOTICE_ERROR_CLASS}`} role="alert">
+            Verification is temporarily unavailable. Please try again later.
           </p>
         ) : null}
 
-        <button
-          aria-busy={state.status === "submitting"}
-          className="primary-button w-full"
-          disabled={state.status === "submitting" || cannotSubmit}
-          type="submit"
-        >
-          {state.status === "submitting" ? "Submitting…" : isEventRegistration ? "Complete registration" : "Submit and confirm email"}
-        </button>
-      </form>
-    </section>
+        <form className="grid gap-6" noValidate onSubmit={handleSubmit}>
+          <FormFieldControls definition={form.definition} idPrefix={`form-${form.slug}`} />
+
+          <div className="contact-honeypot" aria-hidden="true">
+            <label htmlFor="form-website">Website</label>
+            <input autoComplete="off" id="form-website" name="website" tabIndex={-1} />
+          </div>
+
+          {captchaRequired ? <TurnstileField siteKey={captcha.siteKey} /> : null}
+
+          {state.status === "error" ? (
+            <p className={NOTICE_ERROR_CLASS} role="alert" aria-live="polite">
+              {state.message}
+            </p>
+          ) : null}
+
+          <button
+            aria-busy={state.status === "submitting"}
+            className="primary-button w-full"
+            disabled={state.status === "submitting" || cannotSubmit}
+            type="submit"
+          >
+            {state.status === "submitting" ? "Submitting…" : isEventRegistration ? "Complete registration" : "Submit and confirm email"}
+          </button>
+        </form>
+      </section>
+    </div>
   );
 }
