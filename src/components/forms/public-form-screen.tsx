@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 
 import { TurnstileField } from "@/components/auth/turnstile-field";
 import { FormFieldControls } from "@/components/forms/form-field-controls";
@@ -22,7 +23,20 @@ import { resolvePublicFormSubmissionTarget } from "@/lib/forms/submission-target
  * and repetition is how three of them drifted apart.
  */
 const NOTICE_ERROR_CLASS =
-  "rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive";
+  "rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive";
+
+/**
+ * Affirmative counterpart to the error notice.
+ *
+ * Deliberately `primary` rather than contact's emerald. Emerald works there only
+ * because four call sites hand-pair a `dark:` variant, and the guard added in
+ * #89 bans bare colour literals precisely because three of those pairs had
+ * drifted. A semantic `success` token would be better and is a design-system
+ * decision (13.3a in #86); until it exists, the check icon carries the meaning
+ * and the colour cannot be wrong in either theme.
+ */
+const NOTICE_SUCCESS_CLASS =
+  "flex items-center gap-2 rounded-xl border border-border bg-primary/10 px-4 py-2.5 text-sm font-medium text-primary";
 
 /**
  * Centring lives on the wrapper, not the card, because the header block above
@@ -30,7 +44,16 @@ const NOTICE_ERROR_CLASS =
  * pin it to the left edge.
  */
 const PAGE_WRAPPER_CLASS = "mx-auto w-full max-w-2xl";
-const FORM_CARD_CLASS = "glass-card px-6 py-8 sm:px-8";
+
+/**
+ * Decision 7 in #86: the contact card idiom, replacing `glass-card`.
+ *
+ * `overflow-hidden` rather than rounding the accent bar's own top corners, so
+ * the bar cannot bleed past the radius at any width.
+ */
+const FORM_CARD_CLASS = "overflow-hidden rounded-2xl border border-border bg-card shadow-sm";
+const FORM_CARD_ACCENT_CLASS = "h-[3px] bg-primary";
+const FORM_CARD_BODY_CLASS = "p-6 sm:p-8";
 
 type PublicFormScreenProps = {
   captcha: {
@@ -251,9 +274,9 @@ function toAnswers(
 /**
  * Eyebrow, title, description, and length affordance above the card.
  *
- * The title is the page's only `<h1>`. Section headings inside the card and the
- * success heading are `<h2>`, so the document has one heading root rather than
- * an `<h1>` per card.
+ * The title is the page's only top-level heading. Section headings inside the
+ * card and the success heading sit one level below it, so the document has one
+ * heading root rather than one per card.
  */
 function PublicFormHeader({
   description,
@@ -278,9 +301,48 @@ function PublicFormHeader({
         <p className="section-copy mx-auto mt-3 max-w-xl">{description}</p>
       ) : null}
       {lengthSummary ? (
-        <p className="mt-3 text-sm text-[var(--muted-foreground)]">{lengthSummary}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{lengthSummary}</p>
       ) : null}
     </header>
+  );
+}
+
+/**
+ * The challenge widget, collapsed once it is satisfied and replaced by a themed
+ * confirmation. Task 2.11.
+ *
+ * Collapsed with `hidden`, not contact's `h-0 opacity-0 overflow-hidden`. That
+ * approach keeps the challenge iframe focusable while invisible, so a keyboard
+ * user can tab into a widget nobody can see. `display: none` removes it from
+ * both the tab order and the accessibility tree, and a hidden input still
+ * submits under it, so nothing is lost.
+ *
+ * The field stays mounted rather than being swapped out, because it owns the
+ * hidden `captchaToken` input. Unmounting it would discard the token that the
+ * chip is claiming to celebrate.
+ *
+ * Re-expands on expiry: the field reports an empty token when a challenge
+ * lapses, which is the case that would otherwise leave a respondent unable to
+ * retry something they cannot see.
+ */
+function VerifiedTurnstileField({ siteKey }: { siteKey: string }) {
+  const [verified, setVerified] = useState(false);
+
+  return (
+    <div>
+      <div className={verified ? "hidden" : undefined}>
+        <TurnstileField
+          onTokenChange={(token) => setVerified(Boolean(token))}
+          siteKey={siteKey}
+        />
+      </div>
+      {verified ? (
+        <p className={NOTICE_SUCCESS_CLASS} role="status">
+          <CheckCircle2 aria-hidden="true" className="shrink-0" size={15} />
+          Human verification complete
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -439,41 +501,69 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
     return (
       <div className={PAGE_WRAPPER_CLASS}>
         {header}
-        <section className={FORM_CARD_CLASS} role="status" aria-live="polite">
-          <h2 className="text-2xl font-bold text-[var(--brand-ink)]">
-            {eventSuccessContent ? eventSuccessContent.heading : "Check your email"}
-          </h2>
-          <p className="section-copy mt-4">
-            {eventSuccessContent
-              ? eventSuccessContent.message
-              : "We sent a confirmation link to your email address. Open it to send your submission to the JnUITS review team."}
-          </p>
-          {!eventSuccessContent && confirmationEmail ? (
-            <form className="mt-6 grid gap-3" onSubmit={handleConfirmationResend}>
-              <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-                Did not receive it? Complete a new verification challenge to request another link.
+        <section className={FORM_CARD_CLASS}>
+          <div aria-hidden="true" className={FORM_CARD_ACCENT_CLASS} />
+          <div className={FORM_CARD_BODY_CLASS}>
+            {/*
+             * The live region wraps only what changes. It used to wrap the whole
+             * card, so the resend challenge mounting inside it was announced as
+             * though it were a status update, and the two chips this slice added
+             * became live regions nested inside another one.
+             *
+             * Caveat, pre-existing and not fixed here: this region mounts with
+             * its content already in it, because success replaces the form
+             * wholesale, and several screen readers only announce mutations to a
+             * region that already existed. Moving focus to this heading is the
+             * reliable answer and is task 2.2.
+             */}
+            <div aria-live="polite" className="text-center" role="status">
+              <span className="mb-4 inline-flex size-11 items-center justify-center rounded-full border border-border bg-primary/10 text-primary">
+                <CheckCircle2 aria-hidden="true" size={22} />
+              </span>
+              <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                {eventSuccessContent ? eventSuccessContent.heading : "Check your email"}
+              </h2>
+              <p className="section-copy mt-3">
+                {eventSuccessContent
+                  ? eventSuccessContent.message
+                  : "We sent a confirmation link to your email address. Open it to send your submission to the JnUITS review team."}
               </p>
-              {captchaRequired ? <TurnstileField siteKey={captcha.siteKey} /> : null}
-              {resendState.status === "sent" ? (
-                <p className="text-sm font-semibold text-[var(--brand-green)]" role="status">
-                  If this email has a pending application, another confirmation link is on its way.
+            </div>
+            {!eventSuccessContent && confirmationEmail ? (
+              <form className="mt-6 grid gap-3" onSubmit={handleConfirmationResend}>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Did not receive it? Complete a new verification challenge to request another link.
                 </p>
-              ) : null}
-              {resendState.status === "error" ? (
-                <p className="text-sm font-semibold text-destructive" role="alert">
-                  {resendState.message}
-                </p>
-              ) : null}
-              <button
-                aria-busy={resendState.status === "sending"}
-                className="secondary-button w-full"
-                disabled={resendState.status === "sending"}
-                type="submit"
-              >
-                {resendState.status === "sending" ? "Requesting…" : "Resend confirmation email"}
-              </button>
-            </form>
-          ) : null}
+                {captchaRequired ? <VerifiedTurnstileField siteKey={captcha.siteKey} /> : null}
+                {resendState.status === "sent" ? (
+                  <p className={NOTICE_SUCCESS_CLASS} role="status">
+                    <CheckCircle2 aria-hidden="true" className="shrink-0" size={15} />
+                    If this email has a pending application, another confirmation link is on its way.
+                  </p>
+                ) : null}
+                {resendState.status === "error" ? (
+                  <p className={NOTICE_ERROR_CLASS} role="alert">
+                    {resendState.message}
+                  </p>
+                ) : null}
+                <button
+                  aria-busy={resendState.status === "sending"}
+                  className="secondary-button inline-flex w-full items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={resendState.status === "sending"}
+                  type="submit"
+                >
+                  {resendState.status === "sending" ? (
+                    <>
+                      <Loader2 aria-hidden="true" className="animate-spin" size={15} />
+                      Requesting…
+                    </>
+                  ) : (
+                    "Resend confirmation email"
+                  )}
+                </button>
+              </form>
+            ) : null}
+          </div>
         </section>
       </div>
     );
@@ -483,42 +573,54 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
     <div className={PAGE_WRAPPER_CLASS}>
       {header}
       <section className={FORM_CARD_CLASS}>
-        {!submissionTarget ? (
-          <p className={`mb-6 ${NOTICE_ERROR_CLASS}`} role="alert">
-            This event registration form is unavailable. Please return to the event page.
-          </p>
-        ) : null}
-        {captchaUnavailable ? (
-          <p className={`mb-6 ${NOTICE_ERROR_CLASS}`} role="alert">
-            Verification is temporarily unavailable. Please try again later.
-          </p>
-        ) : null}
-
-        <form className="grid gap-6" noValidate onSubmit={handleSubmit}>
-          <FormFieldControls definition={form.definition} idPrefix={`form-${form.slug}`} />
-
-          <div className="contact-honeypot" aria-hidden="true">
-            <label htmlFor="form-website">Website</label>
-            <input autoComplete="off" id="form-website" name="website" tabIndex={-1} />
-          </div>
-
-          {captchaRequired ? <TurnstileField siteKey={captcha.siteKey} /> : null}
-
-          {state.status === "error" ? (
-            <p className={NOTICE_ERROR_CLASS} role="alert" aria-live="polite">
-              {state.message}
+        <div aria-hidden="true" className={FORM_CARD_ACCENT_CLASS} />
+        <div className={FORM_CARD_BODY_CLASS}>
+          {!submissionTarget ? (
+            <p className={`mb-6 ${NOTICE_ERROR_CLASS}`} role="alert">
+              This event registration form is unavailable. Please return to the event page.
+            </p>
+          ) : null}
+          {captchaUnavailable ? (
+            <p className={`mb-6 ${NOTICE_ERROR_CLASS}`} role="alert">
+              Verification is temporarily unavailable. Please try again later.
             </p>
           ) : null}
 
-          <button
-            aria-busy={state.status === "submitting"}
-            className="primary-button w-full"
-            disabled={state.status === "submitting" || cannotSubmit}
-            type="submit"
-          >
-            {state.status === "submitting" ? "Submitting…" : isEventRegistration ? "Complete registration" : "Submit and confirm email"}
-          </button>
-        </form>
+          <form className="grid gap-6" noValidate onSubmit={handleSubmit}>
+            <FormFieldControls definition={form.definition} idPrefix={`form-${form.slug}`} />
+
+            <div className="contact-honeypot" aria-hidden="true">
+              <label htmlFor="form-website">Website</label>
+              <input autoComplete="off" id="form-website" name="website" tabIndex={-1} />
+            </div>
+
+            {captchaRequired ? <VerifiedTurnstileField siteKey={captcha.siteKey} /> : null}
+
+            {state.status === "error" ? (
+              <p className={NOTICE_ERROR_CLASS} role="alert">
+                {state.message}
+              </p>
+            ) : null}
+
+            <button
+              aria-busy={state.status === "submitting"}
+              className="primary-button inline-flex w-full items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={state.status === "submitting" || cannotSubmit}
+              type="submit"
+            >
+              {state.status === "submitting" ? (
+                <>
+                  <Loader2 aria-hidden="true" className="animate-spin" size={15} />
+                  Submitting…
+                </>
+              ) : isEventRegistration ? (
+                "Complete registration"
+              ) : (
+                "Submit and confirm email"
+              )}
+            </button>
+          </form>
+        </div>
       </section>
     </div>
   );
