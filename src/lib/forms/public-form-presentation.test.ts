@@ -7,6 +7,11 @@ import {
   resolveFormLengthSummary,
 } from "@/lib/forms/public-form-presentation";
 
+/**
+ * Fixtures are synthetic on purpose. Every real form is author-created with a
+ * changeable title and slug, so a test built around one would assert against
+ * content rather than behaviour.
+ */
 function definitionOf(fields: unknown[]) {
   return parseFormDefinition({ fields, payment: { enabled: false } });
 }
@@ -120,15 +125,27 @@ describe("form eyebrow", () => {
     );
   });
 
-  it("suppresses itself when it would repeat the title", () => {
-    // Both published forms are titled exactly after their kind today, so this
-    // is the common case rather than an edge case.
+  it("suppresses itself when the author titled the form after its kind", () => {
+    // Not a corner case: naming a membership form "Membership application" is
+    // the obvious choice, and the eyebrow would then repeat it verbatim.
     expect(resolveFormEyebrow("membership_application", "Membership application")).toBeNull();
     expect(resolveFormEyebrow("alumni_onboarding", "Alumni onboarding")).toBeNull();
   });
 
   it("ignores case and surrounding whitespace when comparing", () => {
     expect(resolveFormEyebrow("alumni_onboarding", "  ALUMNI ONBOARDING ")).toBeNull();
+  });
+
+  it("covers every form kind, so a new kind cannot render a blank eyebrow", () => {
+    // Record<FormKind, string> already enforces this at compile time; asserting
+    // it here means a kind added with an empty string still fails.
+    for (const kind of [
+      "alumni_onboarding",
+      "event_registration",
+      "membership_application",
+    ] as const) {
+      expect(resolveFormEyebrow(kind, "An unrelated title")).toBeTruthy();
+    }
   });
 });
 

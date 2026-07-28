@@ -7,6 +7,10 @@ import type { FormDefinition, FormField, FormKind } from "@/lib/forms/definition
  * This repository has no jsdom or Testing Library setup (#52), so anything left
  * inside the component can only be asserted as source text. Moving the parts
  * that can actually be wrong out here buys real tests instead.
+ *
+ * Nothing here may assume anything about a specific form. Slugs, titles, and
+ * descriptions are author-controlled and changeable at will; the only fixed
+ * inputs are the `FormKind` enum and the field schema.
  */
 
 export type FormSectionField = Extract<FormField, { type: "section" }>;
@@ -64,6 +68,11 @@ export function groupFormFields(definition: FormDefinition): FormFieldGroup[] {
 /**
  * Category label shown above the form title, matching the eyebrow pattern used
  * by every other public page.
+ *
+ * Derived from the form's kind rather than authored, so an author cannot write
+ * their own eyebrow. That is intentional for a category label, and it means the
+ * value is always one of these three regardless of what any form is called. An
+ * author-written eyebrow would need a schema change and its own decision.
  */
 export const FORM_KIND_EYEBROWS: Record<FormKind, string> = {
   alumni_onboarding: "Alumni onboarding",
@@ -74,9 +83,11 @@ export const FORM_KIND_EYEBROWS: Record<FormKind, string> = {
 /**
  * @returns the eyebrow, or null when it would merely repeat the title.
  *
- * Both published forms are currently titled exactly after their kind, so an
- * unguarded eyebrow would render the same words twice, one above the other.
- * That reads as a template mistake rather than as framing.
+ * The collision is a property of the naming space, not of any particular form:
+ * "Membership application" is the obvious thing to call a membership form, so
+ * an author may well pick exactly the label this function would add. Rendering
+ * the same words twice, one above the other, reads as a template mistake, so
+ * the eyebrow yields to the title.
  */
 export function resolveFormEyebrow(kind: FormKind, title: string): null | string {
   const eyebrow = FORM_KIND_EYEBROWS[kind];
