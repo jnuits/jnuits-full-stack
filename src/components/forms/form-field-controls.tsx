@@ -9,6 +9,10 @@ import { groupFormFields } from "@/lib/forms/public-form-presentation";
  * missing choice list, or an upload constraint. In preview mode the controls
  * are inert: disabled, unnamed, and not required, so nothing can be entered or
  * submitted.
+ *
+ * Presentation follows decision 7 in #86: the contact page's treatment, on
+ * semantic tokens only. No `var(--brand-*)` or `var(--line)` here, so a theme
+ * change cannot leave a control behind.
  */
 export type FormFieldControlOptions = {
   idPrefix: string;
@@ -16,26 +20,60 @@ export type FormFieldControlOptions = {
 };
 
 /**
+ * One base for every control, because the focus ring is what drifts.
+ *
+ * Before this, three controls carried subtly different variants of the same
+ * intent. Composing from a single string means a change to the ring reaches all
+ * of them or none.
+ */
+const FIELD_BASE_CLASS =
+  "w-full rounded-xl border border-border bg-background text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+const TEXT_INPUT_CLASS = `${FIELD_BASE_CLASS} h-12 px-3`;
+const TEXTAREA_CLASS = `${FIELD_BASE_CLASS} min-h-32 resize-y px-3 py-3`;
+const SELECT_CLASS = `${FIELD_BASE_CLASS} h-12 px-3`;
+
+/**
+ * `multi_select` sets `size`, so its height is the option count. A fixed `h-12`
+ * would crop the list to a single row and remove the whole point of rendering
+ * it as a list box.
+ */
+const MULTI_SELECT_CLASS = `${FIELD_BASE_CLASS} px-3 py-2`;
+
+/**
  * The visible part of a file input is the browser's own button, which no class
  * on the input element can reach. `file:` targets `::file-selector-button`.
+ *
+ * `min-h-12` rather than `h-12`: the button needs vertical room inside the
+ * border, and a fixed height clips it.
  *
  * Not replaced with a custom widget on purpose. Doing that means a visually
  * hidden input, a button, and JS to relay the click and mirror the chosen
  * filename, which reimplements keyboard focus, drag-and-drop, and the
  * assistive-technology mapping the native control already handles. Task 2.8
  * adds upload progress around this control rather than instead of it.
+ *
+ * `file:text-white` stays a literal: the primary is a dark brand blue in both
+ * themes, so the button's label does not flip with the theme.
  */
 const FILE_INPUT_CLASS =
-  "input-field mt-1 w-full cursor-pointer file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[var(--brand-blue)] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white";
+  `${FIELD_BASE_CLASS} min-h-12 cursor-pointer px-3 py-2 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white`;
+
+const LABEL_CLASS = "mb-1 block text-sm font-medium text-foreground";
+const HELP_TEXT_CLASS = "mt-1 text-sm leading-6 text-muted-foreground";
+
+/** Grouping container for a section and the questions it introduces. */
+const SECTION_CLASS = "rounded-xl border border-border bg-muted/30 p-5";
+
+/** A checkbox is one tappable row, so the whole row gets the surface. */
+const CHECKBOX_ROW_CLASS = "rounded-xl border border-border bg-muted/30 px-4 py-3";
 
 function controlName(field: FormField, preview: boolean | undefined) {
   return preview ? undefined : field.id;
 }
 
 export function FieldHelp({ field }: { field: FormField }) {
-  return field.helpText ? (
-    <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{field.helpText}</p>
-  ) : null;
+  return field.helpText ? <p className={HELP_TEXT_CLASS}>{field.helpText}</p> : null;
 }
 
 /**
@@ -50,7 +88,7 @@ export function FieldHelp({ field }: { field: FormField }) {
  */
 function DateFormatNote() {
   return (
-    <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+    <p className={HELP_TEXT_CLASS}>
       Shown in your browser&apos;s date format. Use the calendar button if you are unsure.
     </p>
   );
@@ -59,10 +97,9 @@ function DateFormatNote() {
 /**
  * The marker and the caption must share one inline box.
  *
- * `.input-label` stacks its children, because everywhere else it wraps a
- * caption and its input together. A bare sibling span therefore landed on its
- * own line, so every required field rendered as a label followed by a lone
- * asterisk.
+ * The label stacks its children, because everywhere else it wraps a caption and
+ * its input together. A bare sibling span therefore landed on its own line, so
+ * every required field rendered as a label followed by a lone asterisk.
  *
  * The asterisk is decorative and carries the visual weight; the `sr-only` text
  * beside it is what a screen reader announces. Previously the marker was
@@ -88,7 +125,7 @@ export function FieldLabel({
   inputId: string;
 }) {
   return (
-    <label className="input-label" htmlFor={inputId}>
+    <label className={LABEL_CLASS} htmlFor={inputId}>
       <span className="inline-flex flex-wrap items-baseline gap-1">
         {field.label}
         {field.required ? <RequiredMarker /> : null}
@@ -114,7 +151,7 @@ function TextField({
       <FieldLabel field={field} inputId={inputId} />
       {field.type === "textarea" ? (
         <textarea
-          className="input-field mt-1 min-h-32 w-full"
+          className={TEXTAREA_CLASS}
           disabled={preview}
           id={inputId}
           maxLength={maxLength}
@@ -124,7 +161,7 @@ function TextField({
       ) : (
         <input
           autoComplete={field.type === "email" ? "email" : field.type === "telephone" ? "tel" : "off"}
-          className="input-field mt-1 w-full"
+          className={TEXT_INPUT_CLASS}
           disabled={preview}
           id={inputId}
           maxLength={maxLength}
@@ -153,7 +190,7 @@ function SelectField({
     <div>
       <FieldLabel field={field} inputId={inputId} />
       <select
-        className="input-field mt-1 w-full"
+        className={multiple ? MULTI_SELECT_CLASS : SELECT_CLASS}
         disabled={preview}
         id={inputId}
         multiple={multiple}
@@ -185,11 +222,8 @@ export function FormFieldControl({
     // `FormFieldControls` no longer reaches this branch: it groups sections with
     // the questions they introduce, which a single-field renderer cannot do.
     return (
-      <section
-        className="border-t border-[var(--line)] pt-6 first:border-t-0 first:pt-0"
-        aria-labelledby={inputId}
-      >
-        <h2 className="text-xl font-bold text-[var(--brand-ink)]" id={inputId}>
+      <section aria-labelledby={inputId} className={SECTION_CLASS}>
+        <h2 className="text-lg font-bold text-foreground" id={inputId}>
           {field.label}
         </h2>
         <FieldHelp field={field} />
@@ -215,7 +249,7 @@ export function FormFieldControl({
       <div>
         <FieldLabel field={field} inputId={inputId} />
         <input
-          className="input-field mt-1 w-full"
+          className={TEXT_INPUT_CLASS}
           disabled={preview}
           id={inputId}
           max={field.type === "number" ? field.max : undefined}
@@ -232,17 +266,17 @@ export function FormFieldControl({
 
   if (field.type === "checkbox" || field.type === "consent") {
     return (
-      <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-3">
+      <div className={CHECKBOX_ROW_CLASS}>
         <label className="flex cursor-pointer items-start gap-3" htmlFor={inputId}>
           <input
-            className="mt-1 size-4 accent-[var(--brand-blue)]"
+            className="mt-1 size-4 accent-primary"
             disabled={preview}
             id={inputId}
             name={controlName(field, preview)}
             required={!preview && (field.type === "consent" || field.required)}
             type="checkbox"
           />
-          <span className="text-sm font-semibold leading-6 text-[var(--brand-ink)]">
+          <span className="text-sm font-medium leading-6 text-foreground">
             {field.label}
             {field.type === "consent" || field.required ? (
               <>
@@ -270,7 +304,7 @@ export function FormFieldControl({
         required={!preview && field.required}
         type="file"
       />
-      <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+      <p className={HELP_TEXT_CLASS}>
         PDF, JPEG, PNG, or WebP only. Maximum 10 MB per file. Files are stored privately.
       </p>
       <FieldHelp field={field} />
@@ -316,12 +350,8 @@ export function FormFieldControls({
         const headingId = `${idPrefix}-${group.section.id}`;
 
         return (
-          <section
-            aria-labelledby={headingId}
-            className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-5"
-            key={group.section.id}
-          >
-            <h2 className="text-lg font-bold text-[var(--brand-ink)]" id={headingId}>
+          <section aria-labelledby={headingId} className={SECTION_CLASS} key={group.section.id}>
+            <h2 className="text-lg font-bold text-foreground" id={headingId}>
               {group.section.label}
             </h2>
             <FieldHelp field={group.section} />
