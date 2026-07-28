@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FormFieldControls } from "@/components/forms/form-field-controls";
 import { FormDefinitionSchema, type FormDefinition } from "@/lib/forms/definition";
 import {
+  createStudioEditorKey,
   createUniqueStudioFieldId,
   duplicateStudioField,
   formDefinitionToStudioFields,
@@ -81,6 +82,12 @@ const TYPES: Record<StudioFieldType, string> = {
 };
 
 /**
+ * A starting point, not a fixed list. Batches advance every year, so an
+ * operator is expected to edit this before publishing an intake cycle.
+ */
+const STARTER_BATCH_OPTIONS = ["15th", "16th", "17th", "18th"].join("\n");
+
+/**
  * Written labels for the application mapping. These are not form fields; they
  * are the contract the reviewer queue reads, so an operator needs to know what
  * each one feeds rather than seeing a split camelCase key.
@@ -104,13 +111,18 @@ function mappingLabel(key: string) {
  * Starter fields keep curated, stable identifiers because the application
  * mapping refers to them by name. Only operator-created questions receive
  * automatic label-derived identifiers.
+ *
+ * Every row is given an editor key here. The key is required on the type, so
+ * a new starter field cannot be added without one and cannot reintroduce the
+ * remount-on-keystroke defect.
  */
 function starterFields(kind: FormKind): StudioEditorField[] {
   const common: StudioEditorField[] = [
-    { id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" },
-    { id: "email", label: "Email address", optionsText: "", required: true, type: "email" },
+    { editorKey: createStudioEditorKey(), id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" },
+    { editorKey: createStudioEditorKey(), id: "email", label: "Email address", optionsText: "", required: true, type: "email" },
   ];
   const consent: StudioEditorField = {
+    editorKey: createStudioEditorKey(),
     id: "consent",
     label: kind === "event_registration" ? "I agree to the event terms." : "I confirm that these details are accurate.",
     optionsText: "",
@@ -119,19 +131,27 @@ function starterFields(kind: FormKind): StudioEditorField[] {
   };
   if (kind === "membership_application") return [
     ...common,
-    { id: "student_id", label: "Student ID", optionsText: "", required: false, type: "text" },
-    { id: "department_code", label: "Department", optionsText: "", required: false, type: "text" },
-    { id: "batch_label", label: "Batch", optionsText: "", required: false, type: "text" },
-    { id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
+    { editorKey: createStudioEditorKey(), id: "student_id", label: "Student ID", optionsText: "", required: false, type: "text" },
+    // Left as free text on purpose: a wrong fixed department list is worse
+    // than typing, and there is no authoritative list to seed it from yet.
+    { editorKey: createStudioEditorKey(), id: "department_code", label: "Department", optionsText: "", required: false, type: "text" },
+    // A dropdown, because a batch is enumerable and free text produces "16th",
+    // "16", and "16 th" as three different batches on the member record.
+    { editorKey: createStudioEditorKey(), id: "batch_label", label: "Batch", optionsText: STARTER_BATCH_OPTIONS, required: false, type: "select" },
+    { editorKey: createStudioEditorKey(), id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
     consent,
   ];
   if (kind === "alumni_onboarding") return [
     ...common,
-    { id: "jnuits_id", label: "Previous JnUITS ID", optionsText: "", required: false, type: "text" },
-    { id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
+    { editorKey: createStudioEditorKey(), id: "jnuits_id", label: "Previous JnUITS ID", optionsText: "", required: false, type: "text" },
+    { editorKey: createStudioEditorKey(), id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
     consent,
   ];
-  return [...common, { id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" }, consent];
+  return [
+    ...common,
+    { editorKey: createStudioEditorKey(), id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
+    consent,
+  ];
 }
 
 function defaultMapping(kind: FormKind) {
@@ -235,7 +255,8 @@ export function ModernFormStudioScreen() {
   }
 
   // Routed through the helper so an unsaved question's automatic identifier
-  // tracks its label, and a persisted identifier never moves.
+  // tracks its label, and a persisted identifier never moves. The editor key
+  // is untouched either way, which is what keeps focus in the input.
   function renameField(index: number, label: string) {
     setFields((current) => updateAutomaticStudioFieldLabel(current, index, label));
   }
@@ -243,6 +264,7 @@ export function ModernFormStudioScreen() {
   function addQuestion() {
     setFields((current) => [...current, {
       automaticId: true,
+      editorKey: createStudioEditorKey(),
       id: createUniqueStudioFieldId("New question", current.map((field) => field.id)),
       label: "New question",
       optionsText: "",
@@ -423,7 +445,7 @@ export function ModernFormStudioScreen() {
                     {descriptor.label}
                     <select value={value} onChange={(event) => setMapping((current) => ({ ...current, [key]: event.target.value }))}>
                       <option value="">Not collected</option>
-                      {mappable.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
+                      {mappable.map((field) => <option key={field.editorKey} value={field.id}>{field.label}</option>)}
                     </select>
                     {descriptor.hint ? <span className="mt-1 block text-xs font-normal text-[var(--muted-foreground)]">{descriptor.hint}</span> : null}
                   </label>;
@@ -431,7 +453,7 @@ export function ModernFormStudioScreen() {
               </div>
             </section>}
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="admin-section-label">Questions</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">Question IDs are generated automatically and stay stable after saving.</p></div><button className="admin-btn admin-btn--ghost" onClick={addQuestion} type="button"><Plus size={15} /> Add question</button></div>
-        <div className="grid gap-3">{fields.map((field, index) => <article className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4" key={field.id}><div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs text-[var(--muted-foreground)]">Question {index + 1}</span><details><summary className="cursor-pointer text-xs font-semibold">Advanced details</summary><code className="mt-2 block text-xs">ID: {field.id}</code></details></div><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="input-label">Question<input value={field.label} onChange={(event) => renameField(index, event.target.value)} required /></label><label className="input-label">Question type<select value={field.type} onChange={(event) => updateField(index, { required: event.target.value === "consent" || field.required, type: event.target.value as StudioFieldType })}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{["select", "multi_select"].includes(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
+        <div className="grid gap-3">{fields.map((field, index) => <article className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4" key={field.editorKey}><div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs text-[var(--muted-foreground)]">Question {index + 1}</span><details><summary className="cursor-pointer text-xs font-semibold">Advanced details</summary><code className="mt-2 block text-xs">ID: {field.id}</code></details></div><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="input-label">Question<input value={field.label} onChange={(event) => renameField(index, event.target.value)} required /></label><label className="input-label">Question type<select value={field.type} onChange={(event) => updateField(index, { required: event.target.value === "consent" || field.required, type: event.target.value as StudioFieldType })}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{["select", "multi_select"].includes(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
         {preview ? (
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-5" aria-label="Form preview">
             <p className="admin-section-label">Respondent preview</p>
