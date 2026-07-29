@@ -31,6 +31,39 @@ describe("GitHub Actions workflows", () => {
     }
   });
 
+  it("gates every pull request, not only those targeting main", () => {
+    // Issue #93 finding 14.1, decision 9.
+    //
+    // `pull_request.branches` filters on the BASE branch, so `[main]` meant a
+    // stacked slice targeting another feature branch ran none of the eight
+    // shards and `Required CI` never reported. Check runs attach to a commit,
+    // so a duplicate pull request then displayed another's green checks (#92).
+    //
+    // Asserted here because of finding 14.5: a workflow that never fires is
+    // indistinguishable from one that passes, so the selection is checked and
+    // not only the result. No other test in this file reads the `on:` block.
+    //
+    // The filter is absent rather than widened to a prefix allowlist. An
+    // allowlist is hand-maintained and rots; PR #86 deleted one of those from
+    // the application mapping for exactly that reason.
+    const workflow = readWorkflow("quality-gate.yml");
+    const triggerStart = workflow.indexOf("\non:\n");
+    const triggerEnd = workflow.indexOf("\npermissions:", triggerStart);
+
+    expect(triggerStart).toBeGreaterThan(-1);
+    expect(triggerEnd).toBeGreaterThan(triggerStart);
+
+    const trigger = workflow.slice(triggerStart, triggerEnd);
+
+    // Pull requests are gated unconditionally, whatever their base branch.
+    expect(trigger).toContain("pull_request:");
+    expect(trigger).not.toMatch(/pull_request:\s*\n\s+branches:/);
+
+    // Push stays scoped to main: the pull request already covers branch work,
+    // and eight shards per branch commit would saturate three shared runners.
+    expect(trigger).toMatch(/push:\s*\n\s+branches: \[main\]/);
+  });
+
   it("makes migration and secret scanning part of the required quality result", () => {
     const workflow = readWorkflow("quality-gate.yml");
 
