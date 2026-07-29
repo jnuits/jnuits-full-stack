@@ -25,12 +25,49 @@ const NON_QUESTION_CONTROL_NAMES = new Set(["captchaToken", "website"]);
 
 type ValidatableControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
-function isValidatableControl(element: Element | null): element is ValidatableControl {
+function isValidatableControl(value: unknown): value is ValidatableControl {
   return (
-    element instanceof HTMLInputElement ||
-    element instanceof HTMLSelectElement ||
-    element instanceof HTMLTextAreaElement
+    value instanceof HTMLInputElement ||
+    value instanceof HTMLSelectElement ||
+    value instanceof HTMLTextAreaElement
   );
+}
+
+/**
+ * Resolves one form-control name to the controls that can be validated under it.
+ *
+ * `HTMLFormControlsCollection.namedItem` returns `Element | RadioNodeList |
+ * null`. The list shape appears whenever several controls share a name, which
+ * is what task 3.2 (radio) and task 3.3 (a real checkbox group) will produce.
+ * Treating only the single-element shape as valid would silently skip an entire
+ * group: no error, no message, and nothing in the source to notice.
+ *
+ * Disabled members are dropped. A disabled control does not participate in
+ * constraint validation, so including one would report a failure a respondent
+ * cannot act on.
+ */
+export function resolveValidatableControls(
+  entry: Element | RadioNodeList | null
+): ValidatableControl[] {
+  if (entry === null) {
+    return [];
+  }
+
+  if (isValidatableControl(entry)) {
+    return entry.disabled ? [] : [entry];
+  }
+
+  // Guarded rather than assumed: the node project in this Vitest workspace has
+  // no DOM globals, and this module is importable from there.
+  if (typeof RadioNodeList !== "undefined" && entry instanceof RadioNodeList) {
+    return Array.from(entry)
+      .filter(isValidatableControl)
+      .filter((control) => !control.disabled);
+  }
+
+  // Some other element answered to this name -- a fieldset, or a non-control
+  // with a matching id. Nothing to validate.
+  return [];
 }
 
 /**
@@ -74,6 +111,11 @@ function missingValueMessage(field: Exclude<FormField, { type: "section" }>) {
  * cannot see.
  *
  * Returns field id to message. An empty object means nothing failed.
+ *
+ * Known limitation, for a grouped control: where the rule is "tick at least one
+ * of these", each member reports valid on its own and this therefore reports
+ * nothing. Group-level cardinality belongs with task 3.3, where the group
+ * control is built.
  */
 export function collectNativeFieldErrors(
   formElement: HTMLFormElement,
@@ -86,19 +128,21 @@ export function collectNativeFieldErrors(
       continue;
     }
 
-    const control = formElement.elements.namedItem(field.id);
+    const controls = resolveValidatableControls(formElement.elements.namedItem(field.id));
 
-    if (!isValidatableControl(control) || control.disabled) {
+    if (!controls.length) {
       continue;
     }
 
-    if (control.checkValidity()) {
+    const invalid = controls.find((control) => !control.checkValidity());
+
+    if (!invalid) {
       continue;
     }
 
-    errors[field.id] = control.validity.valueMissing
+    errors[field.id] = invalid.validity.valueMissing
       ? missingValueMessage(field)
-      : control.validationMessage || missingValueMessage(field);
+      : invalid.validationMessage || missingValueMessage(field);
   }
 
   return errors;
