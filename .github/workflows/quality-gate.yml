@@ -41,9 +41,31 @@ name: Quality Gate
 #   * Cached executables are re-verified every run, never trusted because they
 #     ran last time.
 
+# Issue #93 finding 14.1, decision 9. Deliberately NO `branches:` filter on
+# pull_request, so every pull request is gated regardless of its base.
+#
+# `pull_request.branches` filters on the BASE branch. With `[main]` a stacked
+# slice targeting another feature branch ran none of the eight shards below and
+# `Required CI` never reported, which forced a choice between a readable diff
+# and a verified one. It also caused a misreport: check runs attach to a commit,
+# so a duplicate pull request displayed another's green checks (issue #92).
+#
+# An allowlist of branch prefixes is the obvious alternative and the wrong one.
+# It is hand-maintained, and PR #86 deleted one of those from the application
+# mapping because it had drifted -- accepting a dropdown for Department while
+# rejecting the identical thing for Batch, with no runtime difference between
+# them. The same rot here means a new prefix silently runs unverified. Absence
+# of a filter cannot drift.
+#
+# This does not widen the trust boundary. `pull_request` (not
+# pull_request_target) already ran untrusted head code for any pull request to
+# main. The standing conditions above are what contain that, never this filter.
+#
+# `push` keeps its filter. Gating every push to every branch would queue eight
+# shards per commit across three shared runners for no added signal, since the
+# pull request already covers it.
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
