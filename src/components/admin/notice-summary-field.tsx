@@ -1,32 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+
+import { CharacterLimitCounter } from "@/components/admin/character-limit-counter";
 
 type NoticeSummaryFieldProps = {
   defaultValue: string;
 };
 
-function counterTone(length: number) {
-  if (length >= 950) {
-    return "danger";
-  }
-
-  if (length >= 800) {
-    return "warning";
-  }
-
-  return "muted";
-}
-
 export function NoticeSummaryField({ defaultValue }: NoticeSummaryFieldProps) {
   const [value, setValue] = useState(defaultValue);
-  const tone = useMemo(() => counterTone(value.length), [value.length]);
-
   return (
-    <label className="notice-editor-field">
-      <span>Summary *</span>
+    <div className="notice-editor-field">
+      <label htmlFor="notice-summary">Summary *</label>
       <textarea
+        aria-describedby="notice-summary-counter"
         className="notice-admin-field min-h-28"
+        id="notice-summary"
         maxLength={1000}
         name="summary"
         onChange={(event) => setValue(event.target.value)}
@@ -34,9 +24,11 @@ export function NoticeSummaryField({ defaultValue }: NoticeSummaryFieldProps) {
         required
         value={value}
       />
-      <small className={`notice-editor-counter notice-editor-counter--${tone}`}>
-        {value.length} / 1000
-      </small>
-    </label>
+      <CharacterLimitCounter
+        current={value.length}
+        id="notice-summary-counter"
+        maximum={1000}
+      />
+    </div>
   );
 }
