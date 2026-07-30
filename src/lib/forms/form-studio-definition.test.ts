@@ -201,23 +201,39 @@ describe("Form Studio help text", () => {
     }
   });
 
-  it("survives every field type, including the ones with their own settings", () => {
-    // Section help text is included here even though the Studio does not offer
-    // the input for it: the conversion must not drop what a stored definition
-    // already carries.
+  it("survives every authorable field type, including ones with their own settings", () => {
     const definition = studioFieldsToDefinition([
-      editorField({ helpText: "Everything below is about you.", id: "personal", label: "Personal details", optionsText: "", required: false, type: "section" }),
       editorField({ helpText: "Pick every track you want.", id: "tracks", label: "Interested tracks", optionsText: "Web\nMobile", required: false, type: "multi_select" }),
       editorField({ helpText: "A photo of the card is fine.", id: "id_card", label: "Student ID card", optionsText: "", required: true, type: "image" }),
       editorField({ helpText: "Tick this to continue.", id: "consent", label: "I confirm these details are accurate", optionsText: "", required: true, type: "consent" }),
     ]);
 
     expect(definition.fields.map((field) => field.helpText)).toEqual([
-      "Everything below is about you.",
       "Pick every track you want.",
       "A photo of the card is fine.",
       "Tick this to continue.",
     ]);
+  });
+
+  it("does not serialize help text newly hidden by a section conversion", () => {
+    const definition = studioFieldsToDefinition([
+      editorField({ helpText: "This must not become hidden guidance.", id: "personal", label: "Personal details", optionsText: "", required: false, type: "section" }),
+    ]);
+
+    expect(definition.fields[0]).not.toHaveProperty("helpText");
+  });
+
+  it("preserves legacy section help text loaded from stored data", () => {
+    const stored = parseFormDefinition({
+      fields: [
+        { helpText: "Stored before section authoring was disabled.", id: "personal", label: "Personal details", type: "section" },
+      ],
+      payment: { enabled: false },
+    });
+    const reopened = formDefinitionToStudioFields(stored);
+    const savedAgain = studioFieldsToDefinition(reopened);
+
+    expect(savedAgain.fields[0].helpText).toBe("Stored before section authoring was disabled.");
   });
 
   it("reads help text back out of a stored definition", () => {
