@@ -1,12 +1,16 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 import { TurnstileField } from "@/components/auth/turnstile-field";
 import { FormFieldControls } from "@/components/forms/form-field-controls";
 import type { FormDefinition, FormField, FormKind } from "@/lib/forms/definition";
 import { getEventRegistrationSuccessContent } from "@/lib/forms/event-registration-result";
+import {
+  collectNativeFieldErrors,
+  firstFieldWithError,
+} from "@/lib/forms/field-validation";
 import {
   resolveFormEyebrow,
   resolveFormLengthSummary,
@@ -349,6 +353,22 @@ function VerifiedTurnstileField({ siteKey }: { siteKey: string }) {
 export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicFormScreenProps) {
   const [state, setState] = useState<SubmissionState>({ status: "idle" });
   const [confirmationEmail, setConfirmationEmail] = useState("");
+  /**
+   * Per-field validation messages, keyed by field id. Task 2.1.
+   *
+   * Cleared at the start of every submit attempt and per field on input, so a
+   * message cannot outlive the problem it describes.
+   */
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  /**
+   * Set on a failed submit, consumed by the effect below. Task 2.2.
+   *
+   * Focus cannot move inside the submit handler: the message element it should
+   * describe does not exist until React commits, and focusing a control whose
+   * `aria-describedby` target is not yet in the document means the description
+   * is not announced. That is the same class of defect as the one 2.1 fixes.
+   */
+  const [pendingFocusFieldId, setPendingFocusFieldId] = useState<null | string>(null);
   const [resendState, setResendState] = useState<
     | { status: "idle" }
     | { status: "sending" }
@@ -360,6 +380,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
   const captchaRequired = captcha.required;
   const captchaUnavailable = captchaRequired && !captcha.siteKey;
   const cannotSubmit = !submissionTarget || captchaUnavailable;
+  const idPrefix = `form-${form.slug}`;
   const header = (
     <PublicFormHeader
       description={form.description}
@@ -369,15 +390,90 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
     />
   );
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!submissionTarget || cannotSubmit || !event.currentTarget.reportValidity()) {
+  useEffect(() => {
+    if (!pendingFocusFieldId) {
       return;
     }
 
+    const control = document.getElementById(`${idPrefix}-${pendingFocusFieldId}`);
+
+    if (control) {
+      // preventScroll, then centre it deliberately: the default focus scroll
+      // puts the control at the very edge of the viewport, which on a phone can
+      // leave its message off screen.
+      control.focus({ preventScroll: true });
+
+      // jsdom does not implement scrollIntoView. Without this guard every future
+      // component test of this screen throws instead of failing an assertion.
+      if (typeof control.scrollIntoView === "function") {
+        control.scrollIntoView({ block: "center" });
+      }
+    }
+
+    setPendingFocusFieldId(null);
+  }, [idPrefix, pendingFocusFieldId]);
+
+  /**
+   * Clears one field's message as soon as its value changes.
+   *
+   * One handler on the form rather than a change handler per control: the
+   * controls are uncontrolled by design, and wiring twelve of them would make
+   * every field type carry state it does not otherwise need.
+   *
+   * Returns the existing object when there is nothing to clear, so typing in a
+   * valid field does not re-render the form.
+   */
+  function handleFieldInput(event: FormEvent<HTMLFormElement>) {
+    const target = event.target;
+
+    if (
+      !(target instanceof HTMLInputElement) &&
+      !(target instanceof HTMLSelectElement) &&
+      !(target instanceof HTMLTextAreaElement)
+    ) {
+      return;
+    }
+
+    const fieldId = target.name;
+
+    setFieldErrors((current) => {
+      if (!fieldId || !current[fieldId]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[fieldId];
+
+      return next;
+    });
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!submissionTarget || cannotSubmit) {
+      return;
+    }
+
+    // Captured once. `event.currentTarget` is null by the time an await below
+    // resumes; the previous code only avoided that by reading it before the
+    // first await, which was true then and fragile as this handler grows.
+    const formElement = event.currentTarget;
+    const nativeErrors = collectNativeFieldErrors(formElement, form.definition);
+
+    if (Object.keys(nativeErrors).length > 0) {
+      // Replaces `reportValidity()`. That showed one transient native bubble on
+      // the first invalid control, in the browser's language rather than the
+      // page's, and it vanished on the next interaction.
+      setFieldErrors(nativeErrors);
+      setPendingFocusFieldId(firstFieldWithError(form.definition, nativeErrors));
+
+      return;
+    }
+
+    setFieldErrors({});
     setState({ status: "submitting" });
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(formElement);
     const mappedEmail = String(formData.get(form.emailFieldId) || "").trim().toLowerCase();
 
     try {
@@ -514,7 +610,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
              * its content already in it, because success replaces the form
              * wholesale, and several screen readers only announce mutations to a
              * region that already existed. Moving focus to this heading is the
-             * reliable answer and is task 2.2.
+             * reliable answer and is the success half of task 2.2.
              */}
             <div aria-live="polite" className="text-center" role="status">
               <span className="mb-4 inline-flex size-11 items-center justify-center rounded-full border border-border bg-primary/10 text-primary">
@@ -586,8 +682,12 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
             </p>
           ) : null}
 
-          <form className="grid gap-6" noValidate onSubmit={handleSubmit}>
-            <FormFieldControls definition={form.definition} idPrefix={`form-${form.slug}`} />
+          <form className="grid gap-6" noValidate onInput={handleFieldInput} onSubmit={handleSubmit}>
+            <FormFieldControls
+              definition={form.definition}
+              errors={fieldErrors}
+              idPrefix={idPrefix}
+            />
 
             <div className="contact-honeypot" aria-hidden="true">
               <label htmlFor="form-website">Website</label>
