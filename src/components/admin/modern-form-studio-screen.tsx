@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { Copy, Eye, Plus, Send, Sheet, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { CharacterLimitCounter } from "@/components/admin/character-limit-counter";
+import { FieldWithHint } from "@/components/admin/field-with-hint";
 import { FormFieldControls } from "@/components/forms/form-field-controls";
 import { FormDefinitionSchema, type FormDefinition } from "@/lib/forms/definition";
 import {
@@ -11,6 +13,7 @@ import {
   duplicateStudioField,
   formDefinitionToStudioFields,
   markStudioFieldIdsPersisted,
+  STUDIO_HELP_TEXT_MAX_LENGTH,
   studioFieldsToDefinition,
   updateAutomaticStudioFieldLabel,
   type StudioEditorField,
@@ -102,6 +105,18 @@ const MAPPING_LABELS: Record<string, { hint: string; label: string }> = {
   studentId: { hint: "Verified during membership review.", label: "Student ID" },
 };
 const UNMAPPABLE_TYPES = ["section", "consent"];
+
+/**
+ * Help text is offered for every question type except a section heading.
+ *
+ * A section's help text is rendered beside the region it introduces without
+ * being associated with it, which is precisely the defect task 2.1 removed from
+ * every other control. Offering the input here would let an operator author text
+ * that assistive technology cannot reach, so it waits until the region describes
+ * itself (#95). A stored definition that already carries section help text keeps
+ * it: `formDefinitionToStudioFields` reads it back on every branch.
+ */
+const HELP_TEXT_UNSUPPORTED_TYPES = ["section"];
 
 function mappingLabel(key: string) {
   return MAPPING_LABELS[key] || { hint: "", label: key.replace(/([A-Z])/g, " $1") };
@@ -418,42 +433,51 @@ export function ModernFormStudioScreen() {
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(19rem,.55fr)]">
       <section className="admin-review-card grid gap-5" aria-labelledby="builder-heading">
         <div><p className="admin-section-label">{editingId ? "Edit form" : "Create form"}</p><h2 className="admin-card-row__title" id="builder-heading">Questions and settings</h2></div>
-        <div className="grid gap-4 sm:grid-cols-2"><label className="input-label">Form type<select disabled={Boolean(editingId)} value={kind} onChange={(event) => chooseKind(event.target.value as FormKind)}>{Object.entries(KINDS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="input-label">Public address<input disabled={Boolean(editingId)} value={slug} onChange={(event) => { setSlugEdited(true); setSlug(slugify(event.target.value)); }} required /><span className="mt-1 block text-xs font-normal text-[var(--muted-foreground)]">/forms/{slug || "your-form"}</span></label></div>
+        <div className="grid gap-4 sm:grid-cols-2"><label className="input-label">Form type<select disabled={Boolean(editingId)} value={kind} onChange={(event) => chooseKind(event.target.value as FormKind)}>{Object.entries(KINDS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><FieldWithHint controlId="form-studio-slug" hint={<>/forms/{slug || "your-form"}</>} label="Public address">{(hintId) => <input aria-describedby={hintId} disabled={Boolean(editingId)} id="form-studio-slug" value={slug} onChange={(event) => { setSlugEdited(true); setSlug(slugify(event.target.value)); }} required />}</FieldWithHint></div>
         <label className="input-label">Form title<input disabled={Boolean(editingId)} value={title} onChange={(event) => { setTitle(event.target.value); if (!slugEdited) setSlug(slugify(event.target.value)); }} required /></label>
         <label className="input-label">Description<textarea disabled={Boolean(editingId)} rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
         {kind === "event_registration"
-          ? <label className="input-label">Linked event
-              <select disabled={Boolean(editingId)} value={linkedEventId} onChange={(event) => setLinkedEventId(event.target.value)} required>
+          ? <FieldWithHint
+              controlId="form-studio-linked-event"
+              hint={eventsError
+                ? eventsError
+                : events.length
+                  ? "Only events using internal registration appear here."
+                  : "No event is currently open to internal registration."}
+              label="Linked event"
+            >
+              {(hintId) => <select aria-describedby={hintId} disabled={Boolean(editingId)} id="form-studio-linked-event" value={linkedEventId} onChange={(event) => setLinkedEventId(event.target.value)} required>
                 <option value="">Choose an event…</option>
                 {events.map((event) => <option key={event.id} value={event.id}>{eventLabel(event)}</option>)}
-              </select>
-              <span className="mt-1 block text-xs font-normal text-[var(--muted-foreground)]">
-                {eventsError
-                  ? eventsError
-                  : events.length
-                    ? "Only events using internal registration appear here."
-                    : "No event is currently open to internal registration."}
-              </span>
-            </label>
+              </select>}
+            </FieldWithHint>
           : <section className="rounded-xl border border-[var(--line)] p-4">
               <p className="admin-section-label">Application details</p>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">Choose which question answers the reviewer queue should read for each detail.</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {Object.entries(mapping).map(([key, value]) => {
                   const descriptor = mappingLabel(key);
-                  return <label className="input-label" key={key}>
-                    {descriptor.label}
-                    <select value={value} onChange={(event) => setMapping((current) => ({ ...current, [key]: event.target.value }))}>
+                  return <FieldWithHint
+                    controlId={`form-studio-mapping-${key}`}
+                    hint={descriptor.hint}
+                    key={key}
+                    label={descriptor.label}
+                  >
+                    {(hintId) => <select aria-describedby={hintId} id={`form-studio-mapping-${key}`} value={value} onChange={(event) => setMapping((current) => ({ ...current, [key]: event.target.value }))}>
                       <option value="">Not collected</option>
                       {mappable.map((field) => <option key={field.editorKey} value={field.id}>{field.label}</option>)}
-                    </select>
-                    {descriptor.hint ? <span className="mt-1 block text-xs font-normal text-[var(--muted-foreground)]">{descriptor.hint}</span> : null}
-                  </label>;
+                    </select>}
+                  </FieldWithHint>;
                 })}
               </div>
             </section>}
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="admin-section-label">Questions</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">Question IDs are generated automatically and stay stable after saving.</p></div><button className="admin-btn admin-btn--ghost" onClick={addQuestion} type="button"><Plus size={15} /> Add question</button></div>
-        <div className="grid gap-3">{fields.map((field, index) => <article className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4" key={field.editorKey}><div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs text-[var(--muted-foreground)]">Question {index + 1}</span><details><summary className="cursor-pointer text-xs font-semibold">Advanced details</summary><code className="mt-2 block text-xs">ID: {field.id}</code></details></div><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="input-label">Question<input value={field.label} onChange={(event) => renameField(index, event.target.value)} required /></label><label className="input-label">Question type<select value={field.type} onChange={(event) => updateField(index, { required: event.target.value === "consent" || field.required, type: event.target.value as StudioFieldType })}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{["select", "multi_select"].includes(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
+        <div className="grid gap-3">{fields.map((field, index) => <article className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4" key={field.editorKey}><div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs text-[var(--muted-foreground)]">Question {index + 1}</span><details><summary className="cursor-pointer text-xs font-semibold">Advanced details</summary><code className="mt-2 block text-xs">ID: {field.id}</code></details></div><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="input-label">Question<input value={field.label} onChange={(event) => renameField(index, event.target.value)} required /></label><label className="input-label">Question type<select value={field.type} onChange={(event) => updateField(index, {
+  helpText: event.target.value === "section" ? undefined : field.helpText,
+  preserveSectionHelpText: event.target.value === "section" ? false : field.preserveSectionHelpText,
+  required: event.target.value === "consent" || field.required,
+  type: event.target.value as StudioFieldType,
+})}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{!HELP_TEXT_UNSUPPORTED_TYPES.includes(field.type) ? <FieldWithHint className="mt-3 block" controlId={`form-studio-help-${field.editorKey}`} hint={<>Optional. Shown under the question and read out with it. Up to {STUDIO_HELP_TEXT_MAX_LENGTH} characters.</>} label="Help text">{(hintId) => <><textarea aria-describedby={`${hintId} form-studio-help-${field.editorKey}-counter`} id={`form-studio-help-${field.editorKey}`} maxLength={STUDIO_HELP_TEXT_MAX_LENGTH} rows={2} value={field.helpText ?? ""} onChange={(event) => updateField(index, { helpText: event.target.value, preserveSectionHelpText: false })} /><CharacterLimitCounter current={(field.helpText ?? "").length} id={`form-studio-help-${field.editorKey}-counter`} maximum={STUDIO_HELP_TEXT_MAX_LENGTH} /></>}</FieldWithHint> : null}{["select", "multi_select"].includes(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
         {preview ? (
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-5" aria-label="Form preview">
             <p className="admin-section-label">Respondent preview</p>

@@ -5,6 +5,10 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 
 import { TurnstileField } from "@/components/auth/turnstile-field";
 import { FormFieldControls } from "@/components/forms/form-field-controls";
+import {
+  PUBLIC_FORM_CAPTCHA_CONTROL_NAME,
+  PUBLIC_FORM_HONEYPOT_CONTROL_NAME,
+} from "@/lib/forms/control-names";
 import type { FormDefinition, FormField, FormKind } from "@/lib/forms/definition";
 import { getEventRegistrationSuccessContent } from "@/lib/forms/event-registration-result";
 import {
@@ -168,6 +172,18 @@ async function collectFormUploads(formData: FormData, definition: FormDefinition
   }
 
   return uploads;
+}
+
+export async function collectPendingPublicFormUploads(
+  formData: FormData,
+  definition: FormDefinition
+) {
+  const honeypot = String(formData.get(PUBLIC_FORM_HONEYPOT_CONTROL_NAME) || "");
+
+  return {
+    honeypot,
+    uploads: honeypot ? [] : await collectFormUploads(formData, definition),
+  };
 }
 
 function assertUploadInstruction(upload: PendingFormUpload, instruction: FormUploadInstruction) {
@@ -336,6 +352,7 @@ function VerifiedTurnstileField({ siteKey }: { siteKey: string }) {
     <div>
       <div className={verified ? "hidden" : undefined}>
         <TurnstileField
+          name={PUBLIC_FORM_CAPTCHA_CONTROL_NAME}
           onTokenChange={(token) => setVerified(Boolean(token))}
           siteKey={siteKey}
         />
@@ -477,9 +494,9 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
     const mappedEmail = String(formData.get(form.emailFieldId) || "").trim().toLowerCase();
 
     try {
-      const captchaToken = String(formData.get("captchaToken") || "");
-      const website = String(formData.get("website") || "");
-      const pendingUploads = website ? [] : await collectFormUploads(formData, form.definition);
+      const captchaToken = String(formData.get(PUBLIC_FORM_CAPTCHA_CONTROL_NAME) || "");
+      const { honeypot: website, uploads: pendingUploads } =
+        await collectPendingPublicFormUploads(formData, form.definition);
       const storedAssets: StoredFormUploadAsset[] = [];
       const uploadedIdsByField: Record<string, string[]> = {};
       let uploadProof = "";
@@ -526,7 +543,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
         answers: toAnswers(formData, form.definition, uploadedIdsByField),
         captchaToken: storedAssets.length ? "" : captchaToken,
         ...(storedAssets.length ? { assets: storedAssets, uploadProof } : {}),
-        website,
+        [PUBLIC_FORM_HONEYPOT_CONTROL_NAME]: website,
       };
       const response = await fetch(submissionTarget.endpoint, {
         body: JSON.stringify(requestBody),
@@ -564,7 +581,7 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
         `/api/forms/${encodeURIComponent(form.slug)}/confirmations/resend`,
         {
           body: JSON.stringify({
-            captchaToken: String(formData.get("captchaToken") || ""),
+            captchaToken: String(formData.get(PUBLIC_FORM_CAPTCHA_CONTROL_NAME) || ""),
             email: confirmationEmail,
           }),
           headers: { "Content-Type": "application/json" },
@@ -690,8 +707,13 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
             />
 
             <div className="contact-honeypot" aria-hidden="true">
-              <label htmlFor="form-website">Website</label>
-              <input autoComplete="off" id="form-website" name="website" tabIndex={-1} />
+              <label htmlFor="form-honeypot">Website</label>
+              <input
+                autoComplete="off"
+                id="form-honeypot"
+                name={PUBLIC_FORM_HONEYPOT_CONTROL_NAME}
+                tabIndex={-1}
+              />
             </div>
 
             {captchaRequired ? <VerifiedTurnstileField siteKey={captcha.siteKey} /> : null}

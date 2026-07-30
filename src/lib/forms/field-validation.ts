@@ -13,16 +13,6 @@ import type { FormDefinition, FormField } from "@/lib/forms/definition";
  * belongs next to the server rule it mirrors.
  */
 
-/**
- * Names that exist in the form element but are not questions.
- *
- * `website` is the honeypot, which is `aria-hidden` and must never be reported
- * to a respondent. `captchaToken` is a hidden input owned by the challenge
- * field. Keying validation to the definition rather than to the DOM is what
- * keeps both out, but they are named here so the intent survives a refactor.
- */
-const NON_QUESTION_CONTROL_NAMES = new Set(["captchaToken", "website"]);
-
 type ValidatableControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
 function isValidatableControl(value: unknown): value is ValidatableControl {
@@ -124,7 +114,7 @@ export function collectNativeFieldErrors(
   const errors: Record<string, string> = {};
 
   for (const field of definition.fields) {
-    if (field.type === "section" || NON_QUESTION_CONTROL_NAMES.has(field.id)) {
+    if (field.type === "section") {
       continue;
     }
 

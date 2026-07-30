@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  PUBLIC_FORM_CAPTCHA_CONTROL_NAME,
+  PUBLIC_FORM_HONEYPOT_CONTROL_NAME,
+} from "@/lib/forms/control-names";
 import { parseFormDefinition } from "@/lib/forms/definition";
 import {
   collectNativeFieldErrors,
@@ -98,20 +102,20 @@ describe("collecting field errors from constraint validity", () => {
     expect(collectNativeFieldErrors(form, definition)).toEqual({});
   });
 
-  it("never reports the honeypot or the challenge token", () => {
-    // Both are present in the form element and neither is a question. The
-    // honeypot is aria-hidden, so reporting it would tell a respondent to fix a
-    // field built to be invisible.
+  it("validates a Website question without colliding with non-question controls", () => {
     const form = formWith(`
-      <input name="full_name" required />
       <input name="website" required />
-      <input name="captchaToken" required type="hidden" />
+      <input name="${PUBLIC_FORM_HONEYPOT_CONTROL_NAME}" />
+      <input name="${PUBLIC_FORM_CAPTCHA_CONTROL_NAME}" type="hidden" />
     `);
     const definition = definitionOf([
-      { id: "full_name", label: "Full name", required: true, type: "text" },
+      { id: "website", label: "Website", required: true, type: "text" },
     ]);
 
-    expect(Object.keys(collectNativeFieldErrors(form, definition))).toEqual(["full_name"]);
+    expect(form.querySelectorAll('[name="website"]')).toHaveLength(1);
+    expect(collectNativeFieldErrors(form, definition)).toEqual({
+      website: "Please answer this question.",
+    });
   });
 
   it("keeps the browser's own message for a failure other than a missing value", () => {

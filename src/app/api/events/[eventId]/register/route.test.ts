@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PUBLIC_FORM_HONEYPOT_CONTROL_NAME } from "@/lib/forms/control-names";
+
 const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   createClient: vi.fn(),
@@ -55,13 +57,14 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { POST } from "./route";
 
-function request() {
+function request(overrides: Record<string, unknown> = {}) {
   return new NextRequest("https://jnuits.org.bd/api/events/event-1/register", {
     body: JSON.stringify({
       captchaToken: "captcha-token",
       email: "attendee@example.test",
       name: "Event Attendee",
       phone: "+8801700000000",
+      ...overrides,
     }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
@@ -129,5 +132,24 @@ describe("event registration route", () => {
       registrationCode: "WAITLIST1",
       status: "sent",
     });
+  });
+
+  it("short-circuits a namespaced honeypot submission", async () => {
+    const response = await POST(
+      request({ [PUBLIC_FORM_HONEYPOT_CONTROL_NAME]: "https://spam.example.test" }),
+      { params: Promise.resolve({ eventId: "event-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.resolvePublishedEventForMutation).not.toHaveBeenCalled();
+  });
+
+  it("rejects the old collidable honeypot key", async () => {
+    const response = await POST(request({ website: "https://spam.example.test" }), {
+      params: Promise.resolve({ eventId: "event-1" }),
+    });
+
+    expect(response.status).toBe(422);
+    expect(mocks.resolvePublishedEventForMutation).not.toHaveBeenCalled();
   });
 });

@@ -15,6 +15,7 @@ import {
 import { recordEventRegistrationDelivery } from "@/lib/events/delivery";
 import { loadPublishedFormByVersionId } from "@/lib/forms/repository";
 import { verifyCloudinaryFormAssets } from "@/lib/forms/cloudinary-assets";
+import { PUBLIC_FORM_HONEYPOT_CONTROL_NAME } from "@/lib/forms/control-names";
 import {
   type FormSubmissionAsset,
   hashFormUploadManifest,
@@ -45,7 +46,7 @@ const registrationRequestSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
   phone: z.string().trim().max(20).optional(),
   uploadProof: z.string().trim().max(20_000).optional().default(""),
-  website: z.string().trim().max(200).optional().or(z.literal("")),
+  [PUBLIC_FORM_HONEYPOT_CONTROL_NAME]: z.string().trim().max(200).optional().or(z.literal("")),
 }).strict();
 
 const legacyRegistrationSchema = z.object({
@@ -165,7 +166,7 @@ export const POST = withApiGuard(
       );
     }
 
-    if (parsed.data.website && parsed.data.website.length > 0) {
+    if (parsed.data[PUBLIC_FORM_HONEYPOT_CONTROL_NAME]) {
       return NextResponse.json({ code: "RECEIVED", success: true });
     }
 
@@ -233,7 +234,7 @@ export const POST = withApiGuard(
         email: parsed.data.email,
         name: parsed.data.name,
         phone: parsed.data.phone,
-        website: parsed.data.website,
+        website: undefined,
       });
       if (!legacy.success) {
         return NextResponse.json(

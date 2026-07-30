@@ -19,13 +19,32 @@ export type StudioEditorField = {
    * so it never reaches a published schema.
    */
   editorKey: string;
+  /**
+   * Optional help text for one question. Task 3.1.
+   *
+   * Optional rather than an always-present string like `optionsText`, because
+   * absent and empty must stay distinguishable on the way out: see `toHelpText`.
+   */
+  helpText?: string;
   id: string;
   label: string;
   maxFiles?: number;
+  /** Keeps legacy section guidance only when it came from stored data. */
+  preserveSectionHelpText?: boolean;
   optionsText: string;
   required: boolean;
   type: StudioFieldType;
 };
+
+/**
+ * The authoring limit for help text, which is also the schema's limit.
+ *
+ * `helpTextSchema` in `definition.ts` caps at the same number. A second literal
+ * can drift, and the drift is invisible until an operator has written 520
+ * characters and the save fails Zod, so the conversion test asserts both ends of
+ * it: this length parses and one more character does not.
+ */
+export const STUDIO_HELP_TEXT_MAX_LENGTH = 500;
 
 const RESERVED_FIELD_IDS = new Set(["__proto__", "constructor", "prototype"]);
 const MAX_FIELD_ID_LENGTH = 64;
@@ -111,23 +130,39 @@ function toOptionValue(label: string) {
 }
 
 /**
+ * Help text as a schema entry, or nothing at all. Task 3.1.
+ *
+ * Trimmed, and omitted entirely when it is empty. `helpText: ""` parses happily
+ * and is a defect on the page: task 2.1 points `aria-describedby` at the help
+ * paragraph, so an empty string leaves an empty paragraph under the control and
+ * gives it a description that announces nothing. Omission is the only value that
+ * means "this question has no help text".
+ */
+function toHelpText(field: StudioEditorField) {
+  if (field.type === "section" && !field.preserveSectionHelpText) return {};
+
+  const helpText = field.helpText?.trim();
+  return helpText ? { helpText } : {};
+}
+
+/**
  * Builds the published schema field by field, so no editor-only property can
  * reach a stored definition.
  */
 export function studioFieldsToDefinition(fields: StudioEditorField[]): FormDefinition {
   return parseFormDefinition({
     fields: fields.map((field) => {
-      if (field.type === "section") return { id: field.id, label: field.label, type: field.type };
-      if (field.type === "consent") return { id: field.id, label: field.label, required: true, type: field.type };
+      if (field.type === "section") return { ...toHelpText(field), id: field.id, label: field.label, type: field.type };
+      if (field.type === "consent") return { ...toHelpText(field), id: field.id, label: field.label, required: true, type: field.type };
       if (field.type === "select" || field.type === "multi_select") {
         const options = field.optionsText.split("\n").map((label) => label.trim()).filter(Boolean)
           .map((label) => ({ label, value: toOptionValue(label) }));
-        return { id: field.id, label: field.label, options, required: field.required, type: field.type };
+        return { ...toHelpText(field), id: field.id, label: field.label, options, required: field.required, type: field.type };
       }
       if (field.type === "image" || field.type === "pdf") return {
-        id: field.id, label: field.label, maxFiles: field.maxFiles ?? 1, required: field.required, type: field.type,
+        ...toHelpText(field), id: field.id, label: field.label, maxFiles: field.maxFiles ?? 1, required: field.required, type: field.type,
       };
-      return { id: field.id, label: field.label, required: field.required, type: field.type };
+      return { ...toHelpText(field), id: field.id, label: field.label, required: field.required, type: field.type };
     }),
     payment: { enabled: false },
   });
@@ -136,14 +171,26 @@ export function studioFieldsToDefinition(fields: StudioEditorField[]): FormDefin
 export function formDefinitionToStudioFields(definition: FormDefinition): StudioEditorField[] {
   return definition.fields.map((field) => {
     const editorKey = createStudioEditorKey();
-    if (field.type === "section") return { editorKey, id: field.id, label: field.label, optionsText: "", required: false, type: field.type };
-    if (field.type === "consent") return { editorKey, id: field.id, label: field.label, optionsText: "", required: true, type: field.type };
+    // Read back on every branch, not only the ones the Studio can author: a
+    // stored definition that carries help text must not lose it because an
+    // operator opened the form and saved a new draft.
+    if (field.type === "section") return {
+      editorKey,
+      helpText: field.helpText,
+      id: field.id,
+      label: field.label,
+      optionsText: "",
+      preserveSectionHelpText: Boolean(field.helpText),
+      required: false,
+      type: field.type,
+    };
+    if (field.type === "consent") return { editorKey, helpText: field.helpText, id: field.id, label: field.label, optionsText: "", required: true, type: field.type };
     if (field.type === "select" || field.type === "multi_select") return {
-      editorKey, id: field.id, label: field.label, optionsText: field.options.map((option) => option.label).join("\n"), required: field.required, type: field.type,
+      editorKey, helpText: field.helpText, id: field.id, label: field.label, optionsText: field.options.map((option) => option.label).join("\n"), required: field.required, type: field.type,
     };
     if (field.type === "image" || field.type === "pdf") return {
-      editorKey, id: field.id, label: field.label, maxFiles: field.maxFiles, optionsText: "", required: field.required, type: field.type,
+      editorKey, helpText: field.helpText, id: field.id, label: field.label, maxFiles: field.maxFiles, optionsText: "", required: field.required, type: field.type,
     };
-    return { editorKey, id: field.id, label: field.label, optionsText: "", required: field.required, type: field.type };
+    return { editorKey, helpText: field.helpText, id: field.id, label: field.label, optionsText: "", required: field.required, type: field.type };
   });
 }
