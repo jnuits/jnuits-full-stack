@@ -457,14 +457,17 @@ export function ModernFormStudioScreen() {
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {Object.entries(mapping).map(([key, value]) => {
                   const descriptor = mappingLabel(key);
-                  return <label className="input-label" key={key}>
-                    {descriptor.label}
-                    <select value={value} onChange={(event) => setMapping((current) => ({ ...current, [key]: event.target.value }))}>
+                  return <FieldWithHint
+                    controlId={`form-studio-mapping-${key}`}
+                    hint={descriptor.hint}
+                    key={key}
+                    label={descriptor.label}
+                  >
+                    {(hintId) => <select aria-describedby={hintId} id={`form-studio-mapping-${key}`} value={value} onChange={(event) => setMapping((current) => ({ ...current, [key]: event.target.value }))}>
                       <option value="">Not collected</option>
                       {mappable.map((field) => <option key={field.editorKey} value={field.id}>{field.label}</option>)}
-                    </select>
-                    {descriptor.hint ? <span className="mt-1 block text-xs font-normal text-[var(--muted-foreground)]">{descriptor.hint}</span> : null}
-                  </label>;
+                    </select>}
+                  </FieldWithHint>;
                 })}
               </div>
             </section>}
