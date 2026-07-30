@@ -174,6 +174,18 @@ async function collectFormUploads(formData: FormData, definition: FormDefinition
   return uploads;
 }
 
+export async function collectPendingPublicFormUploads(
+  formData: FormData,
+  definition: FormDefinition
+) {
+  const honeypot = String(formData.get(PUBLIC_FORM_HONEYPOT_CONTROL_NAME) || "");
+
+  return {
+    honeypot,
+    uploads: honeypot ? [] : await collectFormUploads(formData, definition),
+  };
+}
+
 function assertUploadInstruction(upload: PendingFormUpload, instruction: FormUploadInstruction) {
   if (
     instruction.fieldId !== upload.fieldId ||
@@ -483,8 +495,8 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
 
     try {
       const captchaToken = String(formData.get(PUBLIC_FORM_CAPTCHA_CONTROL_NAME) || "");
-      const website = String(formData.get(PUBLIC_FORM_HONEYPOT_CONTROL_NAME) || "");
-      const pendingUploads = website ? [] : await collectFormUploads(formData, form.definition);
+      const { honeypot: website, uploads: pendingUploads } =
+        await collectPendingPublicFormUploads(formData, form.definition);
       const storedAssets: StoredFormUploadAsset[] = [];
       const uploadedIdsByField: Record<string, string[]> = {};
       let uploadProof = "";
