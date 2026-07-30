@@ -7,6 +7,7 @@ import { logServerError } from "@/lib/errors/api-error";
 import { extractApplicationIdentity } from "@/lib/forms/application-behavior";
 import { buildFormConfirmationUrl, createFormConfirmation } from "@/lib/forms/confirmation";
 import { verifyCloudinaryFormAssets } from "@/lib/forms/cloudinary-assets";
+import { PUBLIC_FORM_HONEYPOT_CONTROL_NAME } from "@/lib/forms/control-names";
 import { type FormAnswers, type FormDefinition, validateFormAnswers } from "@/lib/forms/definition";
 import { createFormSubmissionAssets, createPendingFormSubmission, loadPublishedForm, markFormConfirmationSent, recordFormConfirmationDelivery } from "@/lib/forms/repository";
 import { type FormSubmissionAsset, hashFormUploadManifest, validateProofBoundFormAssets, verifyFormUploadProof } from "@/lib/forms/upload-proof";
@@ -18,7 +19,7 @@ import { RATE_LIMITS } from "@/lib/security/rate-limit";
 const slugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const submissionRequestSchema = z.object({ answers: z.unknown(), assets: z.array(z.unknown()).max(25).optional().default([]),
   captchaToken: z.string().trim().max(4096).optional().default(""), uploadProof: z.string().trim().max(20000).optional().default(""),
-  website: z.string().trim().max(200).optional().default("") }).strict();
+  [PUBLIC_FORM_HONEYPOT_CONTROL_NAME]: z.string().trim().max(200).optional().default("") }).strict();
 function verifyAssetAnswerBindings(definition: FormDefinition, answers: FormAnswers, assets: FormSubmissionAsset[]) {
   const fields = definition.fields.filter((field) => field.type === "image" || field.type === "pdf");
   if (!fields.length && assets.length) throw new Error("This form does not accept file uploads.");
@@ -34,7 +35,7 @@ export const POST = withApiGuard(async (request, context) => {
   if (!slug?.success) return NextResponse.json({ error: "Form not found." }, { status: 404 });
   let body: unknown; try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request body." }, { status: 400 }); }
   const parsed = submissionRequestSchema.safeParse(body); if (!parsed.success) return NextResponse.json({ error: "Please check the submitted form." }, { status: 422 });
-  if (parsed.data.website) return acceptedResponse();
+  if (parsed.data[PUBLIC_FORM_HONEYPOT_CONTROL_NAME]) return acceptedResponse();
   const form = await loadPublishedForm(slug.data); if (!form) return NextResponse.json({ error: "Form not found." }, { status: 404 });
   if (form.kind === "event_registration") return NextResponse.json({ error: "Use the event registration page to register for this event." }, { status: 409 });
   let answers; try { answers = validateFormAnswers(form.definition, parsed.data.answers); }
