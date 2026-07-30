@@ -11,11 +11,17 @@ const workflowNames = [
 ];
 
 function readWorkflow(name) {
-  return readFileSync(resolve(process.cwd(), ".github", "workflows", name), "utf8");
+  return readFileSync(resolve(process.cwd(), ".github", "workflows", name), "utf8").replace(
+    /\r\n?/g,
+    "\n"
+  );
 }
 
 function readAction(name) {
-  return readFileSync(resolve(process.cwd(), ".github", "actions", name, "action.yml"), "utf8");
+  return readFileSync(resolve(process.cwd(), ".github", "actions", name, "action.yml"), "utf8").replace(
+    /\r\n?/g,
+    "\n"
+  );
 }
 
 describe("GitHub Actions workflows", () => {
