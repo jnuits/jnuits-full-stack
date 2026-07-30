@@ -29,6 +29,8 @@ export type StudioEditorField = {
   id: string;
   label: string;
   maxFiles?: number;
+  /** Keeps legacy section guidance only when it came from stored data. */
+  preserveSectionHelpText?: boolean;
   optionsText: string;
   required: boolean;
   type: StudioFieldType;
@@ -137,6 +139,8 @@ function toOptionValue(label: string) {
  * means "this question has no help text".
  */
 function toHelpText(field: StudioEditorField) {
+  if (field.type === "section" && !field.preserveSectionHelpText) return {};
+
   const helpText = field.helpText?.trim();
   return helpText ? { helpText } : {};
 }
@@ -170,7 +174,16 @@ export function formDefinitionToStudioFields(definition: FormDefinition): Studio
     // Read back on every branch, not only the ones the Studio can author: a
     // stored definition that carries help text must not lose it because an
     // operator opened the form and saved a new draft.
-    if (field.type === "section") return { editorKey, helpText: field.helpText, id: field.id, label: field.label, optionsText: "", required: false, type: field.type };
+    if (field.type === "section") return {
+      editorKey,
+      helpText: field.helpText,
+      id: field.id,
+      label: field.label,
+      optionsText: "",
+      preserveSectionHelpText: Boolean(field.helpText),
+      required: false,
+      type: field.type,
+    };
     if (field.type === "consent") return { editorKey, helpText: field.helpText, id: field.id, label: field.label, optionsText: "", required: true, type: field.type };
     if (field.type === "select" || field.type === "multi_select") return {
       editorKey, helpText: field.helpText, id: field.id, label: field.label, optionsText: field.options.map((option) => option.label).join("\n"), required: field.required, type: field.type,
