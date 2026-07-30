@@ -73,6 +73,9 @@ describe("authoring help text in the Form Studio", () => {
     expect(helpTextInputs()[0]).toHaveAccessibleDescription(
       /Up to 500 characters.*0 \/ 500 characters/
     );
+    expect(screen.getByRole("combobox", { name: "Email address" })).toHaveAccessibleDescription(
+      "Used for confirmation and review notices."
+    );
   });
 
   it("clears authored help text when a question becomes a section heading", async () => {
@@ -149,10 +152,18 @@ describe("inventory cards and accessibility", () => {
       "https://jnuits.org.bd/forms/membership-application"
     );
 
+    const originalClipboard = navigator.clipboard;
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+
     await user.click(screen.getByRole("button", { name: "Copy link" }));
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Copying is unavailable in this browser."
     );
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: originalClipboard,
+    });
   });
 
   it("has no axe violations in the populated editor", async () => {
