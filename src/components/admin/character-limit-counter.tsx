@@ -1,7 +1,3 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
-
 export type CharacterCounterTone = "danger" | "muted" | "warning";
 
 export function characterCounterTone(length: number, maximum: number): CharacterCounterTone {
@@ -22,21 +18,12 @@ export function CharacterLimitCounter({
   maximum: number;
 }) {
   const tone = characterCounterTone(current, maximum);
-  const previousTone = useRef(tone);
-  const [announcement, setAnnouncement] = useState("");
-
-  useEffect(() => {
-    if (tone === previousTone.current) return;
-
-    previousTone.current = tone;
-    setAnnouncement(
-      tone === "danger"
-        ? `Character limit nearly reached. ${maximum - current} characters remain.`
-        : tone === "warning"
-          ? `Approaching the ${maximum} character limit.`
-          : ""
-    );
-  }, [current, maximum, tone]);
+  const announcement =
+    tone === "danger"
+      ? "Character limit nearly reached."
+      : tone === "warning"
+        ? `Approaching the ${maximum} character limit.`
+        : "";
 
   return (
     <>
