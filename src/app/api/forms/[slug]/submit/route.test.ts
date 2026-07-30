@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { PUBLIC_FORM_HONEYPOT_CONTROL_NAME } from "@/lib/forms/control-names";
 const mocks = vi.hoisted(() => ({ consumeFormUploadSession: vi.fn(), createFormSubmissionAssets: vi.fn(), createPendingFormSubmission: vi.fn(),
   enforceAuthActionProtection: vi.fn(), loadPublishedForm: vi.fn(), markFormConfirmationSent: vi.fn(), recordFormConfirmationDelivery: vi.fn(),
   sendEmail: vi.fn(), verifyFormUploadProof: vi.fn() }));
@@ -52,8 +54,15 @@ describe("public form submission route", () => {
       assets: [asset], uploadProof: "proof-token" }), { params: Promise.resolve({ slug: "membership-2026" }) });
     expect(response.status).toBe(422); expect(mocks.createPendingFormSubmission).not.toHaveBeenCalled();
   });
-  it("accepts honeypot submissions without persistence", async () => {
-    const response = await POST(request({ answers: {}, website: "https://spam.example.test" }), { params: Promise.resolve({ slug: "membership-2026" }) });
+  it("accepts namespaced honeypot submissions without persistence", async () => {
+    const response = await POST(request({
+      [PUBLIC_FORM_HONEYPOT_CONTROL_NAME]: "https://spam.example.test",
+      answers: {},
+    }), { params: Promise.resolve({ slug: "membership-2026" }) });
     expect(response.status).toBe(202); expect(mocks.loadPublishedForm).not.toHaveBeenCalled();
+  });
+  it("rejects the old collidable honeypot key", async () => {
+    const response = await POST(request({ answers: {}, website: "https://spam.example.test" }), { params: Promise.resolve({ slug: "membership-2026" }) });
+    expect(response.status).toBe(422); expect(mocks.loadPublishedForm).not.toHaveBeenCalled();
   });
 });
