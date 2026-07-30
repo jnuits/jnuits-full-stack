@@ -10,6 +10,8 @@ import {
 } from "@/lib/security/turnstile-client";
 
 type TurnstileFieldProps = {
+  /** Hidden control name. Defaults to the legacy name for existing consumers. */
+  name?: string;
   /**
    * Optional. Reports the current token, empty when unverified.
    *
@@ -28,7 +30,7 @@ declare global {
   }
 }
 
-export function TurnstileField({ onTokenChange, siteKey }: TurnstileFieldProps) {
+export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }: TurnstileFieldProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
   const onTokenChangeRef = useRef(onTokenChange);
@@ -97,7 +99,7 @@ export function TurnstileField({ onTokenChange, siteKey }: TurnstileFieldProps) 
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
       />
       <div ref={containerRef} />
-      <input name="captchaToken" type="hidden" value={token} />
+      <input name={name} type="hidden" value={token} />
     </div>
   );
 }
