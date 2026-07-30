@@ -71,7 +71,7 @@ describe("authoring help text in the Form Studio", () => {
     expect(helpTextInputs()).toHaveLength(screen.getAllByLabelText("Question type").length);
     expect(helpTextInputs()[0]).toHaveAccessibleName("Help text");
     expect(helpTextInputs()[0]).toHaveAccessibleDescription(
-      expect.stringMatching(/Up to 500 characters.*0 \/ 500 characters/)
+      /Up to 500 characters.*0 \/ 500 characters/
     );
   });
 
@@ -121,7 +121,7 @@ describe("authoring help text in the Form Studio", () => {
     if (!field) throw new Error("Help text field shell is missing.");
 
     fireEvent.change(input, { target: { value: "a".repeat(400) } });
-    expect(input).toHaveAccessibleDescription(expect.stringMatching(/400 \/ 500 characters/));
+    expect(input).toHaveAccessibleDescription(/400 \/ 500 characters/);
     expect(await within(field).findByRole("status")).toHaveTextContent(
       "Approaching the 500 character limit."
     );
