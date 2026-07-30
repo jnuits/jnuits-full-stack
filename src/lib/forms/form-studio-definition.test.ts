@@ -7,6 +7,7 @@ import {
   duplicateStudioField,
   formDefinitionToStudioFields,
   markStudioFieldIdsPersisted,
+  STUDIO_HELP_TEXT_MAX_LENGTH,
   studioFieldsToDefinition,
   updateAutomaticStudioFieldLabel,
   type StudioEditorField,
@@ -167,5 +168,90 @@ describe("Form Studio definition conversion", () => {
       { id: "track", label: "Track", optionsText: "Web\nMobile", required: true, type: "select" },
       { id: "portfolio", label: "Portfolio", maxFiles: 1, optionsText: "", required: false, type: "pdf" },
     ]);
+  });
+});
+
+/**
+ * Task 3.1. `helpText` was in the schema and, after task 2.1, associated with
+ * its control by the renderer. The Studio had no input for it, so the only way
+ * to author it was to edit stored JSON by hand.
+ */
+describe("Form Studio help text", () => {
+  it("carries authored help text into the schema, trimmed", () => {
+    const definition = studioFieldsToDefinition([
+      editorField({ helpText: "  Use the name printed on your student ID.  ", id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" }),
+    ]);
+
+    expect(definition.fields[0].helpText).toBe("Use the name printed on your student ID.");
+  });
+
+  it("omits help text that is empty or whitespace rather than storing it", () => {
+    const definition = studioFieldsToDefinition([
+      editorField({ helpText: "   ", id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" }),
+      editorField({ helpText: "", id: "email", label: "Email address", optionsText: "", required: true, type: "email" }),
+      editorField({ id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" }),
+    ]);
+
+    // Not tidiness. `helpText: ""` parses, and the renderer then points
+    // aria-describedby at an empty paragraph, so the control announces a
+    // description that says nothing at all.
+    expect(JSON.stringify(definition)).not.toContain("helpText");
+    for (const field of definition.fields) {
+      expect(field).not.toHaveProperty("helpText");
+    }
+  });
+
+  it("survives every field type, including the ones with their own settings", () => {
+    // Section help text is included here even though the Studio does not offer
+    // the input for it: the conversion must not drop what a stored definition
+    // already carries.
+    const definition = studioFieldsToDefinition([
+      editorField({ helpText: "Everything below is about you.", id: "personal", label: "Personal details", optionsText: "", required: false, type: "section" }),
+      editorField({ helpText: "Pick every track you want.", id: "tracks", label: "Interested tracks", optionsText: "Web\nMobile", required: false, type: "multi_select" }),
+      editorField({ helpText: "A photo of the card is fine.", id: "id_card", label: "Student ID card", optionsText: "", required: true, type: "image" }),
+      editorField({ helpText: "Tick this to continue.", id: "consent", label: "I confirm these details are accurate", optionsText: "", required: true, type: "consent" }),
+    ]);
+
+    expect(definition.fields.map((field) => field.helpText)).toEqual([
+      "Everything below is about you.",
+      "Pick every track you want.",
+      "A photo of the card is fine.",
+      "Tick this to continue.",
+    ]);
+  });
+
+  it("reads help text back out of a stored definition", () => {
+    const fields = formDefinitionToStudioFields(parseFormDefinition({
+      fields: [
+        { helpText: "Use the name printed on your student ID.", id: "full_name", label: "Full name", required: true, type: "text" },
+        { id: "email", label: "Email address", required: true, type: "email" },
+      ],
+      payment: { enabled: false },
+    }));
+
+    // Opening a form and saving a new draft must not silently drop authored
+    // help text, which is what a write-only conversion would do.
+    expect(fields[0].helpText).toBe("Use the name printed on your student ID.");
+    expect(fields[1].helpText).toBeUndefined();
+  });
+
+  it("carries help text through a duplicated question", () => {
+    const source = editorField({ helpText: "Use the name printed on your student ID.", id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" });
+    const duplicate = duplicateStudioField(source, [source.id]);
+
+    expect(duplicate.helpText).toBe(source.helpText);
+  });
+
+  it("pins the authoring cap to the schema's own limit", () => {
+    const atLimit = "a".repeat(STUDIO_HELP_TEXT_MAX_LENGTH);
+    const field = (helpText: string) =>
+      editorField({ helpText, id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" });
+
+    expect(studioFieldsToDefinition([field(atLimit)]).fields[0].helpText).toBe(atLimit);
+
+    // The other end of the same cap. If `helpTextSchema` moves, one of these two
+    // fails, which is the only thing keeping the input's maxLength from quietly
+    // disagreeing with what can actually be saved.
+    expect(() => studioFieldsToDefinition([field(`${atLimit}a`)])).toThrow();
   });
 });
