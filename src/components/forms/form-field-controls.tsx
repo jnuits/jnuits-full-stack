@@ -1,3 +1,4 @@
+import { describeAnswerConstraint } from "@/lib/forms/answer-rules";
 import type { FormDefinition, FormField } from "@/lib/forms/definition";
 import { groupFormFields } from "@/lib/forms/public-form-presentation";
 
@@ -180,6 +181,26 @@ function DateFormatNote({ id }: { id: string }) {
   return (
     <p className={HELP_TEXT_CLASS} id={id}>
       Shown in your browser&apos;s date format. Use the calendar button if you are unsure.
+    </p>
+  );
+}
+
+/**
+ * The accepted range for a number question. Task 2.7.
+ *
+ * The schema has supported `min` and `max` from the start and this renderer has
+ * always set both attributes, so the browser was already enforcing the range.
+ * What was missing is that nothing said what the range *was* — a respondent
+ * discovered the limit by violating it.
+ *
+ * Referenced by the control rather than left beside it, which is the defect
+ * task 2.1 removed from the help text, the date note and the upload
+ * constraints. Adding a fourth instance of it here would be careless.
+ */
+function NumberRangeNote({ id, text }: { id: string; text: string }) {
+  return (
+    <p className={HELP_TEXT_CLASS} id={id}>
+      {text}
     </p>
   );
 }
@@ -463,13 +484,17 @@ export function FormFieldControl({
   if (field.type === "number" || field.type === "date") {
     const { errorId, helpId } = fieldDescriptionIds({ error: fieldError, field, inputId });
     const dateNoteId = field.type === "date" ? `${inputId}-date-format` : undefined;
+    // Returns undefined for a date, and for a number with neither bound, so no
+    // empty note is ever rendered and no dangling id is ever referenced.
+    const rangeNote = describeAnswerConstraint(field);
+    const rangeNoteId = rangeNote ? `${inputId}-range` : undefined;
     const invalid = Boolean(fieldError);
 
     return (
       <div>
         <FieldLabel field={field} inputId={inputId} />
         <input
-          aria-describedby={describedBy(errorId, helpId, dateNoteId)}
+          aria-describedby={describedBy(errorId, helpId, rangeNoteId, dateNoteId)}
           aria-invalid={invalid || undefined}
           className={fieldClass(TEXT_INPUT_CLASS, invalid)}
           disabled={preview}
@@ -482,6 +507,7 @@ export function FormFieldControl({
         />
         <FieldError id={errorId} message={fieldError} />
         <FieldHelp field={field} id={helpId} />
+        {rangeNote && rangeNoteId ? <NumberRangeNote id={rangeNoteId} text={rangeNote} /> : null}
         {dateNoteId ? <DateFormatNote id={dateNoteId} /> : null}
       </div>
     );
