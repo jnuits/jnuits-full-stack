@@ -139,15 +139,24 @@ describe("layout classes", () => {
     expect(controls).toContain("rounded-xl border border-border bg-background");
   });
 
-  it("keeps the multi-select and file control off the fixed row height", () => {
+  it("keeps the file control off the fixed row height", () => {
     const controls = readControls();
 
-    // `multi_select` sets `size`, so a fixed height would crop the option list
-    // to one row. The file control needs room for the browser's own button.
-    // Neither height is observable in jsdom.
-    expect(controls).toContain("MULTI_SELECT_CLASS");
-    expect(controls).toContain("multiple ? MULTI_SELECT_CLASS : SELECT_CLASS");
+    // The file control needs room for the browser's own button, and no height
+    // is observable in jsdom.
     expect(controls).toContain("min-h-12");
+  });
+
+  it("builds a choice row from the single checkbox row rather than beside it", () => {
+    const controls = readControls();
+
+    // Task 3.3 replaced the `select multiple` listbox, and with it the
+    // MULTI_SELECT_CLASS guard that used to sit here. The checkbox group's
+    // structure *is* observable in jsdom, so it is asserted in
+    // form-field-controls.dom.test.tsx; only the shared surface, which is not,
+    // stays a source guard.
+    expect(controls).toContain("CHOICE_ROW_CLASS = `${CHECKBOX_ROW_CLASS}");
+    expect(controls).not.toContain("MULTI_SELECT_CLASS");
   });
 
   it("themes the file input's native button", () => {

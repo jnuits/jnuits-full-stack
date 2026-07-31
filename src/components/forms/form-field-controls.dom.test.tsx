@@ -39,6 +39,29 @@ const question = (id: string, label: string) => ({
 
 const section = (id: string, label: string) => ({ id, label, type: "section" });
 
+const TRACK_OPTIONS = [
+  { label: "Web", value: "web" },
+  { label: "Mobile", value: "mobile" },
+];
+
+const radioField = (overrides: Record<string, unknown> = {}) => ({
+  id: "track",
+  label: "Preferred track",
+  options: TRACK_OPTIONS,
+  required: false,
+  type: "radio",
+  ...overrides,
+});
+
+const checkboxGroupField = (overrides: Record<string, unknown> = {}) => ({
+  id: "tracks",
+  label: "Interested tracks",
+  options: TRACK_OPTIONS,
+  required: false,
+  type: "multi_select",
+  ...overrides,
+});
+
 describe("a section owns the questions it introduces", () => {
   it("puts each question inside the region its heading names", () => {
     renderDefinition([
@@ -341,19 +364,156 @@ describe("a date field states where its format comes from", () => {
 });
 
 /**
- * Documented current behaviour, not endorsed behaviour.
+ * Tasks 3.2 and 3.3.
  *
- * Asserts a defect that is already tracked, so the fix cannot land without
- * updating the test that describes the old shape. That is the only reliable way
- * to keep a known defect from quietly becoming permanent.
+ * One describe for both, because they are one component: a `fieldset`/`legend`
+ * group of native inputs sharing the field id as their name. The differences
+ * that matter -- the input type, and where "required" is enforced -- each get
+ * their own assertion below.
  *
- * The helpText entry that used to live here has been removed: task 2.1 fixed it,
- * and its assertion now sits in "a control is described by the text that
- * explains it" as a positive.
+ * The `multi_select` entry that used to sit in "known defects, asserted so a
+ * fix cannot pass unnoticed" has moved here as a positive. That block held only
+ * that one case and is gone with it; add it back the moment another known
+ * defect needs pinning.
  */
-describe("known defects, asserted so a fix cannot pass unnoticed", () => {
-  it("renders multi_select as a listbox while the Studio calls it a checkbox group", () => {
-    renderDefinition([
+describe("a choice question is a named group of native controls", () => {
+  it("renders single choice as radios inside a group named by its legend", () => {
+    renderDefinition([radioField()]);
+
+    const group = screen.getByRole("group", { name: /Preferred track/ });
+
+    expect(within(group).getAllByRole("radio")).toHaveLength(2);
+    expect(screen.getByRole("radio", { name: "Web" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Mobile" })).toBeInTheDocument();
+  });
+
+  it("renders multi_select as a real checkbox group, which is what the Studio always called it", () => {
+    renderDefinition([checkboxGroupField()]);
+
+    // Task 3.3. This assertion previously pinned the defect: the Studio offered
+    // "Checkbox choices" and the renderer emitted a `select multiple` listbox.
+    // Flipped rather than deleted, per #96.
+    const group = screen.getByRole("group", { name: /Interested tracks/ });
+
+    expect(within(group).getAllByRole("checkbox")).toHaveLength(2);
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("submits the option value rather than the browser's default", () => {
+    renderDefinition([checkboxGroupField(), radioField()]);
+
+    // A native checkbox with no `value` submits the string "on". That would
+    // store "on" and fail server validation with a message about an invalid
+    // option, which reads like a backend fault rather than a missing attribute.
+    expect(screen.getByRole("checkbox", { name: "Web" })).toHaveAttribute("value", "web");
+    expect(screen.getByRole("radio", { name: "Mobile" })).toHaveAttribute("value", "mobile");
+  });
+
+  it("gives every member the field id as its control name", () => {
+    renderDefinition([radioField()]);
+
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).toHaveAttribute("name", "track");
+    }
+  });
+
+  it("puts the group's canonical id on the first option", () => {
+    renderDefinition([radioField()]);
+
+    // The failed-submit focus effect looks up `${idPrefix}-${field.id}` and a
+    // fieldset is not focusable. Without this, a failing group is reported and
+    // never focused, which loses half of task 2.2 for exactly the controls a
+    // respondent is most likely to skip.
+    expect(document.getElementById("form-test-track")).toBe(
+      screen.getByRole("radio", { name: "Web" })
+    );
+  });
+
+  it("announces the requirement once for the group, not once per option", () => {
+    renderDefinition([radioField({ required: true })]);
+
+    expect(screen.getByRole("group")).toHaveAccessibleName(
+      expect.stringContaining("(required)")
+    );
+    expect(screen.getByRole("radio", { name: "Web" })).toHaveAccessibleName("Web");
+  });
+
+  it("marks radio members required, because the native rule is the correct one", () => {
+    renderDefinition([radioField({ required: true })]);
+
+    // `required` on radios sharing a name means "exactly one of these", which
+    // is what the field means.
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).toBeRequired();
+    }
+  });
+
+  it("leaves checkbox members unrequired, because the native rule is the wrong one", () => {
+    renderDefinition([checkboxGroupField({ required: true })]);
+
+    // `required` on a checkbox means *that* box must be ticked. Setting it on
+    // every member of a "choose at least one" group would demand all of them,
+    // so cardinality lives in collectNativeFieldErrors instead.
+    for (const checkbox of screen.getAllByRole("checkbox")) {
+      expect(checkbox).not.toBeRequired();
+    }
+  });
+
+  it("describes every member with the error and the help text", () => {
+    renderDefinition([radioField({ helpText: "Pick the one you would attend." })], {
+      errors: { track: "Please choose an option." },
+    });
+
+    // Repeated on each member rather than placed on the fieldset: group-level
+    // description support is inconsistent, and the message has to be heard
+    // wherever focus lands.
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).toHaveAttribute("aria-invalid", "true");
+      expect(radio).toHaveAccessibleDescription(
+        "Please choose an option. Pick the one you would attend."
+      );
+    }
+  });
+
+  it("does not use role=alert on a group's message either", () => {
+    renderDefinition([radioField(), checkboxGroupField()], {
+      errors: {
+        track: "Please choose an option.",
+        tracks: "Please choose at least one option.",
+      },
+    });
+
+    expect(screen.queryAllByRole("alert")).toHaveLength(0);
+  });
+
+  it("renders an inert, unnamed group in the Studio preview", () => {
+    renderDefinition([radioField({ required: true })], {
+      errors: { track: "Please choose an option." },
+      preview: true,
+    });
+
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).toBeDisabled();
+      expect(radio).not.toBeRequired();
+      expect(radio).not.toHaveAttribute("name");
+    }
+
+    expect(screen.queryByText("Please choose an option.")).toBeNull();
+  });
+});
+
+/**
+ * The compatibility contract for task 3.3, asserted against a definition
+ * written the way one already sits in the database.
+ *
+ * The presentation changed and the stored shape did not. Nothing about this
+ * fixture is new: no `radio`, no added property, no re-publish. If this test
+ * ever needs editing to pass, an existing published form has broken.
+ */
+describe("an existing multi_select definition keeps working untouched", () => {
+  const STORED_DEFINITION = {
+    fields: [
+      { id: "full_name", label: "Full name", required: true, type: "text" },
       {
         id: "tracks",
         label: "Interested tracks",
@@ -364,12 +524,39 @@ describe("known defects, asserted so a fix cannot pass unnoticed", () => {
         required: false,
         type: "multi_select",
       },
-    ]);
+    ],
+    payment: { enabled: false },
+  };
 
-    // Task 3.3. The label and the control disagree: the Studio offers
-    // "Checkbox choices" and this renders a multi-select list box.
-    expect(screen.getByRole("listbox", { name: /Interested tracks/ })).toBeInTheDocument();
-    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+  it("parses unchanged and renders as checkboxes", () => {
+    const definition = parseFormDefinition(STORED_DEFINITION);
+
+    render(<FormFieldControls definition={definition} idPrefix="form-test" />);
+
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+  });
+
+  it("still produces the same array of option values it always did", () => {
+    const definition = parseFormDefinition(STORED_DEFINITION);
+
+    render(
+      <form>
+        <FormFieldControls definition={definition} idPrefix="form-test" />
+      </form>
+    );
+
+    const web = screen.getByRole("checkbox", { name: "Web" });
+    const mobile = screen.getByRole("checkbox", { name: "Mobile" });
+    web.click();
+    mobile.click();
+
+    // The point of the whole slice: `getAll` returned a multi-select's selected
+    // options and returns a checkbox group's ticked values, so `toAnswers` did
+    // not have to change and no stored submission means anything different.
+    const formElement = web.closest("form");
+    if (!formElement) throw new Error("The fixture form is missing.");
+
+    expect(new FormData(formElement).getAll("tracks")).toEqual(["web", "mobile"]);
   });
 });
 
@@ -389,6 +576,26 @@ describe("accessibility of a form using every control", () => {
       options: [{ label: "Web", value: "web" }],
       required: false,
       type: "select",
+    },
+    {
+      id: "attendance",
+      label: "How will you attend",
+      options: [
+        { label: "In person", value: "in_person" },
+        { label: "Online", value: "online" },
+      ],
+      required: false,
+      type: "radio",
+    },
+    {
+      id: "tracks",
+      label: "Interested tracks",
+      options: [
+        { label: "Web", value: "web" },
+        { label: "Mobile", value: "mobile" },
+      ],
+      required: false,
+      type: "multi_select",
     },
     { id: "reminders", label: "Send me reminders", required: false, type: "checkbox" },
     { id: "id_card", label: "Student ID card", maxFiles: 1, required: false, type: "image" },
@@ -410,14 +617,18 @@ describe("accessibility of a form using every control", () => {
   it("reports no axe violations with errors on screen", async () => {
     const { container } = renderDefinition(everyControl, {
       errors: {
+        attendance: "Please choose an option.",
         consent: "Please confirm this to continue.",
         email: "Please answer this question.",
         full_name: "Please answer this question.",
+        tracks: "Please choose at least one option.",
       },
     });
 
     // The failing state is the one nobody screenshots, so it is the one where a
     // dangling aria-describedby or an orphaned message would survive review.
+    // Both group controls fail here, because a repeated describedby is exactly
+    // the kind of thing that produces a dangling reference.
     const violations = await findAccessibilityViolations(container);
 
     expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
