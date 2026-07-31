@@ -164,7 +164,7 @@ describe("single choice answers", () => {
   it("rejects a value that is not one of the options", () => {
     expect(() =>
       validateFormAnswers(definitionOf(false), { attendance: "hybrid" })
-    ).toThrow(/invalid option/i);
+    ).toThrow(/listed options/i);
   });
 
   it("rejects an array, which is the multi_select shape", () => {
@@ -182,5 +182,73 @@ describe("single choice answers", () => {
 
   it("requires an answer when the question is required", () => {
     expect(() => validateFormAnswers(definitionOf(true), {})).toThrow(/required/i);
+  });
+});
+
+/**
+ * Task 2.3. The server enforces the shared rules, so its messages are the
+ * shared sentences with the field label prefixed — a banner has no field
+ * context, unlike the client, which renders beside a labelled control.
+ *
+ * Several of these were previously worse than the rule they enforced.
+ */
+describe("server messages name the field and say what to do", () => {
+  const definition = parseFormDefinition({
+    fields: [
+      { id: "email", label: "Email address", required: true, type: "email" },
+      { id: "guests", label: "Guests", max: 5, min: 1, required: false, type: "number" },
+      { id: "born_on", label: "Date of birth", required: false, type: "date" },
+      { id: "about", label: "About you", maxLength: 20, required: false, type: "textarea" },
+    ],
+    payment: { enabled: false },
+  });
+
+  const answers = (overrides: Record<string, unknown>) => ({
+    email: "member@example.test",
+    ...overrides,
+  });
+
+  it("reports a malformed address in words rather than as a ZodError", () => {
+    // This path used to be a bare z.string().email().parse(), whose thrown
+    // ZodError said "Invalid email" — the one message here not written for a
+    // person to read.
+    expect(() => validateFormAnswers(definition, answers({ email: "someone@localhost" }))).toThrow(
+      "Email address: Enter an email address in the form name@example.com."
+    );
+  });
+
+  it("names the bound rather than saying a bound exists", () => {
+    // Was "Guests is below the minimum", which did not say what the minimum was.
+    expect(() => validateFormAnswers(definition, answers({ guests: 0 }))).toThrow(
+      "Guests: Enter 1 or more."
+    );
+    expect(() => validateFormAnswers(definition, answers({ guests: 6 }))).toThrow(
+      "Guests: Enter 5 or less."
+    );
+  });
+
+  it("still stores a number inside the range", () => {
+    expect(validateFormAnswers(definition, answers({ guests: "3" })).guests).toBe(3);
+  });
+
+  it("names the length limit", () => {
+    // Was "About you is too long".
+    expect(() => validateFormAnswers(definition, answers({ about: "a".repeat(21) }))).toThrow(
+      "About you: Shorten this to 20 characters or fewer."
+    );
+  });
+
+  it("rejects a date that looks real and is not", () => {
+    expect(() => validateFormAnswers(definition, answers({ born_on: "2026-02-30" }))).toThrow(
+      /Date of birth: Enter a real date/
+    );
+  });
+
+  it("leaves requiredness phrased as it always was", () => {
+    // Requiredness is not a shared rule, so its message is unchanged and
+    // deliberately reads differently from the rest.
+    expect(() => validateFormAnswers(definition, { email: "" })).toThrow(
+      "Email address is required."
+    );
   });
 });
