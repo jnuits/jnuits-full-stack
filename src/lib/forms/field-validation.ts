@@ -3,7 +3,7 @@ import {
   type FormQuestionField,
   type RawAnswerValue,
 } from "@/lib/forms/answer-rules";
-import type { FormDefinition, FormField } from "@/lib/forms/definition";
+import type { FormDefinition } from "@/lib/forms/definition";
 
 /**
  * Client-side field validation messages for the public form. Tasks 2.1 and 2.3.
@@ -256,7 +256,3 @@ export function firstFieldWithError(
 
   return null;
 }
-
-// Re-exported so callers that only need the field union do not have to know
-// which module defines it.
-export type { FormField };
