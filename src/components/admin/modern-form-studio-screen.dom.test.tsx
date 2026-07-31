@@ -58,6 +58,8 @@ async function renderStudio(items: FormInventoryItem[] = []) {
 }
 
 const helpTextInputs = () => screen.getAllByLabelText("Help text");
+const questionTypeInputs = () => screen.getAllByLabelText("Question type");
+const choiceInputs = () => screen.getAllByLabelText("Choices, one per line");
 const previewRegion = () => screen.getByRole("region", { name: "Form preview" });
 
 afterEach(() => {
@@ -68,7 +70,7 @@ describe("authoring help text in the Form Studio", () => {
   it("offers an exactly labelled, described input on every question", async () => {
     await renderStudio();
 
-    expect(helpTextInputs()).toHaveLength(screen.getAllByLabelText("Question type").length);
+    expect(helpTextInputs()).toHaveLength(questionTypeInputs().length);
     expect(helpTextInputs()[0]).toHaveAccessibleName("Help text");
     expect(helpTextInputs()[0]).toHaveAccessibleDescription(
       /Up to 500 characters.*0 \/ 500 characters/
@@ -83,10 +85,10 @@ describe("authoring help text in the Form Studio", () => {
     const guidance = "This guidance must not become hidden.";
 
     await user.type(helpTextInputs()[0], guidance);
-    await user.selectOptions(screen.getAllByLabelText("Question type")[0], "section");
+    await user.selectOptions(questionTypeInputs()[0], "section");
     await user.click(screen.getByRole("button", { name: /Preview/ }));
 
-    expect(helpTextInputs()).toHaveLength(screen.getAllByLabelText("Question type").length - 1);
+    expect(helpTextInputs()).toHaveLength(questionTypeInputs().length - 1);
     expect(within(previewRegion()).queryByText(guidance)).toBeNull();
   });
 
@@ -138,6 +140,98 @@ describe("authoring help text in the Form Studio", () => {
   it("loads the inventory and asks for nothing else", async () => {
     const { stub } = await renderStudio();
     expect(stub.calls).toEqual([INVENTORY_ENDPOINT]);
+  });
+});
+
+/**
+ * Tasks 3.2 and 3.3.
+ *
+ * Every assertion here reads the respondent preview rather than editor state.
+ * The preview renders the real `FormFieldControls`, so it is the only thing
+ * that proves the type reached the page instead of merely reaching the
+ * serialiser.
+ */
+describe("authoring choice questions in the Form Studio", () => {
+  it("offers Single choice, and gives it the choices input a dropdown has", async () => {
+    const { user } = await renderStudio();
+
+    // A count, not an existence check. The starter membership form already
+    // ships one dropdown (Batch), so a choice type the serialiser understands
+    // but the editor gives no options box to would leave this at one -- and
+    // would surface as a Zod error at save time, far from its cause.
+    expect(choiceInputs()).toHaveLength(1);
+
+    await user.selectOptions(questionTypeInputs()[0], "radio");
+
+    expect(choiceInputs()).toHaveLength(2);
+  });
+
+  it("renders real radios in the respondent preview", async () => {
+    const { user } = await renderStudio();
+
+    await user.selectOptions(questionTypeInputs()[0], "radio");
+    fireEvent.change(choiceInputs()[0], { target: { value: "In person\nOnline" } });
+    await user.click(screen.getByRole("button", { name: /Preview/ }));
+
+    const group = within(previewRegion()).getByRole("group", { name: /Full name/ });
+
+    expect(within(group).getAllByRole("radio")).toHaveLength(2);
+    expect(within(group).getByRole("radio", { name: "In person" })).toBeDisabled();
+  });
+
+  it("renders the checkbox group the Studio has always claimed to offer", async () => {
+    const { user } = await renderStudio();
+
+    await user.selectOptions(questionTypeInputs()[0], "multi_select");
+    fireEvent.change(choiceInputs()[0], { target: { value: "Web\nMobile" } });
+    await user.click(screen.getByRole("button", { name: /Preview/ }));
+
+    // "Checkbox choices" is the label this type has carried since it shipped.
+    // Until task 3.3 the preview showed a list box underneath it.
+    const group = within(previewRegion()).getByRole("group", { name: /Full name/ });
+
+    expect(within(group).getAllByRole("checkbox")).toHaveLength(2);
+    expect(within(previewRegion()).queryByRole("listbox")).toBeNull();
+  });
+
+  it("explains an unfinished choice question instead of previewing it", async () => {
+    const { user } = await renderStudio();
+
+    await user.selectOptions(questionTypeInputs()[0], "radio");
+    await user.click(screen.getByRole("button", { name: /Preview/ }));
+
+    // The preview is built through the real conversion, so a question with no
+    // options fails here rather than at save time.
+    expect(within(previewRegion()).getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("keeps help text working on a choice question", async () => {
+    const { user } = await renderStudio();
+
+    await user.selectOptions(questionTypeInputs()[0], "radio");
+    fireEvent.change(choiceInputs()[0], { target: { value: "In person\nOnline" } });
+    await user.type(helpTextInputs()[0], "Pick the one you would attend.");
+    await user.click(screen.getByRole("button", { name: /Preview/ }));
+
+    // Task 3.1 associates help text with a control. A group has several, so the
+    // description has to reach each of them.
+    for (const radio of within(previewRegion()).getAllByRole("radio")) {
+      expect(radio).toHaveAccessibleDescription("Pick the one you would attend.");
+    }
+  });
+
+  it("has no axe violations previewing both choice controls", async () => {
+    const { container, user } = await renderStudio();
+
+    await user.selectOptions(questionTypeInputs()[0], "radio");
+    fireEvent.change(choiceInputs()[0], { target: { value: "In person\nOnline" } });
+    await user.selectOptions(questionTypeInputs()[1], "multi_select");
+    fireEvent.change(choiceInputs()[1], { target: { value: "Web\nMobile" } });
+    await user.click(screen.getByRole("button", { name: /Preview/ }));
+
+    const violations = await findAccessibilityViolations(container);
+
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
   });
 });
 
