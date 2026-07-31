@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import {
+  checkAnswerRule,
+  isRealIsoDate,
+  tooLongMessage,
+  type FormQuestionField,
+} from "@/lib/forms/answer-rules";
+
 export const FORM_KINDS = [
   "event_registration",
   "membership_application",
@@ -225,6 +232,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * A shared rule failure, phrased for a top-level banner. Task 2.3.
+ *
+ * The rules in `answer-rules.ts` carry no field label, because the client
+ * renders them beside a control whose label has just been announced. Here there
+ * is no such context, so the label is prefixed.
+ */
+function assertAnswerRule(field: FormQuestionField, value: boolean | string | string[]) {
+  const failure = checkAnswerRule(field, value);
+
+  if (failure) {
+    throw new Error(`${field.label}: ${failure}`);
+  }
+}
+
 function requiredValue(field: FormField, value: unknown) {
   if (value === undefined || value === null || value === "") {
     if ("required" in field && field.required) {
@@ -257,7 +279,9 @@ function parseString(field: FormField, value: unknown, maxLength?: number) {
   }
 
   if (maxLength !== undefined && normalized.length > maxLength) {
-    throw new Error(`${field.label} is too long.`);
+    // Message shared with the client, which shows the same limit inline rather
+    // than the old "is too long", which never said what the limit was.
+    throw new Error(`${field.label}: ${tooLongMessage(maxLength)}`);
   }
 
   return normalized;
@@ -269,19 +293,10 @@ function parseIsoDate(field: FormField, value: unknown) {
     return undefined;
   }
 
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (!match) {
-    throw new Error(`${field.label} must be a valid date.`);
-  }
-
-  const [year, month, day] = match.slice(1).map(Number);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-
-  if (
-    parsed.getUTCFullYear() !== year ||
-    parsed.getUTCMonth() !== month - 1 ||
-    parsed.getUTCDate() !== day
-  ) {
+  // Shape and calendar reality in one shared check: the regex alone accepts
+  // 2026-02-30.
+  if (!isRealIsoDate(date)) {
+    assertAnswerRule(field as FormQuestionField, date);
     throw new Error(`${field.label} must be a valid date.`);
   }
 
@@ -294,9 +309,7 @@ function parseChoice(field: Extract<FormField, { options: unknown }>, value: unk
     return undefined;
   }
 
-  if (!field.options.some((option) => option.value === choice)) {
-    throw new Error(`${field.label} has an invalid option.`);
-  }
+  assertAnswerRule(field, choice);
 
   return choice;
 }
@@ -323,13 +336,7 @@ function parseMultiChoice(
     return undefined;
   }
 
-  if (new Set(choices).size !== choices.length) {
-    throw new Error(`${field.label} contains duplicate options.`);
-  }
-
-  if (choices.some((choice) => !field.options.some((option) => option.value === choice))) {
-    throw new Error(`${field.label} has an invalid option.`);
-  }
+  assertAnswerRule(field, choices);
 
   return choices;
 }
@@ -393,7 +400,15 @@ export function validateFormAnswers(
         break;
       case "email": {
         const email = parseString(field, value);
-        parsed = email === undefined ? undefined : z.string().email().parse(email).toLowerCase();
+        if (email === undefined) {
+          parsed = undefined;
+          break;
+        }
+
+        // Was a bare `z.string().email().parse(...)`, whose ZodError was the one
+        // message on this path not written for a human to read.
+        assertAnswerRule(field, email);
+        parsed = email.toLowerCase();
         break;
       }
       case "number": {
@@ -403,18 +418,10 @@ export function validateFormAnswers(
           break;
         }
 
-        const numeric =
-          typeof numberValue === "number" ? numberValue : Number(String(numberValue).trim());
-        if (!Number.isFinite(numeric)) {
-          throw new Error(`${field.label} must be a number.`);
-        }
-        if (field.min !== undefined && numeric < field.min) {
-          throw new Error(`${field.label} is below the minimum.`);
-        }
-        if (field.max !== undefined && numeric > field.max) {
-          throw new Error(`${field.label} exceeds the maximum.`);
-        }
-        parsed = numeric;
+        // Rule first, then coerce: the rule owns "is this acceptable" and this
+        // switch owns "what gets stored".
+        assertAnswerRule(field, String(numberValue).trim());
+        parsed = Number(String(numberValue).trim());
         break;
       }
       case "date":
