@@ -174,6 +174,16 @@ describe("collecting field errors from a group of controls", () => {
       { id: "tracks", label: "Interested tracks", options: TRACK_OPTIONS, required, type: "multi_select" },
     ]);
 
+  function check(form: HTMLFormElement, value: string) {
+    const control = form.querySelector(`[value="${value}"]`);
+
+    if (!(control instanceof HTMLInputElement)) {
+      throw new Error(`The fixture has no control valued "${value}".`);
+    }
+
+    control.checked = true;
+  }
+
   it("reports one message for a required radio group with nothing selected", () => {
     // Native validity already means "exactly one of these", so this arrives
     // through checkValidity rather than through the cardinality branch. One
@@ -185,18 +195,22 @@ describe("collecting field errors from a group of controls", () => {
 
   it("reports nothing once a radio in the group is selected", () => {
     const form = radioForm();
-    form.querySelector<HTMLInputElement>('[value="mobile"]')!.checked = true;
+    check(form, "mobile");
 
     expect(collectNativeFieldErrors(form, radioDefinition(true))).toEqual({});
   });
 
   it("reports a required checkbox group with nothing ticked, which the browser will not", () => {
-    // The members carry no `required` attribute, because on a checkbox that
-    // would demand every box. Constraint validation therefore reports nothing
-    // and this rule has to be ours.
     const form = checkboxForm();
+    const controls = resolveValidatableControls(form.elements.namedItem("tracks"));
 
-    expect(form.querySelectorAll(":invalid")).toHaveLength(0);
+    // The members carry no `required` attribute, because on a checkbox that
+    // would demand every box. Constraint validation therefore reports nothing,
+    // which is asserted here rather than assumed: it is the entire reason the
+    // cardinality rule has to live in our code.
+    expect(controls).toHaveLength(2);
+    expect(controls.every((control) => control.checkValidity())).toBe(true);
+
     expect(collectNativeFieldErrors(form, checkboxDefinition(true))).toEqual({
       tracks: "Please choose at least one option.",
     });
@@ -204,7 +218,7 @@ describe("collecting field errors from a group of controls", () => {
 
   it("reports nothing once one box is ticked, not once per unticked box", () => {
     const form = checkboxForm();
-    form.querySelector<HTMLInputElement>('[value="web"]')!.checked = true;
+    check(form, "web");
 
     expect(collectNativeFieldErrors(form, checkboxDefinition(true))).toEqual({});
   });
@@ -219,7 +233,8 @@ describe("collecting field errors from a group of controls", () => {
     const radioErrors = collectNativeFieldErrors(radioForm(), radioDefinition(true));
     const checkboxErrors = collectNativeFieldErrors(checkboxForm(), checkboxDefinition(true));
 
-    expect(radioErrors.track).not.toBe(checkboxErrors.tracks);
+    expect(radioErrors.track).toBe("Please choose an option.");
+    expect(checkboxErrors.tracks).toBe("Please choose at least one option.");
   });
 });
 
