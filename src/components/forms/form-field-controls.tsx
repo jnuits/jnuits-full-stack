@@ -56,13 +56,6 @@ const TEXTAREA_CLASS = `${FIELD_BASE_CLASS} min-h-32 resize-y px-3 py-3`;
 const SELECT_CLASS = `${FIELD_BASE_CLASS} h-12 px-3`;
 
 /**
- * `multi_select` sets `size`, so its height is the option count. A fixed `h-12`
- * would crop the list to a single row and remove the whole point of rendering
- * it as a list box.
- */
-const MULTI_SELECT_CLASS = `${FIELD_BASE_CLASS} px-3 py-2`;
-
-/**
  * The visible part of a file input is the browser's own button, which no class
  * on the input element can reach. `file:` targets `::file-selector-button`.
  *
@@ -94,6 +87,15 @@ const SECTION_CLASS = "rounded-xl border border-border bg-muted/30 p-5";
 
 /** A checkbox is one tappable row, so the whole row gets the surface. */
 const CHECKBOX_ROW_CLASS = "rounded-xl border border-border bg-muted/30 px-4 py-3";
+
+/**
+ * A choice group is a stack of those same rows. Tasks 3.2 and 3.3.
+ *
+ * Composed from `CHECKBOX_ROW_CLASS` rather than restating it, so a single
+ * checkbox and one option of a group cannot drift into two different surfaces.
+ */
+const CHOICE_GROUP_CLASS = "grid gap-2";
+const CHOICE_ROW_CLASS = `${CHECKBOX_ROW_CLASS} flex cursor-pointer items-start gap-3`;
 
 function controlName(field: FormField, preview: boolean | undefined) {
   return preview ? undefined : field.id;
@@ -205,6 +207,19 @@ export function RequiredMarker() {
   );
 }
 
+/**
+ * The caption text shared by a single control's `<label>` and a group's
+ * `<legend>`, so the required marker cannot appear on one and not the other.
+ */
+function FieldCaption({ field }: { field: Exclude<FormField, { type: "section" }> }) {
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-1">
+      {field.label}
+      {field.required ? <RequiredMarker /> : null}
+    </span>
+  );
+}
+
 export function FieldLabel({
   field,
   inputId,
@@ -214,10 +229,7 @@ export function FieldLabel({
 }) {
   return (
     <label className={LABEL_CLASS} htmlFor={inputId}>
-      <span className="inline-flex flex-wrap items-baseline gap-1">
-        {field.label}
-        {field.required ? <RequiredMarker /> : null}
-      </span>
+      <FieldCaption field={field} />
     </label>
   );
 }
@@ -280,11 +292,10 @@ function SelectField({
   preview,
 }: {
   error?: string;
-  field: Extract<FormField, { type: "multi_select" | "select" }>;
+  field: Extract<FormField, { type: "select" }>;
   inputId: string;
   preview?: boolean;
 }) {
-  const multiple = field.type === "multi_select";
   const { errorId, helpId } = fieldDescriptionIds({ error, field, inputId });
   const invalid = Boolean(error);
 
@@ -294,15 +305,13 @@ function SelectField({
       <select
         aria-describedby={describedBy(errorId, helpId)}
         aria-invalid={invalid || undefined}
-        className={fieldClass(multiple ? MULTI_SELECT_CLASS : SELECT_CLASS, invalid)}
+        className={fieldClass(SELECT_CLASS, invalid)}
         disabled={preview}
         id={inputId}
-        multiple={multiple}
         name={controlName(field, preview)}
         required={!preview && field.required}
-        size={multiple ? Math.min(Math.max(field.options.length, 3), 6) : undefined}
       >
-        {!multiple ? <option value="">Choose an option</option> : null}
+        <option value="">Choose an option</option>
         {field.options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -312,6 +321,100 @@ function SelectField({
       <FieldError id={errorId} message={error} />
       <FieldHelp field={field} id={helpId} />
     </div>
+  );
+}
+
+/**
+ * A radio group or a checkbox group. Tasks 3.2 and 3.3.
+ *
+ * One component for both, because they differ in exactly two ways -- the input
+ * type and where the "required" rule is enforced -- and everything else about
+ * them is the same problem. Two components would be two places to get the
+ * grouping semantics right.
+ *
+ * `multi_select` previously rendered as `select multiple`, which the Studio has
+ * always called "Checkbox choices". Beyond the label disagreeing with the
+ * control, a list box is the wrong widget for a public form: selecting more
+ * than one needs a modifier key, its selection model is invisible to anyone who
+ * has not met one before, and on a touch device it is close to unusable.
+ *
+ * Accessibility notes, each one load-bearing:
+ *
+ *   - `fieldset` and `legend` carry the group's name. The required marker lives
+ *     in the legend, so it is announced once for the group rather than once per
+ *     option.
+ *   - `aria-describedby` is repeated on every member instead of sitting on the
+ *     fieldset. Description support on a group container is inconsistent, and
+ *     the error has to be heard wherever focus lands. Same trade as the
+ *     `describedby` over `aria-errormessage` decision in task 2.1: the
+ *     spec-tidier option is the less widely announced one.
+ *   - `required` goes on radio members only. On a checkbox it means *that* box
+ *     must be ticked, which would demand every option; the "at least one" rule
+ *     for a checkbox group lives in `collectNativeFieldErrors`.
+ *   - `value` is explicit. A native checkbox with no `value` submits the string
+ *     "on", which would store "on" instead of the option value and fail
+ *     server-side validation with a message about an invalid option.
+ *   - Keyboard behaviour is entirely native: arrows within a radio group, Space
+ *     to toggle a checkbox, Tab in and out. Nothing here handles a key event,
+ *     so there is nothing here to get wrong.
+ */
+function ChoiceGroupField({
+  error,
+  field,
+  inputId,
+  preview,
+}: {
+  error?: string;
+  field: Extract<FormField, { type: "multi_select" | "radio" }>;
+  inputId: string;
+  preview?: boolean;
+}) {
+  const single = field.type === "radio";
+  const { errorId, helpId } = fieldDescriptionIds({ error, field, inputId });
+  const described = describedBy(errorId, helpId);
+  const invalid = Boolean(error);
+
+  return (
+    <fieldset>
+      <legend className={LABEL_CLASS}>
+        <FieldCaption field={field} />
+      </legend>
+      <div className={CHOICE_GROUP_CLASS}>
+        {field.options.map((option, index) => {
+          /*
+           * The first option carries the group's canonical id.
+           *
+           * The failed-submit focus effect in `public-form-screen.tsx` looks up
+           * `${idPrefix}-${field.id}` and focuses it. A fieldset is not
+           * focusable, so without this a failing group would be reported and
+           * then never focused, silently losing half of task 2.2 for exactly
+           * the controls most likely to be missed. Focusing the first member is
+           * also what a browser does when a radio group takes focus with
+           * nothing selected.
+           */
+          const optionId = index === 0 ? inputId : `${inputId}-${option.value}`;
+
+          return (
+            <label className={CHOICE_ROW_CLASS} htmlFor={optionId} key={option.value}>
+              <input
+                aria-describedby={described}
+                aria-invalid={invalid || undefined}
+                className="mt-1 size-4 accent-primary"
+                disabled={preview}
+                id={optionId}
+                name={controlName(field, preview)}
+                required={single && !preview && field.required}
+                type={single ? "radio" : "checkbox"}
+                value={option.value}
+              />
+              <span className="text-sm font-medium leading-6 text-foreground">{option.label}</span>
+            </label>
+          );
+        })}
+      </div>
+      <FieldError id={errorId} message={error} />
+      <FieldHelp field={field} id={helpId} />
+    </fieldset>
   );
 }
 
@@ -349,8 +452,12 @@ export function FormFieldControl({
     return <TextField error={fieldError} field={field} inputId={inputId} preview={preview} />;
   }
 
-  if (field.type === "select" || field.type === "multi_select") {
+  if (field.type === "select") {
     return <SelectField error={fieldError} field={field} inputId={inputId} preview={preview} />;
+  }
+
+  if (field.type === "radio" || field.type === "multi_select") {
+    return <ChoiceGroupField error={fieldError} field={field} inputId={inputId} preview={preview} />;
   }
 
   if (field.type === "number" || field.type === "date") {
