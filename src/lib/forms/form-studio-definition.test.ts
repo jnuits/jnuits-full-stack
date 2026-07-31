@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFormDefinition } from "@/lib/forms/definition";
+import { parseFormDefinition, type FormField } from "@/lib/forms/definition";
 import {
   createStudioEditorKey,
   createUniqueStudioFieldId,
@@ -280,6 +280,8 @@ describe("Form Studio help text", () => {
  * than named individually. These assertions exist to keep that true.
  */
 describe("Form Studio single choice conversion", () => {
+  const optionsOf = (field: FormField) => ("options" in field ? field.options : []);
+
   const attendance = (type: "multi_select" | "radio" | "select") =>
     editorField({
       id: "attendance",
@@ -305,12 +307,13 @@ describe("Form Studio single choice conversion", () => {
   it("derives the same options a dropdown and a checkbox group would", () => {
     // One branch serves all three. If a future change gives one of them its own
     // path, this is what notices.
-    const asRadio = studioFieldsToDefinition([attendance("radio")]).fields[0];
-    const asSelect = studioFieldsToDefinition([attendance("select")]).fields[0];
-    const asGroup = studioFieldsToDefinition([attendance("multi_select")]).fields[0];
+    const asSelect = optionsOf(studioFieldsToDefinition([attendance("select")]).fields[0]);
 
-    expect(asRadio).toMatchObject({ options: asSelect.type === "select" ? asSelect.options : [] });
-    expect(asGroup).toMatchObject({ options: asSelect.type === "select" ? asSelect.options : [] });
+    expect(optionsOf(studioFieldsToDefinition([attendance("radio")]).fields[0])).toEqual(asSelect);
+    expect(optionsOf(studioFieldsToDefinition([attendance("multi_select")]).fields[0])).toEqual(
+      asSelect
+    );
+    expect(asSelect).toHaveLength(2);
   });
 
   it("rejects a single choice question with no options rather than publishing an empty one", () => {
