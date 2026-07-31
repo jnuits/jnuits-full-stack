@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CharacterLimitCounter } from "@/components/admin/character-limit-counter";
 import { FieldWithHint } from "@/components/admin/field-with-hint";
 import { FormFieldControls } from "@/components/forms/form-field-controls";
-import { FormDefinitionSchema, type FormDefinition } from "@/lib/forms/definition";
+import { FormDefinitionSchema, isChoiceFieldType, type FormDefinition } from "@/lib/forms/definition";
 import {
   createStudioEditorKey,
   createUniqueStudioFieldId,
@@ -68,6 +68,14 @@ const LIFECYCLE_LABELS: Record<FormInventoryItem["lifecycle"], string> = {
   published: "Published",
 };
 
+/**
+ * Operator-facing question types.
+ *
+ * "Single choice" rather than "Radio buttons": the operator is choosing what a
+ * respondent may answer, not naming a widget. It sits beside "Dropdown" because
+ * the two produce the same stored answer and the choice between them is purely
+ * presentational.
+ */
 const TYPES: Record<StudioFieldType, string> = {
   section: "Section heading",
   text: "Short answer",
@@ -77,6 +85,7 @@ const TYPES: Record<StudioFieldType, string> = {
   number: "Number",
   date: "Date",
   select: "Dropdown",
+  radio: "Single choice",
   multi_select: "Checkbox choices",
   checkbox: "Checkbox",
   consent: "Required consent",
@@ -477,7 +486,7 @@ export function ModernFormStudioScreen() {
   preserveSectionHelpText: event.target.value === "section" ? false : field.preserveSectionHelpText,
   required: event.target.value === "consent" || field.required,
   type: event.target.value as StudioFieldType,
-})}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{!HELP_TEXT_UNSUPPORTED_TYPES.includes(field.type) ? <FieldWithHint className="mt-3 block" controlId={`form-studio-help-${field.editorKey}`} hint={<>Optional. Shown under the question and read out with it. Up to {STUDIO_HELP_TEXT_MAX_LENGTH} characters.</>} label="Help text">{(hintId) => <><textarea aria-describedby={`${hintId} form-studio-help-${field.editorKey}-counter`} id={`form-studio-help-${field.editorKey}`} maxLength={STUDIO_HELP_TEXT_MAX_LENGTH} rows={2} value={field.helpText ?? ""} onChange={(event) => updateField(index, { helpText: event.target.value, preserveSectionHelpText: false })} /><CharacterLimitCounter current={(field.helpText ?? "").length} id={`form-studio-help-${field.editorKey}-counter`} maximum={STUDIO_HELP_TEXT_MAX_LENGTH} /></>}</FieldWithHint> : null}{["select", "multi_select"].includes(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
+})}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{!HELP_TEXT_UNSUPPORTED_TYPES.includes(field.type) ? <FieldWithHint className="mt-3 block" controlId={`form-studio-help-${field.editorKey}`} hint={<>Optional. Shown under the question and read out with it. Up to {STUDIO_HELP_TEXT_MAX_LENGTH} characters.</>} label="Help text">{(hintId) => <><textarea aria-describedby={`${hintId} form-studio-help-${field.editorKey}-counter`} id={`form-studio-help-${field.editorKey}`} maxLength={STUDIO_HELP_TEXT_MAX_LENGTH} rows={2} value={field.helpText ?? ""} onChange={(event) => updateField(index, { helpText: event.target.value, preserveSectionHelpText: false })} /><CharacterLimitCounter current={(field.helpText ?? "").length} id={`form-studio-help-${field.editorKey}-counter`} maximum={STUDIO_HELP_TEXT_MAX_LENGTH} /></>}</FieldWithHint> : null}{isChoiceFieldType(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
         {preview ? (
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-5" aria-label="Form preview">
             <p className="admin-section-label">Respondent preview</p>
