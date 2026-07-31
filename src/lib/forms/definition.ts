@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import {
   checkAnswerRule,
-  isRealIsoDate,
   tooLongMessage,
   type FormQuestionField,
 } from "@/lib/forms/answer-rules";
@@ -287,7 +286,7 @@ function parseString(field: FormField, value: unknown, maxLength?: number) {
   return normalized;
 }
 
-function parseIsoDate(field: FormField, value: unknown) {
+function parseIsoDate(field: Extract<FormField, { type: "date" }>, value: unknown) {
   const date = parseString(field, value);
   if (date === undefined) {
     return undefined;
@@ -295,10 +294,7 @@ function parseIsoDate(field: FormField, value: unknown) {
 
   // Shape and calendar reality in one shared check: the regex alone accepts
   // 2026-02-30.
-  if (!isRealIsoDate(date)) {
-    assertAnswerRule(field as FormQuestionField, date);
-    throw new Error(`${field.label} must be a valid date.`);
-  }
+  assertAnswerRule(field, date);
 
   return date;
 }
@@ -376,7 +372,7 @@ export function validateFormAnswers(
   }
 
   const fields = definition.fields.filter(
-    (field): field is Exclude<FormField, { type: "section" }> => field.type !== "section"
+    (field): field is FormQuestionField => field.type !== "section"
   );
   const fieldIds = new Set(fields.map((field) => field.id));
 
