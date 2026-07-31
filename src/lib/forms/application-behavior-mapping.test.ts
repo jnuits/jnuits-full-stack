@@ -12,7 +12,7 @@ import {
  */
 function membershipDefinition(batchType: FormFieldType) {
   const batch =
-    batchType === "select" || batchType === "multi_select"
+    batchType === "select" || batchType === "multi_select" || batchType === "radio"
       ? {
           id: "batch_label",
           label: "Batch",
@@ -53,6 +53,7 @@ describe("application detail mapping accepts any text-producing question", () =>
   const compatible: FormFieldType[] = [
     "date",
     "email",
+    "radio",
     "select",
     "telephone",
     "text",
@@ -67,6 +68,14 @@ describe("application detail mapping accepts any text-producing question", () =>
 
   it("accepts the dropdown that previously failed, by name", () => {
     expect(() => behaviorFor("select")).not.toThrow();
+  });
+
+  it("accepts a single choice question on the same grounds as a dropdown", () => {
+    // Task 3.2. `radio` is here because `validateFormAnswers` runs it through
+    // `parseChoice` exactly as it does `select`, not because someone remembered
+    // to add it. Excluding a new string-producing type would recreate the drift
+    // STRING_ANSWER_FIELD_TYPES was written to end.
+    expect(() => behaviorFor("radio")).not.toThrow();
   });
 });
 
@@ -93,7 +102,14 @@ describe("application detail mapping still rejects non-text answers", () => {
     // naming an internal key the operator never sees anywhere in the UI.
     expect(() => behaviorFor("number")).toThrow(/^Batch must map to/);
     expect(() => behaviorFor("number")).toThrow(/"Batch" is a number question/);
-    expect(() => behaviorFor("number")).toThrow(/short answer, paragraph, email, telephone, date, or dropdown/);
+    expect(() => behaviorFor("number")).toThrow(/short answer, paragraph, email, telephone, date, dropdown, or single choice/);
+  });
+
+  it("names the guidance in the Studio's own words, not the schema's", () => {
+    // "Single choice" is what the question type dropdown says. Naming the
+    // schema's `radio` would send an operator hunting for an option that is not
+    // written anywhere on the screen.
+    expect(() => behaviorFor("number")).toThrow(/single choice question\.$/);
   });
 
   it("reports a multi-word question type readably", () => {
@@ -159,7 +175,7 @@ describe("mapping failures that are not about type", () => {
   });
 });
 
-describe("a dropdown answer survives identity extraction", () => {
+describe("a choice answer survives identity extraction", () => {
   it("reads the selected option value as the batch label", () => {
     // Publish-time acceptance is only half the contract; the value has to
     // arrive intact at review time too.
@@ -171,5 +187,15 @@ describe("a dropdown answer survives identity extraction", () => {
 
     expect(identity.batchLabel).toBe("17th");
     expect(identity.email).toBe("member@example.test");
+  });
+
+  it("reads a single choice answer identically", () => {
+    const identity = extractApplicationIdentity(behaviorFor("radio"), {
+      batch_label: "17th",
+      email: "member@example.test",
+      full_name: "Test Member",
+    });
+
+    expect(identity.batchLabel).toBe("17th");
   });
 });

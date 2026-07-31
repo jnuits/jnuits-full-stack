@@ -25,6 +25,16 @@ function createDefinition() {
         type: "select",
       },
       {
+        id: "attendance",
+        label: "Attendance",
+        options: [
+          { label: "In person", value: "in_person" },
+          { label: "Online", value: "online" },
+        ],
+        required: false,
+        type: "radio",
+      },
+      {
         id: "interests",
         label: "Interests",
         options: [
@@ -56,6 +66,7 @@ describe("shared form definitions", () => {
       "number",
       "date",
       "select",
+      "radio",
       "multi_select",
       "checkbox",
       "consent",
@@ -86,6 +97,7 @@ describe("shared form definitions", () => {
     expect(
       validateFormAnswers(definition, {
         about: "  Student volunteer  ",
+        attendance: "in_person",
         birth_date: "2026-07-16",
         department: "cse",
         email: " REDWAN@EXAMPLE.TEST ",
@@ -100,6 +112,7 @@ describe("shared form definitions", () => {
       })
     ).toMatchObject({
       about: "Student volunteer",
+      attendance: "in_person",
       email: "redwan@example.test",
       full_name: "Redwan",
       guests: 2,
@@ -116,5 +129,58 @@ describe("shared form definitions", () => {
         unexpected: "not accepted",
       })
     ).toThrow(/consent|unexpected/i);
+  });
+});
+
+/**
+ * Task 3.2. A radio and a dropdown are the same stored contract, so these
+ * assertions exist to prove the two cannot drift apart: any rule below that a
+ * `select` would also satisfy is the point, not a coincidence.
+ */
+describe("single choice answers", () => {
+  const definitionOf = (required: boolean) =>
+    parseFormDefinition({
+      fields: [
+        {
+          id: "attendance",
+          label: "Attendance",
+          options: [
+            { label: "In person", value: "in_person" },
+            { label: "Online", value: "online" },
+          ],
+          required,
+          type: "radio",
+        },
+      ],
+      payment: { enabled: false },
+    });
+
+  it("stores one option value as a string", () => {
+    expect(validateFormAnswers(definitionOf(false), { attendance: "online" })).toEqual({
+      attendance: "online",
+    });
+  });
+
+  it("rejects a value that is not one of the options", () => {
+    expect(() =>
+      validateFormAnswers(definitionOf(false), { attendance: "hybrid" })
+    ).toThrow(/invalid option/i);
+  });
+
+  it("rejects an array, which is the multi_select shape", () => {
+    // Worth pinning: the two choice controls now look similar on the page, and
+    // a group posting an array under a single-choice field must not be
+    // silently coerced into its first element.
+    expect(() =>
+      validateFormAnswers(definitionOf(false), { attendance: ["online"] })
+    ).toThrow(/must be text/i);
+  });
+
+  it("omits an unanswered optional question rather than storing an empty string", () => {
+    expect(validateFormAnswers(definitionOf(false), {})).toEqual({});
+  });
+
+  it("requires an answer when the question is required", () => {
+    expect(() => validateFormAnswers(definitionOf(true), {})).toThrow(/required/i);
   });
 });
