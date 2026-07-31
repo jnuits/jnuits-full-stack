@@ -238,6 +238,128 @@ describe("collecting field errors from a group of controls", () => {
   });
 });
 
+/**
+ * Task 2.3, and the reason it is a second pass rather than a replacement.
+ *
+ * Every assertion here states the browser's verdict before the rule's. If a
+ * future jsdom or a future browser changes its mind about one of these, the
+ * failure should name the reason rather than looking as though the rule broke
+ * (finding 14.5: assert the thing, not only the outcome).
+ */
+describe("the shared rules, where constraint validation cannot reach", () => {
+  function control(form: HTMLFormElement, name: string) {
+    const found = form.elements.namedItem(name);
+
+    if (!(found instanceof HTMLInputElement)) {
+      throw new Error(`The fixture has no single control named "${name}".`);
+    }
+
+    return found;
+  }
+
+  it("catches an address the browser accepts and the server rejects", () => {
+    // Task 2.5. The HTML spec's email syntax permits a bare domain label, so
+    // `<input type="email">` is satisfied by someone@localhost while
+    // z.string().email() is not. That gap produced a clean submit followed by a
+    // top-level rejection naming no field.
+    const form = formWith('<input name="email" required type="email" value="someone@localhost" />');
+    const definition = definitionOf([
+      { id: "email", label: "Email address", required: true, type: "email" },
+    ]);
+
+    expect(control(form, "email").checkValidity()).toBe(true);
+    expect(collectNativeFieldErrors(form, definition)).toEqual({
+      email: "Enter an email address in the form name@example.com.",
+    });
+  });
+
+  it("leaves a well-formed address alone", () => {
+    const form = formWith('<input name="email" required type="email" value="member@example.test" />');
+    const definition = definitionOf([
+      { id: "email", label: "Email address", required: true, type: "email" },
+    ]);
+
+    expect(collectNativeFieldErrors(form, definition)).toEqual({});
+  });
+
+  it("defers to the browser on a number out of range, because that message is localised", () => {
+    const form = formWith('<input max="5" name="guests" type="number" value="6" />');
+    const definition = definitionOf([
+      { id: "guests", label: "Guests", max: 5, required: false, type: "number" },
+    ]);
+
+    // Task 2.7 surfaces the range as an affordance; it deliberately does not
+    // take over the message. Replacing localised native text with English would
+    // be a regression for a Bangla-locale respondent.
+    expect(control(form, "guests").validity.rangeOverflow).toBe(true);
+    expect(collectNativeFieldErrors(form, definition).guests).not.toBe("Enter 5 or less.");
+  });
+
+  it("reads the selected radio, not the first one", () => {
+    // A crafted or replayed value. Neither control can produce it by hand, but
+    // the server has always rejected it and now the client says so first.
+    const form = formWith(`
+      <input name="track" type="radio" value="web" />
+      <input checked name="track" type="radio" value="desktop" />
+    `);
+    const definition = definitionOf([
+      { id: "track", label: "Preferred track", options: TRACK_OPTIONS, required: false, type: "radio" },
+    ]);
+
+    expect(collectNativeFieldErrors(form, definition)).toEqual({
+      track: "Choose one of the listed options.",
+    });
+  });
+
+  it("reads every ticked box in a group", () => {
+    const form = formWith(`
+      <input checked name="tracks" type="checkbox" value="web" />
+      <input checked name="tracks" type="checkbox" value="desktop" />
+    `);
+    const definition = definitionOf([
+      { id: "tracks", label: "Interested tracks", options: TRACK_OPTIONS, required: false, type: "multi_select" },
+    ]);
+
+    expect(collectNativeFieldErrors(form, definition)).toEqual({
+      tracks: "Choose one of the listed options.",
+    });
+  });
+
+  it("never rule-checks a file control, whose value is a fake path", () => {
+    const form = formWith('<input name="cv" type="file" />');
+    const definition = definitionOf([
+      { id: "cv", label: "CV", maxFiles: 1, required: false, type: "pdf" },
+    ]);
+
+    // The real answer is an asset id that does not exist until the upload
+    // finishes, and the server checks those against the upload proof.
+    expect(collectNativeFieldErrors(form, definition)).toEqual({});
+  });
+
+  it("says nothing about an empty optional question", () => {
+    const form = formWith('<input name="email" type="email" value="" />');
+    const definition = definitionOf([
+      { id: "email", label: "Email address", required: false, type: "email" },
+    ]);
+
+    expect(collectNativeFieldErrors(form, definition)).toEqual({});
+  });
+
+  it("reports at most one message per field", () => {
+    // Both passes can have an opinion about the same control. The native one
+    // wins and the loop moves on, so a respondent never sees two messages
+    // stacked under one question.
+    const form = formWith('<input name="email" required type="email" value="" />');
+    const definition = definitionOf([
+      { id: "email", label: "Email address", required: true, type: "email" },
+    ]);
+
+    expect(collectNativeFieldErrors(form, definition)).toEqual({
+      email: "Please answer this question.",
+    });
+  });
+});
+
 describe("choosing the field to focus", () => {
   it("returns the earliest failing question in definition order", () => {
     const definition = definitionOf([
