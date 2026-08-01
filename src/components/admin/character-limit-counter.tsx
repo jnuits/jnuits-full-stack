@@ -1,12 +1,20 @@
-export type CharacterCounterTone = "danger" | "muted" | "warning";
+import {
+  characterCountAnnouncement,
+  characterCountLabel,
+  characterCounterTone,
+  type CharacterCounterTone,
+} from "@/lib/ui/character-limit";
 
-export function characterCounterTone(length: number, maximum: number): CharacterCounterTone {
-  const ratio = maximum > 0 ? length / maximum : 1;
-
-  if (ratio >= 0.95) return "danger";
-  if (ratio >= 0.8) return "warning";
-  return "muted";
-}
+/**
+ * The admin presentation of a character counter, on admin's own class family.
+ *
+ * The rule lives in `@/lib/ui/character-limit` and is shared with the public
+ * form's counter, which cannot use these classes: the public surface is on
+ * semantic tokens per 13.1c. Same behaviour, two skins, one implementation of
+ * the thresholds and the announcement.
+ */
+export type { CharacterCounterTone };
+export { characterCounterTone };
 
 export function CharacterLimitCounter({
   current,
@@ -18,12 +26,6 @@ export function CharacterLimitCounter({
   maximum: number;
 }) {
   const tone = characterCounterTone(current, maximum);
-  const announcement =
-    tone === "danger"
-      ? "Character limit nearly reached."
-      : tone === "warning"
-        ? `Approaching the ${maximum} character limit.`
-        : "";
 
   return (
     <>
@@ -31,10 +33,10 @@ export function CharacterLimitCounter({
         className={`notice-editor-counter notice-editor-counter--${tone}`}
         id={id}
       >
-        {current} / {maximum} characters
+        {characterCountLabel(current, maximum)}
       </small>
       <span aria-atomic="true" aria-live="polite" className="sr-only" role="status">
-        {announcement}
+        {characterCountAnnouncement(current, maximum)}
       </span>
     </>
   );
