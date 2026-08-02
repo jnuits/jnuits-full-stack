@@ -281,6 +281,19 @@ describe("a capped answer warns before the browser stops it", () => {
     expect(region).toBeEmptyDOMElement();
   });
 
+  it("syncs a browser-restored value when the control receives focus", () => {
+    renderDefinition([cappedField()]);
+
+    const control = screen.getByLabelText("About you") as HTMLTextAreaElement;
+    control.value = "a".repeat(95);
+    fireEvent.focus(control);
+
+    expect(control).toHaveAccessibleDescription("95 / 100 characters");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Character limit nearly reached."
+    );
+  });
+
   it("shows the count and announces it once the warning threshold is crossed", () => {
     renderDefinition([cappedField()]);
 

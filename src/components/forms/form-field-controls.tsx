@@ -321,6 +321,7 @@ function TextField({
           maxLength={maxLength}
           name={controlName(field, preview)}
           onChange={(event) => trackLength(event.currentTarget.value)}
+          onFocus={(event) => trackLength(event.currentTarget.value)}
           required={!preview && field.required}
         />
       ) : (
@@ -334,6 +335,7 @@ function TextField({
           maxLength={maxLength}
           name={controlName(field, preview)}
           onChange={(event) => trackLength(event.currentTarget.value)}
+          onFocus={(event) => trackLength(event.currentTarget.value)}
           required={!preview && field.required}
           type={inputType}
         />

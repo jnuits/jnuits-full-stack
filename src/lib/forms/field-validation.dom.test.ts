@@ -291,8 +291,13 @@ describe("the shared rules, where constraint validation cannot reach", () => {
     // Task 2.7 surfaces the range as an affordance; it deliberately does not
     // take over the message. Replacing localised native text with English would
     // be a regression for a Bangla-locale respondent.
-    expect(control(form, "guests").validity.rangeOverflow).toBe(true);
-    expect(collectNativeFieldErrors(form, definition).guests).not.toBe("Enter 5 or less.");
+    const guests = control(form, "guests");
+
+    expect(guests.validity.rangeOverflow).toBe(true);
+    expect(guests.validationMessage).not.toBe("");
+    expect(collectNativeFieldErrors(form, definition).guests).toBe(
+      guests.validationMessage
+    );
   });
 
   it("reads the selected radio, not the first one", () => {

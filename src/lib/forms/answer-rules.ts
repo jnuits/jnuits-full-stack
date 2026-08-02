@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 import type { FormField } from "@/lib/forms/definition";
 
 /**
@@ -47,7 +45,8 @@ export type RawAnswerValue = boolean | string | string[];
  * letting through addresses the server then rejected, so a respondent got a
  * clean submit and a top-level failure.
  */
-const emailSchema = z.string().email();
+const EMAIL_PATTERN =
+  /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/;
 
 const CHOICE_NOT_LISTED = "Choose one of the listed options.";
 
@@ -172,7 +171,7 @@ export function checkAnswerRule(
 
   switch (field.type) {
     case "email":
-      return emailSchema.safeParse(answer).success
+      return EMAIL_PATTERN.test(answer)
         ? undefined
         : "Enter an email address in the form name@example.com.";
     case "number":
