@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { FormFieldControls } from "@/components/forms/form-field-controls";
@@ -235,13 +235,122 @@ describe("a control is described by the text that explains it", () => {
 });
 
 /**
- * Task 2.7.
+ * Task 2.4.
  *
- * The schema has carried `min` and `max` from the start and this renderer has
- * always set both attributes, so the browser was already enforcing the range.
- * Nothing ever said what the range was, which is the part a respondent needs
- * *before* submitting rather than after.
+ * `maxLength` on an input is a hard stop: typing simply stops, with no
+ * explanation and no signal that it is coming. That is the same silent
+ * truncation #116 reported in the Studio, on the surface where the person
+ * hitting it did not choose the limit and cannot change it.
  */
+describe("a capped answer warns before the browser stops it", () => {
+  const cappedField = (overrides: Record<string, unknown> = {}) => ({
+    id: "about",
+    label: "About you",
+    maxLength: 100,
+    required: false,
+    type: "textarea",
+    ...overrides,
+  });
+
+  function typeInto(label: RegExp | string, length: number) {
+    const control = screen.getByLabelText(label);
+    fireEvent.change(control, { target: { value: "a".repeat(length) } });
+
+    return control;
+  }
+
+  it("stays silent while the limit is far away", () => {
+    renderDefinition([cappedField()]);
+
+    // `0 / 100` under every short answer is clutter that teaches nothing. The
+    // count earns its place once the hard stop stops being hypothetical.
+    expect(screen.getByLabelText("About you")).not.toHaveAccessibleDescription();
+    expect(screen.queryByText(/characters/)).toBeNull();
+  });
+
+  it("keeps the live region in the document while it is still empty", () => {
+    renderDefinition([cappedField()]);
+
+    // The #91 finding, applied. A region that arrives with its announcement
+    // already inside it may never be announced at all, because several screen
+    // readers report only mutations to a region that already existed. So the
+    // region mounts empty and fills later.
+    const region = screen.getByRole("status");
+
+    expect(region).toBeInTheDocument();
+    expect(region).toBeEmptyDOMElement();
+  });
+
+  it("shows the count and announces it once the warning threshold is crossed", () => {
+    renderDefinition([cappedField()]);
+
+    const control = typeInto("About you", 80);
+
+    expect(control).toHaveAccessibleDescription("80 / 100 characters");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Approaching the 100 character limit."
+    );
+  });
+
+  it("escalates as the limit gets close", () => {
+    renderDefinition([cappedField()]);
+
+    typeInto("About you", 95);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Character limit nearly reached.");
+  });
+
+  it("goes quiet again when the answer is shortened", () => {
+    renderDefinition([cappedField()]);
+
+    const control = typeInto("About you", 80);
+    fireEvent.change(control, { target: { value: "a".repeat(10) } });
+
+    // A message that outlives its cause is the defect task 2.1 fixed for errors.
+    expect(control).not.toHaveAccessibleDescription();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("announces the error first and the count after it", () => {
+    renderDefinition([cappedField()], { errors: { about: "Please answer this question." } });
+
+    const control = typeInto("About you", 80);
+
+    // Same ordering rule as the help text and the number range: what is wrong,
+    // then what is allowed.
+    expect(control).toHaveAccessibleDescription(
+      "Please answer this question. 80 / 100 characters"
+    );
+  });
+
+  it("counts a short answer and a telephone too, not only a paragraph", () => {
+    renderDefinition([
+      { id: "nickname", label: "Preferred name", maxLength: 10, required: false, type: "text" },
+      { id: "phone", label: "Phone number", maxLength: 10, required: false, type: "telephone" },
+    ]);
+
+    expect(typeInto("Preferred name", 9)).toHaveAccessibleDescription("9 / 10 characters");
+    expect(typeInto("Phone number", 9)).toHaveAccessibleDescription("9 / 10 characters");
+  });
+
+  it("never counts an email, which the schema does not cap", () => {
+    renderDefinition([
+      { id: "email", label: "Email address", required: true, type: "email" },
+    ]);
+
+    // No cap means no hard stop, so there is nothing to warn about and no
+    // region to mount.
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("never counts in the Studio preview, where nothing can be typed", () => {
+    renderDefinition([cappedField()], { preview: true });
+
+    expect(screen.getByLabelText("About you")).toBeDisabled();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
 describe("a number question states the range it accepts", () => {
   it("announces both bounds as the control's description", () => {
     renderDefinition([numberField({ max: 10, min: 1 })]);
@@ -276,7 +385,6 @@ describe("a number question states the range it accepts", () => {
       errors: { guests: "Enter 10 or less." },
     });
 
-    // Same ordering rule as the help text: what is wrong before what is allowed.
     expect(screen.getByLabelText("Guests")).toHaveAccessibleDescription(
       "Enter 10 or less. Enter a number between 1 and 10."
     );
@@ -692,7 +800,7 @@ describe("accessibility of a form using every control", () => {
     expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
   });
 
-  it("reports no axe violations with errors on screen", async () => {
+  it("reports no axe violations with errors and a count on screen", async () => {
     const { container } = renderDefinition(everyControl, {
       errors: {
         attendance: "Please choose an option.",
@@ -704,10 +812,14 @@ describe("accessibility of a form using every control", () => {
       },
     });
 
+    fireEvent.change(screen.getByLabelText("About you"), {
+      target: { value: "a".repeat(3_500) },
+    });
+
     // The failing state is the one nobody screenshots, so it is the one where a
     // dangling aria-describedby or an orphaned message would survive review.
-    // Both group controls fail here, because a repeated describedby is exactly
-    // the kind of thing that produces a dangling reference.
+    // Both group controls fail here, and one control carries a live count
+    // alongside its other descriptions.
     const violations = await findAccessibilityViolations(container);
 
     expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
