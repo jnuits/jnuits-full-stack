@@ -58,10 +58,11 @@ export const ANSWER_LENGTH_LIMITS = {
 } as const;
 
 export type LengthLimitedFieldType = keyof typeof ANSWER_LENGTH_LIMITS;
+export type AnswerLengthLimits = (typeof ANSWER_LENGTH_LIMITS)[LengthLimitedFieldType];
 
 export const HELP_TEXT_MAX_LENGTH = 500;
 
-function maxLengthSchema(limits: (typeof ANSWER_LENGTH_LIMITS)[LengthLimitedFieldType]) {
+function maxLengthSchema(limits: AnswerLengthLimits) {
   return z.number().int().min(limits.min).max(limits.max).default(limits.defaultValue);
 }
 
@@ -259,6 +260,18 @@ export function isLengthLimitedFieldType(
   type: FormFieldType
 ): type is LengthLimitedFieldType {
   return type in ANSWER_LENGTH_LIMITS;
+}
+
+/**
+ * The length bounds for a field type, or `null` when it has none.
+ *
+ * Returning the bounds rather than a boolean is what lets a caller render an
+ * input with the right `min` and `max` without repeating the table. The Studio
+ * needs exactly that, and a repeated bound would be a third source of truth for
+ * a number the schema already owns.
+ */
+export function answerLengthLimits(type: FormFieldType): AnswerLengthLimits | null {
+  return isLengthLimitedFieldType(type) ? ANSWER_LENGTH_LIMITS[type] : null;
 }
 
 export function parseFormDefinition(input: unknown): FormDefinition {
