@@ -175,14 +175,16 @@ function MaximumLengthField({
           id={controlId}
           max={limits.max}
           min={limits.min}
-          onChange={(event) =>
-            onChange(
-              Math.min(
-                limits.max,
-                Math.max(limits.min, Number(event.target.value) || limits.defaultValue)
-              )
-            )
-          }
+          onChange={(event) => {
+            const entered = Number(event.target.value);
+            const integer =
+              event.target.value === "" || !Number.isFinite(entered)
+                ? limits.defaultValue
+                : Math.trunc(entered);
+
+            onChange(Math.min(limits.max, Math.max(limits.min, integer)));
+          }}
+          step={1}
           type="number"
           value={field.maxLength ?? limits.defaultValue}
         />

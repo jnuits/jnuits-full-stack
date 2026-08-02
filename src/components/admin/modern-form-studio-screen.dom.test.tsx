@@ -58,6 +58,7 @@ async function renderStudio(items: FormInventoryItem[] = []) {
 }
 
 const helpTextInputs = () => screen.getAllByLabelText("Help text");
+const maximumLengthInputs = () => screen.getAllByLabelText("Maximum length");
 const questionTypeInputs = () => screen.getAllByLabelText("Question type");
 const choiceInputs = () => screen.getAllByLabelText("Choices, one per line");
 const previewRegion = () => screen.getByRole("region", { name: "Form preview" });
@@ -140,6 +141,25 @@ describe("authoring help text in the Form Studio", () => {
   it("loads the inventory and asks for nothing else", async () => {
     const { stub } = await renderStudio();
     expect(stub.calls).toEqual([INVENTORY_ENDPOINT]);
+  });
+});
+
+describe("authoring maximum answer length", () => {
+  it("normalizes a fractional cap to an integer the schema can publish", async () => {
+    const { user } = await renderStudio();
+    const input = maximumLengthInputs()[0];
+
+    fireEvent.change(input, { target: { value: "100.5" } });
+
+    expect(input).toHaveValue(100);
+    expect(input).toHaveAttribute("step", "1");
+
+    await user.click(screen.getByRole("button", { name: /Preview/ }));
+
+    expect(within(previewRegion()).queryByRole("alert")).toBeNull();
+    expect(
+      within(previewRegion()).getByRole("textbox", { name: /Full name/ })
+    ).toHaveAttribute("maxlength", "100");
   });
 });
 
