@@ -413,7 +413,10 @@ function ChoiceGroupField({
            * also what a browser does when a radio group takes focus with
            * nothing selected.
            */
-          const optionId = index === 0 ? inputId : `${inputId}-${option.value}`;
+          // IDs describe document structure, not submitted data. Option values
+          // may contain whitespace or punctuation in stored definitions, so
+          // interpolating one here can produce a non-conforming HTML id.
+          const optionId = index === 0 ? inputId : `${inputId}-option-${index + 1}`;
 
           return (
             <label className={CHOICE_ROW_CLASS} htmlFor={optionId} key={option.value}>
