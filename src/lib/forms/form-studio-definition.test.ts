@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFormDefinition, type FormField } from "@/lib/forms/definition";
+import {
+  ANSWER_LENGTH_LIMITS,
+  HELP_TEXT_MAX_LENGTH,
+  parseFormDefinition,
+  type FormField,
+} from "@/lib/forms/definition";
 import {
   createStudioEditorKey,
   createUniqueStudioFieldId,
@@ -164,7 +169,10 @@ describe("Form Studio definition conversion", () => {
       payment: { enabled: false },
     }));
     expect(fields.map(withoutEditorKey)).toEqual([
-      { id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" },
+      // `maxLength` appears without ever having been written: the stored
+      // definition omitted it, the schema defaulted it, and the editor now shows
+      // the real cap rather than a blank box implying there is none.
+      { id: "full_name", label: "Full name", maxLength: 160, optionsText: "", required: true, type: "text" },
       { id: "track", label: "Track", optionsText: "Web\nMobile", required: true, type: "select" },
       { id: "portfolio", label: "Portfolio", maxFiles: 1, optionsText: "", required: false, type: "pdf" },
     ]);
@@ -260,16 +268,17 @@ describe("Form Studio help text", () => {
     expect(duplicate.helpText).toBe(source.helpText);
   });
 
-  it("pins the authoring cap to the schema's own limit", () => {
+  it("advertises exactly the cap the schema enforces", () => {
     const atLimit = "a".repeat(STUDIO_HELP_TEXT_MAX_LENGTH);
     const field = (helpText: string) =>
       editorField({ helpText, id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" });
 
+    // The Studio's cap is no longer a second literal -- it is re-exported from
+    // the schema's own constant, so the two cannot disagree. This is no longer
+    // a drift guard; it is the narrower claim that the number the input
+    // advertises is the number a save is actually checked against.
+    expect(STUDIO_HELP_TEXT_MAX_LENGTH).toBe(HELP_TEXT_MAX_LENGTH);
     expect(studioFieldsToDefinition([field(atLimit)]).fields[0].helpText).toBe(atLimit);
-
-    // The other end of the same cap. If `helpTextSchema` moves, one of these two
-    // fails, which is the only thing keeping the input's maxLength from quietly
-    // disagreeing with what can actually be saved.
     expect(() => studioFieldsToDefinition([field(`${atLimit}a`)])).toThrow();
   });
 });
@@ -366,5 +375,86 @@ describe("Form Studio single choice conversion", () => {
     expect(duplicate.optionsText).toBe("In person\nOnline");
     expect(duplicate.type).toBe("radio");
     expect(duplicate.id).toBe("attendance_2");
+  });
+});
+
+/**
+ * Task 2.4. `maxLength` was in the schema from the beginning and unauthorable
+ * the whole time, so every short answer silently carried 160 characters and
+ * every paragraph 4 000 whether the author wanted a cap or not.
+ */
+describe("Form Studio answer length", () => {
+  const question = (type: "telephone" | "text" | "textarea", maxLength?: number) =>
+    editorField({ id: "about", label: "About you", maxLength, optionsText: "", required: false, type });
+
+  it("carries an authored cap into the schema", () => {
+    expect(studioFieldsToDefinition([question("textarea", 500)]).fields[0]).toMatchObject({
+      maxLength: 500,
+      type: "textarea",
+    });
+  });
+
+  it.each([
+    ["telephone", 32],
+    ["text", 160],
+    ["textarea", 4_000],
+  ] as const)("states the default cap for an unauthored %s", (type, expected) => {
+    // Stated rather than omitted. A published definition that says nothing about
+    // its cap reads back into a blank input, and a blank input reads as "no
+    // limit" to an operator who never set one.
+    expect(studioFieldsToDefinition([question(type)]).fields[0]).toMatchObject({
+      maxLength: expected,
+    });
+  });
+
+  it("matches the schema's own table rather than restating it", () => {
+    for (const [type, limits] of Object.entries(ANSWER_LENGTH_LIMITS)) {
+      const parsed = studioFieldsToDefinition([
+        question(type as "telephone" | "text" | "textarea"),
+      ]).fields[0];
+
+      expect(parsed).toMatchObject({ maxLength: limits.defaultValue });
+    }
+  });
+
+  it.each([
+    ["text", 2_001],
+    ["textarea", 10_001],
+    ["telephone", 41],
+  ] as const)("rejects a %s cap above the schema's ceiling", (type, tooLarge) => {
+    expect(() => studioFieldsToDefinition([question(type, tooLarge)])).toThrow();
+  });
+
+  it("rejects a telephone cap below the floor, which no reachable number clears", () => {
+    expect(() => studioFieldsToDefinition([question("telephone", 6)])).toThrow();
+  });
+
+  it("adds no cap to a type that has none", () => {
+    const definition = studioFieldsToDefinition([
+      editorField({ id: "email", label: "Email address", optionsText: "", required: true, type: "email" }),
+    ]);
+
+    expect(definition.fields[0]).not.toHaveProperty("maxLength");
+  });
+
+  it("reads an authored cap back into the editor", () => {
+    const fields = formDefinitionToStudioFields(parseFormDefinition({
+      fields: [{ id: "about", label: "About you", maxLength: 500, required: false, type: "textarea" }],
+      payment: { enabled: false },
+    }));
+
+    expect(fields[0].maxLength).toBe(500);
+  });
+
+  it("round-trips an authored cap unchanged", () => {
+    const original = studioFieldsToDefinition([question("textarea", 500)]);
+
+    expect(studioFieldsToDefinition(formDefinitionToStudioFields(original))).toEqual(original);
+  });
+
+  it("carries the cap through a duplicated question", () => {
+    const source = question("textarea", 500);
+
+    expect(duplicateStudioField(source, [source.id]).maxLength).toBe(500);
   });
 });
