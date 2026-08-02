@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFormDefinition } from "@/lib/forms/definition";
+import { parseFormDefinition, type FormField } from "@/lib/forms/definition";
 import {
   createStudioEditorKey,
   createUniqueStudioFieldId,
@@ -204,12 +204,14 @@ describe("Form Studio help text", () => {
   it("survives every authorable field type, including ones with their own settings", () => {
     const definition = studioFieldsToDefinition([
       editorField({ helpText: "Pick every track you want.", id: "tracks", label: "Interested tracks", optionsText: "Web\nMobile", required: false, type: "multi_select" }),
+      editorField({ helpText: "Pick the one you would attend.", id: "attendance", label: "Attendance", optionsText: "In person\nOnline", required: false, type: "radio" }),
       editorField({ helpText: "A photo of the card is fine.", id: "id_card", label: "Student ID card", optionsText: "", required: true, type: "image" }),
       editorField({ helpText: "Tick this to continue.", id: "consent", label: "I confirm these details are accurate", optionsText: "", required: true, type: "consent" }),
     ]);
 
     expect(definition.fields.map((field) => field.helpText)).toEqual([
       "Pick every track you want.",
+      "Pick the one you would attend.",
       "A photo of the card is fine.",
       "Tick this to continue.",
     ]);
@@ -269,5 +271,100 @@ describe("Form Studio help text", () => {
     // fails, which is the only thing keeping the input's maxLength from quietly
     // disagreeing with what can actually be saved.
     expect(() => studioFieldsToDefinition([field(`${atLimit}a`)])).toThrow();
+  });
+});
+
+/**
+ * Task 3.2. The conversion treats `radio` exactly as it treats `select` and
+ * `multi_select`, because all three are keyed off `isChoiceFieldType` rather
+ * than named individually. These assertions exist to keep that true.
+ */
+describe("Form Studio single choice conversion", () => {
+  const optionsOf = (field: FormField) => ("options" in field ? field.options : []);
+
+  const attendance = (type: "multi_select" | "radio" | "select") =>
+    editorField({
+      id: "attendance",
+      label: "Attendance",
+      optionsText: "In person\nOnline",
+      required: true,
+      type,
+    });
+
+  it("turns the choices textarea into option label and value pairs", () => {
+    const definition = studioFieldsToDefinition([attendance("radio")]);
+
+    expect(definition.fields[0]).toMatchObject({
+      options: [
+        { label: "In person", value: "in_person" },
+        { label: "Online", value: "online" },
+      ],
+      required: true,
+      type: "radio",
+    });
+  });
+
+  it("derives the same options a dropdown and a checkbox group would", () => {
+    // One branch serves all three. If a future change gives one of them its own
+    // path, this is what notices.
+    const asSelect = optionsOf(studioFieldsToDefinition([attendance("select")]).fields[0]);
+
+    expect(optionsOf(studioFieldsToDefinition([attendance("radio")]).fields[0])).toEqual(asSelect);
+    expect(optionsOf(studioFieldsToDefinition([attendance("multi_select")]).fields[0])).toEqual(
+      asSelect
+    );
+    expect(asSelect).toHaveLength(2);
+  });
+
+  it("rejects a single choice question with no options rather than publishing an empty one", () => {
+    expect(() =>
+      studioFieldsToDefinition([
+        editorField({ id: "attendance", label: "Attendance", optionsText: "", required: false, type: "radio" }),
+      ])
+    ).toThrow();
+  });
+
+  it("reads a stored single choice question back into the editor", () => {
+    const fields = formDefinitionToStudioFields(parseFormDefinition({
+      fields: [
+        {
+          helpText: "Pick the one you would attend.",
+          id: "attendance",
+          label: "Attendance",
+          options: [
+            { label: "In person", value: "in_person" },
+            { label: "Online", value: "online" },
+          ],
+          required: true,
+          type: "radio",
+        },
+      ],
+      payment: { enabled: false },
+    }));
+
+    expect(withoutEditorKey(fields[0])).toEqual({
+      helpText: "Pick the one you would attend.",
+      id: "attendance",
+      label: "Attendance",
+      optionsText: "In person\nOnline",
+      required: true,
+      type: "radio",
+    });
+  });
+
+  it("round-trips without changing the stored shape", () => {
+    const original = studioFieldsToDefinition([attendance("radio")]);
+    const reopened = studioFieldsToDefinition(formDefinitionToStudioFields(original));
+
+    expect(reopened).toEqual(original);
+  });
+
+  it("duplicates a single choice question with its options intact", () => {
+    const source = attendance("radio");
+    const duplicate = duplicateStudioField(source, [source.id]);
+
+    expect(duplicate.optionsText).toBe("In person\nOnline");
+    expect(duplicate.type).toBe("radio");
+    expect(duplicate.id).toBe("attendance_2");
   });
 });

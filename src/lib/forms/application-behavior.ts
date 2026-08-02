@@ -32,6 +32,11 @@ type FieldMapping = z.infer<typeof fieldMappingSchema>;
  * whole constraint. A mapping target is compatible exactly when the field
  * produces a string, and the detail it feeds does not narrow it further.
  *
+ * `radio` is here for that reason alone: `validateFormAnswers` runs it through
+ * `parseChoice`, exactly as it does `select`, and both yield one option value.
+ * Excluding it because it is new would recreate the drift this list was built
+ * to end.
+ *
  * Excluded, per `validateFormAnswers`: `number` yields a number,
  * `multi_select`, `image`, and `pdf` yield arrays, and `checkbox` and
  * `consent` yield booleans. None of those can back an identity detail, so
@@ -46,6 +51,7 @@ type FieldMapping = z.infer<typeof fieldMappingSchema>;
 const STRING_ANSWER_FIELD_TYPES: FormField["type"][] = [
   "date",
   "email",
+  "radio",
   "select",
   "telephone",
   "text",
@@ -71,8 +77,12 @@ const MAPPING_KEY_LABELS: Record<keyof FieldMapping, string> = {
   studentId: "Student ID",
 };
 
+/**
+ * Names the Studio's own question-type labels, not the schema's type names, so
+ * an operator can match the guidance to the dropdown in front of them.
+ */
 const COMPATIBLE_TYPE_GUIDANCE =
-  "Choose a short answer, paragraph, email, telephone, date, or dropdown question.";
+  "Choose a short answer, paragraph, email, telephone, date, dropdown, or single choice question.";
 
 export type FormApplicationBehavior = {
   fieldMapping: FieldMapping;

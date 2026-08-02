@@ -15,6 +15,7 @@ export const FORM_FIELD_TYPES = [
   "number",
   "date",
   "select",
+  "radio",
   "multi_select",
   "checkbox",
   "consent",
@@ -135,6 +136,18 @@ export const FormFieldSchema = z.discriminatedUnion("type", [
   z
     .object({ ...inputField, options: optionsSchema, type: z.literal("select") })
     .strict(),
+  /**
+   * Task 3.2. Structurally identical to `select`, and deliberately so.
+   *
+   * The two differ in presentation only: both hold one option value from the
+   * same `optionsSchema`, and both are parsed by `parseChoice`. Giving `radio`
+   * its own option shape or its own parser would create two ways to express one
+   * stored contract, which is how a `select` and a `radio` end up disagreeing
+   * about what a valid answer is.
+   */
+  z
+    .object({ ...inputField, options: optionsSchema, type: z.literal("radio") })
+    .strict(),
   z
     .object({
       ...inputField,
@@ -187,6 +200,22 @@ export const FormDefinitionSchema = z
 export type FormDefinition = z.infer<typeof FormDefinitionSchema>;
 export type FormField = FormDefinition["fields"][number];
 export type FormAnswers = Record<string, boolean | number | string | string[]>;
+
+/**
+ * Field types that carry an author-written option list.
+ *
+ * One exported list rather than a repeated `type === "a" || type === "b"`.
+ * There are four such places (both Studio conversions, the Studio's choices
+ * input, and this module's own parsing), and a fifth type added to three of
+ * them is a question that silently loses its options on save.
+ */
+export const CHOICE_FIELD_TYPES = ["multi_select", "radio", "select"] as const;
+
+export type ChoiceFieldType = (typeof CHOICE_FIELD_TYPES)[number];
+
+export function isChoiceFieldType(type: FormFieldType): type is ChoiceFieldType {
+  return (CHOICE_FIELD_TYPES as readonly FormFieldType[]).includes(type);
+}
 
 export function parseFormDefinition(input: unknown): FormDefinition {
   return FormDefinitionSchema.parse(input);
@@ -391,6 +420,10 @@ export function validateFormAnswers(
       case "date":
         parsed = parseIsoDate(field, value);
         break;
+      // One arm, because one stored contract. A radio and a dropdown both hold
+      // a single option value, so a rule enforced for one has to hold for the
+      // other or an author changes the control and changes the validation.
+      case "radio":
       case "select":
         parsed = parseChoice(field, value);
         break;

@@ -28,7 +28,7 @@ function isValidatableControl(value: unknown): value is ValidatableControl {
  *
  * `HTMLFormControlsCollection.namedItem` returns `Element | RadioNodeList |
  * null`. The list shape appears whenever several controls share a name, which
- * is what task 3.2 (radio) and task 3.3 (a real checkbox group) will produce.
+ * is what task 3.2 (radio) and task 3.3 (a real checkbox group) produce.
  * Treating only the single-element shape as valid would silently skip an entire
  * group: no error, no message, and nothing in the source to notice.
  *
@@ -81,7 +81,14 @@ function missingValueMessage(field: Exclude<FormField, { type: "section" }>) {
     return "Please choose a file.";
   }
 
-  if (field.type === "select" || field.type === "multi_select") {
+  // Distinct from the single-choice message on purpose. "Please choose an
+  // option" beside a checkbox group reads as though only one is permitted,
+  // which is the opposite of what the control does.
+  if (field.type === "multi_select") {
+    return "Please choose at least one option.";
+  }
+
+  if (field.type === "select" || field.type === "radio") {
     return "Please choose an option.";
   }
 
@@ -93,6 +100,16 @@ function missingValueMessage(field: Exclude<FormField, { type: "section" }>) {
 }
 
 /**
+ * Whether any member of a group is ticked.
+ *
+ * Narrowed to `HTMLInputElement` because `checked` does not exist on a select
+ * or a textarea, and `resolveValidatableControls` returns all three.
+ */
+function isAnyControlChecked(controls: ValidatableControl[]) {
+  return controls.some((control) => control instanceof HTMLInputElement && control.checked);
+}
+
+/**
  * Reads constraint validity for every question in the definition.
  *
  * Iterates the definition and looks each control up by name, rather than
@@ -101,11 +118,6 @@ function missingValueMessage(field: Exclude<FormField, { type: "section" }>) {
  * cannot see.
  *
  * Returns field id to message. An empty object means nothing failed.
- *
- * Known limitation, for a grouped control: where the rule is "tick at least one
- * of these", each member reports valid on its own and this therefore reports
- * nothing. Group-level cardinality belongs with task 3.3, where the group
- * control is built.
  */
 export function collectNativeFieldErrors(
   formElement: HTMLFormElement,
@@ -126,13 +138,31 @@ export function collectNativeFieldErrors(
 
     const invalid = controls.find((control) => !control.checkValidity());
 
-    if (!invalid) {
+    if (invalid) {
+      errors[field.id] = invalid.validity.valueMissing
+        ? missingValueMessage(field)
+        : invalid.validationMessage || missingValueMessage(field);
+
       continue;
     }
 
-    errors[field.id] = invalid.validity.valueMissing
-      ? missingValueMessage(field)
-      : invalid.validationMessage || missingValueMessage(field);
+    /**
+     * Group cardinality for a required checkbox group. Task 3.3.
+     *
+     * This is the limitation the earlier version of this file recorded and
+     * deferred. Native `required` on a checkbox means *that* box must be
+     * ticked, so putting it on every member of a "choose at least one" group
+     * would demand all of them. The renderer therefore emits no `required` on
+     * the members, constraint validation reports nothing, and the rule has to
+     * live here.
+     *
+     * A radio group needs none of this: native `required` on radios that share
+     * a name already means "exactly one of these", which is the correct rule,
+     * so the branch above catches it.
+     */
+    if (field.type === "multi_select" && field.required && !isAnyControlChecked(controls)) {
+      errors[field.id] = missingValueMessage(field);
+    }
   }
 
   return errors;

@@ -29,6 +29,11 @@ function formWith(html: string) {
 const definitionOf = (fields: unknown[]) =>
   parseFormDefinition({ fields, payment: { enabled: false } });
 
+const TRACK_OPTIONS = [
+  { label: "Web", value: "web" },
+  { label: "Mobile", value: "mobile" },
+];
+
 describe("resolving a control name to validatable controls", () => {
   it("resolves a single named control", () => {
     const form = formWith('<input name="full_name" required />');
@@ -139,6 +144,97 @@ describe("collecting field errors from constraint validity", () => {
     ]);
 
     expect(Object.keys(collectNativeFieldErrors(form, definition))).toEqual(["full_name"]);
+  });
+});
+
+/**
+ * Tasks 3.2 and 3.3. The two group controls fail in different ways, and only
+ * one of them is the browser's job.
+ */
+describe("collecting field errors from a group of controls", () => {
+  const radioForm = () =>
+    formWith(`
+      <input name="track" required type="radio" value="web" />
+      <input name="track" required type="radio" value="mobile" />
+    `);
+
+  const checkboxForm = () =>
+    formWith(`
+      <input name="tracks" type="checkbox" value="web" />
+      <input name="tracks" type="checkbox" value="mobile" />
+    `);
+
+  const radioDefinition = (required: boolean) =>
+    definitionOf([
+      { id: "track", label: "Preferred track", options: TRACK_OPTIONS, required, type: "radio" },
+    ]);
+
+  const checkboxDefinition = (required: boolean) =>
+    definitionOf([
+      { id: "tracks", label: "Interested tracks", options: TRACK_OPTIONS, required, type: "multi_select" },
+    ]);
+
+  function check(form: HTMLFormElement, value: string) {
+    const control = form.querySelector(`[value="${value}"]`);
+
+    if (!(control instanceof HTMLInputElement)) {
+      throw new Error(`The fixture has no control valued "${value}".`);
+    }
+
+    control.checked = true;
+  }
+
+  it("reports one message for a required radio group with nothing selected", () => {
+    // Native validity already means "exactly one of these", so this arrives
+    // through checkValidity rather than through the cardinality branch. One
+    // message for the group, not one per option.
+    expect(collectNativeFieldErrors(radioForm(), radioDefinition(true))).toEqual({
+      track: "Please choose an option.",
+    });
+  });
+
+  it("reports nothing once a radio in the group is selected", () => {
+    const form = radioForm();
+    check(form, "mobile");
+
+    expect(collectNativeFieldErrors(form, radioDefinition(true))).toEqual({});
+  });
+
+  it("reports a required checkbox group with nothing ticked, which the browser will not", () => {
+    const form = checkboxForm();
+    const controls = resolveValidatableControls(form.elements.namedItem("tracks"));
+
+    // The members carry no `required` attribute, because on a checkbox that
+    // would demand every box. Constraint validation therefore reports nothing,
+    // which is asserted here rather than assumed: it is the entire reason the
+    // cardinality rule has to live in our code.
+    expect(controls).toHaveLength(2);
+    expect(controls.every((control) => control.checkValidity())).toBe(true);
+
+    expect(collectNativeFieldErrors(form, checkboxDefinition(true))).toEqual({
+      tracks: "Please choose at least one option.",
+    });
+  });
+
+  it("reports nothing once one box is ticked, not once per unticked box", () => {
+    const form = checkboxForm();
+    check(form, "web");
+
+    expect(collectNativeFieldErrors(form, checkboxDefinition(true))).toEqual({});
+  });
+
+  it("leaves an optional checkbox group alone", () => {
+    expect(collectNativeFieldErrors(checkboxForm(), checkboxDefinition(false))).toEqual({});
+  });
+
+  it("says \"at least one\" for a group and \"an option\" for a single choice", () => {
+    // Different instructions. "Please choose an option" beside a checkbox group
+    // reads as though only one is permitted.
+    const radioErrors = collectNativeFieldErrors(radioForm(), radioDefinition(true));
+    const checkboxErrors = collectNativeFieldErrors(checkboxForm(), checkboxDefinition(true));
+
+    expect(radioErrors.track).toBe("Please choose an option.");
+    expect(checkboxErrors.tracks).toBe("Please choose at least one option.");
   });
 });
 

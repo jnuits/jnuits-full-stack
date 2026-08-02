@@ -1,4 +1,5 @@
 import {
+  isChoiceFieldType,
   parseFormDefinition,
   type FormDefinition,
   type FormFieldType,
@@ -154,7 +155,11 @@ export function studioFieldsToDefinition(fields: StudioEditorField[]): FormDefin
     fields: fields.map((field) => {
       if (field.type === "section") return { ...toHelpText(field), id: field.id, label: field.label, type: field.type };
       if (field.type === "consent") return { ...toHelpText(field), id: field.id, label: field.label, required: true, type: field.type };
-      if (field.type === "select" || field.type === "multi_select") {
+      // `select`, `radio` and `multi_select` share one branch because they share
+      // one stored shape. Keyed off the exported list so a fourth choice type
+      // cannot be added to the Studio and forgotten here, which would publish a
+      // question whose options silently vanished.
+      if (isChoiceFieldType(field.type)) {
         const options = field.optionsText.split("\n").map((label) => label.trim()).filter(Boolean)
           .map((label) => ({ label, value: toOptionValue(label) }));
         return { ...toHelpText(field), id: field.id, label: field.label, options, required: field.required, type: field.type };
@@ -185,7 +190,7 @@ export function formDefinitionToStudioFields(definition: FormDefinition): Studio
       type: field.type,
     };
     if (field.type === "consent") return { editorKey, helpText: field.helpText, id: field.id, label: field.label, optionsText: "", required: true, type: field.type };
-    if (field.type === "select" || field.type === "multi_select") return {
+    if (field.type === "select" || field.type === "radio" || field.type === "multi_select") return {
       editorKey, helpText: field.helpText, id: field.id, label: field.label, optionsText: field.options.map((option) => option.label).join("\n"), required: field.required, type: field.type,
     };
     if (field.type === "image" || field.type === "pdf") return {
