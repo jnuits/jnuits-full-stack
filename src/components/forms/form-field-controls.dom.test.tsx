@@ -429,6 +429,23 @@ describe("a choice question is a named group of native controls", () => {
     );
   });
 
+  it("keeps stored option values out of HTML ids", () => {
+    renderDefinition([
+      radioField({
+        options: [
+          { label: "Web", value: "web" },
+          { label: "In person", value: "in person" },
+        ],
+      }),
+    ]);
+
+    const option = screen.getByRole("radio", { name: "In person" });
+
+    expect(option).toHaveAttribute("value", "in person");
+    expect(option).toHaveAttribute("id", "form-test-track-option-2");
+    expect(option.id).not.toContain("in person");
+  });
+
   it("announces the requirement once for the group, not once per option", () => {
     renderDefinition([radioField({ required: true })]);
 
