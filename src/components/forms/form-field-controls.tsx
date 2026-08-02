@@ -1,6 +1,12 @@
+"use client";
+
+import { useState } from "react";
+
+import { AnswerLengthCounter } from "@/components/forms/answer-length-counter";
 import { describeAnswerConstraint } from "@/lib/forms/answer-rules";
 import type { FormDefinition, FormField } from "@/lib/forms/definition";
 import { groupFormFields } from "@/lib/forms/public-form-presentation";
+import { characterCounterTone } from "@/lib/ui/character-limit";
 
 /**
  * Shared field renderer for the public form and the Form Studio preview.
@@ -10,6 +16,12 @@ import { groupFormFields } from "@/lib/forms/public-form-presentation";
  * missing choice list, or an upload constraint. In preview mode the controls
  * are inert: disabled, unnamed, and not required, so nothing can be entered or
  * submitted.
+ *
+ * `"use client"` because task 2.4's counter has to know how long the current
+ * answer is, and the controls here are uncontrolled by design. Both importers
+ * -- the public form screen and the Studio screen -- are already client
+ * components, so nothing crosses the boundary that did not already; the
+ * directive only stops that being implicit.
  *
  * Presentation follows decision 7 in #86: the contact page's treatment, on
  * semantic tokens only. No `var(--brand-*)` or `var(--line)` here, so a theme
@@ -266,11 +278,35 @@ function TextField({
   inputId: string;
   preview?: boolean;
 }) {
+  /**
+   * Task 2.4. Local to this control, not lifted.
+   *
+   * The public form's controls are uncontrolled by design -- the screen says so
+   * -- and this does not change that: the value still lives in the DOM and is
+   * read from `FormData` at submit. Only the *length* is tracked, only here,
+   * and nothing above this component can see it.
+   */
+  const [answerLength, setAnswerLength] = useState(0);
   const inputType = field.type === "email" ? "email" : field.type === "telephone" ? "tel" : "text";
   const maxLength = "maxLength" in field ? field.maxLength : undefined;
   const { errorId, helpId } = fieldDescriptionIds({ error, field, inputId });
-  const described = describedBy(errorId, helpId);
+  // Never in the preview: those controls are disabled, so a count could only
+  // ever read zero and would be describing a control nobody can type into.
+  const counted = maxLength !== undefined && !preview;
+  const countId = `${inputId}-count`;
+  // Included only while the count is actually on screen. The counter hides
+  // itself below the warning threshold, and pointing at an element that is not
+  // rendered is the dangling reference task 2.1 exists to avoid.
+  const countedId =
+    counted && characterCounterTone(answerLength, maxLength) !== "muted" ? countId : undefined;
+  const described = describedBy(errorId, helpId, countedId);
   const invalid = Boolean(error);
+
+  function trackLength(value: string) {
+    if (counted) {
+      setAnswerLength(value.length);
+    }
+  }
 
   return (
     <div>
@@ -284,6 +320,7 @@ function TextField({
           id={inputId}
           maxLength={maxLength}
           name={controlName(field, preview)}
+          onChange={(event) => trackLength(event.currentTarget.value)}
           required={!preview && field.required}
         />
       ) : (
@@ -296,12 +333,16 @@ function TextField({
           id={inputId}
           maxLength={maxLength}
           name={controlName(field, preview)}
+          onChange={(event) => trackLength(event.currentTarget.value)}
           required={!preview && field.required}
           type={inputType}
         />
       )}
       <FieldError id={errorId} message={error} />
       <FieldHelp field={field} id={helpId} />
+      {counted ? (
+        <AnswerLengthCounter current={answerLength} id={countId} maximum={maxLength} />
+      ) : null}
     </div>
   );
 }
