@@ -171,9 +171,9 @@ describe("layout classes", () => {
 });
 
 describe("page structure that is not yet rendered in a test", () => {
-  // These belong in public-form-screen.dom.test.tsx. The screen is a client
-  // component that mounts the Turnstile script through next/script, so it needs
-  // a stub before it can be rendered in jsdom. Slice 3b.
+  // What is left here is what a rendering test cannot reach. The screen is now
+  // rendered in public-form-screen.dom.test.tsx, so anything observable there
+  // belongs there.
 
   it("renders the form title as the page's only top-level heading", () => {
     const screen = readScreen();
@@ -234,13 +234,31 @@ describe("page structure that is not yet rendered in a test", () => {
     expect(screen).toContain("NOTICE_SUCCESS_CLASS");
   });
 
-  it("never nests one live region inside another", () => {
+  it("keeps a live region only where something changes in place", () => {
     const screen = readScreen();
 
-    // Three, each around exactly one thing that changes: the success block, the
-    // verification chip, and the resend confirmation.
-    expect(screen.match(/role="status"/g)?.length).toBe(3);
-    expect(screen).toContain('<div aria-live="polite" className="text-center" role="status">');
+    // Two, not three. Task 2.2 removed the one around the success block: it
+    // mounted with its content already inside it and so announced nothing, and
+    // now that focus moves to the heading a region around it would produce a
+    // duplicate announcement. The two that remain each wrap one thing that
+    // changes within a view that stays put -- the verification chip and the
+    // resend confirmation.
+    //
+    // Whether the heading actually receives focus, and whether it sits inside a
+    // region, is asserted in public-form-screen.dom.test.tsx against the
+    // rendered tree. This guard only keeps the removed region from drifting back
+    // in unnoticed.
+    expect(screen.match(/role="status"/g)?.length).toBe(2);
+    expect(screen).not.toContain('<div aria-live="polite" className="text-center" role="status">');
+  });
+
+  it("makes the success heading a focus target without adding a tab stop", () => {
+    const screen = readScreen();
+
+    // A heading is not focusable on its own, so the ref alone would be a no-op.
+    // -1 rather than 0: nobody should tab onto a heading.
+    expect(screen).toContain("successHeadingRef");
+    expect(screen).toMatch(/ref=\{successHeadingRef\}\s*\n\s*tabIndex=\{-1\}/);
   });
 
   it("keeps failures assertive and separate from status", () => {
