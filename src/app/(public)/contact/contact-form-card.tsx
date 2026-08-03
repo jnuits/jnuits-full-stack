@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
-import { CheckCircle2, ChevronDown, Clock, Loader2, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, Clock, Loader2 } from "lucide-react";
 
 import { TurnstileWidget } from "@/components/contact/TurnstileWidget";
-import { COUNTRIES } from "@/lib/countries";
+import { CountryDialPicker } from "@/components/ui/country-dial-picker";
+import { DEFAULT_COUNTRY, type DialCountry } from "@/lib/phone";
 
 type InquiryCategory = {
   label: string;
@@ -19,13 +19,6 @@ type ContactFormCardProps = {
   inquiryCategories: InquiryCategory[];
   message: string | null;
 };
-
-type Country = (typeof COUNTRIES)[number];
-
-const sortedCountries = [...COUNTRIES].sort((countryA, countryB) =>
-  countryA.name.localeCompare(countryB.name),
-);
-const defaultCountry = COUNTRIES.find((country) => country.code === "BD") ?? COUNTRIES[0];
 
 const labelClass = "mb-1 block text-sm font-medium text-foreground";
 const inputClass =
@@ -50,34 +43,31 @@ export function ContactFormCard({
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileError, setTurnstileError] = useState(false);
   const [canSubmit, setCanSubmit] = useState(false);
-  const [selectedCountry, setSelectedCountry] = useState<Country>(defaultCountry);
-  const [countrySearch, setCountrySearch] = useState("");
-  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<DialCountry>(DEFAULT_COUNTRY);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [countryDropdownStyle, setCountryDropdownStyle] = useState<CSSProperties>({});
-  const phoneFieldRef = useRef<HTMLDivElement>(null);
-  const countryDropdownRef = useRef<HTMLDivElement>(null);
-  const countrySearchRef = useRef<HTMLInputElement>(null);
   const submitDisabled = !!(isSubmitting || !canSubmit);
+  /**
+   * Contact's own composition, unchanged by task 2.6.
+   *
+   * The picker above is now shared with the public form's telephone question,
+   * but only the widget moved: this still concatenates the dial code with the
+   * typed digits exactly as it always has.
+   *
+   * **Known difference from the forms contract, deliberately left alone.** This
+   * does not drop a leading trunk zero, so a respondent who types `01712345678`
+   * under `+880` submits `+88001712345678`, which has one zero too many and is
+   * not a reachable number. The forms path drops it (`toNationalDigits`).
+   * Changing it here would alter what `/contact` submits, which is outside this
+   * task; it is reported instead.
+   */
   const normalizedPhoneNumber = phoneNumber.replace(/[^\d]/g, "");
   const combinedPhoneValue = normalizedPhoneNumber
     ? `${selectedCountry.dial}${normalizedPhoneNumber}`
     : "";
-  const phonePlaceholder =
-    selectedCountry.code === "BD" ? "1721-129467" : "Phone number";
-  const filteredCountries = useMemo(() => {
-    const query = countrySearch.trim().toLowerCase();
-
-    if (!query) return sortedCountries;
-
-    return sortedCountries.filter((country) => {
-      return (
-        country.name.toLowerCase().includes(query) ||
-        country.code.toLowerCase().includes(query) ||
-        country.dial.includes(query)
-      );
-    });
-  }, [countrySearch]);
+  const phonePlaceholder = useMemo(
+    () => (selectedCountry.code === "BD" ? "1721-129467" : "Phone number"),
+    [selectedCountry.code]
+  );
 
   useEffect(() => {
     if (!message) return;
@@ -86,59 +76,6 @@ export function ContactFormCard({
 
     return () => window.clearTimeout(timer);
   }, [message]);
-
-  useEffect(() => {
-    if (!countryPickerOpen) return;
-
-    const updateDropdownPosition = () => {
-      if (!phoneFieldRef.current) return;
-
-      const rect = phoneFieldRef.current.getBoundingClientRect();
-      const width = Math.min(rect.width, window.innerWidth - 16);
-      const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
-
-      setCountryDropdownStyle({
-        left,
-        position: "fixed",
-        top: rect.bottom + 4,
-        width,
-        zIndex: 50,
-      });
-    };
-
-    updateDropdownPosition();
-    window.addEventListener("resize", updateDropdownPosition);
-    window.addEventListener("scroll", updateDropdownPosition, true);
-
-    const focusTimer = window.setTimeout(() => countrySearchRef.current?.focus(), 0);
-
-    return () => {
-      window.clearTimeout(focusTimer);
-      window.removeEventListener("resize", updateDropdownPosition);
-      window.removeEventListener("scroll", updateDropdownPosition, true);
-    };
-  }, [countryPickerOpen]);
-
-  useEffect(() => {
-    if (!countryPickerOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-
-      if (
-        phoneFieldRef.current?.contains(target) ||
-        countryDropdownRef.current?.contains(target)
-      ) {
-        return;
-      }
-
-      setCountryPickerOpen(false);
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [countryPickerOpen]);
 
   return (
     <section
@@ -234,30 +171,11 @@ export function ContactFormCard({
                 Phone or WhatsApp number
               </label>
               <input type="hidden" name="phone_whatsapp" value={combinedPhoneValue} />
-              <div
-                className="flex h-12 overflow-hidden rounded-xl border border-border bg-background transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
-                ref={phoneFieldRef}
-              >
-                <button
-                  type="button"
-                  aria-expanded={countryPickerOpen}
-                  aria-haspopup="listbox"
-                  aria-label="Select country dialing code"
-                  className="flex h-full w-[7.75rem] flex-shrink-0 cursor-pointer items-center gap-1.5 border-r border-border/70 bg-muted/30 px-3 text-sm transition-colors hover:bg-muted/50 focus:outline-none sm:w-[8.75rem]"
-                  onClick={() => {
-                    setCountrySearch("");
-                    setCountryPickerOpen((isOpen) => !isOpen);
-                  }}
-                >
-                  <span aria-hidden="true">{selectedCountry.flag}</span>
-                  <span className="font-medium">{selectedCountry.code}</span>
-                  <span className="text-muted-foreground">{selectedCountry.dial}</span>
-                  <ChevronDown
-                    aria-hidden="true"
-                    size={12}
-                    className="ml-auto text-muted-foreground"
-                  />
-                </button>
+              <div className="flex h-12 overflow-hidden rounded-xl border border-border bg-background transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+                <CountryDialPicker
+                  country={selectedCountry}
+                  onCountryChange={setSelectedCountry}
+                />
                 <input
                   className={compactInputClass}
                   id="contact-phone-whatsapp"
@@ -267,63 +185,6 @@ export function ContactFormCard({
                   placeholder={phonePlaceholder}
                 />
               </div>
-
-              {countryPickerOpen && typeof document !== "undefined"
-                ? createPortal(
-                    <div
-                      ref={countryDropdownRef}
-                      className="rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-lg"
-                      style={countryDropdownStyle}
-                    >
-                      <div className="flex h-10 items-center gap-2 border-b border-border px-3">
-                        <Search aria-hidden="true" size={13} className="text-muted-foreground" />
-                        <input
-                          ref={countrySearchRef}
-                          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                          value={countrySearch}
-                          onChange={(event) => setCountrySearch(event.currentTarget.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Escape") {
-                              setCountryPickerOpen(false);
-                            }
-                          }}
-                          placeholder="Search country..."
-                        />
-                      </div>
-                      <div className="max-h-56 overflow-y-auto p-1" role="listbox">
-                        {filteredCountries.length > 0 ? (
-                          filteredCountries.map((country) => (
-                            <button
-                              key={`${country.code}-${country.dial}`}
-                              type="button"
-                              role="option"
-                              aria-selected={country.code === selectedCountry.code}
-                              className="flex w-full items-center rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted"
-                              onClick={() => {
-                                setSelectedCountry(country);
-                                setCountryPickerOpen(false);
-                                setCountrySearch("");
-                              }}
-                            >
-                              <span className="mr-2 text-base" aria-hidden="true">
-                                {country.flag}
-                              </span>
-                              <span className="min-w-0 grow text-sm">{country.name}</span>
-                              <span className="ml-2 font-mono text-xs text-muted-foreground">
-                                {country.dial}
-                              </span>
-                            </button>
-                          ))
-                        ) : (
-                          <p className="px-3 py-3 text-xs text-muted-foreground">
-                            No country found.
-                          </p>
-                        )}
-                      </div>
-                    </div>,
-                    document.body,
-                  )
-                : null}
             </div>
 
             <div>
