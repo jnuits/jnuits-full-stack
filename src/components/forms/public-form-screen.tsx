@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 import { TurnstileField } from "@/components/auth/turnstile-field";
@@ -64,6 +64,35 @@ const PAGE_WRAPPER_CLASS = "mx-auto w-full max-w-2xl";
 const FORM_CARD_CLASS = "overflow-hidden rounded-2xl border border-border bg-card shadow-sm";
 const FORM_CARD_ACCENT_CLASS = "h-[3px] bg-primary";
 const FORM_CARD_BODY_CLASS = "p-6 sm:p-8";
+
+/**
+ * Moves focus to an element and brings it into view. Task 2.2, both halves.
+ *
+ * One function rather than one copy per effect. The failed-submit half shipped
+ * this inline in #112, and the success half needs the identical treatment; two
+ * copies would eventually disagree about the scroll, and the one nobody re-read
+ * would be the one that was wrong.
+ *
+ * `preventScroll` followed by an explicit `scrollIntoView` rather than letting
+ * the focus scroll happen: the default puts the element hard against the edge of
+ * the viewport, which on a phone can leave the message beside it off screen.
+ *
+ * The `scrollIntoView` guard is not defensive noise. jsdom does not implement
+ * the method, so without the check every component test of this screen throws
+ * where it should have failed an assertion, and the throw reads like a broken
+ * test rather than a broken screen.
+ */
+function focusAndReveal(element: HTMLElement | null) {
+  if (!element) {
+    return;
+  }
+
+  element.focus({ preventScroll: true });
+
+  if (typeof element.scrollIntoView === "function") {
+    element.scrollIntoView({ block: "center" });
+  }
+}
 
 type PublicFormScreenProps = {
   captcha: {
@@ -420,6 +449,14 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
    * is not announced. That is the same class of defect as the one 2.1 fixes.
    */
   const [pendingFocusFieldId, setPendingFocusFieldId] = useState<null | string>(null);
+  /**
+   * The success heading, so focus can be moved to it. Task 2.2, success half.
+   *
+   * A ref rather than an id lookup, which is what the failed-submit half has to
+   * use: that one resolves a control chosen at runtime from the definition,
+   * while this is one known element the component renders itself.
+   */
+  const successHeadingRef = useRef<HTMLHeadingElement>(null);
   const [resendState, setResendState] = useState<
     | { status: "idle" }
     | { status: "sending" }
@@ -446,23 +483,37 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
       return;
     }
 
-    const control = document.getElementById(`${idPrefix}-${pendingFocusFieldId}`);
-
-    if (control) {
-      // preventScroll, then centre it deliberately: the default focus scroll
-      // puts the control at the very edge of the viewport, which on a phone can
-      // leave its message off screen.
-      control.focus({ preventScroll: true });
-
-      // jsdom does not implement scrollIntoView. Without this guard every future
-      // component test of this screen throws instead of failing an assertion.
-      if (typeof control.scrollIntoView === "function") {
-        control.scrollIntoView({ block: "center" });
-      }
-    }
-
+    focusAndReveal(document.getElementById(`${idPrefix}-${pendingFocusFieldId}`));
     setPendingFocusFieldId(null);
   }, [idPrefix, pendingFocusFieldId]);
+
+  /**
+   * Moves focus to the success heading once the success card is committed. The
+   * other half of task 2.2.
+   *
+   * Success replaces the entire form, including the submit button that had
+   * focus. A removed element cannot keep it, so the browser hands focus back to
+   * `<body>` and a keyboard or screen-reader user is returned to the top of the
+   * document with no statement of what just happened. They then have to go and
+   * find out whether a form they can no longer see was submitted.
+   *
+   * The live region that used to wrap this heading was never the answer, and the
+   * comment in the success branch has said so since #112: it mounts with its
+   * content already inside it, and several screen readers announce only
+   * mutations to a region that already existed.
+   *
+   * Keyed on `state.status` alone, deliberately. The resend form below re-renders
+   * this branch on every one of its own state changes, and a dependency that
+   * moved with those would drag focus back up to the heading while the
+   * respondent was working in the form underneath it.
+   */
+  useEffect(() => {
+    if (state.status !== "success") {
+      return;
+    }
+
+    focusAndReveal(successHeadingRef.current);
+  }, [state.status]);
 
   /**
    * Clears one field's message as soon as its value changes.
@@ -652,22 +703,39 @@ export function PublicFormScreen({ captcha, form, kind, linkedEventId }: PublicF
           <div aria-hidden="true" className={FORM_CARD_ACCENT_CLASS} />
           <div className={FORM_CARD_BODY_CLASS}>
             {/*
-             * The live region wraps only what changes. It used to wrap the whole
-             * card, so the resend challenge mounting inside it was announced as
-             * though it were a status update, and the two chips this slice added
-             * became live regions nested inside another one.
+             * No live region here any more, on purpose.
              *
-             * Caveat, pre-existing and not fixed here: this region mounts with
-             * its content already in it, because success replaces the form
-             * wholesale, and several screen readers only announce mutations to a
-             * region that already existed. Moving focus to this heading is the
-             * reliable answer and is the success half of task 2.2.
+             * It never worked: success replaces the form wholesale, so the region
+             * mounted with its content already inside it, and several screen
+             * readers announce only mutations to a region that already existed.
+             * Focus now moves to the heading instead, which is the reliable
+             * mechanism and is what #112 said the fix would be.
+             *
+             * Keeping the region as well would not be belt and braces. Focus
+             * lands inside it, and an element focused inside a live region is the
+             * standard way to have the same sentence read out twice. The two
+             * chips that report a change within a view that stays put keep their
+             * own `role="status"`; this heading is not a change within a view, it
+             * is the new view.
              */}
-            <div aria-live="polite" className="text-center" role="status">
+            <div className="text-center">
               <span className="mb-4 inline-flex size-11 items-center justify-center rounded-full border border-border bg-primary/10 text-primary">
                 <CheckCircle2 aria-hidden="true" size={22} />
               </span>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground">
+              {/*
+               * `tabIndex={-1}` makes the heading a focus target without putting
+               * it in the tab order, so nobody tabs onto a heading later.
+               *
+               * The focus ring is deliberately not suppressed. Programmatic focus
+               * only matches `:focus-visible` when the browser judges the user to
+               * be driving by keyboard, which is exactly the person who benefits
+               * from seeing where they have been placed.
+               */}
+              <h2
+                className="text-2xl font-bold tracking-tight text-foreground"
+                ref={successHeadingRef}
+                tabIndex={-1}
+              >
                 {eventSuccessContent ? eventSuccessContent.heading : "Check your email"}
               </h2>
               <p className="section-copy mt-3">

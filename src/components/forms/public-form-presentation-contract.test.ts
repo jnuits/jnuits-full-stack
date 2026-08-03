@@ -171,9 +171,10 @@ describe("layout classes", () => {
 });
 
 describe("page structure that is not yet rendered in a test", () => {
-  // These belong in public-form-screen.dom.test.tsx. The screen is a client
-  // component that mounts the Turnstile script through next/script, so it needs
-  // a stub before it can be rendered in jsdom. Slice 3b.
+  // What is left here is what a rendering test cannot reach. The screen is now
+  // rendered in public-form-screen.dom.test.tsx, so anything observable there
+  // belongs there -- including, as of task 2.2, whether the success heading is
+  // focused and whether it sits inside a live region.
 
   it("renders the form title as the page's only top-level heading", () => {
     const screen = readScreen();
@@ -234,13 +235,24 @@ describe("page structure that is not yet rendered in a test", () => {
     expect(screen).toContain("NOTICE_SUCCESS_CLASS");
   });
 
-  it("never nests one live region inside another", () => {
+  it("keeps a live region only where something changes in place", () => {
     const screen = readScreen();
 
-    // Three, each around exactly one thing that changes: the success block, the
-    // verification chip, and the resend confirmation.
-    expect(screen.match(/role="status"/g)?.length).toBe(3);
-    expect(screen).toContain('<div aria-live="polite" className="text-center" role="status">');
+    // Two, not three. Task 2.2 removed the one around the success block: it
+    // mounted with its content already inside it and so announced nothing, and
+    // now that focus moves to the heading a region around it would produce a
+    // duplicate announcement. The two that remain each wrap one thing that
+    // changes within a view that stays put -- the verification chip and the
+    // resend confirmation.
+    //
+    // Whether the heading receives focus, whether it carries a tab stop, and
+    // whether it sits inside a region are all asserted in
+    // public-form-screen.dom.test.tsx against the rendered tree. This guard only
+    // keeps the removed region from drifting back in unnoticed, which is the one
+    // part a rendering test cannot see: a region reintroduced around a *different*
+    // branch would still pass over there.
+    expect(screen.match(/role="status"/g)?.length).toBe(2);
+    expect(screen).not.toContain('<div aria-live="polite" className="text-center" role="status">');
   });
 
   it("keeps failures assertive and separate from status", () => {
