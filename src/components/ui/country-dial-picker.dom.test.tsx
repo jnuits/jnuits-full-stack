@@ -40,7 +40,7 @@ describe("the country dial picker", () => {
     expect(trigger()).toHaveTextContent("+880");
   });
 
-  it("opens a listbox and reports its expanded state", async () => {
+  it("opens a named listbox and reports its expanded state", async () => {
     const user = userEvent.setup();
     render(<Harness />);
 
@@ -50,7 +50,9 @@ describe("the country dial picker", () => {
     await user.click(trigger());
 
     expect(trigger()).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    // Named, not merely present. The trigger's label names the button; the list
+    // a screen reader lands in next is a separate stop and needs its own name.
+    expect(screen.getByRole("listbox", { name: "Country dialling codes" })).toBeInTheDocument();
   });
 
   it("focuses the search box on open, so typing goes somewhere useful", async () => {
@@ -179,9 +181,28 @@ describe("the country dial picker", () => {
 
     await user.click(trigger());
 
-    // The dropdown is portalled to document.body, so it is outside `container`.
-    // Scanning the body is the only way to see it at all.
-    const violations = await findAccessibilityViolations(document.body);
+    /**
+     * The dropdown is portalled to `document.body`, so it sits outside
+     * `container` and has to be scanned on its own.
+     *
+     * Scanning the body instead is worse, not stricter. `region` is one of
+     * axe's page-level rules, so a body scan reports every node that is not
+     * inside a landmark, which for a popup deliberately rendered outside the
+     * page's landmarks (so no ancestor `overflow` can clip it) means the search
+     * box and every option. That says nothing about the component. Scanning the
+     * dropdown drops that single page-level rule and keeps every element-level
+     * one, including the `aria-input-field-name` check that caught the unnamed
+     * listbox this component inherited from `/contact`. The shared helper is
+     * not relaxed for anybody else.
+     */
+    const dropdown = screen.getByRole("listbox").parentElement as HTMLElement;
+
+    // Finding 14.5: assert what the scan covered. A wrong or empty node would
+    // otherwise pass this test by having nothing to find.
+    expect(dropdown).toContainElement(search());
+    expect(dropdown).toContainElement(screen.getByRole("option", { name: /Bangladesh/ }));
+
+    const violations = await findAccessibilityViolations(dropdown);
 
     expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
   });

@@ -17,7 +17,7 @@ import { filterDialCountries, type DialCountry } from "@/lib/phone";
  *
  * **Contact's submitted value is deliberately untouched.** Only the widget moved;
  * contact still composes its own `phone_whatsapp` exactly as before, including
- * the fact that it does not drop a leading trunk zero. See the PR body — that is
+ * the fact that it does not drop a leading trunk zero. See the PR body: that is
  * a pre-existing defect on a different surface, reported rather than fixed here.
  *
  * ## Why a portal
@@ -28,6 +28,15 @@ import { filterDialCountries, type DialCountry } from "@/lib/phone";
  */
 const DROPDOWN_CLASS =
   "rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-lg";
+
+/**
+ * The listbox needs its own name. The trigger's `aria-label` names the button,
+ * not the list the button opens, and that list is a separate stop for a screen
+ * reader. Without this, axe reports `aria-input-field-name` and the user hears
+ * an unnamed list of unexplained rows. This was wrong on `/contact` for as long
+ * as it has shipped; `/contact` had no tests, so nothing said so.
+ */
+const LISTBOX_LABEL = "Country dialling codes";
 
 export function CountryDialPicker({
   country,
@@ -158,7 +167,11 @@ export function CountryDialPicker({
                   value={query}
                 />
               </div>
-              <div className="max-h-56 overflow-y-auto p-1" role="listbox">
+              <div
+                aria-label={LISTBOX_LABEL}
+                className="max-h-56 overflow-y-auto p-1"
+                role="listbox"
+              >
                 {matches.length ? (
                   matches.map((candidate) => (
                     <button
