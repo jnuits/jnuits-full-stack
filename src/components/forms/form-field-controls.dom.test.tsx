@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { FormFieldControls } from "@/components/forms/form-field-controls";
+import { phoneDialControlName } from "@/lib/forms/control-names";
 import { parseFormDefinition } from "@/lib/forms/definition";
 import { findAccessibilityViolations } from "../../../test/setup/axe";
 
@@ -67,6 +69,14 @@ const numberField = (overrides: Record<string, unknown> = {}) => ({
   label: "Guests",
   required: false,
   type: "number",
+  ...overrides,
+});
+
+const phoneField = (overrides: Record<string, unknown> = {}) => ({
+  id: "phone",
+  label: "Phone number",
+  required: false,
+  type: "telephone",
   ...overrides,
 });
 
@@ -235,6 +245,118 @@ describe("a control is described by the text that explains it", () => {
 });
 
 /**
+ * Task 2.6. A telephone question is two controls that produce one answer.
+ *
+ * The composition itself is asserted in `phone.test.ts` and
+ * `field-validation.dom.test.ts`. What matters here is the wiring: which control
+ * carries the name, which carries the id, and what a screen reader is told.
+ */
+describe("a telephone question is a country and a national number", () => {
+  const dialInput = () =>
+    document.querySelector<HTMLInputElement>(`[name="${phoneDialControlName("phone")}"]`);
+
+  it("renders a country picker beside a labelled telephone input", () => {
+    renderDefinition([phoneField()]);
+
+    expect(screen.getByRole("button", { name: "Select country dialling code" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Phone number/)).toHaveAttribute("type", "tel");
+  });
+
+  it("defaults to Bangladesh, per decision 4", () => {
+    renderDefinition([phoneField()]);
+
+    expect(screen.getByRole("button", { name: "Select country dialling code" })).toHaveTextContent(
+      "+880"
+    );
+    expect(dialInput()).toHaveValue("+880");
+  });
+
+  it("puts the question's name and id on the visible input, not the hidden one", () => {
+    renderDefinition([phoneField()]);
+
+    // Load-bearing. Naming the hidden input instead would make `required`
+    // unenforceable, make constraint validation always pass, and send task 2.2's
+    // focus effect at something invisible.
+    const visible = screen.getByLabelText(/Phone number/);
+
+    expect(visible).toHaveAttribute("name", "phone");
+    expect(document.getElementById("form-test-phone")).toBe(visible);
+    expect(dialInput()).not.toHaveAttribute("id");
+  });
+
+  it("updates the submitted dial code when the country changes", async () => {
+    const user = userEvent.setup();
+    renderDefinition([phoneField()]);
+
+    await user.click(screen.getByRole("button", { name: "Select country dialling code" }));
+    await user.type(screen.getByRole("textbox", { name: "Search country" }), "german");
+    await user.click(screen.getByRole("option", { name: /Germany/ }));
+
+    expect(dialInput()).toHaveValue("+49");
+  });
+
+  it("tells a respondent the two things they cannot see", () => {
+    renderDefinition([phoneField()]);
+
+    // That the country is a separate control, and that the leading zero is not
+    // wanted. Both are the difference between a first attempt that works and one
+    // that comes back with an error.
+    expect(screen.getByLabelText(/Phone number/)).toHaveAccessibleDescription(
+      "Choose the country, then type the rest of the number without its leading zero."
+    );
+  });
+
+  it("describes the picker with the same guidance as the input", () => {
+    renderDefinition([phoneField()]);
+
+    // The picker is where the country is chosen, so the sentence explaining that
+    // has to reach it too.
+    expect(
+      screen.getByRole("button", { name: "Select country dialling code" })
+    ).toHaveAccessibleDescription(/Choose the country/);
+  });
+
+  it("announces the error, then the help text, then the format note", () => {
+    renderDefinition([phoneField({ helpText: "A number reviewers can reach you on." })], {
+      errors: { phone: "Enter the number with its country code, for example +8801712345678." },
+    });
+
+    expect(screen.getByLabelText(/Phone number/)).toHaveAccessibleDescription(
+      "Enter the number with its country code, for example +8801712345678. A number reviewers can reach you on. Choose the country, then type the rest of the number without its leading zero."
+    );
+  });
+
+  it("marks the visible input invalid, so the failure is on the focusable control", () => {
+    renderDefinition([phoneField()], { errors: { phone: "Enter the number with its country code." } });
+
+    expect(screen.getByLabelText(/Phone number/)).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("requires the visible input when the question is required", () => {
+    renderDefinition([phoneField({ required: true })]);
+
+    const visible = screen.getByLabelText(/Phone number/);
+
+    expect(visible).toBeRequired();
+    expect(visible).toHaveAccessibleName(expect.stringContaining("(required)"));
+  });
+
+  it("renders inert and submits nothing in the Studio preview", () => {
+    renderDefinition([phoneField({ required: true })], { preview: true });
+
+    const visible = screen.getByLabelText(/Phone number/);
+
+    expect(visible).toBeDisabled();
+    expect(visible).not.toBeRequired();
+    expect(visible).not.toHaveAttribute("name");
+    expect(screen.getByRole("button", { name: "Select country dialling code" })).toBeDisabled();
+    // No dial code either: a preview that submitted half an answer would be a
+    // preview that submits.
+    expect(dialInput()).toBeNull();
+  });
+});
+
+/**
  * Task 2.4.
  *
  * `maxLength` on an input is a hard stop: typing simply stops, with no
@@ -336,14 +458,28 @@ describe("a capped answer warns before the browser stops it", () => {
     );
   });
 
-  it("counts a short answer and a telephone too, not only a paragraph", () => {
+  it("counts a short answer too, not only a paragraph", () => {
     renderDefinition([
       { id: "nickname", label: "Preferred name", maxLength: 10, required: false, type: "text" },
-      { id: "phone", label: "Phone number", maxLength: 10, required: false, type: "telephone" },
     ]);
 
     expect(typeInto("Preferred name", 9)).toHaveAccessibleDescription("9 / 10 characters");
-    expect(typeInto("Phone number", 9)).toHaveAccessibleDescription("9 / 10 characters");
+  });
+
+  it("no longer counts a telephone, because the cap governs a different string", () => {
+    // Task 2.6 changed this deliberately. The counter measured the *national*
+    // number a respondent types, while `maxLength` caps the **canonical**
+    // `+<dial><national>` that gets stored — two different lengths against one
+    // limit, wrong in a way nobody would notice. The format rule is the
+    // meaningful constraint for a phone number and it is announced instead.
+    renderDefinition([phoneField({ maxLength: 10 })]);
+
+    fireEvent.change(screen.getByLabelText(/Phone number/), { target: { value: "171234567" } });
+
+    expect(screen.queryByText(/characters/)).toBeNull();
+    expect(screen.getByLabelText(/Phone number/)).toHaveAccessibleDescription(
+      "Choose the country, then type the rest of the number without its leading zero."
+    );
   });
 
   it("never counts an email, which the schema does not cap", () => {
@@ -838,6 +974,7 @@ describe("accessibility of a form using every control", () => {
         email: "Enter an email address in the form name@example.com.",
         full_name: "Please answer this question.",
         guests: "Enter 10 or less.",
+        phone: "Enter the number with its country code, for example +8801712345678.",
         tracks: "Please choose at least one option.",
       },
     });
@@ -848,8 +985,9 @@ describe("accessibility of a form using every control", () => {
 
     // The failing state is the one nobody screenshots, so it is the one where a
     // dangling aria-describedby or an orphaned message would survive review.
-    // Both group controls fail here, and one control carries a live count
-    // alongside its other descriptions.
+    // Both group controls fail here, the telephone's split control carries an
+    // error across two elements, and one control carries a live count alongside
+    // its other descriptions.
     const violations = await findAccessibilityViolations(container);
 
     expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
