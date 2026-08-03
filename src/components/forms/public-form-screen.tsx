@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { TurnstileField } from "@/components/auth/turnstile-field";
 import { FormFieldControls } from "@/components/forms/form-field-controls";
 import {
+  phoneDialControlName,
   PUBLIC_FORM_CAPTCHA_CONTROL_NAME,
   PUBLIC_FORM_HONEYPOT_CONTROL_NAME,
 } from "@/lib/forms/control-names";
@@ -20,6 +21,7 @@ import {
   resolveFormLengthSummary,
 } from "@/lib/forms/public-form-presentation";
 import { resolvePublicFormSubmissionTarget } from "@/lib/forms/submission-target";
+import { composePhoneAnswer } from "@/lib/phone";
 
 /**
  * Every status surface on this screen previously hardcoded `red-500`/`red-700`
@@ -281,7 +283,14 @@ async function uploadToCloudinary(upload: PendingFormUpload, instruction: FormUp
   };
 }
 
-function toAnswers(
+/**
+ * Reads the form into the answer shape the server validates.
+ *
+ * Exported for task 2.6's tests: the telephone branch composes two controls into
+ * one answer, which is the only place on this screen where what a respondent
+ * typed and what gets submitted are different strings.
+ */
+export function toAnswers(
   formData: FormData,
   definition: FormDefinition,
   uploadedIdsByField: Record<string, string[]> = {}
@@ -308,6 +317,31 @@ function toAnswers(
 
     if (field.type === "multi_select") {
       answers[field.id] = formData.getAll(field.id).map(String);
+      continue;
+    }
+
+    /**
+     * Task 2.6. The one answer that is composed rather than read.
+     *
+     * The visible control holds the national number and a hidden sibling holds
+     * the dial code, so the canonical value exists only once the two are put
+     * together.
+     *
+     * **An untouched question sends no key at all.** Every other type here sends
+     * `""` and lets the server treat it as absent, which is fine for a string a
+     * respondent left alone. A composed value cannot do that: the dial code has
+     * a default, so an empty national number would still produce `"+880"`, and
+     * that is a format failure on a question nobody chose to answer.
+     */
+    if (field.type === "telephone") {
+      const composed = composePhoneAnswer(
+        String(formData.get(phoneDialControlName(field.id)) || ""),
+        String(formData.get(field.id) || "")
+      );
+
+      if (composed) {
+        answers[field.id] = composed;
+      }
       continue;
     }
 

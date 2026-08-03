@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  phoneDialControlName,
   PUBLIC_FORM_CAPTCHA_CONTROL_NAME,
   PUBLIC_FORM_HONEYPOT_CONTROL_NAME,
 } from "@/lib/forms/control-names";
@@ -235,6 +236,93 @@ describe("collecting field errors from a group of controls", () => {
 
     expect(radioErrors.track).toBe("Please choose an option.");
     expect(checkboxErrors.tracks).toBe("Please choose at least one option.");
+  });
+});
+
+/**
+ * Task 2.6. A telephone answer is the only one on this form that is *composed*
+ * rather than read: the visible control holds the national number and a hidden
+ * sibling holds the dial code.
+ *
+ * The rule has to see the composed string. Reading the visible input alone would
+ * rule-check a bare national number and report a format error against an answer
+ * that is about to be composed correctly, which is the most annoying possible
+ * false positive: it fires on a correctly filled field.
+ */
+describe("collecting field errors from a composed telephone control", () => {
+  const phoneForm = (national: string, dial = "+880", attributes = "") =>
+    formWith(`
+      <input name="phone" type="tel" value="${national}" ${attributes} />
+      <input name="${phoneDialControlName("phone")}" type="hidden" value="${dial}" />
+    `);
+
+  const phoneDefinition = (required = false) =>
+    definitionOf([{ id: "phone", label: "Phone number", required, type: "telephone" }]);
+
+  it("composes the two controls and accepts the result", () => {
+    expect(collectNativeFieldErrors(phoneForm("1712345678"), phoneDefinition())).toEqual({});
+  });
+
+  it("accepts a number typed with its trunk zero, which is how people write it", () => {
+    expect(collectNativeFieldErrors(phoneForm("01712345678"), phoneDefinition())).toEqual({});
+  });
+
+  it("accepts separators a respondent types by habit", () => {
+    expect(collectNativeFieldErrors(phoneForm("1712-345678"), phoneDefinition())).toEqual({});
+  });
+
+  it("reports letters, which the old 32 character cap accepted", () => {
+    expect(collectNativeFieldErrors(phoneForm("call me"), phoneDefinition())).toEqual({
+      phone: "Enter the number with its country code, for example +8801712345678.",
+    });
+  });
+
+  it("reports letters mixed with enough digits to otherwise look valid", () => {
+    expect(collectNativeFieldErrors(phoneForm("1712abc345678"), phoneDefinition())).toEqual({
+      phone: "Enter the number with its country code, for example +8801712345678.",
+    });
+  });
+
+  it("reports a number too short to be real", () => {
+    expect(collectNativeFieldErrors(phoneForm("12"), phoneDefinition())).toEqual({
+      phone: "Enter the number with its country code, for example +8801712345678.",
+    });
+  });
+
+  it("says nothing about an untouched optional question", () => {
+    // The dial code always has a value, so the composed answer has to come out
+    // empty rather than as a bare "+880" — otherwise skipping the question would
+    // produce a format error.
+    expect(collectNativeFieldErrors(phoneForm(""), phoneDefinition())).toEqual({});
+  });
+
+  it("reports a required question left empty through the browser, not the rule", () => {
+    // Requiredness is native here because the *visible* input carries both the
+    // name and the `required` attribute. Naming the hidden input instead would
+    // have made this silently unenforceable.
+    expect(
+      collectNativeFieldErrors(phoneForm("", "+880", "required"), phoneDefinition(true))
+    ).toEqual({ phone: "Please answer this question." });
+  });
+
+  it("reports a bare national number when no dial code was submitted", () => {
+    // Only reachable from a crafted request or a stale client, but the server
+    // rejects it and the client should agree rather than pass it on.
+    const form = formWith('<input name="phone" type="tel" value="1712345678" />');
+
+    expect(collectNativeFieldErrors(form, phoneDefinition())).toEqual({
+      phone: "Enter the number with its country code, for example +8801712345678.",
+    });
+  });
+
+  it("reports a canonical value longer than the author's cap", () => {
+    const definition = definitionOf([
+      { id: "phone", label: "Phone number", maxLength: 13, required: false, type: "telephone" },
+    ]);
+
+    expect(collectNativeFieldErrors(phoneForm("1712345678"), definition)).toEqual({
+      phone: "Shorten this to 13 characters or fewer.",
+    });
   });
 });
 
