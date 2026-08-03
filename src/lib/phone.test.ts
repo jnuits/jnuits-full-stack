@@ -87,6 +87,11 @@ describe("the national part", () => {
   it("returns nothing for punctuation alone", () => {
     expect(toNationalDigits(" - () ")).toBe("");
   });
+
+  it("refuses unsupported characters instead of deleting them", () => {
+    // Silent deletion would turn a typo into a different, valid-looking number.
+    expect(toNationalDigits("1712abc345678")).toBeNull();
+  });
 });
 
 describe("composing an answer from a picked country and a typed number", () => {
@@ -96,6 +101,13 @@ describe("composing an answer from a picked country and a typed number", () => {
 
   it("drops the trunk zero a respondent naturally types", () => {
     expect(composePhoneAnswer("+880", "01712345678")).toBe("+8801712345678");
+  });
+
+  it("keeps mixed letters visible to validation instead of silently deleting them", () => {
+    const composed = composePhoneAnswer("+880", "1712abc345678");
+
+    expect(composed).toContain("abc");
+    expect(normalizePhoneAnswer(composed)).toBeNull();
   });
 
   it("produces an empty string when nothing was typed, not a bare dial code", () => {

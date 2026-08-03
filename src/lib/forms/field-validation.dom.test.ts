@@ -277,6 +277,12 @@ describe("collecting field errors from a composed telephone control", () => {
     });
   });
 
+  it("reports letters mixed with enough digits to otherwise look valid", () => {
+    expect(collectNativeFieldErrors(phoneForm("1712abc345678"), phoneDefinition())).toEqual({
+      phone: "Enter the number with its country code, for example +8801712345678.",
+    });
+  });
+
   it("reports a number too short to be real", () => {
     expect(collectNativeFieldErrors(phoneForm("12"), phoneDefinition())).toEqual({
       phone: "Enter the number with its country code, for example +8801712345678.",

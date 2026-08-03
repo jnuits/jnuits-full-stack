@@ -107,8 +107,15 @@ export function filterDialCountries(query: string): readonly DialCountry[] {
  * leading zero is stored malformed. That is pre-existing, outside this task, and
  * reported rather than quietly changed — see the PR body.
  */
-export function toNationalDigits(value: string) {
-  return value.replace(SEPARATOR_PATTERN, "").replace(/\D/g, "").replace(/^0+/, "");
+export function toNationalDigits(value: string): null | string {
+  const compact = value.replace(SEPARATOR_PATTERN, "");
+
+  if (!compact) {
+    return "";
+  }
+
+  // Deleting unsupported characters would silently turn a typo into another number.
+  return /^\d+$/.test(compact) ? compact.replace(/^0+/, "") : null;
 }
 
 /**
