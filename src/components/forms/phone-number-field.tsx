@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { CountryDialPicker } from "@/components/ui/country-dial-picker";
 import { phoneDialControlName } from "@/lib/forms/control-names";
-import { DEFAULT_COUNTRY, toNationalDigits, type DialCountry } from "@/lib/phone";
+import { DEFAULT_COUNTRY, type DialCountry } from "@/lib/phone";
 
 /**
  * A telephone question: a country picker and a national number. Task 2.6.
@@ -71,7 +71,11 @@ export function PhoneNumberField({
   const [nationalNumber, setNationalNumber] = useState("");
 
   return (
-    <div className={invalid ? `${FIELD_SHELL_CLASS} ${FIELD_SHELL_INVALID_CLASS}` : FIELD_SHELL_CLASS}>
+    <div
+      className={
+        invalid ? `${FIELD_SHELL_CLASS} ${FIELD_SHELL_INVALID_CLASS}` : FIELD_SHELL_CLASS
+      }
+    >
       <CountryDialPicker
         country={country}
         describedBy={describedBy}
@@ -95,26 +99,8 @@ export function PhoneNumberField({
         value={nationalNumber}
       />
       {preview ? null : (
-        <input
-          name={phoneDialControlName(fieldId)}
-          type="hidden"
-          value={country.dial}
-        />
+        <input name={phoneDialControlName(fieldId)} type="hidden" value={country.dial} />
       )}
-      {/*
-       * A second hidden input carrying the digits the composer will actually use.
-       * Not for submission — `toAnswers` recomposes from the two named controls —
-       * but so that a browser autofilling a full international number into the
-       * visible input still produces the same canonical value that typing it
-       * would. `toNationalDigits` drops the trunk zero either way.
-       */}
-      <input
-        aria-hidden="true"
-        readOnly
-        tabIndex={-1}
-        type="hidden"
-        value={toNationalDigits(nationalNumber)}
-      />
     </div>
   );
 }
