@@ -3,7 +3,9 @@ import {
   type FormQuestionField,
   type RawAnswerValue,
 } from "@/lib/forms/answer-rules";
+import { phoneDialControlName } from "@/lib/forms/control-names";
 import type { FormDefinition } from "@/lib/forms/definition";
+import { composePhoneAnswer } from "@/lib/phone";
 
 /**
  * Client-side field validation messages for the public form. Tasks 2.1 and 2.3.
@@ -132,13 +134,32 @@ function isAnyControlChecked(controls: ValidatableControl[]) {
 }
 
 /**
+ * The value of one non-question control, or `""` when it is absent.
+ *
+ * Used for the telephone field's dial code, which is a hidden input rather than
+ * a question and therefore never appears in the definition.
+ */
+function siblingControlValue(formElement: HTMLFormElement, name: string) {
+  const [control] = resolveValidatableControls(formElement.elements.namedItem(name));
+
+  return control?.value ?? "";
+}
+
+/**
  * The respondent's current answer, in the shape `checkAnswerRule` expects.
  *
  * A file control yields `""`: its value is a fake path, the real answer is an
  * asset id that does not exist until the upload completes, and the server
  * checks those against the upload proof rather than against a rule.
+ *
+ * A telephone answer is **composed**, not read. Task 2.6 splits the control into
+ * a country picker and a national number, and the rule has to see the same
+ * canonical string the server will: reading the visible input alone would
+ * rule-check a bare national number and report a format error against an answer
+ * that is about to be composed correctly.
  */
 function readAnswerValue(
+  formElement: HTMLFormElement,
   field: FormQuestionField,
   controls: ValidatableControl[]
 ): RawAnswerValue {
@@ -156,6 +177,13 @@ function readAnswerValue(
 
   if (field.type === "image" || field.type === "pdf") {
     return "";
+  }
+
+  if (field.type === "telephone") {
+    return composePhoneAnswer(
+      siblingControlValue(formElement, phoneDialControlName(field.id)),
+      controls[0]?.value ?? ""
+    );
   }
 
   return controls[0]?.value ?? "";
@@ -224,10 +252,10 @@ export function collectNativeFieldErrors(
      * failures constraint validation cannot express. The motivating one is task
      * 2.5: `someone@localhost` satisfies `<input type="email">`, which follows
      * the HTML spec and permits a bare domain label, and fails the server's
-     * `z.string().email()`. Before this, that combination produced a clean
-     * submit followed by a top-level rejection naming no field.
+     * email check. Before this, that combination produced a clean submit
+     * followed by a top-level rejection naming no field.
      */
-    const ruleFailure = checkAnswerRule(field, readAnswerValue(field, controls));
+    const ruleFailure = checkAnswerRule(field, readAnswerValue(formElement, field, controls));
 
     if (ruleFailure) {
       errors[field.id] = ruleFailure;
