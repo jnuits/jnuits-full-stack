@@ -173,7 +173,8 @@ describe("layout classes", () => {
 describe("page structure that is not yet rendered in a test", () => {
   // What is left here is what a rendering test cannot reach. The screen is now
   // rendered in public-form-screen.dom.test.tsx, so anything observable there
-  // belongs there.
+  // belongs there -- including, as of task 2.2, whether the success heading is
+  // focused and whether it sits inside a live region.
 
   it("renders the form title as the page's only top-level heading", () => {
     const screen = readScreen();
@@ -244,21 +245,14 @@ describe("page structure that is not yet rendered in a test", () => {
     // changes within a view that stays put -- the verification chip and the
     // resend confirmation.
     //
-    // Whether the heading actually receives focus, and whether it sits inside a
-    // region, is asserted in public-form-screen.dom.test.tsx against the
-    // rendered tree. This guard only keeps the removed region from drifting back
-    // in unnoticed.
+    // Whether the heading receives focus, whether it carries a tab stop, and
+    // whether it sits inside a region are all asserted in
+    // public-form-screen.dom.test.tsx against the rendered tree. This guard only
+    // keeps the removed region from drifting back in unnoticed, which is the one
+    // part a rendering test cannot see: a region reintroduced around a *different*
+    // branch would still pass over there.
     expect(screen.match(/role="status"/g)?.length).toBe(2);
     expect(screen).not.toContain('<div aria-live="polite" className="text-center" role="status">');
-  });
-
-  it("makes the success heading a focus target without adding a tab stop", () => {
-    const screen = readScreen();
-
-    // A heading is not focusable on its own, so the ref alone would be a no-op.
-    // -1 rather than 0: nobody should tab onto a heading.
-    expect(screen).toContain("successHeadingRef");
-    expect(screen).toMatch(/ref=\{successHeadingRef\}\s*\n\s*tabIndex=\{-1\}/);
   });
 
   it("keeps failures assertive and separate from status", () => {

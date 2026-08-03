@@ -17,9 +17,9 @@ import { findAccessibilityViolations } from "../../../test/setup/axe";
  * `public-form-presentation-contract.test.ts` has named this file since #52 and
  * it did not exist, so assertions about roles and structure stayed there as
  * string matches against the source. The live-region assertion moves here as
- * part of task 2.2, because the structure it described is what this slice
- * changes and a string match cannot tell you whether a screen reader would ever
- * have heard it.
+ * part of task 2.2, because the structure it described is exactly what this
+ * slice changes and a string match cannot tell you whether a screen reader
+ * would ever have heard it.
  */
 
 const definition = parseFormDefinition({
@@ -39,11 +39,11 @@ const uploadDefinition = parseFormDefinition({
 });
 
 /**
- * A response object rather than a real `Response`.
+ * A response-shaped object rather than a real `Response`.
  *
  * The screen reads `ok` and `json()` and nothing else, and constructing a real
- * `Response` would make this test depend on which fetch implementation the
- * runtime happens to expose rather than on the screen's own behaviour.
+ * `Response` would make this depend on which fetch implementation the runtime
+ * happens to expose rather than on the screen's own behaviour.
  */
 function stubFetch(payload: Record<string, unknown> = { success: true }) {
   const fetchMock = vi.fn(async () => ({ json: async () => payload, ok: true }));
@@ -113,8 +113,13 @@ describe("the submission success state", () => {
 
     // The actual regression. Success replaces the submit button that had focus,
     // and a removed element cannot keep it, so without this the browser hands
-    // focus to <body> and the respondent is returned to the top of the document.
+    // focus to <body> and the respondent is returned to the top of the document
+    // with no statement of what happened.
     expect(document.activeElement).not.toBe(document.body);
+
+    // A focus target, not a tab stop. -1 rather than 0 because nobody should
+    // arrive on a heading by tabbing.
+    expect(heading).toHaveAttribute("tabindex", "-1");
   });
 
   it("does not put the focused heading inside a live region", async () => {
@@ -131,8 +136,7 @@ describe("the submission success state", () => {
     // Moved here from public-form-presentation-contract.test.ts, and inverted.
     // The region used to wrap this heading and never announced anything, because
     // it mounted with its content already inside it. Now that focus lands on the
-    // heading, a region around it would announce the same sentence a second
-    // time.
+    // heading, a region around it would announce the same sentence twice.
     expect(heading.closest("[aria-live]")).toBeNull();
     expect(heading.closest('[role="status"]')).toBeNull();
     expect(screen.queryAllByRole("status")).toHaveLength(0);
@@ -146,7 +150,7 @@ describe("the submission success state", () => {
     await submitValidAnswers(user, "Complete registration");
 
     // Read from the same source the screen reads, so this cannot pass by
-    // asserting a copy of the string that has since been reworded.
+    // asserting a copy of a string that has since been reworded.
     const { heading: expected } = getEventRegistrationSuccessContent(false);
     const heading = await screen.findByRole("heading", { level: 2, name: expected });
 
@@ -168,7 +172,7 @@ describe("the submission success state", () => {
 
     // The resend form re-renders this whole branch on each of its own state
     // changes. An effect keyed on the state object rather than on its status
-    // would fire again here and yank focus back up to the heading, out of the
+    // would fire again here and drag focus back up to the heading, out of the
     // form the respondent is working in.
     await screen.findByRole("status");
 
