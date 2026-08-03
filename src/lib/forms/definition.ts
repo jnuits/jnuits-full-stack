@@ -34,6 +34,38 @@ export type FormFieldType = (typeof FORM_FIELD_TYPES)[number];
 
 export const FormKindSchema = z.enum(FORM_KINDS);
 
+/**
+ * How long an answer may be, per field type. Task 2.4.
+ *
+ * Exported and used to *build* the schema below, rather than written into it as
+ * literals and restated wherever else they are needed. Two places that both
+ * "know" a cap is 500 will eventually disagree, and the disagreement is silent
+ * until an operator has written past one of them.
+ *
+ * `STUDIO_HELP_TEXT_MAX_LENGTH` was that second place. #119 shipped it as a
+ * duplicate defended by a test asserting both ends of the cap, which catches
+ * drift after the fact; this removes the possibility instead. Same argument as
+ * removing the CI branch filter in #111 and rejecting a reserved-path list in
+ * decision 5: absence of a second source cannot drift.
+ *
+ * `min` is the schema's floor, not an authoring suggestion. A telephone field
+ * cannot be capped below 7 characters because no reachable number is shorter.
+ */
+export const ANSWER_LENGTH_LIMITS = {
+  telephone: { defaultValue: 32, max: 40, min: 7 },
+  text: { defaultValue: 160, max: 2_000, min: 1 },
+  textarea: { defaultValue: 4_000, max: 10_000, min: 1 },
+} as const;
+
+export type LengthLimitedFieldType = keyof typeof ANSWER_LENGTH_LIMITS;
+export type AnswerLengthLimits = (typeof ANSWER_LENGTH_LIMITS)[LengthLimitedFieldType];
+
+export const HELP_TEXT_MAX_LENGTH = 500;
+
+function maxLengthSchema(limits: AnswerLengthLimits) {
+  return z.number().int().min(limits.min).max(limits.max).default(limits.defaultValue);
+}
+
 const fieldIdSchema = z
   .string()
   .regex(/^[a-z][a-z0-9_]{0,63}$/, "Use a lowercase field ID with underscores.")
@@ -43,7 +75,7 @@ const fieldIdSchema = z
   );
 
 const labelSchema = z.string().trim().min(1).max(160);
-const helpTextSchema = z.string().trim().max(500).optional();
+const helpTextSchema = z.string().trim().max(HELP_TEXT_MAX_LENGTH).optional();
 const assetIdSchema = z.string().uuid();
 
 const optionSchema = z
@@ -102,14 +134,14 @@ export const FormFieldSchema = z.discriminatedUnion("type", [
   z
     .object({
       ...inputField,
-      maxLength: z.number().int().min(1).max(2_000).default(160),
+      maxLength: maxLengthSchema(ANSWER_LENGTH_LIMITS.text),
       type: z.literal("text"),
     })
     .strict(),
   z
     .object({
       ...inputField,
-      maxLength: z.number().int().min(1).max(10_000).default(4_000),
+      maxLength: maxLengthSchema(ANSWER_LENGTH_LIMITS.textarea),
       type: z.literal("textarea"),
     })
     .strict(),
@@ -117,7 +149,7 @@ export const FormFieldSchema = z.discriminatedUnion("type", [
   z
     .object({
       ...inputField,
-      maxLength: z.number().int().min(7).max(40).default(32),
+      maxLength: maxLengthSchema(ANSWER_LENGTH_LIMITS.telephone),
       type: z.literal("telephone"),
     })
     .strict(),
@@ -221,6 +253,25 @@ export type ChoiceFieldType = (typeof CHOICE_FIELD_TYPES)[number];
 
 export function isChoiceFieldType(type: FormFieldType): type is ChoiceFieldType {
   return (CHOICE_FIELD_TYPES as readonly FormFieldType[]).includes(type);
+}
+
+/** Whether a field type caps how long its answer may be. */
+export function isLengthLimitedFieldType(
+  type: FormFieldType
+): type is LengthLimitedFieldType {
+  return type in ANSWER_LENGTH_LIMITS;
+}
+
+/**
+ * The length bounds for a field type, or `null` when it has none.
+ *
+ * Returning the bounds rather than a boolean is what lets a caller render an
+ * input with the right `min` and `max` without repeating the table. The Studio
+ * needs exactly that, and a repeated bound would be a third source of truth for
+ * a number the schema already owns.
+ */
+export function answerLengthLimits(type: FormFieldType): AnswerLengthLimits | null {
+  return isLengthLimitedFieldType(type) ? ANSWER_LENGTH_LIMITS[type] : null;
 }
 
 export function parseFormDefinition(input: unknown): FormDefinition {

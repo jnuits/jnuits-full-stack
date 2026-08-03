@@ -6,7 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 import { CharacterLimitCounter } from "@/components/admin/character-limit-counter";
 import { FieldWithHint } from "@/components/admin/field-with-hint";
 import { FormFieldControls } from "@/components/forms/form-field-controls";
-import { FormDefinitionSchema, isChoiceFieldType, type FormDefinition } from "@/lib/forms/definition";
+import {
+  answerLengthLimits,
+  FormDefinitionSchema,
+  isChoiceFieldType,
+  type FormDefinition,
+} from "@/lib/forms/definition";
 import {
   createStudioEditorKey,
   createUniqueStudioFieldId,
@@ -129,6 +134,63 @@ const HELP_TEXT_UNSUPPORTED_TYPES = ["section"];
 
 function mappingLabel(key: string) {
   return MAPPING_LABELS[key] || { hint: "", label: key.replace(/([A-Z])/g, " $1") };
+}
+
+/**
+ * The answer length cap for one question. Task 2.4.
+ *
+ * A named component rather than another inline conditional, for two reasons.
+ * The bounds are a per-type lookup, so inlining it would mean either repeating
+ * the table or narrowing the type inside an expression that is already hundreds
+ * of columns long (13.2d). And the clamp has to be somewhere a reader can see
+ * it: a number input accepts anything typed, `min` and `max` only style it.
+ *
+ * Renders nothing for a type with no cap, so the caller does not have to ask.
+ */
+function MaximumLengthField({
+  controlId,
+  field,
+  onChange,
+}: {
+  controlId: string;
+  field: StudioEditorField;
+  onChange: (maxLength: number) => void;
+}) {
+  const limits = answerLengthLimits(field.type);
+
+  if (!limits) {
+    return null;
+  }
+
+  return (
+    <FieldWithHint
+      className="mt-3 block"
+      controlId={controlId}
+      hint={`Between ${limits.min} and ${limits.max} characters. Respondents cannot type past this.`}
+      label="Maximum length"
+    >
+      {(hintId) => (
+        <input
+          aria-describedby={hintId}
+          id={controlId}
+          max={limits.max}
+          min={limits.min}
+          onChange={(event) => {
+            const entered = Number(event.target.value);
+            const integer =
+              event.target.value === "" || !Number.isFinite(entered)
+                ? limits.defaultValue
+                : Math.trunc(entered);
+
+            onChange(Math.min(limits.max, Math.max(limits.min, integer)));
+          }}
+          step={1}
+          type="number"
+          value={field.maxLength ?? limits.defaultValue}
+        />
+      )}
+    </FieldWithHint>
+  );
 }
 
 /**
@@ -483,10 +545,14 @@ export function ModernFormStudioScreen() {
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="admin-section-label">Questions</p><p className="mt-1 text-sm text-[var(--muted-foreground)]">Question IDs are generated automatically and stay stable after saving.</p></div><button className="admin-btn admin-btn--ghost" onClick={addQuestion} type="button"><Plus size={15} /> Add question</button></div>
         <div className="grid gap-3">{fields.map((field, index) => <article className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4" key={field.editorKey}><div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs text-[var(--muted-foreground)]">Question {index + 1}</span><details><summary className="cursor-pointer text-xs font-semibold">Advanced details</summary><code className="mt-2 block text-xs">ID: {field.id}</code></details></div><div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]"><label className="input-label">Question<input value={field.label} onChange={(event) => renameField(index, event.target.value)} required /></label><label className="input-label">Question type<select value={field.type} onChange={(event) => updateField(index, {
   helpText: event.target.value === "section" ? undefined : field.helpText,
+  // Cleared rather than carried: the bounds differ per type, so a 10000
+  // character paragraph cap is invalid on a 2000 character short answer and
+  // would publish as a schema error with no obvious cause.
+  maxLength: undefined,
   preserveSectionHelpText: event.target.value === "section" ? false : field.preserveSectionHelpText,
   required: event.target.value === "consent" || field.required,
   type: event.target.value as StudioFieldType,
-})}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{!HELP_TEXT_UNSUPPORTED_TYPES.includes(field.type) ? <FieldWithHint className="mt-3 block" controlId={`form-studio-help-${field.editorKey}`} hint={<>Optional. Shown under the question and read out with it. Up to {STUDIO_HELP_TEXT_MAX_LENGTH} characters.</>} label="Help text">{(hintId) => <><textarea aria-describedby={`${hintId} form-studio-help-${field.editorKey}-counter`} id={`form-studio-help-${field.editorKey}`} maxLength={STUDIO_HELP_TEXT_MAX_LENGTH} rows={2} value={field.helpText ?? ""} onChange={(event) => updateField(index, { helpText: event.target.value, preserveSectionHelpText: false })} /><CharacterLimitCounter current={(field.helpText ?? "").length} id={`form-studio-help-${field.editorKey}-counter`} maximum={STUDIO_HELP_TEXT_MAX_LENGTH} /></>}</FieldWithHint> : null}{isChoiceFieldType(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
+})}>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><div className="flex flex-wrap items-end gap-2"><button aria-label={`Move ${field.label} up`} className="admin-btn admin-btn--ghost" disabled={index === 0} onClick={() => setFields((current) => moveItem(current, index, index - 1))} type="button">↑</button><button aria-label={`Move ${field.label} down`} className="admin-btn admin-btn--ghost" disabled={index === fields.length - 1} onClick={() => setFields((current) => moveItem(current, index, index + 1))} type="button">↓</button><button className="admin-btn admin-btn--ghost" onClick={() => duplicateQuestion(index)} type="button">Duplicate</button><button aria-label={`Remove ${field.label}`} className="admin-btn admin-btn--danger" disabled={fields.length === 1} onClick={() => setFields((current) => current.filter((_, position) => position !== index))} type="button"><Trash2 size={15} /></button></div></div>{!UNMAPPABLE_TYPES.includes(field.type) ? <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold"><input checked={field.required} onChange={(event) => updateField(index, { required: event.target.checked })} type="checkbox" /> Required</label> : null}{!HELP_TEXT_UNSUPPORTED_TYPES.includes(field.type) ? <FieldWithHint className="mt-3 block" controlId={`form-studio-help-${field.editorKey}`} hint={<>Optional. Shown under the question and read out with it. Up to {STUDIO_HELP_TEXT_MAX_LENGTH} characters.</>} label="Help text">{(hintId) => <><textarea aria-describedby={`${hintId} form-studio-help-${field.editorKey}-counter`} id={`form-studio-help-${field.editorKey}`} maxLength={STUDIO_HELP_TEXT_MAX_LENGTH} rows={2} value={field.helpText ?? ""} onChange={(event) => updateField(index, { helpText: event.target.value, preserveSectionHelpText: false })} /><CharacterLimitCounter current={(field.helpText ?? "").length} id={`form-studio-help-${field.editorKey}-counter`} maximum={STUDIO_HELP_TEXT_MAX_LENGTH} /></>}</FieldWithHint> : null}<MaximumLengthField controlId={`form-studio-length-${field.editorKey}`} field={field} onChange={(maxLength) => updateField(index, { maxLength })} />{isChoiceFieldType(field.type) ? <label className="input-label mt-3 block">Choices, one per line<textarea rows={4} value={field.optionsText} onChange={(event) => updateField(index, { optionsText: event.target.value })} /></label> : null}{["image", "pdf"].includes(field.type) ? <label className="input-label mt-3 block">Maximum files<input min={1} max={5} type="number" value={field.maxFiles ?? 1} onChange={(event) => updateField(index, { maxFiles: Math.min(5, Math.max(1, Number(event.target.value) || 1)) })} /></label> : null}</article>)}</div>
         {preview ? (
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--bg)] p-5" aria-label="Form preview">
             <p className="admin-section-label">Respondent preview</p>

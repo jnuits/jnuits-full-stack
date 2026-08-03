@@ -1,4 +1,6 @@
 import {
+  answerLengthLimits,
+  HELP_TEXT_MAX_LENGTH,
   isChoiceFieldType,
   parseFormDefinition,
   type FormDefinition,
@@ -30,6 +32,13 @@ export type StudioEditorField = {
   id: string;
   label: string;
   maxFiles?: number;
+  /**
+   * How long an answer may be, for the types that cap it. Task 2.4.
+   *
+   * Optional, and absent means "whatever the schema defaults to". An author who
+   * never opens this input gets the same cap the form has always had.
+   */
+  maxLength?: number;
   /** Keeps legacy section guidance only when it came from stored data. */
   preserveSectionHelpText?: boolean;
   optionsText: string;
@@ -38,14 +47,14 @@ export type StudioEditorField = {
 };
 
 /**
- * The authoring limit for help text, which is also the schema's limit.
+ * The authoring limit for help text, which is the schema's own limit.
  *
- * `helpTextSchema` in `definition.ts` caps at the same number. A second literal
- * can drift, and the drift is invisible until an operator has written 520
- * characters and the save fails Zod, so the conversion test asserts both ends of
- * it: this length parses and one more character does not.
+ * Re-exported rather than restated. This was a second literal until task 2.4:
+ * #119 wrote `500` here as well as in `definition.ts` and defended the pair with
+ * a test asserting both ends of the cap. Catching drift is weaker than removing
+ * the possibility of it, which is the argument that settled #111 and decision 5.
  */
-export const STUDIO_HELP_TEXT_MAX_LENGTH = 500;
+export const STUDIO_HELP_TEXT_MAX_LENGTH = HELP_TEXT_MAX_LENGTH;
 
 const RESERVED_FIELD_IDS = new Set(["__proto__", "constructor", "prototype"]);
 const MAX_FIELD_ID_LENGTH = 64;
@@ -147,6 +156,22 @@ function toHelpText(field: StudioEditorField) {
 }
 
 /**
+ * The length cap for the types that have one. Task 2.4.
+ *
+ * Falls back to the schema's own default rather than omitting the key, so a
+ * published definition always states its cap. That matters now the cap is
+ * authorable: reading a form back into a blank input, with the real limit
+ * implied somewhere else, is how an operator ends up believing there is none.
+ */
+function toMaxLength(field: StudioEditorField) {
+  const limits = answerLengthLimits(field.type);
+
+  if (!limits) return {};
+
+  return { maxLength: field.maxLength ?? limits.defaultValue };
+}
+
+/**
  * Builds the published schema field by field, so no editor-only property can
  * reach a stored definition.
  */
@@ -167,7 +192,7 @@ export function studioFieldsToDefinition(fields: StudioEditorField[]): FormDefin
       if (field.type === "image" || field.type === "pdf") return {
         ...toHelpText(field), id: field.id, label: field.label, maxFiles: field.maxFiles ?? 1, required: field.required, type: field.type,
       };
-      return { ...toHelpText(field), id: field.id, label: field.label, required: field.required, type: field.type };
+      return { ...toHelpText(field), ...toMaxLength(field), id: field.id, label: field.label, required: field.required, type: field.type };
     }),
     payment: { enabled: false },
   });
@@ -195,6 +220,9 @@ export function formDefinitionToStudioFields(definition: FormDefinition): Studio
     };
     if (field.type === "image" || field.type === "pdf") return {
       editorKey, helpText: field.helpText, id: field.id, label: field.label, maxFiles: field.maxFiles, optionsText: "", required: field.required, type: field.type,
+    };
+    if (field.type === "text" || field.type === "textarea" || field.type === "telephone") return {
+      editorKey, helpText: field.helpText, id: field.id, label: field.label, maxLength: field.maxLength, optionsText: "", required: field.required, type: field.type,
     };
     return { editorKey, helpText: field.helpText, id: field.id, label: field.label, optionsText: "", required: field.required, type: field.type };
   });
