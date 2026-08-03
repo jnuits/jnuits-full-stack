@@ -5,6 +5,7 @@ import {
   tooLongMessage,
   type FormQuestionField,
 } from "@/lib/forms/answer-rules";
+import { normalizePhoneAnswer } from "@/lib/phone";
 
 export const FORM_KINDS = [
   "event_registration",
@@ -48,8 +49,15 @@ export const FormKindSchema = z.enum(FORM_KINDS);
  * removing the CI branch filter in #111 and rejecting a reserved-path list in
  * decision 5: absence of a second source cannot drift.
  *
- * `min` is the schema's floor, not an authoring suggestion. A telephone field
- * cannot be capped below 7 characters because no reachable number is shorter.
+ * `min` is the schema's floor, not an authoring suggestion.
+ *
+ * **Known foot-gun, pre-existing and left alone here.** Task 2.6 made a
+ * telephone answer canonical, and the shortest canonical value is eight
+ * characters (`+` and seven digits). A telephone field capped below that
+ * therefore accepts nothing at all. Raising this floor would invalidate any
+ * stored definition already using a lower cap, which would break *editing* an
+ * existing form to fix it — a worse failure than the one it prevents. Reported
+ * rather than changed.
  */
 export const ANSWER_LENGTH_LIMITS = {
   telephone: { defaultValue: 32, max: 40, min: 7 },
@@ -337,6 +345,38 @@ function parseString(field: FormField, value: unknown, maxLength?: number) {
   return normalized;
 }
 
+/**
+ * A telephone answer, stored canonically. Task 2.6.
+ *
+ * There was no format rule at all before this: the schema capped the answer at
+ * 32 characters and nothing else, so one person could be stored as
+ * `+8801712345678`, `01712345678` or `01712-345678` depending on how they typed
+ * it, and `"call me"` was accepted.
+ *
+ * `parseString` is called **without** a cap on purpose. The rule measures the
+ * canonical form against `maxLength`, because the canonical form is what gets
+ * stored; capping the typed string would reject `+880 1712-345678` while
+ * accepting the identical `+8801712345678`.
+ *
+ * No stored answer is rewritten. `validateFormAnswers` runs only on incoming
+ * submissions — the public submit route and the event registration route — so
+ * existing rows keep whatever shape they were written with, and nothing
+ * re-validates them.
+ */
+function parsePhone(field: Extract<FormField, { type: "telephone" }>, value: unknown) {
+  const typed = parseString(field, value);
+
+  if (typed === undefined) {
+    return undefined;
+  }
+
+  assertAnswerRule(field, typed);
+
+  // The rule above rejects anything unnormalisable, so this cannot be null. The
+  // fallback keeps the type honest rather than asserting past it.
+  return normalizePhoneAnswer(typed) ?? typed;
+}
+
 function parseIsoDate(field: Extract<FormField, { type: "date" }>, value: unknown) {
   const date = parseString(field, value);
   if (date === undefined) {
@@ -442,8 +482,10 @@ export function validateFormAnswers(
     switch (field.type) {
       case "text":
       case "textarea":
-      case "telephone":
         parsed = parseString(field, value, field.maxLength);
+        break;
+      case "telephone":
+        parsed = parsePhone(field, value);
         break;
       case "email": {
         const email = parseString(field, value);

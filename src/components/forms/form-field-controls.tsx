@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { AnswerLengthCounter } from "@/components/forms/answer-length-counter";
+import { PhoneNumberField } from "@/components/forms/phone-number-field";
 import { describeAnswerConstraint } from "@/lib/forms/answer-rules";
 import type { FormDefinition, FormField } from "@/lib/forms/definition";
 import { groupFormFields } from "@/lib/forms/public-form-presentation";
@@ -198,6 +199,25 @@ function DateFormatNote({ id }: { id: string }) {
 }
 
 /**
+ * How to fill in a split telephone control. Task 2.6.
+ *
+ * Says the two things a respondent cannot infer from looking at it: that the
+ * country is a separate control, and that the leading zero is not wanted. Both
+ * are the difference between a first attempt that works and one that comes back
+ * with an error.
+ *
+ * Referenced by both halves of the control rather than left beside them, for the
+ * same reason as the date note and the number range.
+ */
+function PhoneFormatNote({ id }: { id: string }) {
+  return (
+    <p className={HELP_TEXT_CLASS} id={id}>
+      Choose the country, then type the rest of the number without its leading zero.
+    </p>
+  );
+}
+
+/**
  * The accepted range for a number question. Task 2.7.
  *
  * The schema has supported `min` and `max` from the start and this renderer has
@@ -274,7 +294,7 @@ function TextField({
   preview,
 }: {
   error?: string;
-  field: Extract<FormField, { type: "email" | "telephone" | "text" | "textarea" }>;
+  field: Extract<FormField, { type: "email" | "text" | "textarea" }>;
   inputId: string;
   preview?: boolean;
 }) {
@@ -287,7 +307,6 @@ function TextField({
    * and nothing above this component can see it.
    */
   const [answerLength, setAnswerLength] = useState(0);
-  const inputType = field.type === "email" ? "email" : field.type === "telephone" ? "tel" : "text";
   const maxLength = "maxLength" in field ? field.maxLength : undefined;
   const { errorId, helpId } = fieldDescriptionIds({ error, field, inputId });
   // Never in the preview: those controls are disabled, so a count could only
@@ -328,7 +347,7 @@ function TextField({
         <input
           aria-describedby={described}
           aria-invalid={invalid || undefined}
-          autoComplete={field.type === "email" ? "email" : field.type === "telephone" ? "tel" : "off"}
+          autoComplete={field.type === "email" ? "email" : "off"}
           className={fieldClass(TEXT_INPUT_CLASS, invalid)}
           disabled={preview}
           id={inputId}
@@ -337,7 +356,7 @@ function TextField({
           onChange={(event) => trackLength(event.currentTarget.value)}
           onFocus={(event) => trackLength(event.currentTarget.value)}
           required={!preview && field.required}
-          type={inputType}
+          type={field.type === "email" ? "email" : "text"}
         />
       )}
       <FieldError id={errorId} message={error} />
@@ -510,13 +529,41 @@ export function FormFieldControl({
     );
   }
 
-  if (
-    field.type === "text" ||
-    field.type === "textarea" ||
-    field.type === "email" ||
-    field.type === "telephone"
-  ) {
+  if (field.type === "text" || field.type === "textarea" || field.type === "email") {
     return <TextField error={fieldError} field={field} inputId={inputId} preview={preview} />;
+  }
+
+  /**
+   * Task 2.6. No character counter here, deliberately.
+   *
+   * `maxLength` on a telephone question caps the **canonical** answer, and this
+   * control's visible input holds the national number, which is a different
+   * number of characters. A count of one against the cap on the other would be
+   * wrong in a way nobody would notice. The format rule is the constraint that
+   * matters for a phone number, and it is announced through the error and the
+   * format note instead.
+   */
+  if (field.type === "telephone") {
+    const { errorId, helpId } = fieldDescriptionIds({ error: fieldError, field, inputId });
+    const formatNoteId = `${inputId}-phone-format`;
+    const invalid = Boolean(fieldError);
+
+    return (
+      <div>
+        <FieldLabel field={field} inputId={inputId} />
+        <PhoneNumberField
+          describedBy={describedBy(errorId, helpId, formatNoteId)}
+          fieldId={field.id}
+          inputId={inputId}
+          invalid={invalid}
+          preview={preview}
+          required={field.required}
+        />
+        <FieldError id={errorId} message={fieldError} />
+        <FieldHelp field={field} id={helpId} />
+        <PhoneFormatNote id={formatNoteId} />
+      </div>
+    );
   }
 
   if (field.type === "select") {

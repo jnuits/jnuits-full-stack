@@ -116,6 +116,9 @@ describe("shared form definitions", () => {
       email: "redwan@example.test",
       full_name: "Redwan",
       guests: 2,
+      // Task 2.6. This input was already here and nothing asserted what became
+      // of it; the separators used to be stored verbatim.
+      phone: "+8801700000000",
       terms: true,
     });
 
@@ -182,6 +185,79 @@ describe("single choice answers", () => {
 
   it("requires an answer when the question is required", () => {
     expect(() => validateFormAnswers(definitionOf(true), {})).toThrow(/required/i);
+  });
+});
+
+/**
+ * Task 2.6. A telephone answer had no format rule at all: the schema capped it at
+ * 32 characters, so `"call me"` was valid and one person could be stored three
+ * different ways depending on how they typed their own number.
+ */
+describe("telephone answers are stored canonically", () => {
+  const definitionOf = (overrides: Record<string, unknown> = {}) =>
+    parseFormDefinition({
+      fields: [
+        { id: "phone", label: "Phone number", required: false, type: "telephone", ...overrides },
+      ],
+      payment: { enabled: false },
+    });
+
+  it.each([
+    "+8801712345678",
+    "+880 1712 345678",
+    "+880 1712-345678",
+    "008801712345678",
+  ])("stores %s as one canonical value", (typed) => {
+    // The whole point of the task. These four are the same person, and before
+    // this they were four different rows.
+    expect(validateFormAnswers(definitionOf(), { phone: typed })).toEqual({
+      phone: "+8801712345678",
+    });
+  });
+
+  it("rejects prose, which the old 32 character cap accepted", () => {
+    expect(() => validateFormAnswers(definitionOf(), { phone: "call me" })).toThrow(
+      /Phone number: Enter the number with its country code/
+    );
+  });
+
+  it("rejects a bare national number rather than assuming Bangladesh", () => {
+    expect(() => validateFormAnswers(definitionOf(), { phone: "01712345678" })).toThrow(
+      /country code/
+    );
+  });
+
+  it("omits an unanswered optional number rather than storing an empty string", () => {
+    expect(validateFormAnswers(definitionOf(), {})).toEqual({});
+    expect(validateFormAnswers(definitionOf(), { phone: "" })).toEqual({});
+  });
+
+  it("still requires an answer when the question is required", () => {
+    expect(() =>
+      validateFormAnswers(definitionOf({ required: true }), { phone: "" })
+    ).toThrow("Phone number is required.");
+  });
+
+  it("measures the author's cap against the canonical value, not what was typed", () => {
+    // 14 characters canonical, 16 as typed. Capping the typed string would
+    // reject this while accepting the identical +8801712345678.
+    expect(
+      validateFormAnswers(definitionOf({ maxLength: 14 }), { phone: "+880 1712-345678" })
+    ).toEqual({ phone: "+8801712345678" });
+  });
+
+  it("still enforces a cap the canonical value genuinely exceeds", () => {
+    expect(() =>
+      validateFormAnswers(definitionOf({ maxLength: 13 }), { phone: "+8801712345678" })
+    ).toThrow("Phone number: Shorten this to 13 characters or fewer.");
+  });
+
+  it("reports the format before the length", () => {
+    // Thirty characters of prose should be told to include a country code, not
+    // told to shorten itself.
+    expect(() =>
+      validateFormAnswers(definitionOf({ maxLength: 10 }), { phone: "please just email me instead" })
+    ).toThrow(/country code/);
   });
 });
 

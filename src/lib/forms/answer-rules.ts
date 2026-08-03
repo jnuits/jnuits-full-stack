@@ -1,7 +1,8 @@
 import type { FormField } from "@/lib/forms/definition";
+import { normalizePhoneAnswer, PHONE_ANSWER_MESSAGE } from "@/lib/phone";
 
 /**
- * The rules an answer must satisfy, in one place. Tasks 2.3, 2.5 and 2.7.
+ * The rules an answer must satisfy, in one place. Tasks 2.3, 2.5, 2.6 and 2.7.
  *
  * `validateFormAnswers` is authoritative and stays authoritative: nothing here
  * runs instead of it. This module exists so that the client can enforce the
@@ -25,10 +26,6 @@ import type { FormField } from "@/lib/forms/definition";
  * browser reports natively and `validateFormAnswers` checks through
  * `requiredValue`. Every rule below returns `undefined` for an empty value, so
  * a blank optional question is never reported as malformed.
- *
- * Phone format, which is task 2.6 and needs decision 4's country picker first.
- * A telephone answer is length-checked here and nothing more, which is exactly
- * what the schema does today.
  */
 
 export type FormQuestionField = Exclude<FormField, { type: "section" }>;
@@ -128,6 +125,29 @@ function checkNumber(field: Extract<FormField, { type: "number" }>, answer: stri
   return undefined;
 }
 
+/**
+ * Telephone shape, then the author's length cap. Task 2.6.
+ *
+ * Two orderings matter here and both are deliberate.
+ *
+ * **Format before length.** Thirty characters of prose in a phone field should
+ * be told to include a country code, not told to shorten itself.
+ *
+ * **Length against the canonical value, not what was typed.** The canonical
+ * value is what gets stored: `+880 1712-345678` is sixteen characters typed and
+ * fourteen stored, so measuring the typed string would reject an answer that
+ * fits comfortably.
+ */
+function checkPhone(field: Extract<FormField, { type: "telephone" }>, answer: string) {
+  const canonical = normalizePhoneAnswer(answer);
+
+  if (!canonical) {
+    return PHONE_ANSWER_MESSAGE;
+  }
+
+  return canonical.length > field.maxLength ? tooLongMessage(field.maxLength) : undefined;
+}
+
 function checkChoices(
   field: Extract<FormField, { type: "multi_select" }>,
   choices: string[]
@@ -184,6 +204,7 @@ export function checkAnswerRule(
         ? undefined
         : CHOICE_NOT_LISTED;
     case "telephone":
+      return checkPhone(field, answer);
     case "text":
     case "textarea":
       return answer.length > field.maxLength ? tooLongMessage(field.maxLength) : undefined;
