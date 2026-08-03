@@ -62,6 +62,14 @@ const checkboxGroupField = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const numberField = (overrides: Record<string, unknown> = {}) => ({
+  id: "guests",
+  label: "Guests",
+  required: false,
+  type: "number",
+  ...overrides,
+});
+
 describe("a section owns the questions it introduces", () => {
   it("puts each question inside the region its heading names", () => {
     renderDefinition([
@@ -226,6 +234,76 @@ describe("a control is described by the text that explains it", () => {
   });
 });
 
+/**
+ * Task 2.7.
+ *
+ * The schema has carried `min` and `max` from the start and this renderer has
+ * always set both attributes, so the browser was already enforcing the range.
+ * Nothing ever said what the range was, which is the part a respondent needs
+ * *before* submitting rather than after.
+ */
+describe("a number question states the range it accepts", () => {
+  it("announces both bounds as the control's description", () => {
+    renderDefinition([numberField({ max: 10, min: 1 })]);
+
+    // The description, not the text on screen. Rendering was never the risk:
+    // three other notes in this renderer rendered perfectly and pointed at
+    // nothing until task 2.1.
+    expect(screen.getByLabelText("Guests")).toHaveAccessibleDescription(
+      "Enter a number between 1 and 10."
+    );
+  });
+
+  it.each([
+    [{ min: 1 }, "Enter 1 or more."],
+    [{ max: 10 }, "Enter 10 or less."],
+  ])("announces a single bound from %o", (bounds, expected) => {
+    renderDefinition([numberField(bounds)]);
+
+    expect(screen.getByLabelText("Guests")).toHaveAccessibleDescription(expected);
+  });
+
+  it("leaves an unbounded number with no description at all", () => {
+    renderDefinition([numberField()]);
+
+    // Not cosmetic. An empty note would still be referenced by
+    // aria-describedby, which is the dangling-reference defect in another guise.
+    expect(screen.getByLabelText("Guests")).not.toHaveAccessibleDescription();
+  });
+
+  it("announces the error first and the range after it", () => {
+    renderDefinition([numberField({ max: 10, min: 1 })], {
+      errors: { guests: "Enter 10 or less." },
+    });
+
+    // Same ordering rule as the help text: what is wrong before what is allowed.
+    expect(screen.getByLabelText("Guests")).toHaveAccessibleDescription(
+      "Enter 10 or less. Enter a number between 1 and 10."
+    );
+  });
+
+  it("puts the range between the help text and nothing else", () => {
+    renderDefinition([
+      numberField({ helpText: "Include yourself in the count.", min: 1 }),
+    ]);
+
+    expect(screen.getByLabelText("Guests")).toHaveAccessibleDescription(
+      "Include yourself in the count. Enter 1 or more."
+    );
+  });
+
+  it("adds no range note to a date, which shares the same branch", () => {
+    renderDefinition([
+      { id: "born_on", label: "Date of birth", required: false, type: "date" },
+    ]);
+
+    const control = screen.getByLabelText("Date of birth");
+
+    expect(control).toHaveAccessibleDescription(/Shown in your browser/);
+    expect(control).not.toHaveAccessibleDescription(/Enter a number/);
+  });
+});
+
 describe("a failing field is reported beside the control", () => {
   it("marks the field invalid and announces the message as its description", () => {
     renderDefinition([question("full_name", "Full name")], {
@@ -355,9 +433,7 @@ describe("a date field states where its format comes from", () => {
   });
 
   it("does not explain a format on a field that has none", () => {
-    renderDefinition([
-      { id: "age", label: "Age", required: false, type: "number" },
-    ]);
+    renderDefinition([numberField()]);
 
     expect(screen.queryByText(/Shown in your browser/)).toBeNull();
   });
@@ -584,7 +660,9 @@ describe("accessibility of a form using every control", () => {
     { id: "email", label: "Email address", required: true, type: "email" },
     { id: "phone", label: "Phone number", required: false, type: "telephone" },
     { id: "about", label: "About you", required: false, type: "textarea" },
-    { id: "age", label: "Age", required: false, type: "number" },
+    // Bounded on purpose, so both passes below cover a control carrying a range
+    // note, and the second covers one carrying a range note and an error.
+    { id: "guests", label: "Guests", max: 10, min: 1, required: false, type: "number" },
     { id: "born_on", label: "Date of birth", required: false, type: "date" },
     section("extras", "Anything else"),
     {
@@ -636,8 +714,9 @@ describe("accessibility of a form using every control", () => {
       errors: {
         attendance: "Please choose an option.",
         consent: "Please confirm this to continue.",
-        email: "Please answer this question.",
+        email: "Enter an email address in the form name@example.com.",
         full_name: "Please answer this question.",
+        guests: "Enter 10 or less.",
         tracks: "Please choose at least one option.",
       },
     });
