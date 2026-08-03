@@ -112,17 +112,33 @@ export function toNationalDigits(value: string) {
 }
 
 /**
- * Builds a canonical answer from a picked country and a typed national number.
+ * Builds an answer from a picked country and a typed national number.
  *
- * @returns the canonical value, or `""` when nothing was typed. An empty string
- * matters: an untouched optional telephone question must submit nothing at all,
- * not a bare `+880` that would then fail validation for a respondent who chose
- * to leave it blank.
+ * **Empty and unusable are different, and conflating them loses data.** An
+ * earlier version composed from `toNationalDigits` alone, which strips every
+ * non-digit: `"call me"` became `""`, the composed answer became `""`, and
+ * `toAnswers` omits an empty telephone answer entirely because that is how an
+ * untouched optional question has to behave. So a respondent typed something,
+ * was told nothing, and submitted a form with no phone number in it.
+ *
+ * Now only a genuinely blank input composes to `""`. Anything else is composed
+ * with the dial code even when it yields no digits, so it reaches the shared
+ * rule and is rejected — on the client beside the control, and again on the
+ * server if a request arrives without passing through this.
+ *
+ * @returns the canonical value, `""` when nothing was typed, or an
+ * uncanonicalisable string that `checkAnswerRule` will reject.
  */
 export function composePhoneAnswer(dial: string, nationalNumber: string) {
-  const national = toNationalDigits(nationalNumber);
+  const typed = nationalNumber.trim();
 
-  return national ? `${dial}${national}` : "";
+  if (!typed) {
+    return "";
+  }
+
+  const national = toNationalDigits(typed);
+
+  return national ? `${dial}${national}` : `${dial}${typed}`;
 }
 
 /**
