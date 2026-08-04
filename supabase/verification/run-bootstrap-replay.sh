@@ -27,13 +27,23 @@
 # paths survive intact.
 set -euo pipefail
 
+generate_types=0
+if [[ "$#" -eq 1 && "$1" == "--generate-types" ]]; then
+  generate_types=1
+elif [[ "$#" -ne 0 ]]; then
+  printf 'Only --generate-types is accepted; remote database arguments are forbidden.\n' >&2
+  exit 1
+fi
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 bootstrap_helper="$repo_root/supabase/verification/baseline/20260608092959_restore_rls_auto_enable.sql"
 port_helper="$repo_root/supabase/verification/configure-bootstrap-replay-port.mjs"
+types_writer="$repo_root/supabase/verification/write-generated-db-types.sh"
 bootstrap_version="20260608092959"
 pinned_cli_version="2.109.1"
 scratch_ack="${SCRATCH_ACK:-DISPOSABLE_SCRATCH}"
 replay_db_port="${SUPABASE_REPLAY_DB_PORT:-}"
+types_output="${DB_TYPES_OUTPUT:-$repo_root/src/lib/db/types.ts}"
 scratch_root="$repo_root/.replay-scratch"
 stack_started=0
 
@@ -64,6 +74,11 @@ fi
 
 if [[ -n "$replay_db_port" && ! -f "$port_helper" ]]; then
   printf 'Database port helper is missing: %s\n' "$port_helper" >&2
+  exit 1
+fi
+
+if [[ "$generate_types" -eq 1 && ! -f "$types_writer" ]]; then
+  printf 'Database type writer is missing: %s\n' "$types_writer" >&2
   exit 1
 fi
 
@@ -261,5 +276,15 @@ docker_run exec "$db_container" \
 docker_run exec "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c \
   "drop table if exists public._jnuits_replay_expectations;"
+
+if [[ "$generate_types" -eq 1 ]]; then
+  generated_types="$scratch_dir/generated-db-types.ts"
+  printf 'Generating TypeScript types from the disposable local stack.\n'
+  (
+    cd "$project_dir"
+    "${supabase_cli[@]}" gen types --local --lang typescript --schema public
+  ) >"$generated_types"
+  bash "$types_writer" "$generated_types" "$types_output"
+fi
 
 printf 'BOOTSTRAP REPLAY COMPLETE\n'
