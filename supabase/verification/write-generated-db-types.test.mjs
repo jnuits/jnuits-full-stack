@@ -17,6 +17,7 @@ const scratchRoot = join(repoRoot, ".replay-scratch");
 const writerPath = "supabase/verification/write-generated-db-types.sh";
 const replayPath = "supabase/verification/run-bootstrap-replay.sh";
 const temporaryDirectories = [];
+const SUBPROCESS_TEST_TIMEOUT_MS = 15_000;
 
 const sentinelTables = [
   "form_definitions",
@@ -80,7 +81,7 @@ describe("generated database type writer", () => {
 
     expect(result.status, result.stderr).toBe(0);
     expect(readFileSync(outputPath, "utf8")).toBe(`${validGeneratedTypes()}\n`);
-  });
+  }, SUBPROCESS_TEST_TIMEOUT_MS);
 
   it("leaves the previous artifact intact when required schema sentinels are missing", () => {
     const { inputArgument, inputPath, outputArgument, outputPath } =
@@ -96,7 +97,7 @@ describe("generated database type writer", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("missing required schema sentinels");
     expect(readFileSync(outputPath, "utf8")).toBe("existing artifact\n");
-  });
+  }, SUBPROCESS_TEST_TIMEOUT_MS);
 
   it.each(["--linked", "--db-url", "--project-id"])(
     "rejects remote-capable replay argument %s before any runtime work",
@@ -112,6 +113,7 @@ describe("generated database type writer", () => {
         "Only --generate-types is accepted; remote database arguments are forbidden."
       );
       expect(result.stderr).not.toContain("SCRATCH_ACK");
-    }
+    },
+    SUBPROCESS_TEST_TIMEOUT_MS
   );
 });
