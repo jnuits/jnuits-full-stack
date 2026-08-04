@@ -15,10 +15,10 @@ import { filterDialCountries, type DialCountry } from "@/lib/phone";
  * close, the Escape handler and the autofocused search box all behave as they
  * did on `/contact`.
  *
- * **Contact's submitted value is deliberately untouched.** Only the widget moved;
- * contact still composes its own `phone_whatsapp` exactly as before, including
- * the fact that it does not drop a leading trunk zero. See the PR body: that is
- * a pre-existing defect on a different surface, reported rather than fixed here.
+ * **Both consumers now compose through the same contract.** Task 2.6 moved only
+ * the widget and left `/contact` building its own `phone_whatsapp`, trunk zero
+ * and all; issue #131 closed that gap. This is shared UI over one normaliser
+ * again rather than over two.
  *
  * ## Why a portal
  *
