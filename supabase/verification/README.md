@@ -64,3 +64,20 @@ Scope 3 is the one that matters most. Against the **pre-migration**
 resource id and redacts every submission regardless of age. That failure is the
 regression the migration fixes, so seeing scope 3 pass on a database where the
 migration has been applied — and fail where it has not — is the evidence.
+
+## Generating database types
+
+Run the repository migrations in the disposable bootstrap replay stack and
+generate canonical TypeScript types from that local database:
+
+```bash
+npm run db:types:generate
+```
+
+The command accepts no extra database target arguments. It rejects remote-capable
+flags such as `--linked` and `--db-url`, uses the pinned Supabase CLI, validates
+required schema sentinels before replacing the artifact, writes LF bytes with one
+final newline, and removes `.replay-scratch/` on success or failure.
+
+GitHub Actions runs the same command on Linux and uploads
+`database.types.ts` plus its SHA-256 digest with the clean replay evidence.

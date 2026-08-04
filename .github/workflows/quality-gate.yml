@@ -344,16 +344,22 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p artifacts/reports
-          bash supabase/verification/run-bootstrap-replay.sh |
+          DB_TYPES_OUTPUT=artifacts/reports/database.types.ts \
+            bash supabase/verification/run-bootstrap-replay.sh --generate-types |
             tee artifacts/reports/bootstrap-replay-verification.log
+          sha256sum artifacts/reports/database.types.ts |
+            tee artifacts/reports/database-types.sha256
 
       - name: Upload replay evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: bootstrap-replay-verification
-          path: artifacts/reports/bootstrap-replay-verification.log
-          if-no-files-found: warn
+          path: |
+            artifacts/reports/bootstrap-replay-verification.log
+            artifacts/reports/database.types.ts
+            artifacts/reports/database-types.sha256
+          if-no-files-found: error
           retention-days: 14
 
       - name: Reap after the run

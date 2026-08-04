@@ -7,6 +7,10 @@
 # inside a dollar-quoted string or a psql meta-command.
 supabase/verification/*.sql text eol=lf
 
+# Generated database types are a reviewed schema artifact. Keep one canonical
+# byte representation across Windows and Linux so drift checks stay exact.
+src/lib/db/types.ts text eol=lf
+
 # Migrations are historical records. Git must never rewrite their bytes,
 # including line endings, so that a checkout on Windows and a checkout on Linux
 # produce identical files and a diff always reflects a real change.
