@@ -1,0 +1,77 @@
+# Controlled GitHub Action update proposals. Issue #136, following #59.
+#
+# ## Why this exists
+#
+# PR #129 made mutable action references fail CI, so every `uses:` in this
+# repository is a full 40-character commit SHA. That removes the retag risk and
+# replaces it with a quieter one: a pinned SHA never picks up an upstream
+# security fix, and nothing in the repository reports that it has aged. A
+# workflow can sit on a year-old action with a known advisory and the policy
+# test will stay green, because the pin is still perfectly valid.
+#
+# Pinning and proposing updates are two halves of one control. Shipping only
+# the first is how a repository ends up confidently frozen on vulnerable code.
+#
+# ## Cadence
+#
+# Weekly, not daily, because of the runner budget rather than taste. Every pull
+# request fires nine self-hosted jobs across three runners, deliberately with no
+# `pull_request.branches` filter (decision 9, issue #93 finding 14.1). A daily
+# ungrouped schedule would spend a meaningful share of that capacity on
+# dependency churn. Revisit alongside issue #78 if the runners return to
+# GitHub-hosted.
+#
+# Monday 03:00 Asia/Dhaka puts the proposal at the start of the working week
+# rather than partway through one.
+#
+# ## Grouping
+#
+# Minor and patch updates arrive as one pull request. Majors are excluded from
+# the group on purpose: a major action bump is a behaviour change, and batching
+# it with four routine patches means either reviewing it inattentively or
+# blocking the other four while it is understood.
+#
+# ## What Dependabot writes
+#
+# It rewrites a pinned reference as the new commit SHA with the release version
+# in a trailing comment -- `uses: actions/checkout@<sha> # v6` -- which is the
+# form the #129 policy already accepts, and the form this repository already
+# writes by hand. No test here asserts that, because it is a claim about
+# Dependabot's output rather than about this repository's contents. Validating
+# a real proposal against the policy test is an owner and Codex task, as is
+# enabling Dependabot in repository settings; a config file alone does not turn
+# it on.
+#
+# ## Coverage
+#
+# `/` covers `.github/workflows`. The three composite actions under
+# `.github/actions` contain no external `uses:` today, so there is nothing there
+# for Dependabot to update. If one ever gains an external reference, the policy
+# test in `scripts/github-actions-workflows.test.mjs` fails until its directory
+# is added below -- the coverage list is checked against the directories that
+# actually hold references, rather than being trusted to stay current on its
+# own. Same reasoning as #129: a hand-maintained list rots, so something has to
+# notice when it has.
+
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:00"
+      timezone: Asia/Dhaka
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(actions)
+    groups:
+      actions-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
