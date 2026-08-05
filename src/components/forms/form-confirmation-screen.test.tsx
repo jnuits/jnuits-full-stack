@@ -14,6 +14,13 @@ import { describe, expect, it } from "vitest";
  * `form-confirmation-screen.dom.test.tsx`, asserted against the rendered tree.
  * Do not add such a guard here.
  *
+ * **Comments are stripped before every match, and that is load-bearing rather
+ * than tidy.** The sibling file records the same lesson: its heading-count guard
+ * once failed on its own JSDoc. This file's glass-card guard did exactly that on
+ * its first run, because the component's doc comment names glass-card four times
+ * while explaining that it was removed. A guard that prose can break measures
+ * the wrong thing.
+ *
  * Known placement wart, reported in PR: this file is `.tsx` while it contains no
  * JSX and runs in the node project. `public-form-presentation-contract.test.ts`
  * is the same kind of file with the correct extension. Renaming is a delete-plus-
@@ -34,17 +41,17 @@ const recoveryFormPath = resolve(
 );
 const pagePath = resolve(process.cwd(), "src/app/(public)/forms/confirm/page.tsx");
 
-function read(path: string) {
-  return readFileSync(path, "utf8");
-}
-
-/** Comments stripped, so prose explaining a rule cannot satisfy or break it. */
+/** Comments stripped, so prose explaining a rule can neither satisfy nor break it. */
 function stripComments(source: string) {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
 }
 
-const component = read(confirmationScreenPath);
-const page = read(pagePath);
+function readCode(path: string) {
+  return stripComments(readFileSync(path, "utf8"));
+}
+
+const component = readCode(confirmationScreenPath);
+const page = readCode(pagePath);
 
 /**
  * @returns the string a named class constant is assigned, or `null`.
@@ -53,7 +60,7 @@ const page = read(pagePath);
  * expected value lives in neither this file nor a third copy of it.
  */
 function classConstant(source: string, name: string) {
-  return stripComments(source).match(new RegExp(`${name} = "([^"]+)"`))?.[1] ?? null;
+  return source.match(new RegExp(`${name} = "([^"]+)"`))?.[1] ?? null;
 }
 
 describe("expired form confirmation recovery", () => {
@@ -89,7 +96,7 @@ describe("the confirmation screen shares the public form's card", () => {
     ["CARD_BODY_CLASS", "FORM_CARD_BODY_CLASS"],
   ])("gives %s the same value as the form screen's %s", (here, there) => {
     const confirmation = classConstant(component, here);
-    const publicForm = classConstant(read(publicScreenPath), there);
+    const publicForm = classConstant(readCode(publicScreenPath), there);
 
     // Asserted non-null first, and this is the load-bearing line. Two regexes
     // that matched nothing would both yield null and compare equal, so the
@@ -103,7 +110,8 @@ describe("the confirmation screen shares the public form's card", () => {
   it("uses the contact card shell rather than glass-card", () => {
     // Decision 7. Scope is this flow: glass-card is still the idiom on the policy
     // pages, the admin panel and elsewhere, and replacing it there is not what
-    // #135 asked for.
+    // #135 asked for -- which is why the component's own comment says so, and why
+    // this assertion has to read the code rather than the file.
     expect(component).toContain("rounded-2xl border border-border bg-card shadow-sm");
     expect(component).not.toMatch(/glass-card/);
   });
@@ -131,13 +139,13 @@ describe("theme tokens on the confirmation flow", () => {
     ["the confirmation screen", confirmationScreenPath],
     ["the recovery form", recoveryFormPath],
   ])("uses no hardcoded colour literal in %s", (_label, path) => {
-    const matches = stripComments(read(path)).match(HARDCODED_COLOUR);
+    const matches = readCode(path).match(HARDCODED_COLOUR);
 
     expect(matches, `Use a semantic token instead: ${matches?.join(", ")}`).toBeNull();
   });
 
   it("routes both recovery failures through one destructive constant", () => {
-    const recovery = read(recoveryFormPath);
+    const recovery = readCode(recoveryFormPath);
 
     expect(recovery).toContain("RECOVERY_ERROR_CLASS");
     expect(recovery).toContain("text-destructive");

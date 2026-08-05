@@ -160,19 +160,23 @@ describe("focus after a confirmation attempt", () => {
     await user.click(confirmButton());
 
     const heading = screen.getByRole("heading", { level: 1, name: "Confirm your email" });
-    const busy = screen.getByRole("button", { name: "Confirming…" });
 
     // `confirming` keeps the button mounted, so there is nothing to move focus
-    // away from and the heading must not take it. This is the state the effect
-    // deliberately excludes.
-    expect(busy).toHaveAttribute("aria-busy", "true");
+    // away from and the heading must not take it. This is the one state the
+    // effect deliberately excludes.
+    expect(screen.getByRole("button", { name: "Confirming…" })).toHaveAttribute(
+      "aria-busy",
+      "true"
+    );
     expect(heading).not.toHaveFocus();
 
-    // NOT asserted: that the button keeps focus. It cannot -- `disabled={isBusy}`
-    // blurs it, so focus sits on the body for the duration of the request. That
-    // is a real defect and it is reported rather than fixed here, because the
-    // public form screen's submit button does exactly the same thing while
-    // submitting; it is a shared pattern, not something this surface introduced.
+    // Where the button's own focus goes during this window is deliberately not
+    // asserted. The button carries `disabled={isBusy}`, a real browser blurs a
+    // disabled element and jsdom does not necessarily reproduce that, so pinning
+    // it either way would encode an environment difference rather than #134's
+    // contract. The blur is reported in the PR instead: the public form screen's
+    // submit button behaves identically while submitting, so it is a shared
+    // pattern and not something this surface introduced.
 
     // Resolved inside the test, so no state update lands after teardown.
     release({ json: async () => ({ success: true }), ok: true, status: 200 });
