@@ -8,6 +8,22 @@ import {
   getFormConfirmationResendEndpoint,
 } from "@/lib/forms/confirmation";
 
+/**
+ * Issue #135, contrast half.
+ *
+ * Both failure messages here were `text-red-700` with no dark variant, which is
+ * the exact literal the #89 guard was written to ban and which
+ * `NOTICE_ERROR_CLASS` exists to replace. It is in scope because this form
+ * renders *inside* the confirmation card being restyled: on the new `bg-card`
+ * surface in dark mode, dark red on dark is a contrast failure, and #135's
+ * acceptance criteria name contrast and existing design tokens directly.
+ *
+ * The sent-state `var(--brand-green)` is left alone. It is a token rather than a
+ * bare literal, and replacing it means choosing a semantic success colour, which
+ * is design-system decision 13.3a and not this PR's to make.
+ */
+const RECOVERY_ERROR_CLASS = "text-sm font-semibold text-destructive";
+
 export type FormConfirmationCaptchaConfig = {
   required: boolean;
   siteKey: string;
@@ -103,12 +119,12 @@ export function FormConfirmationRecoveryForm({
       </div>
       {captcha.required ? <TurnstileField siteKey={captcha.siteKey} /> : null}
       {captchaUnavailable ? (
-        <p className="text-sm font-semibold text-red-700" role="alert">
+        <p className={RECOVERY_ERROR_CLASS} role="alert">
           Verification is temporarily unavailable. Try again later.
         </p>
       ) : null}
       {state.status === "error" ? (
-        <p className="text-sm font-semibold text-red-700" role="alert">
+        <p className={RECOVERY_ERROR_CLASS} role="alert">
           {state.message}
         </p>
       ) : null}
