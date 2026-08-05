@@ -12,6 +12,7 @@ import {
 
 const WORKFLOW_DIR = resolve(process.cwd(), ".github", "workflows");
 const ACTIONS_DIR = resolve(process.cwd(), ".github", "actions");
+const DEPENDABOT_CONFIG = resolve(process.cwd(), ".github", "dependabot.yml");
 
 /**
  * Issue #59.
@@ -220,6 +221,138 @@ describe("the policy rejects a mutable reference", () => {
     expect(IMMUTABLE_SHA_PATTERN.test(sha.toUpperCase())).toBe(false);
     expect(IMMUTABLE_SHA_PATTERN.test(`${sha}\n`)).toBe(false);
   });
+});
+
+/**
+ * Issue #136, the other half of #59.
+ *
+ * #129 stops a reference from being mutable. Nothing stops one from being old,
+ * and an immutable pin on a year-old action with a published advisory passes
+ * every test in this file. Dependabot is what closes that, and these assertions
+ * are about the configuration only.
+ *
+ * ## The tension worth naming
+ *
+ * `dependabot.yml` carries a hand-maintained directory list -- exactly the
+ * construct #129 deleted for rotting, and that PR #86 deleted from the
+ * application mapping before it. It cannot simply be removed, because
+ * Dependabot requires it. So the list is checked against the directories that
+ * actually contain external action references, derived by the same scanner the
+ * policy above uses. The list can still be wrong. It can no longer be wrong
+ * silently, which is the property that matters.
+ */
+function readDependabotConfig() {
+  return readFileSync(DEPENDABOT_CONFIG, "utf8").replace(/\r\n?/g, "\n");
+}
+
+/**
+ * @returns the Dependabot directories that must be watched, derived from where
+ * external action references actually live rather than from a second list.
+ */
+function directoriesRequiringUpdates() {
+  const required = new Set();
+
+  const workflowReferences = workflowFiles.flatMap((name) =>
+    externalReferences(readWorkflow(name), name)
+  );
+
+  if (workflowReferences.length > 0) {
+    // Dependabot reads `.github/workflows` when the directory is the repository
+    // root; there is no more specific spelling for it.
+    required.add("/");
+  }
+
+  for (const relative of compositeActionFiles) {
+    if (externalReferences(readAction(relative), relative).length > 0) {
+      required.add(`/.github/actions/${relative.split("/")[0]}`);
+    }
+  }
+
+  return [...required].sort();
+}
+
+/** The declared list, read without a YAML parser for the reasons in #129. */
+function declaredDependabotDirectories(config) {
+  const block = config.match(/\n\s*directories:\n((?:[ \t]*-[ \t]*\S.*\n)+)/);
+
+  if (!block) {
+    return [];
+  }
+
+  return block[1]
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- "))
+    .map((line) => line.slice(2).trim().replace(/^["']|["']$/g, ""))
+    .sort();
+}
+
+describe("Dependabot proposes controlled Action updates", () => {
+  it("configures the github-actions ecosystem at schema version 2", () => {
+    const config = readDependabotConfig();
+
+    expect(config).toMatch(/^version: 2$/m);
+    expect(config).toContain("package-ecosystem: github-actions");
+  });
+
+  it("watches every directory that actually holds an external action", () => {
+    // The anti-rot guard. Adding an external `uses:` to a composite action --
+    // which all three are currently free of -- fails here until its directory
+    // is added to the config, rather than leaving that action pinned forever
+    // with nothing proposing its updates.
+    const required = directoriesRequiringUpdates();
+    const declared = declaredDependabotDirectories(readDependabotConfig());
+
+    for (const directory of required) {
+      expect(
+        declared,
+        `dependabot.yml must watch ${directory}, which contains external action references`
+      ).toContain(directory);
+    }
+  });
+
+  it("has real references to watch in the first place", () => {
+    // Finding 14.5, again. The assertion above is a loop over a derived list,
+    // and a loop over an empty list passes. This is what makes it mean
+    // something.
+    const required = directoriesRequiringUpdates();
+
+    expect(required.length).toBeGreaterThanOrEqual(1);
+    expect(required).toContain("/");
+    expect(
+      workflowFiles.flatMap((name) => externalReferences(readWorkflow(name), name)).length
+    ).toBeGreaterThanOrEqual(10);
+  });
+
+  it("states its cadence rather than inheriting a default", () => {
+    // Weekly is a runner-budget decision, not a preference: every pull request
+    // fires nine self-hosted jobs across three runners. An edit to daily should
+    // be a visible diff that fails this, not a quiet capacity change.
+    const config = readDependabotConfig();
+
+    expect(config).toMatch(/interval: weekly/);
+    expect(config).not.toMatch(/interval: daily/);
+  });
+
+  it("keeps major updates out of the batch so they are reviewed alone", () => {
+    // A major action bump is a behaviour change. Grouped with four routine
+    // patches it gets either an inattentive review or blocks the other four.
+    const config = readDependabotConfig();
+    const group = config.slice(config.indexOf("groups:"));
+
+    expect(group).toContain("update-types:");
+    expect(group).toContain("- minor");
+    expect(group).toContain("- patch");
+    expect(group).not.toContain("- major");
+  });
+
+  // Deliberately not tested: that Dependabot writes a 40-character lowercase
+  // SHA with a trailing version comment. It does, and that form is what the
+  // policy above accepts -- but this suite reads this repository, and no file
+  // here contains a proposal Dependabot has produced. A test named for a SHA it
+  // never saw would assert the author's expectation and report it as evidence,
+  // which is finding 14.5 in yet another costume. Validating a real proposal
+  // against the policy is an owner and Codex task, recorded in the PR body.
 });
 
 describe("GitHub Actions workflows", () => {
