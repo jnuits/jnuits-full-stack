@@ -146,15 +146,13 @@ describe("focus after a confirmation attempt", () => {
   it("does not move focus while the request is in flight", async () => {
     const user = userEvent.setup();
     let release: (value: unknown) => void = () => {};
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        () =>
-          new Promise((resolve) => {
-            release = resolve;
-          })
-      )
+    const fetchMock = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        })
     );
+    vi.stubGlobal("fetch", fetchMock);
     renderScreen();
 
     await user.click(confirmButton());
@@ -178,6 +176,9 @@ describe("focus after a confirmation attempt", () => {
     expect(busyButton).toHaveFocus();
     expect(busyButton).not.toBeDisabled();
     expect(busyButton).toHaveAttribute("aria-disabled", "true");
+
+    await user.click(busyButton);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
     // Resolved inside the test, so no state update lands after teardown.
     release({ json: async () => ({ success: true }), ok: true, status: 200 });
@@ -281,21 +282,20 @@ describe("accessibility of every confirmation state", () => {
   it("reports no axe violations while confirmation is in flight", async () => {
     const user = userEvent.setup();
     let release: (value: unknown) => void = () => {};
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        () =>
-          new Promise((resolve) => {
-            release = resolve;
-          })
-      )
+    const fetchMock = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        })
     );
+    vi.stubGlobal("fetch", fetchMock);
     const { container } = renderScreen();
 
     await confirm(user);
 
     const busyButton = screen.getByRole("button", { name: /^Confirming/ });
     expect(busyButton).toHaveAttribute("aria-busy", "true");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const violations = await findAccessibilityViolations(container);
 
