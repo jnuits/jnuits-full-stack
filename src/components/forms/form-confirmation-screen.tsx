@@ -95,6 +95,7 @@ export function FormConfirmationScreen({
    * that point; the page simply opened in a terminal state.
    */
   const previousStatusRef = useRef<ConfirmationState["status"]>(state.status);
+  const confirmingRef = useRef(false);
 
   /**
    * Moves focus to the heading once a terminal state is committed. Issue #134.
@@ -125,8 +126,9 @@ export function FormConfirmationScreen({
   }, [state.status]);
 
   async function confirmSubmission() {
-    if (!valid) return;
+    if (!valid || confirmingRef.current) return;
 
+    confirmingRef.current = true;
     setState({ status: "confirming" });
 
     try {
@@ -160,6 +162,8 @@ export function FormConfirmationScreen({
         message: error instanceof Error ? error.message : "We could not confirm this submission.",
         status: "error",
       });
+    } finally {
+      confirmingRef.current = false;
     }
   }
 
@@ -242,8 +246,8 @@ export function FormConfirmationScreen({
           {state.status === "ready" || state.status === "confirming" ? (
             <button
               aria-busy={isBusy}
-              className="primary-button mt-6 w-full"
-              disabled={isBusy}
+              aria-disabled={isBusy}
+              className={`primary-button mt-6 w-full ${isBusy ? "cursor-wait opacity-45" : ""}`}
               onClick={confirmSubmission}
               type="button"
             >

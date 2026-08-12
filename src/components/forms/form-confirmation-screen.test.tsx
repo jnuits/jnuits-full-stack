@@ -60,7 +60,7 @@ const page = readCode(pagePath);
  * expected value lives in neither this file nor a third copy of it.
  */
 function classConstant(source: string, name: string) {
-  return source.match(new RegExp(`${name} = "([^"]+)"`))?.[1] ?? null;
+  return source.match(new RegExp(`^const ${name} = "([^"]+)";$`, "m"))?.[1] ?? null;
 }
 
 describe("expired form confirmation recovery", () => {
@@ -105,6 +105,10 @@ describe("the confirmation screen shares the public form's card", () => {
     expect(confirmation, `${here} is missing from the confirmation screen`).not.toBeNull();
     expect(publicForm, `${there} is missing from the public form screen`).not.toBeNull();
     expect(confirmation).toBe(publicForm);
+    expect(
+      component.match(new RegExp(`className=\\{${here}\\}`, "g"))?.length,
+      `${here} must style both rendered card states`
+    ).toBe(2);
   });
 
   it("uses the contact card shell rather than glass-card", () => {
@@ -144,11 +148,13 @@ describe("theme tokens on the confirmation flow", () => {
     expect(matches, `Use a semantic token instead: ${matches?.join(", ")}`).toBeNull();
   });
 
-  it("routes both recovery failures through one destructive constant", () => {
+  it("keeps recovery status text readable while preserving semantic accents", () => {
     const recovery = readCode(recoveryFormPath);
 
     expect(recovery).toContain("RECOVERY_ERROR_CLASS");
-    expect(recovery).toContain("text-destructive");
+    expect(recovery).toContain("border-destructive");
+    expect(recovery).toContain("text-foreground");
+    expect(recovery).toContain("text-[var(--color-text-success)]");
     expect(recovery.match(/className=\{RECOVERY_ERROR_CLASS\}/g)?.length).toBe(2);
   });
 });

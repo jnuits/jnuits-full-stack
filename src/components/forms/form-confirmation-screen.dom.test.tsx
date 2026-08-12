@@ -170,13 +170,14 @@ describe("focus after a confirmation attempt", () => {
     );
     expect(heading).not.toHaveFocus();
 
-    // Where the button's own focus goes during this window is deliberately not
-    // asserted. The button carries `disabled={isBusy}`, a real browser blurs a
-    // disabled element and jsdom does not necessarily reproduce that, so pinning
-    // it either way would encode an environment difference rather than #134's
-    // contract. The blur is reported in the PR instead: the public form screen's
-    // submit button behaves identically while submitting, so it is a shared
-    // pattern and not something this surface introduced.
+    const busyButton = screen.getByRole("button", { name: /^Confirming/ });
+
+    // The action stays focusable while busy. Native `disabled` drops focus to
+    // `<body>` in real browsers, leaving keyboard and screen-reader users with
+    // no stable point while the request is in flight.
+    expect(busyButton).toHaveFocus();
+    expect(busyButton).not.toBeDisabled();
+    expect(busyButton).toHaveAttribute("aria-disabled", "true");
 
     // Resolved inside the test, so no state update lands after teardown.
     release({ json: async () => ({ success: true }), ok: true, status: 200 });
@@ -271,6 +272,69 @@ describe("accessibility of every confirmation state", () => {
     const { container } = renderScreen();
 
     expect(container).toContainElement(confirmButton());
+
+    const violations = await findAccessibilityViolations(container);
+
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
+  });
+
+  it("reports no axe violations while confirmation is in flight", async () => {
+    const user = userEvent.setup();
+    let release: (value: unknown) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+          })
+      )
+    );
+    const { container } = renderScreen();
+
+    await confirm(user);
+
+    const busyButton = screen.getByRole("button", { name: /^Confirming/ });
+    expect(busyButton).toHaveAttribute("aria-busy", "true");
+
+    const violations = await findAccessibilityViolations(container);
+
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
+
+    release({ json: async () => ({ success: true }), ok: true, status: 200 });
+    await screen.findByRole("heading", { level: 1, name: "Email confirmed" });
+  });
+
+  it("reports no axe violations in the request-error state", async () => {
+    const user = userEvent.setup();
+    stubFetch({
+      ok: false,
+      payload: { error: "We could not confirm this submission." },
+      status: 500,
+    });
+    const { container } = renderScreen();
+
+    await confirm(user);
+
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: "We could not confirm your email",
+    });
+    expect(container).toContainElement(heading);
+
+    const violations = await findAccessibilityViolations(container);
+
+    expect(violations, JSON.stringify(violations, null, 2)).toEqual([]);
+  });
+
+  it("reports no axe violations for an initially invalid link", async () => {
+    const { container } = renderScreen({ valid: false });
+
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "We could not confirm your email",
+    });
+    expect(container).toContainElement(heading);
 
     const violations = await findAccessibilityViolations(container);
 
