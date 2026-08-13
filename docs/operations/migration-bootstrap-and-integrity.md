@@ -288,11 +288,11 @@ It was promoted on 2026-07-27 in the order this section previously prescribed:
 the migration chain does not build from the supported bootstrap point, and
 that is a merge blocker, not a flaky job.
 
-### Operational caveat while self-hosted runners are in use
+### Docker-job isolation on GitHub-hosted runners
 
-`migration_runtime` and `migration_bootstrap_replay` both reap every
-`supabase_*` container and volume on their host, before and after, and both
-bind fixed local ports. They have no ordering between them and there are only
-three runners. If they land on the same host concurrently, the later job's
-preflight reap will kill the earlier job's live stack and the failure will
-look like a code defect. See `self-hosted-runners.md` and issue #78.
+`migration_runtime` and `migration_bootstrap_replay` run on separate fresh
+GitHub-hosted VMs, so their `supabase_*` container cleanup and fixed local
+ports cannot collide. Both jobs retain preflight and post-run cleanup as
+defense in depth, but no serialization dependency is required. Historical
+self-hosted constraints are recorded in `self-hosted-runners.md` and issue
+#78.
