@@ -1,4 +1,5 @@
 const baseUrl = (process.env.RUNTIME_PROBE_BASE_URL || "http://127.0.0.1:3100").replace(/\/$/, "");
+const vercelAutomationBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
 
 const probes = [
   { maxMs: 5000, path: "/", statuses: [200] },
@@ -17,7 +18,12 @@ for (const probe of probes) {
 
   try {
     const response = await fetch(`${baseUrl}${probe.path}`, {
-      headers: { accept: "text/html,application/json" },
+      headers: {
+        accept: "text/html,application/json",
+        ...(vercelAutomationBypassSecret
+          ? { "x-vercel-protection-bypass": vercelAutomationBypassSecret }
+          : {}),
+      },
       signal: controller.signal,
     });
     const elapsed = Math.round(performance.now() - started);

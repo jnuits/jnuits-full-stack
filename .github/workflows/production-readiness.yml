@@ -88,6 +88,7 @@ jobs:
       - name: Run production runtime probe
         env:
           RUNTIME_PROBE_BASE_URL: ${{ vars.PRODUCTION_APP_URL }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run test:runtime-probe
 
   database-parity-and-security:
