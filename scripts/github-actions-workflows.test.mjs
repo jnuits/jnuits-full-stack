@@ -368,4 +368,11 @@ describe("GitHub Actions workflows", () => {
     expect(workflow).toContain("GOOGLE_DRIVE_SHARED_DRIVE_ID");
     expect(workflow).toContain("RETENTION_MANIFEST_SIGNING_SECRET");
   });
+
+  it("binds production readiness jobs to the configured Production environment", () => {
+    const workflow = readWorkflow("production-readiness.yml");
+
+    expect(workflow.match(/environment: Production/g)).toHaveLength(2);
+    expect(workflow).not.toContain("environment: production");
+  });
 });
