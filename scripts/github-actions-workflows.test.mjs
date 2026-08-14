@@ -252,10 +252,25 @@ describe("GitHub Actions workflows", () => {
     expect(trigger).not.toMatch(/pull_request:\s*\n\s+branches:/);
 
     // Push stays scoped to main: the pull request already covers branch work,
-    // and eight shards per branch commit would saturate three shared runners.
+    // and eight shards per branch commit would consume redundant hosted minutes.
     expect(trigger).toMatch(/push:\s*\n\s+branches: \[main\]/);
   });
 
+  it("runs required pull-request gates on GitHub-hosted runners with a Playwright cache", () => {
+    const quality = readWorkflow("quality-gate.yml");
+    const diff = readWorkflow("diff-check.yml");
+    const qualityRunners = quality.match(/^    runs-on: .+$/gm) ?? [];
+    const diffRunners = diff.match(/^    runs-on: .+$/gm) ?? [];
+
+    expect(qualityRunners).toHaveLength(9);
+    expect(qualityRunners.every((line) => line === "    runs-on: ubuntu-latest")).toBe(true);
+    expect(diffRunners).toEqual(["    runs-on: ubuntu-latest"]);
+    expect(quality).toContain("name: Cache Playwright browsers");
+    expect(quality).toContain(
+      "uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5"
+    );
+    expect(quality).toContain("path: ~/.cache/ms-playwright");
+  });
   it("makes migration and secret scanning part of the required quality result", () => {
     const workflow = readWorkflow("quality-gate.yml");
 
@@ -272,7 +287,7 @@ describe("GitHub Actions workflows", () => {
     );
   });
 
-  it("uses a verified local Gitleaks installer on self-hosted runners", () => {
+  it("uses the verified local Gitleaks installer on hosted runners", () => {
     const workflow = readWorkflow("quality-gate.yml");
     const action = readAction("setup-gitleaks");
 
@@ -324,21 +339,7 @@ describe("GitHub Actions workflows", () => {
     expect(aggregate).toContain('test "$MIGRATION_DEPENDENCIES_RESULT" = "success"');
   });
 
-  it("serialises the two Docker jobs so their concurrent reaps cannot collide", () => {
-    // Precautionary, not a fix for a diagnosed failure.
-    //
-    // The hazard: both jobs reap every supabase_* container on their host,
-    // before and after, with `if: always()`, and both bind fixed local ports.
-    // With three shared runners they do land concurrently -- run 30375799852
-    // started both at 15:56:10Z on a branch without this ordering. Both passed,
-    // so the collision is reachable but has never been observed to fire.
-    //
-    // The 17-19 second Docker failures on PR #74 and PR #86 were NOT this, and
-    // an earlier version of this comment wrongly said they were. The real cause
-    // was one host whose runner service started before its user joined the
-    // docker group, giving permission denied on /var/run/docker.sock. Fixed on
-    // all three hosts 2026-07-28 and corrected on issue #78. Stated here so the
-    // false cause cannot be reintroduced from the git history.
+  it("keeps each Docker migration job self-cleaning on isolated hosted VMs", () => {
     const workflow = readWorkflow("quality-gate.yml");
     const replayStart = workflow.indexOf("  migration_bootstrap_replay:");
     const replayEnd = workflow.indexOf("\n  build_and_browser:", replayStart);
@@ -348,21 +349,14 @@ describe("GitHub Actions workflows", () => {
 
     const replay = workflow.slice(replayStart, replayEnd);
 
-    expect(replay).toContain("needs: migration_runtime");
-
-    // The ordering exists because of the reaping. Removing the reap steps and
-    // keeping the dependency, or the reverse, both reintroduce the hazard.
-    const reaps = replay.match(/uses: \.\/\.github\/actions\/docker-preflight/g);
-    expect(reaps?.length).toBe(2);
+    expect(replay).not.toContain("needs: migration_runtime");
+    expect(replay.split("uses: ./.github/actions/docker-preflight").length - 1).toBe(2);
 
     const runtimeStart = workflow.indexOf("  migration_runtime:");
     const runtimeEnd = workflow.indexOf("\n  # Issue #18. Offline ordering", runtimeStart);
     const runtime = workflow.slice(runtimeStart, runtimeEnd);
 
-    expect(runtime.match(/uses: \.\/\.github\/actions\/docker-preflight/g)?.length).toBe(2);
-
-    // migration_runtime must stay first. A cycle would deadlock the workflow.
-    expect(runtime).not.toContain("needs: migration_bootstrap_replay");
+    expect(runtime.split("uses: ./.github/actions/docker-preflight").length - 1).toBe(2);
   });
 
   it("validates Google Drive and retention settings in production readiness", () => {
@@ -373,5 +367,12 @@ describe("GitHub Actions workflows", () => {
     expect(workflow).toContain("GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY");
     expect(workflow).toContain("GOOGLE_DRIVE_SHARED_DRIVE_ID");
     expect(workflow).toContain("RETENTION_MANIFEST_SIGNING_SECRET");
+  });
+
+  it("binds production readiness jobs to the configured Production environment", () => {
+    const workflow = readWorkflow("production-readiness.yml");
+
+    expect(workflow.match(/environment: Production/g)).toHaveLength(2);
+    expect(workflow).not.toContain("environment: production");
   });
 });

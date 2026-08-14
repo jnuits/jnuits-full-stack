@@ -1,6 +1,6 @@
 name: Diff Check
 
-# Runs on self-hosted runners. See docs/operations/self-hosted-runners.md.
+# Restored to GitHub-hosted runners on 2026-08-12; see issue #78.
 
 on:
   pull_request:
@@ -15,7 +15,7 @@ permissions:
 jobs:
   diff_check:
     name: Git diff check
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout full history

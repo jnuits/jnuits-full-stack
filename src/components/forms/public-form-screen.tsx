@@ -16,6 +16,7 @@ import {
   collectNativeFieldErrors,
   firstFieldWithError,
 } from "@/lib/forms/field-validation";
+import { focusAndReveal } from "@/lib/forms/focus-and-reveal";
 import {
   resolveFormEyebrow,
   resolveFormLengthSummary,
@@ -60,39 +61,18 @@ const PAGE_WRAPPER_CLASS = "mx-auto w-full max-w-2xl";
  *
  * `overflow-hidden` rather than rounding the accent bar's own top corners, so
  * the bar cannot bleed past the radius at any width.
+ *
+ * Duplicated by `form-confirmation-screen.tsx`, deliberately and with a guard.
+ * These strings cannot move to a shared module without breaking the source-text
+ * assertions in `public-form-presentation-contract.test.ts`, which read this
+ * file by path -- a guard describing a file that no longer contains the thing
+ * it names is finding 14.9. `form-confirmation-screen.test.tsx` asserts the two
+ * copies are identical instead, so a change to one fails until the other
+ * follows.
  */
 const FORM_CARD_CLASS = "overflow-hidden rounded-2xl border border-border bg-card shadow-sm";
 const FORM_CARD_ACCENT_CLASS = "h-[3px] bg-primary";
 const FORM_CARD_BODY_CLASS = "p-6 sm:p-8";
-
-/**
- * Moves focus to an element and brings it into view. Task 2.2, both halves.
- *
- * One function rather than one copy per effect. The failed-submit half shipped
- * this inline in #112, and the success half needs the identical treatment; two
- * copies would eventually disagree about the scroll, and the one nobody re-read
- * would be the one that was wrong.
- *
- * `preventScroll` followed by an explicit `scrollIntoView` rather than letting
- * the focus scroll happen: the default puts the element hard against the edge of
- * the viewport, which on a phone can leave the message beside it off screen.
- *
- * The `scrollIntoView` guard is not defensive noise. jsdom does not implement
- * the method, so without the check every component test of this screen throws
- * where it should have failed an assertion, and the throw reads like a broken
- * test rather than a broken screen.
- */
-function focusAndReveal(element: HTMLElement | null) {
-  if (!element) {
-    return;
-  }
-
-  element.focus({ preventScroll: true });
-
-  if (typeof element.scrollIntoView === "function") {
-    element.scrollIntoView({ block: "center" });
-  }
-}
 
 type PublicFormScreenProps = {
   captcha: {
