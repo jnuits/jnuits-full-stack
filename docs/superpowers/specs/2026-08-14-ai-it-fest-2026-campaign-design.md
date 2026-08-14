@@ -49,8 +49,8 @@ All timestamps use `Asia/Dhaka`. The shared published start is 30 August 2026 at
 | AI & IT Olympiad | `ai-it-olympiad` | `competition` | Solo | BDT 200 | `2026-08-15T17:59:00Z` | <https://itfest.jnuits.org.bd/events/ai-it-olympiad> | Ground Floor of Shahid Sajid Building |
 | TechUncut | `techuncut` | `institutional` | Solo admission | BDT 200 | `2026-08-15T17:59:00Z` | <https://itfest.jnuits.org.bd/events/techuncut> | Central Auditorium, Jagannath University |
 | TechCare Zone | `techcare-zone` | `other-real-event` | Individual service | Free for registered Fest participants; BDT 100 visitor token | `2026-08-15T17:59:00Z` | <https://itfest.jnuits.org.bd/events/techcare-zone> | Ground Floor of Shahid Sajid Building |
-| AI Ad-Venture | `ai-ad-venture` | `competition` | Team of 2–5 | BDT 300 per team | `2026-08-15T17:59:00Z` | <https://itfest.jnuits.org.bd/events/ai-ad-venture> | Ground Floor of Shahid Sajid Building |
-| BrainChild Season 2.0 | `brainchild-season-20` | `competition` | Team of 2–3 | BDT 2,000 per team | `2026-08-20T17:59:59Z` | <https://brainchild.jnuits.org.bd/register> | Ground Floor of Shahid Sajid Building, Jagannath University |
+| AI Ad-Venture | `ai-ad-venture` | `competition` | Team of 2-5 | BDT 300 per team | `2026-08-15T17:59:00Z` | <https://itfest.jnuits.org.bd/events/ai-ad-venture> | Ground Floor of Shahid Sajid Building |
+| BrainChild Season 2.0 | `brainchild-season-2-0` | `competition` | Team of 2-3 | BDT 2,000 per team | `2026-08-20T17:59:59Z` | <https://brainchild.jnuits.org.bd/register> | Ground Floor of Shahid Sajid Building, Jagannath University |
 
 Every segment uses `delivery_mode = offline`, `location_mode = venue`, `timezone = Asia/Dhaka`, and `registration_mode = external`. The umbrella event uses `registration_mode = none`, `cta_label = Explore all Fest events`, and `cta_url = https://itfest.jnuits.org.bd/events`.
 
@@ -59,6 +59,7 @@ The four non-BrainChild segment records do not duplicate their registration URL 
 ### Source conflict decisions
 
 - BrainChild: the dedicated BrainChild overview, timeline, registration metadata, and structured offer consistently publish 20 August 2026 as the deadline. That dedicated registration property is more specific and more recently updated than the main Fest API's 15 August value, so the JnUITS record uses 20 August at 23:59:59 Bangladesh time.
+- Deadline precision: the main Fest API publishes the four non-BrainChild deadlines at minute precision as `2026-08-15T23:59`, so the stored UTC value represents that exact minute as `2026-08-15T17:59:00Z`; it is not extended to the end of the minute. BrainChild's authoritative structured offer explicitly publishes `2026-08-20T23:59:59+06:00`, so its stored value preserves those source-provided seconds as `2026-08-20T17:59:59Z`.
 - TechCare Zone: the API fee field says BDT 100 while the description says registered Fest participants receive the service free and general visitors pay a BDT 100 token charge. Public copy preserves both conditions rather than presenting a universal BDT 100 fee.
 - End times: no reliable end time is published. The application must not manufacture a duration.
 - Prizes: all five API records publish `prizeMoney = 0`; no cash prize claim is shown.
@@ -81,7 +82,9 @@ Alt text identifies the event shown. No speaker image, sponsor logo, prize artwo
 
 ## Production content write workflow
 
-The records use the existing `media_assets` and `events` tables. A controlled one-time production operation uses the configured server credentials because the user authorized Codex to create the records.
+The records use the existing `media_assets` and `events` tables. A controlled one-time production operation uses the configured server credentials because the user authorized Codex to create the records. Each row populates the existing `source` and `source_metadata` fields with verified provenance rather than introducing new provenance columns.
+
+The umbrella record uses an official Fest-site source. The four main API segments use the official Fest API as their machine-readable source and retain their official detail URLs. BrainChild uses the dedicated BrainChild site as the authoritative deadline and registration source while retaining the main Fest API record and official API slug `brainchild-season-20` as secondary provenance. `source_metadata` records the verification date, source URL, API record URL or official slug where applicable, deadline source, source precision, and documented conflict resolution.
 
 The operation follows these safety rules:
 
@@ -126,8 +129,8 @@ The campaign is a server-rendered section at the top of `src/app/(public)/page.t
 1. A campaign hero naming Jagannath University IT Society as presenter.
 2. Verified date, venue, tagline `Where Ideas Meet Intelligence`, and official artwork.
 3. Primary CTAs to the Fest overview and official JnUITS event archive.
-4. A five-card segment showcase sourced from canonical published event records.
-5. A larger BrainChild feature with its authoritative deadline, team size, fee, registration, tracking, and rulebook/overview routes where appropriate.
+4. A four-card segment showcase for AI & IT Olympiad, TechUncut, TechCare Zone, and AI Ad-Venture, sourced from canonical published event records.
+5. A separate, larger BrainChild core-event feature with its authoritative deadline, team size, fee, registration, tracking, and rulebook/overview routes. BrainChild is not duplicated in the normal card grid.
 6. A final route to the official Fest event index.
 
 During the campaign, `JnU AI & IT Fest 2026` is the single page `<h1>`. The preserved Jagannath University IT Society hero uses an `<h2>` with its existing visual class. Reverting the temporary campaign commit restores the original homepage `<h1>` semantics.
@@ -151,7 +154,7 @@ Temporary presentation configuration contains only:
 - stable slug order;
 - short participation label;
 - concise fee label;
-- which card receives BrainChild prominence;
+- the four standard-card slugs and the separate BrainChild core-event slug;
 - evergreen official overview links not represented by a registration field.
 
 Dates, registration deadlines, lifecycle state, registration state, titles, summaries, venues, covers, and event detail URLs come from production event records. Missing or unpublished records are omitted from the card grid and logged server-side; the rest of the homepage still renders.
@@ -207,7 +210,7 @@ npm run build
 npx playwright test e2e/smoke.spec.ts --project=chromium
 ```
 
-Also inspect console errors, hydration warnings, keyboard navigation, focus visibility, image cropping, layout shift, external URLs, and registration status at a representative 360–390 pixel viewport and desktop width.
+Also inspect console errors, hydration warnings, keyboard navigation, focus visibility, image cropping, layout shift, external URLs, and registration status at a representative 360-390 pixel viewport and desktop width.
 
 ## Commit and rollback boundaries
 
@@ -227,6 +230,7 @@ The rollback document is `docs/AI_IT_FEST_2026_ROLLBACK.md`. Its primary strateg
 - The original JnUITS visual identity and all existing homepage content remain recognizable and available.
 - Six canonical JnUITS event records exist without duplicate slugs or titles.
 - The five verified segments route to the correct official registration experiences.
+- Four standard segment cards are shown once, and BrainChild Season 2.0 appears once as the separate core-event feature.
 - BrainChild uses the authoritative 20 August deadline.
 - TechCare presents its conditional fee accurately.
 - Registration CTAs close at the exact Bangladesh deadline.
