@@ -261,15 +261,22 @@ describe("GitHub Actions workflows", () => {
     const diff = readWorkflow("diff-check.yml");
     const qualityRunners = quality.match(/^    runs-on: .+$/gm) ?? [];
     const diffRunners = diff.match(/^    runs-on: .+$/gm) ?? [];
+    const buildStart = quality.indexOf("  build_and_browser:");
+    const buildEnd = quality.indexOf("\n  application_quality:", buildStart);
+    const build = quality.slice(buildStart, buildEnd);
+    const cacheReferences = parseActionReferences(build, "quality-gate.yml").filter(
+      (reference) => reference.target === "actions/cache"
+    );
 
     expect(qualityRunners).toHaveLength(9);
     expect(qualityRunners.every((line) => line === "    runs-on: ubuntu-latest")).toBe(true);
     expect(diffRunners).toEqual(["    runs-on: ubuntu-latest"]);
-    expect(quality).toContain("name: Cache Playwright browsers");
-    expect(quality).toContain(
-      "uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5"
-    );
-    expect(quality).toContain("path: ~/.cache/ms-playwright");
+    expect(buildStart).toBeGreaterThan(-1);
+    expect(buildEnd).toBeGreaterThan(buildStart);
+    expect(build).toContain("name: Cache Playwright browsers");
+    expect(cacheReferences).toHaveLength(1);
+    expect(cacheReferences[0]).toMatchObject({ immutable: true, kind: "external" });
+    expect(build).toContain("path: ~/.cache/ms-playwright");
   });
   it("makes migration and secret scanning part of the required quality result", () => {
     const workflow = readWorkflow("quality-gate.yml");
