@@ -13,10 +13,9 @@ import {
   Users,
 } from "lucide-react";
 import { HomepageSlider } from "@/components/homepage/HomepageSlider";
+import { getHomepageUpcomingEvents } from "@/lib/content/events";
 import {
   getHomepageContent,
-  getPublishedEvents,
-  type EventPreview,
   type HomepageIconName,
 } from "@/lib/content/public-content";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
@@ -57,20 +56,6 @@ function formatEventBadgeDate(value: string) {
   }
 
   return eventDateFormatter.format(new Date(timestamp)).toUpperCase();
-}
-
-function getUpcomingEvents(events: EventPreview[]) {
-  const now = Date.now();
-
-  return events
-    .filter((event) => {
-      const timestamp = new Date(event.start).getTime();
-      return event.status === "Upcoming" && !Number.isNaN(timestamp) && timestamp >= now;
-    })
-    .sort((left, right) => {
-      return new Date(left.start).getTime() - new Date(right.start).getTime();
-    })
-    .slice(0, 3);
 }
 
 function HomepageIcon({
@@ -244,7 +229,7 @@ function EventSkeleton() {
 }
 
 async function UpcomingEventsSection() {
-  const events = getUpcomingEvents(await getPublishedEvents());
+  const events = await getHomepageUpcomingEvents();
 
   if (events.length === 0) {
     return null;
@@ -262,7 +247,7 @@ async function UpcomingEventsSection() {
             <article className="hp-event-card" key={event.slug}>
               <p className="hp-event-card__date">
                 <CalendarDays aria-hidden="true" size={14} strokeWidth={2} />
-                {formatEventBadgeDate(event.start)}
+                {formatEventBadgeDate(event.startsAt)}
               </p>
               <h3 className="hp-event-card__title">{event.title}</h3>
               <p className="hp-event-card__summary">{event.summary}</p>
