@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Clock, Loader2 } from "lucide-react";
 
 import { TurnstileWidget } from "@/components/contact/TurnstileWidget";
 import { CountryDialPicker } from "@/components/ui/country-dial-picker";
-import { DEFAULT_COUNTRY, type DialCountry } from "@/lib/phone";
+import {
+  DEFAULT_COUNTRY,
+  PHONE_ANSWER_MESSAGE,
+  resolvePhoneEntry,
+  type DialCountry,
+} from "@/lib/phone";
 
 type InquiryCategory = {
   label: string;
@@ -26,6 +31,15 @@ const inputClass =
 const compactInputClass =
   "h-full min-w-0 grow border-0 bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground/70";
 
+/**
+ * Issue #131. The error element's id is a module constant because three things
+ * have to agree on it: the paragraph that carries the message, the input's
+ * `aria-describedby`, and the picker's. A literal repeated three times is a
+ * dangling reference waiting to happen, and a dangling `aria-describedby` is
+ * worse than none — some screen readers announce nothing at all for the control.
+ */
+const phoneErrorId = "contact-phone-whatsapp-error";
+
 function cn(...classes: Array<false | null | string | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -45,25 +59,32 @@ export function ContactFormCard({
   const [canSubmit, setCanSubmit] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState<DialCountry>(DEFAULT_COUNTRY);
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
   const submitDisabled = !!(isSubmitting || !canSubmit);
   /**
-   * Contact's own composition, unchanged by task 2.6.
+   * Issue #131, resolved through the shared contract rather than here.
    *
-   * The picker above is now shared with the public form's telephone question,
-   * but only the widget moved: this still concatenates the dial code with the
-   * typed digits exactly as it always has.
-   *
-   * **Known difference from the forms contract, deliberately left alone.** This
-   * does not drop a leading trunk zero, so a respondent who types `01712345678`
-   * under `+880` submits `+88001712345678`, which has one zero too many and is
-   * not a reachable number. The forms path drops it (`toNationalDigits`).
-   * Changing it here would alter what `/contact` submits, which is outside this
-   * task; it is reported instead.
+   * This used to concatenate the dial code with `phoneNumber.replace(/[^\d]/g, "")`,
+   * which keeps the national trunk zero: `01712345678` under `+880` submitted
+   * `+88001712345678`, which is not a badly formatted version of the number but a
+   * different and unreachable one. `resolvePhoneEntry` owns every reading of what
+   * was typed, so there is one normaliser in the codebase and not two.
    */
-  const normalizedPhoneNumber = phoneNumber.replace(/[^\d]/g, "");
-  const combinedPhoneValue = normalizedPhoneNumber
-    ? `${selectedCountry.dial}${normalizedPhoneNumber}`
-    : "";
+  const phoneEntry = resolvePhoneEntry(selectedCountry.dial, phoneNumber);
+  /**
+   * Shown once the respondent has left the field or tried to submit, never while
+   * they are still typing. A rule evaluated on every keystroke reports every
+   * half-finished number as broken, which trains people to ignore it.
+   */
+  const phoneError = phoneTouched && phoneEntry.status === "invalid" ? PHONE_ANSWER_MESSAGE : null;
+  /**
+   * Carries the unusable value through when there is one, rather than blanking
+   * it. Submitting `""` would look to the server like an untouched optional
+   * field, which is how a respondent ends up sending a message with the phone
+   * number they typed silently missing from it.
+   */
+  const combinedPhoneValue = phoneEntry.value;
   const phonePlaceholder = useMemo(
     () => (selectedCountry.code === "BD" ? "1721-129467" : "Phone number"),
     [selectedCountry.code]
@@ -105,7 +126,18 @@ export function ContactFormCard({
           method="post"
           className="mt-4 flex flex-1 flex-col"
           id="contact-form"
-          onSubmit={() => setIsSubmitting(true)}
+          onSubmit={(event) => {
+            if (phoneEntry.status === "invalid") {
+              // Stopped here rather than at the server, which answers with a
+              // redirect that discards everything else already typed.
+              event.preventDefault();
+              setPhoneTouched(true);
+              phoneInputRef.current?.focus();
+              return;
+            }
+
+            setIsSubmitting(true);
+          }}
         >
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -171,20 +203,37 @@ export function ContactFormCard({
                 Phone or WhatsApp number
               </label>
               <input type="hidden" name="phone_whatsapp" value={combinedPhoneValue} />
-              <div className="flex h-12 overflow-hidden rounded-xl border border-border bg-background transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+              <div
+                className={cn(
+                  "flex h-12 overflow-hidden rounded-xl border bg-background transition-colors focus-within:ring-2",
+                  phoneError
+                    ? "border-destructive focus-within:border-destructive focus-within:ring-destructive/20"
+                    : "border-border focus-within:border-primary focus-within:ring-primary/20"
+                )}
+              >
                 <CountryDialPicker
                   country={selectedCountry}
+                  describedBy={phoneError ? phoneErrorId : undefined}
                   onCountryChange={setSelectedCountry}
                 />
                 <input
+                  aria-describedby={phoneError ? phoneErrorId : undefined}
+                  aria-invalid={phoneError ? true : undefined}
                   className={compactInputClass}
                   id="contact-phone-whatsapp"
                   type="tel"
                   value={phoneNumber}
+                  onBlur={() => setPhoneTouched(true)}
                   onChange={(event) => setPhoneNumber(event.currentTarget.value)}
                   placeholder={phonePlaceholder}
+                  ref={phoneInputRef}
                 />
               </div>
+              {phoneError ? (
+                <p className="mt-1 text-sm font-medium text-destructive" id={phoneErrorId}>
+                  {phoneError}
+                </p>
+              ) : null}
             </div>
 
             <div>
