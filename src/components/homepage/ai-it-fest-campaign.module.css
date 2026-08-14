@@ -1,0 +1,488 @@
+.campaign {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(circle at 8% 12%, color-mix(in oklab, var(--brand-gold) 16%, transparent), transparent 28rem),
+    radial-gradient(circle at 92% 8%, color-mix(in oklab, var(--brand-blue) 16%, transparent), transparent 30rem),
+    linear-gradient(180deg, color-mix(in oklab, var(--card) 82%, transparent), var(--background));
+  padding-block: clamp(2.5rem, 6vw, 5.25rem);
+}
+
+.inner {
+  display: grid;
+  gap: clamp(3rem, 7vw, 5.5rem);
+}
+
+.hero,
+.brainchild {
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(20rem, 0.98fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 4.5rem);
+}
+
+.heroCopy,
+.brainchildCopy {
+  min-width: 0;
+}
+
+.presenter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  color: var(--brand-blue);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.brainchild h2,
+.sectionHeading h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-heading), var(--font-sans), sans-serif;
+  letter-spacing: -0.025em;
+}
+
+.hero h1 {
+  max-width: 13ch;
+  font-size: clamp(2.5rem, 6vw, 5.25rem);
+  font-weight: 700;
+  line-height: 0.98;
+}
+
+.tagline {
+  margin: 1.2rem 0 0;
+  color: color-mix(in oklab, var(--brand-gold) 82%, var(--foreground));
+  font-family: var(--font-serif), serif;
+  font-size: clamp(1.15rem, 2.2vw, 1.65rem);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.lead {
+  max-width: 62ch;
+  margin: 1rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.heroFacts,
+.coreFacts,
+.factRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.heroFacts {
+  margin-top: 1.35rem;
+}
+
+.heroFacts span,
+.coreFacts span,
+.factRow span,
+.cardStatus,
+.mediaLabel,
+.coreLabel {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid color-mix(in oklab, var(--brand-blue) 22%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--card) 90%, transparent);
+  color: var(--foreground);
+  padding: 0.38rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.heroActions,
+.cardActions,
+.resourceLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.heroActions {
+  margin-top: 1.5rem;
+}
+
+.primaryButton,
+.secondaryButton,
+.compactButton,
+.textLink {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.primaryButton,
+.secondaryButton {
+  padding: 0.78rem 1.15rem;
+}
+
+.primaryButton,
+.compactButton {
+  border: 1px solid var(--brand-deep);
+  background: linear-gradient(135deg, var(--brand-deep), var(--brand-blue));
+  color: #fff;
+  box-shadow: 0 12px 28px color-mix(in oklab, var(--brand-blue) 20%, transparent);
+}
+
+.secondaryButton {
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  color: var(--foreground);
+}
+
+.compactButton {
+  min-height: 44px;
+  padding: 0.62rem 0.9rem;
+  font-size: 0.78rem;
+}
+
+.textLink {
+  min-height: 44px;
+  color: var(--brand-blue);
+}
+
+.primaryButton:hover,
+.secondaryButton:hover,
+.compactButton:hover,
+.textLink:hover {
+  transform: translateY(-1px);
+}
+
+.secondaryButton:hover {
+  border-color: color-mix(in oklab, var(--brand-blue) 55%, var(--line));
+  background: color-mix(in oklab, var(--brand-blue) 8%, var(--card));
+}
+
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.compactButton:focus-visible,
+.textLink:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--brand-gold) 74%, var(--foreground));
+  outline-offset: 3px;
+}
+
+.heroMedia,
+.brainchildMedia,
+.cardMedia {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--brand-blue) 9%, var(--card));
+}
+
+.heroMedia {
+  aspect-ratio: 1 / 1;
+  border: 1px solid color-mix(in oklab, var(--brand-gold) 34%, var(--line));
+  border-radius: clamp(1.25rem, 3vw, 2rem);
+  box-shadow: 0 24px 70px color-mix(in oklab, var(--brand-ink) 18%, transparent);
+  transform: rotate(1.2deg);
+}
+
+.image {
+  object-fit: cover;
+}
+
+.mediaLabel,
+.coreLabel,
+.cardStatus {
+  position: absolute;
+  z-index: 1;
+  backdrop-filter: blur(10px);
+}
+
+.mediaLabel,
+.coreLabel {
+  right: 1rem;
+  bottom: 1rem;
+}
+
+.showcase {
+  scroll-margin-top: 6rem;
+}
+
+.sectionHeading {
+  max-width: 46rem;
+  margin: 0 auto clamp(1.6rem, 4vw, 2.5rem);
+  text-align: center;
+}
+
+.sectionHeading p {
+  margin: 0 0 0.55rem;
+  color: var(--brand-blue);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sectionHeading h2,
+.brainchild h2 {
+  font-size: clamp(1.9rem, 4vw, 3.2rem);
+  font-weight: 700;
+  line-height: 1.08;
+}
+
+.eventGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.eventCard {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 1.1rem;
+  background: color-mix(in oklab, var(--card) 94%, transparent);
+  box-shadow: 0 12px 36px color-mix(in oklab, var(--brand-ink) 7%, transparent);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.eventCard:hover {
+  border-color: color-mix(in oklab, var(--brand-blue) 42%, var(--line));
+  box-shadow: 0 18px 44px color-mix(in oklab, var(--brand-ink) 12%, transparent);
+  transform: translateY(-2px);
+}
+
+.cardMedia {
+  aspect-ratio: 16 / 8.5;
+  border-bottom: 1px solid var(--line);
+}
+
+.cardStatus {
+  top: 0.8rem;
+  left: 0.8rem;
+}
+
+.cardBody {
+  display: grid;
+  gap: 0.85rem;
+  padding: clamp(1rem, 2.5vw, 1.35rem);
+}
+
+.factRow {
+  gap: 0.45rem;
+}
+
+.factRow span {
+  min-height: 1.8rem;
+  border-color: var(--line);
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+}
+
+.cardBody h3 {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-heading), var(--font-sans), sans-serif;
+  font-size: 1.25rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.summary {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+
+.cardFacts {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.cardFacts div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.cardFacts dt,
+.cardFacts dd {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.cardFacts dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted-foreground);
+}
+
+.cardFacts dd {
+  color: var(--foreground);
+  font-weight: 650;
+}
+
+.cardActions {
+  justify-content: space-between;
+  margin-top: 0.2rem;
+}
+
+.brainchild {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--brand-gold) 36%, var(--line));
+  border-radius: clamp(1.35rem, 3vw, 2rem);
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--brand-gold) 9%, var(--card)), color-mix(in oklab, var(--brand-blue) 8%, var(--card)));
+  padding: clamp(1rem, 3vw, 2rem);
+  box-shadow: 0 24px 64px color-mix(in oklab, var(--brand-ink) 12%, transparent);
+}
+
+.brainchildMedia {
+  aspect-ratio: 1.2 / 1;
+  border: 1px solid color-mix(in oklab, var(--brand-gold) 30%, var(--line));
+  border-radius: 1.15rem;
+}
+
+.coreLabel {
+  border-color: color-mix(in oklab, var(--brand-gold) 50%, var(--line));
+  color: color-mix(in oklab, var(--brand-gold) 74%, var(--foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.coreFacts {
+  margin-top: 1.3rem;
+}
+
+.coreFacts span {
+  border-color: color-mix(in oklab, var(--brand-gold) 28%, var(--line));
+}
+
+.resourceLinks {
+  margin-top: 0.65rem;
+}
+
+.closingLink {
+  display: flex;
+  justify-content: center;
+  margin-top: -2.2rem;
+  text-align: center;
+}
+
+@media (max-width: 920px) {
+  .hero,
+  .brainchild {
+    grid-template-columns: 1fr;
+  }
+
+  .heroCopy {
+    max-width: 46rem;
+  }
+
+  .heroMedia {
+    width: min(100%, 42rem);
+    margin-inline: auto;
+    transform: none;
+  }
+
+  .brainchildMedia {
+    aspect-ratio: 16 / 10;
+  }
+}
+
+@media (max-width: 719px) {
+  .campaign {
+    padding-block: 2.5rem 3rem;
+  }
+
+  .inner {
+    gap: 3.25rem;
+  }
+
+  .hero h1 {
+    font-size: clamp(2.35rem, 13vw, 3.5rem);
+  }
+
+  .eventGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heroActions,
+  .cardActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .compactButton,
+  .cardActions .textLink {
+    width: 100%;
+  }
+
+  .cardFacts div {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .brainchild {
+    padding: 0.8rem;
+  }
+
+  .brainchildCopy {
+    padding: 0.5rem 0.35rem 0.75rem;
+  }
+
+  .closingLink {
+    margin-top: -1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primaryButton,
+  .secondaryButton,
+  .compactButton,
+  .textLink,
+  .eventCard {
+    transition: none;
+  }
+
+  .primaryButton:hover,
+  .secondaryButton:hover,
+  .compactButton:hover,
+  .textLink:hover,
+  .eventCard:hover {
+    transform: none;
+  }
+}
