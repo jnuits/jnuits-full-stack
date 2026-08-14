@@ -1,0 +1,16 @@
+title = "JnUITS Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Verified public BrainChild slugs in the Fest content operator"
+condition = "AND"
+paths = [
+  '''^scripts/data/ai-it-fest-2026-events\.mjs$''',
+  '''^scripts/import-ai-it-fest-2026-events\.test\.mjs$''',
+]
+regexes = [
+  '''^brainchild-season-2-0$''',
+  '''^brainchild-season-20$''',
+]
