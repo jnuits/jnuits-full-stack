@@ -284,7 +284,7 @@ function parseAuditOutput(stdout) {
   try {
     return JSON.parse(payload);
   } catch (error) {
-    const unwrappedPayload = payload.replace(/\\s*│\\s*\\r?\\n\\s*│\\s*/g, "");
+    const unwrappedPayload = payload.replace(/\s*│\s*\r?\n\s*│\s*/g, "");
     if (unwrappedPayload === payload) {
       throw error;
     }
