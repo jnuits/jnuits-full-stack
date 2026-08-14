@@ -123,6 +123,27 @@ describe("supabase cleanup audit", () => {
     }
   });
 
+  it("allows metadata output larger than the Node spawnSync default buffer", () => {
+    const stdout =
+      "x".repeat(1024 * 1024 + 1) +
+      '__JNUITS_SUPABASE_CLEANUP_AUDIT__{"ok":true}__END_JNUITS_SUPABASE_CLEANUP_AUDIT__';
+
+    const result = runSupabaseAuditQuery({
+      runner: (_command, _args, options) => {
+        if (!options.maxBuffer || Buffer.byteLength(stdout) > options.maxBuffer) {
+          const error = new Error("spawnSync supabase ENOBUFS");
+          error.code = "ENOBUFS";
+          return { error, status: null };
+        }
+
+        return { status: 0, stdout };
+      },
+      sql: "select 1 as verification_json;",
+    });
+
+    expect(result).toEqual({ ok: true });
+  });
+
   it("fails clearly when cleanup audit lacks a Supabase access token", () => {
     expect(() =>
       runSupabaseAuditQuery({
