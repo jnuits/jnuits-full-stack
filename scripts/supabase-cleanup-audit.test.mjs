@@ -41,6 +41,17 @@ describe("supabase cleanup audit", () => {
     });
   });
 
+  it("parses audit JSON wrapped across Supabase CLI table rows", () => {
+    const stdout = [
+      "│ __JNUITS_SUPABASE_CLEANUP_AUDIT__{\\\"tableCounts\\\":[{\\\"count\\\":2},  │",
+      "│  {\\\"count\\\":3}]}__END_JNUITS_SUPABASE_CLEANUP_AUDIT__ │",
+    ].join("\\n");
+
+    expect(parseAuditOutput(stdout)).toEqual({
+      tableCounts: [{ count: 2 }, { count: 3 }],
+    });
+  });
+
   it("flags pending certificate migrations and unsafe certificate exposure", () => {
     const evaluation = evaluateAudit(
       {
