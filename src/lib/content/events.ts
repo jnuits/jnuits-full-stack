@@ -138,7 +138,9 @@ export type EventListItem = {
   locationLabel: string;
   publishedAt: string | null;
   registrationBadgeLabel: string | null;
+  registrationClosesAt: string | null;
   registrationState: EventRegistrationState;
+  registrationUrl: string | null;
   slug: string;
   startsAt: string;
   status: string;
@@ -631,7 +633,9 @@ function mapEventRow(
     locationLabel: getLocationLabel(row),
     publishedAt: row.published_at,
     registrationBadgeLabel: getRegistrationLabel(registrationState),
+    registrationClosesAt: row.registration_closes_at,
     registrationState,
+    registrationUrl: row.registration_url,
     slug: row.slug,
     startsAt: row.starts_at,
     status: row.status,
@@ -873,6 +877,76 @@ export async function getPublicEventsPage(
   }
 }
 
+export async function getHomepageUpcomingEvents(
+  limit = 3
+): Promise<EventListItem[]> {
+  const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 12);
+
+  try {
+    const result = await createPublicClient()
+      .from("events")
+      .select(EVENT_LIST_SELECT)
+      .eq("status", "published")
+      .gte("starts_at", getBangladeshDayStartIso())
+      .order("starts_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(boundedLimit);
+    const rows = (assertSupabaseSuccess(
+      result,
+      "Homepage event lookup failed"
+    ).data || []) as EventRow[];
+    const counts = await getRegistrationCountMap(rows);
+
+    return rows.map((row) => mapEventRow(row, counts.get(row.id) || 0));
+  } catch (error) {
+    console.error(
+      `Homepage events unavailable: ${
+        error instanceof Error ? error.message : "Unknown error."
+      }`
+    );
+    return [];
+  }
+}
+
+export async function getPublishedEventsBySlugs(
+  slugs: readonly string[]
+): Promise<EventListItem[]> {
+  const normalizedSlugs = Array.from(
+    new Set(slugs.map(normalizeIdentifier).filter(Boolean))
+  );
+
+  if (normalizedSlugs.length === 0) {
+    return [];
+  }
+
+  try {
+    const result = await createPublicClient()
+      .from("events")
+      .select(EVENT_LIST_SELECT)
+      .eq("status", "published")
+      .in("slug", normalizedSlugs);
+    const rows = (assertSupabaseSuccess(
+      result,
+      "Published event slug lookup failed"
+    ).data || []) as EventRow[];
+    const counts = await getRegistrationCountMap(rows);
+    const eventsBySlug = new Map(
+      rows.map((row) => [row.slug, mapEventRow(row, counts.get(row.id) || 0)])
+    );
+
+    return normalizedSlugs.flatMap((slug) => {
+      const event = eventsBySlug.get(slug);
+      return event ? [event] : [];
+    });
+  } catch (error) {
+    console.error(
+      `Published event slug lookup unavailable: ${
+        error instanceof Error ? error.message : "Unknown error."
+      }`
+    );
+    return [];
+  }
+}
 export const getFeaturedPublicEvent = cache(async () => {
   const featured = await getFeaturedPublishedEventRow();
 

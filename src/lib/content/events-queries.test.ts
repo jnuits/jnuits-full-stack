@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
@@ -13,7 +13,12 @@ vi.mock("@/lib/supabase/public", () => ({
   createPublicClient: () => ({ from: mocks.publicFrom }),
 }));
 
-import { getAdminEventsDashboard, getPublicEventsPage } from "@/lib/content/events";
+import {
+  getAdminEventsDashboard,
+  getHomepageUpcomingEvents,
+  getPublishedEventsBySlugs,
+  getPublicEventsPage,
+} from "@/lib/content/events";
 
 type QueryResult = {
   count?: number | null;
@@ -24,6 +29,8 @@ type QueryResult = {
 function makeQuery(result: QueryResult) {
   const query = {
     eq: vi.fn(),
+    gte: vi.fn(),
+    in: vi.fn(),
     limit: vi.fn(),
     or: vi.fn(),
     order: vi.fn(),
@@ -37,6 +44,8 @@ function makeQuery(result: QueryResult) {
   };
 
   query.eq.mockReturnValue(query);
+  query.gte.mockReturnValue(query);
+  query.in.mockReturnValue(query);
   query.limit.mockReturnValue(query);
   query.or.mockReturnValue(query);
   query.order.mockReturnValue(query);
@@ -87,6 +96,77 @@ describe("event query bounds", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reads the three next canonical events from the start of the Bangladesh day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-14T12:00:00Z"));
+    const homepageQuery = makeQuery({ data: [eventRow], error: null });
+
+    mocks.publicFrom.mockReturnValue(homepageQuery);
+    mocks.rpc.mockResolvedValue({
+      data: [{ event_id: "event-1", registration_count: 2 }],
+      error: null,
+    });
+
+    await expect(getHomepageUpcomingEvents()).resolves.toMatchObject([
+      { id: "event-1", registrationState: "open" },
+    ]);
+
+    expect(homepageQuery.eq).toHaveBeenCalledWith("status", "published");
+    expect(homepageQuery.gte).toHaveBeenCalledWith(
+      "starts_at",
+      "2026-08-13T18:00:00.000Z"
+    );
+    expect(homepageQuery.order).toHaveBeenNthCalledWith(1, "starts_at", {
+      ascending: true,
+    });
+    expect(homepageQuery.order).toHaveBeenNthCalledWith(2, "id", {
+      ascending: true,
+    });
+    expect(homepageQuery.limit).toHaveBeenCalledWith(3);
+  });
+
+  it("normalizes slug input and returns published events in the requested order", async () => {
+    const brainchildRow = {
+      ...eventRow,
+      id: "event-2",
+      slug: "brainchild-season-2-0",
+      title: "BrainChild Season 2.0",
+    };
+    const slugQuery = makeQuery({
+      data: [brainchildRow, eventRow],
+      error: null,
+    });
+
+    mocks.publicFrom.mockReturnValue(slugQuery);
+    mocks.rpc.mockResolvedValue({
+      data: [
+        { event_id: "event-2", registration_count: 0 },
+        { event_id: "event-1", registration_count: 0 },
+      ],
+      error: null,
+    });
+
+    await expect(
+      getPublishedEventsBySlugs([
+        " Network-Workshop ",
+        "BRAINCHILD-SEASON-2-0",
+        "network-workshop",
+      ])
+    ).resolves.toMatchObject([
+      { id: "event-1", slug: "network-workshop" },
+      { id: "event-2", slug: "brainchild-season-2-0" },
+    ]);
+
+    expect(slugQuery.in).toHaveBeenCalledWith("slug", [
+      "network-workshop",
+      "brainchild-season-2-0",
+    ]);
+    expect(slugQuery.eq).toHaveBeenCalledWith("status", "published");
+  });
   it("pages the admin queue in the database and obtains registration counts from one aggregate RPC", async () => {
     const totalQuery = makeQuery({ count: 25, data: null, error: null });
     const draftQuery = makeQuery({ count: 4, data: null, error: null });
