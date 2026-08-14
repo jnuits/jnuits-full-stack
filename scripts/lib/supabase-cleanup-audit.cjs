@@ -300,6 +300,7 @@ function runSupabaseAuditQuery({ cwd = process.cwd(), env = process.env, runner,
         cwd,
         encoding: "utf8",
         env: buildSupabaseCliEnv(env),
+        maxBuffer: 10 * 1024 * 1024,
       }
     );
 
