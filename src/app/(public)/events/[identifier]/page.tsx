@@ -266,7 +266,7 @@ export default async function EventDetailPage({
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              {event.registrationMode === "external" && event.registrationUrl ? (
+              {event.registrationState === "external" && event.registrationUrl ? (
                 <Link
                   className="primary-button"
                   href={event.registrationUrl}
@@ -398,7 +398,7 @@ export default async function EventDetailPage({
               eventId={event.id}
               eventTitle={event.title}
               formHref={linkedRegistrationForm ? `/forms/${linkedRegistrationForm.slug}` : undefined}
-              registrationOpen={event.registrationOpen}
+              registrationOpen={event.registrationState === "open"}
               spotsRemaining={event.spotsRemaining}
             />
           ) : null}
