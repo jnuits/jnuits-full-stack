@@ -360,7 +360,7 @@ function getLifecycleLabel(state: EventLifecycleState) {
   return "Completed";
 }
 
-function getRegistrationState(
+export function deriveEventRegistrationState(
   row: Pick<
     EventRow,
     | "capacity"
@@ -370,44 +370,43 @@ function getRegistrationState(
     | "registration_open"
     | "starts_at"
   >,
-  registeredCount: number
+  registeredCount: number,
+  now = new Date()
 ) {
-  if (row.registration_mode === "external") {
-    return "external" satisfies EventRegistrationState;
-  }
-
-  if (row.registration_mode !== "internal") {
-    return "none" satisfies EventRegistrationState;
-  }
-
-  const now = new Date();
   const closesAt = row.registration_closes_at
     ? new Date(row.registration_closes_at)
     : null;
   const endsAt = new Date(row.ends_at || row.starts_at);
+  const timedOut =
+    (closesAt !== null && closesAt.getTime() <= now.getTime()) ||
+    endsAt.getTime() <= now.getTime();
 
-  if (
-    !row.registration_open ||
-    (closesAt && closesAt.getTime() < now.getTime()) ||
-    endsAt.getTime() < now.getTime()
-  ) {
-    return "closed" satisfies EventRegistrationState;
+  if (row.registration_mode === "external") {
+    return timedOut ? "closed" : "external";
+  }
+
+  if (row.registration_mode !== "internal") {
+    return "none";
+  }
+
+  if (!row.registration_open || timedOut) {
+    return "closed";
   }
 
   if (typeof row.capacity === "number" && registeredCount >= row.capacity) {
-    return "full" satisfies EventRegistrationState;
+    return "full";
   }
 
-  return "open" satisfies EventRegistrationState;
+  return "open";
 }
 
-function isEventRegistrationWindowClosed(
+export function isEventRegistrationWindowClosed(
   row: Pick<
     EventRow,
     "ends_at" | "registration_closes_at" | "registration_open" | "starts_at"
-  >
+  >,
+  now = new Date()
 ) {
-  const now = new Date();
   const closesAt = row.registration_closes_at
     ? new Date(row.registration_closes_at)
     : null;
@@ -415,11 +414,10 @@ function isEventRegistrationWindowClosed(
 
   return (
     !row.registration_open ||
-    (closesAt && closesAt.getTime() < now.getTime()) ||
-    endsAt.getTime() < now.getTime()
+    (closesAt !== null && closesAt.getTime() <= now.getTime()) ||
+    endsAt.getTime() <= now.getTime()
   );
 }
-
 function getRegistrationLabel(state: EventRegistrationState) {
   if (state === "open") {
     return "Registration Open";
@@ -617,7 +615,7 @@ function mapEventRow(
   registrationCount: number
 ): EventListItem {
   const lifecycle = getLifecycleState(row);
-  const registrationState = getRegistrationState(row, registrationCount);
+  const registrationState = deriveEventRegistrationState(row, registrationCount);
 
   return {
     category: row.category,
