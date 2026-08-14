@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { brandProfile } from "@/lib/branding";
 import { sendEmail } from "@/lib/notifications/send-email";
+import { isCanonicalPhoneAnswer, PHONE_ANSWER_MESSAGE } from "@/lib/phone";
 import { verifyCaptchaToken } from "@/lib/security/captcha";
 import { getRequestIp, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
@@ -71,7 +72,21 @@ const contactSchema = z.object({
   cf_turnstile_token: z.string().trim().max(4096).optional().or(z.literal("")),
   subject: z.string().trim().min(3).max(120),
   message: z.string().trim().min(10).max(3000),
-  phone_whatsapp: z.string().trim().max(40).optional().or(z.literal("")),
+  /**
+   * Issue #131. The form composes this through `resolvePhoneEntry` and can no
+   * longer produce anything else, so this is the guard for a request that did
+   * not come through the form. Empty stays valid: the field is optional and an
+   * untouched one has to submit nothing.
+   */
+  phone_whatsapp: z
+    .string()
+    .trim()
+    .max(40)
+    .refine((value) => !value || isCanonicalPhoneAnswer(value), {
+      message: PHONE_ANSWER_MESSAGE,
+    })
+    .optional()
+    .or(z.literal("")),
   sender_type: z.enum(senderTypes),
   website: z.string().trim().max(200).optional().or(z.literal("")),
 });

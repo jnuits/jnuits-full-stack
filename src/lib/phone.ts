@@ -101,11 +101,6 @@ export function filterDialCountries(query: string): readonly DialCountry[] {
  * mobile written `01721129467` at home is `+880 1721129467` abroad. Keeping it
  * would produce `+8801721129467` with an extra zero, which is a different and
  * unreachable number.
- *
- * **`/contact` does not do this.** It concatenates the dial code with
- * `phoneNumber.replace(/[^\d]/g, "")`, so a contact submission typed with the
- * leading zero is stored malformed. That is pre-existing, outside this task, and
- * reported rather than quietly changed — see the PR body.
  */
 export function toNationalDigits(value: string): null | string {
   const compact = value.replace(SEPARATOR_PATTERN, "");
@@ -146,6 +141,83 @@ export function composePhoneAnswer(dial: string, nationalNumber: string) {
   const national = toNationalDigits(typed);
 
   return national ? `${dial}${national}` : `${dial}${typed}`;
+}
+
+/**
+ * What a picked country and a typed number resolve to.
+ *
+ * `empty` and `invalid` are separate states because they mean different things
+ * to a caller. An untouched optional field submits nothing and must not be
+ * reported as an error; an unusable one has to stop the submission and say why.
+ * Collapsing the two is the data-loss bug `composePhoneAnswer` documents.
+ */
+export type PhoneEntry =
+  | { status: "empty"; value: "" }
+  | { status: "invalid"; value: string }
+  | { status: "ok"; value: string };
+
+/**
+ * Resolves what a respondent typed beside a country picker into one canonical
+ * answer, or reports that it cannot be. Issue #131.
+ *
+ * Three readings are tried in a fixed order, and the order is the design:
+ *
+ * 1. **The value carries its own country code** (`+880…`, `008801…`). It beats
+ *    the picker. Someone who pastes a full international number has stated the
+ *    country more explicitly than a dropdown they may never have touched, and
+ *    prepending the picked dial code to it would produce nonsense.
+ * 2. **The literal reading**: the picked dial code plus what was typed, with
+ *    separators and the trunk zero removed. This is the ordinary case and it is
+ *    tried before any cleverness, so a number that already reads correctly is
+ *    never reinterpreted.
+ * 3. **A country code typed without its `+`** (`8801712345678` under `+880`).
+ *    Attempted *only* when reading 2 produced something invalid and stripping
+ *    the duplicate produces something valid.
+ *
+ * Reading 3 cannot fire when reading 2 already worked, and that ordering is
+ * load-bearing rather than incidental. Under `+1`, `1234567890` is both a valid
+ * ten-digit national number and a string that looks like a repeated country
+ * code; the literal reading wins, so the number typed under the country chosen
+ * is the number stored. Only when exactly one reading survives does this
+ * disambiguate, which is not the same as guessing.
+ */
+export function resolvePhoneEntry(dial: string, typed: string): PhoneEntry {
+  const trimmed = typed.trim();
+
+  if (!trimmed) {
+    return { status: "empty", value: "" };
+  }
+
+  const compact = trimmed.replace(SEPARATOR_PATTERN, "");
+
+  if (compact.startsWith("+") || compact.startsWith("00")) {
+    const canonical = normalizePhoneAnswer(trimmed);
+
+    return canonical
+      ? { status: "ok", value: canonical }
+      : { status: "invalid", value: trimmed };
+  }
+
+  const composed = composePhoneAnswer(dial, trimmed);
+
+  if (isCanonicalPhoneAnswer(composed)) {
+    return { status: "ok", value: composed };
+  }
+
+  const national = toNationalDigits(trimmed);
+  const dialDigits = dial.replace(/^\+/, "");
+
+  if (national && dialDigits && national.startsWith(dialDigits)) {
+    const deduplicated = `${dial}${national.slice(dialDigits.length)}`;
+
+    if (isCanonicalPhoneAnswer(deduplicated)) {
+      return { status: "ok", value: deduplicated };
+    }
+  }
+
+  // The unusable value is carried out rather than discarded. A caller handed
+  // `""` here would submit an empty optional field and say nothing at all.
+  return { status: "invalid", value: composed || trimmed };
 }
 
 /**

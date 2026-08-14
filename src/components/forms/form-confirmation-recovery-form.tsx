@@ -8,6 +8,21 @@ import {
   getFormConfirmationResendEndpoint,
 } from "@/lib/forms/confirmation";
 
+/**
+ * Issue #135, contrast half. Error semantics come from the alert role and the
+ * destructive border; readable copy uses the foreground token.
+ *
+ * Both failure messages here were `text-red-700` with no dark variant. The
+ * semantic `text-destructive` token alone is also insufficient here: it
+ * measures 3.78:1 on the light `bg-card` surface, below WCAG AA for 14px text.
+ *
+ * The sent state uses the existing semantic success-text token, whose dark
+ * override mixes the brand green with white instead of rendering the light
+ * theme's green unchanged on a dark card.
+ */
+const RECOVERY_ERROR_CLASS =
+  "border-l-2 border-destructive pl-3 text-sm font-semibold text-foreground";
+
 export type FormConfirmationCaptchaConfig = {
   required: boolean;
   siteKey: string;
@@ -68,7 +83,7 @@ export function FormConfirmationRecoveryForm({
 
   if (state.status === "sent") {
     return (
-      <p className="mt-6 text-sm font-semibold text-[var(--brand-green)]" role="status">
+      <p className="mt-6 text-sm font-semibold text-[var(--color-text-success)]" role="status">
         {FORM_CONFIRMATION_RESEND_ACCEPTED_MESSAGE}
       </p>
     );
@@ -103,12 +118,12 @@ export function FormConfirmationRecoveryForm({
       </div>
       {captcha.required ? <TurnstileField siteKey={captcha.siteKey} /> : null}
       {captchaUnavailable ? (
-        <p className="text-sm font-semibold text-red-700" role="alert">
+        <p className={RECOVERY_ERROR_CLASS} role="alert">
           Verification is temporarily unavailable. Try again later.
         </p>
       ) : null}
       {state.status === "error" ? (
-        <p className="text-sm font-semibold text-red-700" role="alert">
+        <p className={RECOVERY_ERROR_CLASS} role="alert">
           {state.message}
         </p>
       ) : null}

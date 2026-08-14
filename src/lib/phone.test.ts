@@ -7,6 +7,7 @@ import {
   isCanonicalPhoneAnswer,
   normalizePhoneAnswer,
   PHONE_DIGIT_LIMITS,
+  resolvePhoneEntry,
   splitPhoneAnswer,
   toNationalDigits,
 } from "@/lib/phone";
@@ -116,6 +117,93 @@ describe("composing an answer from a picked country and a typed number", () => {
     // than "+880", which would then fail the format rule.
     expect(composePhoneAnswer("+880", "")).toBe("");
     expect(composePhoneAnswer("+880", "   ")).toBe("");
+  });
+});
+
+/**
+ * Issue #131.
+ *
+ * `composePhoneAnswer` handles the national number and nothing else, which is
+ * all task 2.6 needed. A respondent typing into a free-text box beside a picker
+ * also pastes full international numbers and retypes the country code without
+ * its plus, and both of those have to resolve to the same stored value as the
+ * plain national form or the picker is decoration.
+ */
+describe("resolving what was typed beside a country picker", () => {
+  it.each([
+    ["01712345678", "the trunk zero typed at home"],
+    ["1712345678", "the national number alone"],
+    ["8801712345678", "the country code typed without its plus"],
+    ["+8801712345678", "a pasted international number"],
+    ["008801712345678", "the 00 international prefix"],
+    ["+880 1712-345678", "a pasted number carrying separators"],
+    [" 01712 345 678 ", "spaces around and inside"],
+  ])("%s (%s) resolves to +8801712345678", (typed) => {
+    expect(resolvePhoneEntry("+880", typed)).toEqual({
+      status: "ok",
+      value: "+8801712345678",
+    });
+  });
+
+  it("never produces the doubled trunk zero this issue is about", () => {
+    // +88001712345678 is not a badly formatted version of the number. It is a
+    // different one, and it does not reach anybody.
+    expect(resolvePhoneEntry("+880", "01712345678").value).not.toBe("+88001712345678");
+  });
+
+  it("reports an untouched field as empty rather than invalid", () => {
+    // Distinct states on purpose. An optional field nobody filled in is not a
+    // mistake and must not be reported as one.
+    expect(resolvePhoneEntry("+880", "")).toEqual({ status: "empty", value: "" });
+    expect(resolvePhoneEntry("+880", "   ")).toEqual({ status: "empty", value: "" });
+  });
+
+  it.each(["call me", "0", "+", "1712abc345678", "1"])("reports %s as invalid", (typed) => {
+    expect(resolvePhoneEntry("+880", typed).status).toBe("invalid");
+  });
+
+  it("carries the unusable value out instead of blanking it", () => {
+    // A caller handed "" here would submit an empty optional field, and the
+    // respondent would never learn that what they typed went nowhere.
+    expect(resolvePhoneEntry("+880", "call me").value).not.toBe("");
+  });
+
+  it("lets a pasted country code beat the picker", () => {
+    // Someone who pastes +880… has named the country more explicitly than a
+    // dropdown they may never have touched.
+    expect(resolvePhoneEntry("+49", "+8801712345678")).toEqual({
+      status: "ok",
+      value: "+8801712345678",
+    });
+  });
+
+  it("prefers the literal reading when the literal reading is already valid", () => {
+    // The case the whole ordering exists for. Under +1 a ten-digit national
+    // number is also a string that looks like a repeated country code. Stripping
+    // it would silently store a different number, so the reading that matches
+    // what the respondent chose wins.
+    expect(resolvePhoneEntry("+1", "1234567890")).toEqual({
+      status: "ok",
+      value: "+11234567890",
+    });
+  });
+
+  it("composes against whichever country is picked, not against Bangladesh", () => {
+    expect(resolvePhoneEntry("+49", "01512345678")).toEqual({
+      status: "ok",
+      value: "+491512345678",
+    });
+  });
+
+  it("agrees with the canonical recogniser on everything it accepts", () => {
+    // Guards the pair rather than the function. A resolver that returned "ok"
+    // with a value the server then rejects would pass every test above.
+    for (const typed of ["01712345678", "8801712345678", "+8801712345678", "1712345678"]) {
+      const entry = resolvePhoneEntry("+880", typed);
+
+      expect(entry.status).toBe("ok");
+      expect(isCanonicalPhoneAnswer(entry.value)).toBe(true);
+    }
   });
 });
 
