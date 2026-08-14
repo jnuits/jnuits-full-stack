@@ -279,7 +279,18 @@ function parseAuditOutput(stdout) {
     throw new Error("Could not find Supabase cleanup audit JSON in CLI output.");
   }
 
-  return JSON.parse(text.slice(start + RESULT_PREFIX.length, end).trim());
+  const payload = text.slice(start + RESULT_PREFIX.length, end).trim();
+
+  try {
+    return JSON.parse(payload);
+  } catch (error) {
+    const unwrappedPayload = payload.replace(/\s*│\s*\r?\n\s*│\s*/g, "");
+    if (unwrappedPayload === payload) {
+      throw error;
+    }
+
+    return JSON.parse(unwrappedPayload);
+  }
 }
 
 function runSupabaseAuditQuery({ cwd = process.cwd(), env = process.env, runner, sql } = {}) {
