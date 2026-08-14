@@ -24,6 +24,7 @@
     "certificates:verify": "node scripts/verify-certificates.mjs",
     "content:import:legacy": "node scripts/import-legacy-public-content.mjs",
     "events:build-seed": "node scripts/build-events-seed.mjs",
+    "events:import-fest-2026": "node scripts/import-ai-it-fest-2026-events.mjs",
     "events:import": "node scripts/import-events-seed.mjs",
     "events:verify-concurrency": "node scripts/verify-event-registration-concurrency.mjs",
     "gallery:build-seed": "node scripts/build-gallery-seed.mjs",
