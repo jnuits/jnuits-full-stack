@@ -1,0 +1,92 @@
+# Controlled GitHub Action updates. Issue #136, following #59 and PR #129.
+#
+# ## Why this file exists
+#
+# #129 made a mutable `uses:` reference fail CI, so every external action in
+# this repository is pinned to a full 40-character lowercase commit SHA. That
+# closes the retag hole and opens a slower one: a pinned SHA never moves, so it
+# never picks up an upstream security fix either, and nothing in the repository
+# reports an ageing pin because the pin is still perfectly valid.
+#
+# Pinning and updating are two halves of one control. Shipping only the first
+# is how a repository ends up confidently frozen on a vulnerable action.
+#
+# ## Scope
+#
+# `github-actions` only. `npm` is deliberately absent: lockfiles and
+# dependencies belong to Codex, and adding that ecosystem here would start
+# opening pull requests against `package-lock.json` without approval. If npm
+# updates are wanted later, that is a separate decision and a separate entry.
+#
+# ## Compatibility with the #129 policy
+#
+# Dependabot writes the full commit SHA with the human-readable version as a
+# trailing comment:
+#
+#     uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+#
+# That is exactly the shape `scripts/lib/workflow-action-policy.mjs` accepts:
+# forty lowercase hex characters, with the `# v6` stripped before matching. A
+# proposal from this configuration passes the policy test unmodified, and
+# `scripts/dependabot-config.test.mjs` asserts that against a real fixture
+# rather than leaving it to be assumed.
+
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    # A glob, not a hand-written list, for the same reason #129 discovers
+    # workflow files from the directory instead of an array: an enrolment list
+    # rots, and its rot is invisible -- a file nobody added is simply never
+    # checked and reports nothing. Two allowlists have already been deleted
+    # here for exactly that (the `pull_request.branches` filter, decision 9,
+    # and the application mapping in PR #86).
+    #
+    #   "/"                  -> .github/workflows/*.{yml,yaml}
+    #   "/.github/actions/*" -> each composite action's action.yml
+    #
+    # All three composite actions are pure bash and use no external action
+    # today, so the second entry currently matches nothing. It is defensive:
+    # the moment one of them reaches out to something external, that reference
+    # is covered without anybody remembering to add it here.
+    directories:
+      - "/"
+      - "/.github/actions/*"
+
+    # Weekly, not daily. Every proposal costs a review, and this repository
+    # merges through one reviewer with a one-issue-one-PR rule. Daily would
+    # produce more updates than the process can absorb, and an update nobody
+    # reviews is worse than no update: it teaches the reviewer to rubber-stamp.
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Asia/Dhaka
+
+    # One pull request for all action version updates, so a week of upstream
+    # releases is one review rather than six. Grouped pull requests are amended
+    # in place as new releases land, so nothing is dropped while one waits.
+    #
+    # `applies-to: version-updates` is load-bearing. Security updates stay
+    # ungrouped and arrive on their own, because an advisory should not queue
+    # behind a routine version bump, and it should be mergeable without
+    # dragging unrelated changes along with it.
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+    # One open version-update pull request at a time, matching the working
+    # model. Grouping means this is not a throttle in practice: the single
+    # group pull request absorbs later releases rather than blocking them.
+    #
+    # This limit does not apply to security updates, which is the intended
+    # behaviour -- an advisory is never held back by a routine bump sitting in
+    # review.
+    open-pull-requests-limit: 1
+
+    commit-message:
+      # Matches the conventional-commit style used across this repository, so a
+      # Dependabot commit reads like every other commit in the log.
+      prefix: chore(ci)
