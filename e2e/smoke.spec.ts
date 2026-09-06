@@ -175,4 +175,3 @@ test.describe("public and auth smoke", () => {
     await expect(page.getByLabel(/password/i)).toBeFocused();
   });
 });
-
