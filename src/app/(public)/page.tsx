@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { Suspense, type ComponentType } from "react";
@@ -13,16 +12,8 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-import {
-  AiItFestCampaign,
-  hasAiItFestCampaign,
-} from "@/components/homepage/AiItFestCampaign";
 import { HomepageSlider } from "@/components/homepage/HomepageSlider";
-import { AI_IT_FEST_2026_EVENT_SLUGS } from "@/lib/content/ai-it-fest-2026";
-import {
-  getHomepageUpcomingEvents,
-  getPublishedEventsBySlugs,
-} from "@/lib/content/events";
+import { getHomepageUpcomingEvents } from "@/lib/content/events";
 import {
   getHomepageContent,
   type HomepageIconName,
@@ -31,37 +22,6 @@ import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
 
 export const revalidate = 60;
-
-const campaignDescription =
-  "Jagannath University IT Society presents JnU AI & IT Fest 2026 on 30 August: four Fest experiences and the core BrainChild Season 2.0 project expo.";
-const campaignSocialImage =
-  "https://res.cloudinary.com/dbwbwwteo/image/upload/v1786029922/ChatGPT_Image_Aug_6_2026_09_24_46_PM_hrzm6x.png";
-
-export const metadata: Metadata = {
-  title: {
-    absolute: "JnU AI & IT Fest 2026 | Jagannath University IT Society",
-  },
-  description: campaignDescription,
-  alternates: { canonical: "/" },
-  openGraph: {
-    description: campaignDescription,
-    images: [
-      {
-        alt: "JnU AI & IT Fest 2026 official campaign artwork",
-        url: campaignSocialImage,
-      },
-    ],
-    title: "JnU AI & IT Fest 2026 | JnUITS",
-    type: "website",
-    url: "/",
-  },
-  twitter: {
-    card: "summary_large_image",
-    description: campaignDescription,
-    images: [campaignSocialImage],
-    title: "JnU AI & IT Fest 2026 | JnUITS",
-  },
-};
 
 const homepageIcons: Record<
   HomepageIconName,
@@ -306,29 +266,25 @@ async function UpcomingEventsSection() {
 }
 
 export default async function HomePage() {
-  const [homepageContent, advisorQuote, campaignEvents] = await Promise.all([
+  const [homepageContent, advisorQuote] = await Promise.all([
     getHomepageContent(),
     getHomepageAdvisorQuote(),
-    getPublishedEventsBySlugs(AI_IT_FEST_2026_EVENT_SLUGS),
   ]);
-  const SocietyHeroHeading = hasAiItFestCampaign(campaignEvents) ? "h2" : "h1";
 
   return (
     <div className="hp-root">
-      <AiItFestCampaign events={campaignEvents} />
-
       <section className="hp-section hp-hero">
         <div className="shell hp-hero__inner">
           <div className="hp-hero__copy">
             <span className="slogan-pill hp-hero__badge">
               {homepageContent.hero.eyebrow}
             </span>
-            <SocietyHeroHeading className="hp-h1">
+            <h1 className="hp-h1">
               <span>Jagannath University</span>
               <br className="hp-h1-break" />
               {" "}
               <span>IT Society</span>
-            </SocietyHeroHeading>
+            </h1>
             <p className="hp-body hp-hero__body">
               {homepageContent.hero.subheading}
             </p>
