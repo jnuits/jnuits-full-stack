@@ -203,7 +203,6 @@ export function SiteHeader() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-
   useEffect(() => {
     if (!mobileOpen) {
       return;
@@ -255,6 +254,17 @@ export function SiteHeader() {
           onNavigate={() => setMobileOpen(false)}
           pathname={pathname}
         />
+        <div className="mt-4 flex flex-col gap-2">
+          <a
+            className="primary-button site-header-auth-button text-sm text-center"
+            href="https://forms.gle/s7Eizcv1VyM9mSL27"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setMobileOpen(false)}
+          >
+            Join As a Member
+          </a>
+        </div>
       </nav>
     </div>
   );
@@ -272,6 +282,15 @@ export function SiteHeader() {
           </nav>
           <div className="site-header-actions">
             <ThemeToggle />
+            <a
+              className="primary-button site-header-auth-button text-sm"
+              href="https://forms.gle/s7Eizcv1VyM9mSL27"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMobileOpen(false)}
+            >
+              Join As a Member
+            </a>
             <Link
               className="primary-button site-header-auth-button text-sm"
               href="/portal/dashboard"
