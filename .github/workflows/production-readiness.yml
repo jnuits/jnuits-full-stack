@@ -45,6 +45,7 @@ jobs:
       - name: Validate production deployment configuration
         env:
           APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          APP_MAC_SECRET: ${{ secrets.APP_MAC_SECRET }}
           AUTH_CAPTCHA_REQUIRED: ${{ vars.AUTH_CAPTCHA_REQUIRED }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}

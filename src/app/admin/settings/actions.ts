@@ -81,6 +81,7 @@ export async function saveAdminNotificationSettings(formData: FormData) {
 export async function saveAdminSecuritySettings(formData: FormData) {
   const auth = await requireAdminPermission("admin.security.write", {
     fallbackPath: "/admin/settings/security",
+    requireAal2: true,
   });
 
   if (!auth.user) {

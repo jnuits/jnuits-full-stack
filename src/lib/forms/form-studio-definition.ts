@@ -66,7 +66,16 @@ const MAX_FIELD_ID_LENGTH = 64;
  */
 let editorKeySequence = 0;
 
-export function createStudioEditorKey() {
+/**
+ * With a seed the key is a pure function of its input, so the server-rendered
+ * HTML and the first client render agree. The unseeded counter form advances
+ * module state that survives across requests on the server but starts fresh in
+ * the browser, which is exactly the shape of a hydration mismatch — so any call
+ * site that can execute during the initial render of a client component must
+ * pass a seed.
+ */
+export function createStudioEditorKey(seed?: string) {
+  if (seed) return `studio-field-${seed}`;
   editorKeySequence += 1;
   return `studio-field-${editorKeySequence}`;
 }

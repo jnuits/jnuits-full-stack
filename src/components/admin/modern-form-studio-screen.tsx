@@ -203,12 +203,15 @@ function MaximumLengthField({
  * remount-on-keystroke defect.
  */
 function starterFields(kind: FormKind): StudioEditorField[] {
+  // Seeded keys: this runs in a useState initializer, so it executes during
+  // SSR and hydration. The counter form of createStudioEditorKey would drift
+  // between server and client and break hydration on every load.
   const common: StudioEditorField[] = [
-    { editorKey: createStudioEditorKey(), id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" },
-    { editorKey: createStudioEditorKey(), id: "email", label: "Email address", optionsText: "", required: true, type: "email" },
+    { editorKey: createStudioEditorKey("full_name"), id: "full_name", label: "Full name", optionsText: "", required: true, type: "text" },
+    { editorKey: createStudioEditorKey("email"), id: "email", label: "Email address", optionsText: "", required: true, type: "email" },
   ];
   const consent: StudioEditorField = {
-    editorKey: createStudioEditorKey(),
+    editorKey: createStudioEditorKey("consent"),
     id: "consent",
     label: kind === "event_registration" ? "I agree to the event terms." : "I confirm that these details are accurate.",
     optionsText: "",
@@ -217,25 +220,25 @@ function starterFields(kind: FormKind): StudioEditorField[] {
   };
   if (kind === "membership_application") return [
     ...common,
-    { editorKey: createStudioEditorKey(), id: "student_id", label: "Student ID", optionsText: "", required: false, type: "text" },
+    { editorKey: createStudioEditorKey("student_id"), id: "student_id", label: "Student ID", optionsText: "", required: false, type: "text" },
     // Left as free text on purpose: a wrong fixed department list is worse
     // than typing, and there is no authoritative list to seed it from yet.
-    { editorKey: createStudioEditorKey(), id: "department_code", label: "Department", optionsText: "", required: false, type: "text" },
+    { editorKey: createStudioEditorKey("department_code"), id: "department_code", label: "Department", optionsText: "", required: false, type: "text" },
     // A dropdown, because a batch is enumerable and free text produces "16th",
     // "16", and "16 th" as three different batches on the member record.
-    { editorKey: createStudioEditorKey(), id: "batch_label", label: "Batch", optionsText: STARTER_BATCH_OPTIONS, required: false, type: "select" },
-    { editorKey: createStudioEditorKey(), id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
+    { editorKey: createStudioEditorKey("batch_label"), id: "batch_label", label: "Batch", optionsText: STARTER_BATCH_OPTIONS, required: false, type: "select" },
+    { editorKey: createStudioEditorKey("starter_phone"), id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
     consent,
   ];
   if (kind === "alumni_onboarding") return [
     ...common,
-    { editorKey: createStudioEditorKey(), id: "jnuits_id", label: "Previous JnUITS ID", optionsText: "", required: false, type: "text" },
-    { editorKey: createStudioEditorKey(), id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
+    { editorKey: createStudioEditorKey("jnuits_id"), id: "jnuits_id", label: "Previous JnUITS ID", optionsText: "", required: false, type: "text" },
+    { editorKey: createStudioEditorKey("alumni_phone"), id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
     consent,
   ];
   return [
     ...common,
-    { editorKey: createStudioEditorKey(), id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
+    { editorKey: createStudioEditorKey("event_phone"), id: "phone", label: "Phone number", optionsText: "", required: false, type: "telephone" },
     consent,
   ];
 }

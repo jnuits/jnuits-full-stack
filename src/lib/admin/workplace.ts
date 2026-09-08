@@ -12,6 +12,7 @@ import {
   buildWorkplaceRequestDecisionEmail,
 } from "@/lib/notifications/email-builders";
 import { sendEmail } from "@/lib/notifications/send-email";
+import { logServerError } from "@/lib/errors/api-error";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -158,7 +159,8 @@ export async function reviewWorkplaceRequest(options: {
     .maybeSingle();
 
   if (error || !data) {
-    throw new Error(error?.message || "Workplace request could not be loaded.");
+    logServerError("workplace review request load", error ?? new Error("request not found"));
+    throw new Error("Workplace request could not be loaded.");
   }
 
   const request = data as WorkplaceRequest & {
@@ -333,7 +335,8 @@ export async function updateMemberWorkplace(options: {
     .maybeSingle();
 
   if (error || !member) {
-    throw new Error(error?.message || "Member workplace record could not be loaded.");
+    logServerError("workplace member record load", error ?? new Error("member not found"));
+    throw new Error("Member workplace record could not be loaded.");
   }
 
   const typedMember = member as WorkplaceMember;
@@ -402,7 +405,8 @@ export async function cancelWorkplaceRequest(options: {
     .maybeSingle();
 
   if (error || !data) {
-    throw new Error(error?.message || "Workplace request could not be loaded.");
+    logServerError("workplace cancel request load", error ?? new Error("request not found"));
+    throw new Error("Workplace request could not be loaded.");
   }
 
   const request = data as WorkplaceRequest & {
@@ -432,7 +436,10 @@ export async function cancelWorkplaceRequest(options: {
     .eq("id", request.id);
 
   if (updateError) {
-    throw new Error(updateError.message);
+    logServerError("workplace cancel status update", updateError);
+    throw new Error(
+      "This workplace request could not be cancelled right now. Please try again."
+    );
   }
 
   await persistWorkplaceAudit(options.admin, {

@@ -1,9 +1,9 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import Image from "next/image";
+import { getImageProps } from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { transformCloudinaryUrl } from "@/lib/cloudinary/urls";
+import { transformCloudinaryUrl, buildCloudinarySrcSet } from "@/lib/cloudinary/urls";
 import { getHomepageSlideImagePriority } from "@/components/homepage/slider-image-priority";
 import type { HomepageSliderImage } from "@/lib/content/public-content";
 
@@ -86,6 +86,15 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
           {slides.map((slide, index) => {
             const isActive = index === safeActiveIndex;
             const imagePriority = getHomepageSlideImagePriority(index, safeActiveIndex);
+            // images.unoptimized is on globally: getImageProps + a native <img>
+            // is the documented way to attach a custom Cloudinary srcSet.
+            const { props: imageProps } = getImageProps({
+              alt: slide.title,
+              fill: true,
+              sizes: "(min-width: 1280px) 1220px, 94vw",
+              src: transformCloudinaryUrl(slide.imageUrl, "full"),
+            });
+            const slideSrcSet = buildCloudinarySrcSet(slide.imageUrl);
 
             return (
               <div
@@ -94,10 +103,11 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
                 data-active={isActive ? "true" : "false"}
                 key={slide.id}
               >
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  {...imageProps}
                   alt={slide.title}
                   className="hp-slider__image"
-                  fill
                   fetchPriority={imagePriority.fetchPriority}
                   loading={imagePriority.loading}
                   onError={(event) => {
@@ -105,11 +115,10 @@ export function HomepageSlider({ images }: HomepageSliderProps) {
                     if (event.currentTarget.src.endsWith(fallback)) {
                       return;
                     }
+                    event.currentTarget.removeAttribute("srcset");
                     event.currentTarget.src = fallback;
                   }}
-                  sizes="(min-width: 1280px) 1220px, 94vw"
-                  src={transformCloudinaryUrl(slide.imageUrl, "full")}
-                  unoptimized={true}
+                  {...(slideSrcSet ? { srcSet: slideSrcSet } : null)}
                 />
                 <div className="hp-slide-overlay" />
                 <p className="hp-slide-title">{slide.title}</p>

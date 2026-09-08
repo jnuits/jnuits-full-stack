@@ -60,7 +60,6 @@
     "csv-parse": "^5.6.0",
     "dotenv": "^17.2.3",
     "lucide-react": "^1.8.0",
-    "mysql2": "^3.20.0",
     "next": "^16.3.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -86,6 +85,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.2.11",
     "jsdom": "^26.1.0",
+    "mysql2": "^3.20.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.8"

@@ -28,8 +28,12 @@ export function parseEventRegistrationFilters(url: URL): EventRegistrationFilter
   };
 }
 
-export function escapeEventRegistrationSearch(value: string) {
-  return value.replace(/[\\%_,().]/g, (character) => `\\${character}`);
+export function buildEventRegistrationSearchPattern(value: string) {
+  // PostgreSQL LIKE uses backslash to make user-provided wildcards literal.
+  const likePattern = `%${value.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+  // `.or()` accepts raw PostgREST grammar. Quoting keeps reserved punctuation
+  // inside the value; each quote/backslash must also be escaped for its parser.
+  return `"${likePattern.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 export function eventRegistrationExportSearch(filters: EventRegistrationFilters) {

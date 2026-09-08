@@ -19,7 +19,8 @@
 ## Implementation Plan (Decision Complete)
 1. **Phase A: Foundation Corrections (Immediate)**
 - Add `super_admin` role in RBAC migration and make role checks hierarchy-aware so `super_admin` inherits admin/operator privileges.
-- Promote `jnuitsbd@gmail.com` to active `super_admin` grant.
+- Promote the designated operations account (address redacted) to an active
+  `super_admin` grant.
 - Fix auth return-to behavior for protected routes (`/admin`, `/portal`, `/profile`) end-to-end.
 - Fix `rehearse-cutover` script table mismatch and regenerate rehearsal report contract.
 - Add CI gate for `lint + typecheck + build` on main branch PRs/pushes.

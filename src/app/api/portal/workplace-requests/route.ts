@@ -10,6 +10,7 @@ import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { apiError } from "@/lib/errors/api-error";
 
 const workplacePayloadSchema = z
   .object({
@@ -210,10 +211,10 @@ async function handlePost(request: NextRequest, context: { userId?: string }) {
     .single();
 
   if (error || !data) {
-    return NextResponse.json(
-      { message: error?.message || "Unable to submit workplace request." },
-      { status: 500 }
-    );
+    return apiError(error ?? new Error("workplace request insert returned no data"), {
+      context: "workplace-requests submit",
+      fallback: "Unable to submit workplace request.",
+    });
   }
 
   await flexibleAdmin.from("audit_events" as string).insert({

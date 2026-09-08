@@ -36,6 +36,7 @@ const originalEnv = process.env;
  * against the serialized snapshot.
  */
 const secretCanaries = {
+  appMac: "CANARY_APP_MAC_1f9c8372d4b65e0a01",
   google: "CANARY_GOOGLE_PRIVATE_7c8f3d",
   rateLimitSalt: "CANARY_RATE_LIMIT_SALT_5f1c84a2d7e309b6",
   resend: "CANARY_RESEND_WEBHOOK_4e2a91",
@@ -58,6 +59,7 @@ describe("system health", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv,
+      APP_MAC_SECRET: secretCanaries.appMac,
       AUTH_CAPTCHA_REQUIRED: "true",
       GOOGLE_DRIVE_EXPORTS_FOLDER_ID: "folder",
       GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL: "service@example.test",
@@ -99,7 +101,7 @@ describe("system health", () => {
   it("exposes safe grouped integration status without raw secret values", async () => {
     const snapshot = await buildSystemHealthSnapshot();
 
-    for (const label of ["CAPTCHA", "Resend delivery", "Google Shared Drive", "Retention manifest signing", "Cloudinary", "Sentry"]) {
+    for (const label of ["Application MAC secret", "CAPTCHA", "Resend delivery", "Google Shared Drive", "Retention manifest signing", "Cloudinary", "Sentry"]) {
       expect(snapshot.checks.find((check) => check.label === label)?.status).toBe("ok");
     }
 
@@ -112,6 +114,16 @@ describe("system health", () => {
 
     expect(salt).toMatchObject({ status: "ok" });
     expect(salt?.detail).not.toContain(secretCanaries.rateLimitSalt);
+  });
+
+  it("reports the application MAC secret by length without echoing it", async () => {
+    const snapshot = await buildSystemHealthSnapshot();
+    const mac = snapshot.checks.find(
+      (check) => check.label === "Application MAC secret",
+    );
+
+    expect(mac).toMatchObject({ status: "ok" });
+    expect(mac?.detail).not.toContain(secretCanaries.appMac);
   });
 
   it("names missing configuration without exposing neighboring values", async () => {

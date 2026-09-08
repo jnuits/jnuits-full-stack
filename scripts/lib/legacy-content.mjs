@@ -116,14 +116,24 @@ export function loadLegacyEnv() {
 export async function buildLegacyMysqlConnection() {
   const legacyEnv = loadLegacyEnv();
 
+  const caPath = process.env.LEGACY_DATABASE_CA_PATH?.trim();
+  const insecureTls = process.env.LEGACY_DATABASE_TLS_INSECURE === "1";
+  let ssl;
+
+  if (caPath) {
+    ssl = { ca: fs.readFileSync(caPath, "utf8"), rejectUnauthorized: true };
+  } else if (insecureTls) {
+    ssl = { rejectUnauthorized: false };
+  } else {
+    ssl = { rejectUnauthorized: true };
+  }
+
   return mysql.createConnection({
     database: legacyEnv.DATABASE_NAME,
     host: legacyEnv.DATABASE_HOST,
     password: legacyEnv.DATABASE_PASSWORD,
     port: Number(legacyEnv.DATABASE_PORT),
-    ssl: {
-      rejectUnauthorized: false,
-    },
+    ssl,
     user: legacyEnv.DATABASE_USERNAME,
   });
 }

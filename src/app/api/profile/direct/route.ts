@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
+import { apiError } from "@/lib/errors/api-error";
 
 const directProfileSchema = z
   .object({
@@ -150,10 +151,10 @@ async function handleDirectEdit(
     .eq("id", member.id);
 
   if (updateError) {
-    return NextResponse.json(
-      { message: updateError.message },
-      { status: 500 }
-    );
+    return apiError(updateError, {
+      context: "profile/direct member update",
+      fallback: "Your profile could not be updated right now. Please try again.",
+    });
   }
 
   await admin.from("membership_lifecycle_events").insert({

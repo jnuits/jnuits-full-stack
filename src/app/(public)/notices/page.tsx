@@ -15,8 +15,8 @@ import {
   type NoticePreview,
 } from "@/lib/content/public-content";
 
-export const revalidate = 60;
-
+// Note: this route awaits searchParams, so Next renders it dynamically and
+// `revalidate` cannot take effect here — no ISR directive is declared.
 export const metadata = {
   title: "Notices — JnU IT Society",
   description:

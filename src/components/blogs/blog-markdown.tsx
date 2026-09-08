@@ -1,5 +1,6 @@
-"use client";
-
+// Server-rendered by default: react-markdown needs no client runtime here,
+// so article pages stop shipping the remark/unified toolchain to browsers.
+// Admin editors may still import this inside client boundaries.
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 

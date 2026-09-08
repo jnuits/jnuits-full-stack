@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Opt-in pre-commit secret scan. Install with:
+#   git config core.hooksPath scripts/git-hooks
+# Requires the gitleaks binary (https://github.com/gitleaks/gitleaks).
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks is not installed or not on PATH." >&2
+  echo "Install it (https://github.com/gitleaks/gitleaks#installing) or uninstall this hook with:" >&2
+  echo "  git config --unset core.hooksPath" >&2
+  exit 1
+fi
+
+exec gitleaks git --staged --redact=100 --verbose

@@ -34,4 +34,25 @@ describe("event operations workspace contract", () => {
     expect(exportRoute).toContain("checksum_sha256");
     expect(exportRoute).toContain("exported_at");
   });
+
+  it("hashes the actual artifact delivered for each buffered export format", () => {
+    expect(exportRoute).toContain(
+      'const body = format === "xlsx" ? createXlsxWorkbook(table, "Event registrations") : null',
+    );
+    expect(exportRoute).toContain("const checksum = sha256(body || csv)");
+  });
+
+  it("combines export scope, status, and search filters", () => {
+    expect(exportRoute).toContain("applyStatus(applyEventScope(query, event), filters.status)");
+    expect(exportRoute).not.toContain("and(${eventFilter(event)},${searchFilter})");
+  });
+
+  it("paginates exports deterministically without rejecting an exact-cap result", () => {
+    expect(exportRoute).toContain('.order("id", { ascending: true })');
+    expect(exportRoute).toContain("from < totalRows");
+    expect(exportRoute).toContain("streamRegistrationsCsv({");
+    expect(exportRoute).toContain("totalRows,");
+    expect(exportRoute).not.toContain("from < MAX_EXPORT_ROWS");
+    expect(exportRoute).not.toContain("from < maxRows");
+  });
 });

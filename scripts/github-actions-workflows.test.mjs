@@ -374,6 +374,17 @@ describe("GitHub Actions workflows", () => {
     expect(workflow).toContain("GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY");
     expect(workflow).toContain("GOOGLE_DRIVE_SHARED_DRIVE_ID");
     expect(workflow).toContain("RETENTION_MANIFEST_SIGNING_SECRET");
+    expect(workflow).toContain(
+      "APP_MAC_SECRET: ${{ secrets.APP_MAC_SECRET }}",
+    );
+  });
+
+  it("provides a non-secret APP_MAC_SECRET placeholder to every CI production build", () => {
+    const quality = readWorkflow("quality-gate.yml");
+    const matrix = readWorkflow("e2e-matrix.yml");
+
+    expect(quality.match(/APP_MAC_SECRET:/g)).toHaveLength(3);
+    expect(matrix).toContain("APP_MAC_SECRET:");
   });
 
   it("binds production readiness jobs to the configured Production environment", () => {

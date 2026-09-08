@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicMemberDirectory } from "@/lib/members/directory";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
+import { withApiGuard } from "@/lib/security/with-api-guard";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   try {
     const directory = await getPublicMemberDirectory({
       type: request.nextUrl.searchParams.get("type") || undefined,
@@ -23,3 +25,7 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = withApiGuard(handleGet, {
+  rateLimit: RATE_LIMITS.publicDirectory,
+});

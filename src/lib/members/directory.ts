@@ -54,6 +54,12 @@ type MemberDirectoryRow = Pick<
   departments?: { name?: string | null } | { name?: string | null }[] | null;
 };
 
+type MemberDirectoryFacetRow = {
+  facet_group?: unknown;
+  facet_key?: unknown;
+  item_count?: unknown;
+};
+
 type ViewerContext = {
   userId: string | null;
   signedIn: boolean;
@@ -390,23 +396,6 @@ export async function getPublicMemberDirectory(
     return result;
   };
 
-  const applySearchAndLetterFilters = (
-    request: ReturnType<typeof flexibleAdmin.from>
-  ) => {
-    let result = applyPublicMemberFilters(request);
-
-    if (query.letter) {
-      result = result.ilike("full_name", `${query.letter}%`);
-    }
-
-    if (query.search) {
-      const pattern = `%${query.search}%`;
-      result = result.or(`full_name.ilike.${pattern},jnuits_id.ilike.${pattern}`);
-    }
-
-    return result;
-  };
-
   const fetchPage = async (page: number) => {
     const from = (page - 1) * query.pageSize;
     const to = from + query.pageSize - 1;
@@ -442,96 +431,45 @@ export async function getPublicMemberDirectory(
     }
   }
 
-  const [
-    totalMembersResult,
-    currentMembersResult,
-    alumniMembersResult,
-    departments,
-    departmentFacetResult,
-    typeFacetResult,
-  ] =
-    await Promise.all([
-      applyPublicMemberFilters(
-        flexibleAdmin.from("members" as string).select("id", { head: true, count: "exact" })
-      ),
-      applyPublicMemberFilters(
-        flexibleAdmin
-          .from("members" as string)
-          .select("id", { head: true, count: "exact" })
-          .eq("member_type", "current")
-      ),
-      applyPublicMemberFilters(
-        flexibleAdmin
-          .from("members" as string)
-          .select("id", { head: true, count: "exact" })
-          .eq("member_type", "alumni")
-      ),
-      getActiveDepartmentOptions(),
-      (() => {
-        let result = applyPublicMemberFilters(
-          flexibleAdmin
-            .from("members" as string)
-            .select("id, member_type, department_code")
-        );
+  const [departments, facetResult] = await Promise.all([
+    getActiveDepartmentOptions(),
+    flexibleAdmin.rpc("get_member_directory_facets", {
+      p_can_view_members_only: canViewMembersOnlyProfile(viewer),
+      p_department: query.department,
+      p_letter: query.letter,
+      p_search: query.search,
+      p_type: query.type,
+    }),
+  ]);
 
-        if (query.type !== "all") {
-          result = result.eq("member_type", query.type);
-        }
-
-        return result;
-      })(),
-      (() => {
-        let result = applySearchAndLetterFilters(
-          flexibleAdmin
-            .from("members" as string)
-            .select("id, member_type, department_code")
-        );
-
-        if (query.department) {
-          result = result.eq("department_code", query.department);
-        }
-
-        return result;
-      })(),
-    ]);
+  if (facetResult.error) {
+    throw new Error("Unable to load members directory facets.");
+  }
 
   const members = ((membersResult.data || []) as MemberDirectoryRow[]).map((member) =>
     mapDirectoryMember(member, viewer)
   );
 
-  if (departmentFacetResult.error || typeFacetResult.error) {
-    throw new Error("Unable to load members directory facets.");
+  const facetCounts = new Map<string, number>();
+  for (const row of (facetResult.data || []) as MemberDirectoryFacetRow[]) {
+    if (typeof row.facet_group !== "string" || typeof row.facet_key !== "string") {
+      continue;
+    }
+
+    const count = Number(row.item_count);
+    facetCounts.set(
+      `${row.facet_group}:${row.facet_key}`,
+      Number.isFinite(count) ? count : 0
+    );
   }
 
-  const departmentFacetRows = (departmentFacetResult.data || []) as Array<{
-    department_code?: string | null;
-  }>;
-  const typeFacetRows = (typeFacetResult.data || []) as Array<{
-    member_type?: string | null;
-  }>;
-  const departmentCounts = new Map<string, number>();
+  const facetCount = (group: string, key: string) =>
+    facetCounts.get(`${group}:${key}`) || 0;
   const typeCounts = {
-    all: typeFacetRows.length,
-    alumni: 0,
-    current: 0,
+    all: facetCount("type", "all"),
+    alumni: facetCount("type", "alumni"),
+    current: facetCount("type", "current"),
   };
-
-  for (const row of departmentFacetRows) {
-    if (row.department_code) {
-      departmentCounts.set(
-        row.department_code,
-        (departmentCounts.get(row.department_code) || 0) + 1
-      );
-    }
-  }
-
-  for (const row of typeFacetRows) {
-    if (row.member_type === "alumni") {
-      typeCounts.alumni += 1;
-    } else {
-      typeCounts.current += 1;
-    }
-  }
 
   return {
     filters: {
@@ -542,14 +480,14 @@ export async function getPublicMemberDirectory(
       sort: query.sort,
     },
     counters: {
-      total: totalMembersResult.count || 0,
-      current: currentMembersResult.count || 0,
-      alumni: alumniMembersResult.count || 0,
+      total: facetCount("counter", "all"),
+      current: facetCount("counter", "current"),
+      alumni: facetCount("counter", "alumni"),
     },
     facets: {
       departments: departments.map((department) => ({
         ...department,
-        count: departmentCounts.get(department.code) || 0,
+        count: facetCount("department", department.code),
       })),
       types: typeCounts,
     },

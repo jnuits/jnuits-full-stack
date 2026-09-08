@@ -6,6 +6,7 @@
  */
 
 import { createHash } from "node:crypto";
+import * as Sentry from "@sentry/nextjs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
@@ -140,6 +141,9 @@ export async function checkRateLimitForApi(
     };
   } catch (error) {
     console.error("[RateLimit] Supabase-backed rate limit failed:", error);
+    // The limiter fails closed below, so callers see a denial without any
+    // signal of why — report the backend outage to Sentry explicitly.
+    Sentry.captureException(error, { tags: { context: "rate-limit-backend" } });
     return { success: false, remaining: 0, resetAt: fallbackResetAt };
   }
 }
@@ -147,6 +151,9 @@ export async function checkRateLimitForApi(
 /**
  * Extract the best available IP identifier from a Next.js request.
  * Works behind Vercel, Cloudflare, and direct connections.
+ *
+ * Vercel overwrites `x-real-ip`, so prefer it over headers a direct client can
+ * supply. Cloudflare's connecting IP remains the next trusted proxy signal.
  */
 export function getRequestIp(headers: Headers): string {
   return (
@@ -210,4 +217,7 @@ export const RATE_LIMITS = {
 
   /** Client-reported security events — 20 per minute per user */
   securityEvent: { limit: 20, windowSeconds: 60 } satisfies RateLimitConfig,
+
+  /** Public member directory reads — generous for browsing, blocks scraping floods */
+  publicDirectory: { limit: 60, windowSeconds: 60 } satisfies RateLimitConfig,
 } as const;

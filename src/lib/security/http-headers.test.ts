@@ -10,6 +10,9 @@ describe("security headers", () => {
     expect(csp).toContain("https://challenges.cloudflare.com");
     expect(csp).toContain("https://api.pwnedpasswords.com");
     expect(csp).toContain("worker-src 'self' blob:");
+    expect(csp).toContain(
+      "frame-src 'self' https://challenges.cloudflare.com https://www.google.com"
+    );
   });
 
   it("keeps the powered-by replacement headers explicit", () => {

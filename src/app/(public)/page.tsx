@@ -19,7 +19,7 @@ import {
   type HomepageIconName,
 } from "@/lib/content/public-content";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 export const revalidate = 60;
 
@@ -109,8 +109,9 @@ function truncateQuote(value: string, maxLength: number) {
 }
 
 async function getHomepageAdvisorQuote(): Promise<HomepageAdvisorQuote | null> {
-  const supabase = await createClient();
-  const flexible = asFlexibleClient(supabase);
+  // Public, cookie-free client: advisor profiles are public data and touching
+  // cookies() here would opt the ISR route into dynamic rendering.
+  const flexible = asFlexibleClient(createPublicClient());
   const { data, error } = await flexible
     .from("advisor_profiles" as string)
     .select("id, full_name, title, avatar_secure_url, speech")

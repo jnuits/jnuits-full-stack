@@ -9,6 +9,7 @@ const baseEnv = {
 };
 const completeProductionEnv = {
   ...baseEnv,
+  APP_MAC_SECRET: "12345678901234567890123456789012",
   AUTH_CAPTCHA_REQUIRED: "true",
   CLOUDINARY_API_KEY: "cloudinary-api-key",
   CLOUDINARY_API_SECRET: "cloudinary-api-secret",
@@ -43,8 +44,24 @@ describe("validateEnv", () => {
       "AUTH_CAPTCHA_REQUIRED", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET", "CLOUDINARY_CLOUD_NAME",
       "GOOGLE_DRIVE_EXPORTS_FOLDER_ID", "GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY",
       "GOOGLE_DRIVE_SHARED_DRIVE_ID", "NEXT_PUBLIC_SENTRY_DSN", "RESEND_API_KEY", "RESEND_FROM_EMAIL",
-      "RESEND_WEBHOOK_SECRET", "RETENTION_MANIFEST_SIGNING_SECRET",
+      "RESEND_WEBHOOK_SECRET", "RETENTION_MANIFEST_SIGNING_SECRET", "APP_MAC_SECRET",
     ]));
+  });
+
+  it("requires a dedicated application MAC secret of at least 32 characters in production", () => {
+    const missing = validateEnv(
+      { ...completeProductionEnv, APP_MAC_SECRET: "" },
+      { production: true },
+    );
+    expect(missing.missing).toContain("APP_MAC_SECRET");
+
+    const short = validateEnv(
+      { ...completeProductionEnv, APP_MAC_SECRET: "too-short" },
+      { production: true },
+    );
+    expect(short.invalid).toContain(
+      "APP_MAC_SECRET must be at least 32 characters.",
+    );
   });
 
   it("rejects disabled CAPTCHA, malformed service email, malformed sender, and public secrets", () => {

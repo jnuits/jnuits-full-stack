@@ -76,6 +76,14 @@ describe("Form Studio field identity", () => {
  * React unmounted and remounted the row and the caret went with it.
  */
 describe("Form Studio editor row keys", () => {
+  it("derives seeded starter keys deterministically across server and client renders", () => {
+    expect(createStudioEditorKey("full_name")).toBe("studio-field-full_name");
+    expect(createStudioEditorKey("full_name")).toBe("studio-field-full_name");
+    expect(createStudioEditorKey("email")).not.toBe(
+      createStudioEditorKey("full_name")
+    );
+  });
+
   it("issues a distinct key each time", () => {
     expect(createStudioEditorKey()).not.toBe(createStudioEditorKey());
   });

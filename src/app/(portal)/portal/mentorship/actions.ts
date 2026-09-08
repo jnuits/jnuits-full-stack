@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/session";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
+import { logServerError } from "@/lib/errors/api-error";
 
 const mentorshipProfileSchema = z.object({
   availabilityStatus: z.enum(["open", "limited", "paused"]).default("open"),
@@ -113,11 +114,8 @@ export async function saveMentorshipProfile(formData: FormData) {
   );
 
   if (error) {
-    redirect(
-      `/portal/mentorship?error=${encodeURIComponent(
-        error.message || "mentorship-profile"
-      )}`
-    );
+    logServerError("mentorship profile upsert", error);
+    redirect("/portal/mentorship?error=mentorship-profile");
   }
 
   revalidatePath("/portal/mentorship");
@@ -169,11 +167,8 @@ export async function requestMentorshipRelationship(formData: FormData) {
   });
 
   if (error) {
-    redirect(
-      `/portal/mentorship?error=${encodeURIComponent(
-        error.message || "mentorship-request"
-      )}`
-    );
+    logServerError("mentorship request insert", error);
+    redirect("/portal/mentorship?error=mentorship-request");
   }
 
   revalidatePath("/portal/mentorship");
@@ -214,11 +209,8 @@ export async function updateMentorshipRelationship(formData: FormData) {
     .eq("id", parsed.data.relationshipId);
 
   if (error) {
-    redirect(
-      `/portal/mentorship?error=${encodeURIComponent(
-        error.message || "mentorship-status"
-      )}`
-    );
+    logServerError("mentorship status update", error);
+    redirect("/portal/mentorship?error=mentorship-status");
   }
 
   revalidatePath("/portal/mentorship");
@@ -253,11 +245,8 @@ export async function postMentorshipMessage(formData: FormData) {
   });
 
   if (error) {
-    redirect(
-      `/portal/mentorship?error=${encodeURIComponent(
-        error.message || "mentorship-message"
-      )}`
-    );
+    logServerError("mentorship message insert", error);
+    redirect("/portal/mentorship?error=mentorship-message");
   }
 
   revalidatePath("/portal/mentorship");

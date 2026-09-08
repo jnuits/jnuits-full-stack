@@ -172,7 +172,7 @@ export default async function AdminAuditPage({
             events.map((event) => {
               const href = entityHref(event);
               return (
-                <article className="route-tile" key={event.id}>
+                <article className="route-tile min-w-0" key={event.id}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3>{event.action}</h3>
@@ -182,7 +182,7 @@ export default async function AdminAuditPage({
                     </div>
                     <span className="status-pill">{formatDate(event.created_at)}</span>
                   </div>
-                  <pre className="mt-4 overflow-x-auto rounded-lg border border-[var(--line)] bg-[var(--background)] p-3 text-xs leading-6 text-[var(--muted-foreground)]">
+                  <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-[var(--line)] bg-[var(--background)] p-3 text-xs leading-6 [overflow-wrap:anywhere] text-[var(--muted-foreground)]">
                     {metadataPreview(event.metadata)}
                   </pre>
                   {href ? (

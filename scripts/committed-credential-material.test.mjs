@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const REPOSITORY_ROOT = process.cwd();
 const MANUAL_SQL_DIRECTORY = resolve(REPOSITORY_ROOT, "supabase/manual");
+const ARTIFACTS_DIRECTORY = resolve(REPOSITORY_ROOT, "artifacts");
 
 const FORBIDDEN_MATERIAL = [
   {
@@ -23,7 +24,37 @@ const FORBIDDEN_MATERIAL = [
   },
 ];
 
-function listSqlFiles(directory) {
+/**
+ * Generated ops reports have leaked live member claim codes and the personal
+ * email of a privileged account before (HYG-001). These patterns only run
+ * against `artifacts/`, where such reports land, so institutional addresses
+ * and fixture data elsewhere in the tree are unaffected.
+ */
+const ARTIFACT_ONLY_MATERIAL = [
+  {
+    label: "personal webmail address",
+    pattern: /@(?:gmail|outlook|hotmail|yahoo)\.[a-z]{2,}/i,
+  },
+  {
+    label: "plaintext invitation claim code",
+    pattern: /\binvitation[_-]?code\b\s*(?::|=>|=)\s*["'][^"']{8,}["']/i,
+  },
+];
+
+const BINARY_EXTENSIONS = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".gif",
+  ".ico",
+  ".pdf",
+  ".zip",
+  ".woff",
+  ".woff2",
+]);
+
+function listFiles(directory) {
   if (!existsSync(directory)) {
     return [];
   }
@@ -32,18 +63,25 @@ function listSqlFiles(directory) {
     const entryPath = resolve(directory, entry.name);
 
     if (entry.isDirectory()) {
-      return listSqlFiles(entryPath);
+      return listFiles(entryPath);
     }
 
-    return entry.isFile() && entry.name.endsWith(".sql") ? [entryPath] : [];
+    if (!entry.isFile()) {
+      return [];
+    }
+
+    const isSql = entry.name.endsWith(".sql");
+    const isBinary = BINARY_EXTENSIONS.has(entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase());
+
+    return isSql || !isBinary ? [entryPath] : [];
   });
 }
 
-function findCredentialMaterial(filePath) {
+function findMaterial(filePath, material) {
   return readFileSync(filePath, "utf8")
     .split(/\r?\n/)
     .flatMap((line, index) =>
-      FORBIDDEN_MATERIAL.filter(({ pattern }) => pattern.test(line)).map(({ label }) =>
+      material.filter(({ pattern }) => pattern.test(line)).map(({ label }) =>
         `${relative(REPOSITORY_ROOT, filePath).replaceAll("\\", "/")}:${index + 1} (${label})`
       )
     );
@@ -51,7 +89,19 @@ function findCredentialMaterial(filePath) {
 
 describe("committed manual Supabase scripts", () => {
   it("contain no reusable credential or MFA material", () => {
-    const violations = listSqlFiles(MANUAL_SQL_DIRECTORY).flatMap(findCredentialMaterial);
+    const violations = listFiles(MANUAL_SQL_DIRECTORY).flatMap((filePath) =>
+      findMaterial(filePath, FORBIDDEN_MATERIAL)
+    );
+
+    expect(violations).toEqual([]);
+  });
+});
+
+describe("committed generated artifacts", () => {
+  it("contain no credential material or member PII", () => {
+    const violations = listFiles(ARTIFACTS_DIRECTORY).flatMap((filePath) =>
+      findMaterial(filePath, [...FORBIDDEN_MATERIAL, ...ARTIFACT_ONLY_MATERIAL])
+    );
 
     expect(violations).toEqual([]);
   });

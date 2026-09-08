@@ -239,6 +239,8 @@ const EVENT_SELECT =
   "id, slug, title, summary, body_markdown, category, delivery_mode, status, starts_at, ends_at, timezone, location_mode, location_label, venue_name, venue_address, online_url, registration_mode, registration_url, registration_open, registration_closes_at, capacity, cta_label, cta_url, cover_media_asset_id, cover_alt_text_override, legacy_content_post_id, published_at, source, source_metadata, created_at, created_by_user_id, updated_at, media_assets(id, public_id, secure_url, thumbnail_url, alt_text, title, width, height, media_kind)";
 const EVENT_LIST_SELECT =
   "id, slug, title, summary, category, delivery_mode, status, starts_at, ends_at, timezone, location_mode, location_label, venue_name, venue_address, online_url, registration_mode, registration_url, registration_open, registration_closes_at, capacity, cta_label, cta_url, cover_media_asset_id, cover_alt_text_override, legacy_content_post_id, published_at, source, source_metadata, created_at, created_by_user_id, updated_at, media_assets(id, public_id, secure_url, thumbnail_url, alt_text, title, width, height, media_kind)";
+const EVENT_PUBLIC_LIST_SELECT =
+  "id, slug, title, summary, category, delivery_mode, status, starts_at, ends_at, timezone, location_mode, location_label, venue_name, venue_address, online_url, registration_mode, registration_url, registration_open, registration_closes_at, capacity, cta_label, cta_url, cover_media_asset_id, cover_alt_text_override, legacy_content_post_id, published_at, updated_at, media_assets(id, public_id, secure_url, thumbnail_url, alt_text, title, width, height, media_kind)";
 const EVENT_ADMIN_MUTATION_SELECT = "id, legacy_content_post_id";
 const EVENT_REGISTRATION_MUTATION_SELECT =
   "id, legacy_content_post_id, title, starts_at, ends_at, location_label, location_mode, online_url, venue_address, venue_name, registration_mode, registration_open, registration_closes_at";
@@ -683,7 +685,7 @@ const getFeaturedPublishedEventRow = cache(async () => {
   const upcomingResult = await applyPublicEventArchiveFilters(
     supabase
       .from("events")
-      .select(EVENT_LIST_SELECT)
+      .select(EVENT_PUBLIC_LIST_SELECT)
       .eq("status", "published"),
     {
       category: "",
@@ -777,7 +779,7 @@ async function getPublicEventsPageUnsafe(
     const request = applyPublicEventArchiveFilters(
       supabase
         .from("events")
-        .select(EVENT_LIST_SELECT, { count: "exact" })
+        .select(EVENT_PUBLIC_LIST_SELECT, { count: "exact" })
         .eq("status", "published"),
       {
         category,
@@ -885,7 +887,7 @@ export async function getHomepageUpcomingEvents(
   try {
     const result = await createPublicClient()
       .from("events")
-      .select(EVENT_LIST_SELECT)
+      .select(EVENT_PUBLIC_LIST_SELECT)
       .eq("status", "published")
       .gte("starts_at", getBangladeshDayStartIso())
       .order("starts_at", { ascending: true })
@@ -922,7 +924,7 @@ export async function getPublishedEventsBySlugs(
   try {
     const result = await createPublicClient()
       .from("events")
-      .select(EVENT_LIST_SELECT)
+      .select(EVENT_PUBLIC_LIST_SELECT)
       .eq("status", "published")
       .in("slug", normalizedSlugs);
     const rows = (assertSupabaseSuccess(

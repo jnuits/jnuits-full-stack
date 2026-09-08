@@ -27,3 +27,24 @@ export function getSupabaseAdminKey() {
 
   return value;
 }
+
+export function getApplicationMacKey() {
+  return getApplicationMacKeys()[0];
+}
+
+export function getApplicationMacKeys() {
+  const dedicated = process.env.APP_MAC_SECRET?.trim();
+  const legacy = process.env.SUPABASE_SECRET_KEY?.trim();
+  const keys = [dedicated, legacy].filter(
+    (value): value is string => Boolean(value)
+  );
+
+  if (keys.length === 0) {
+    return [getSupabaseAdminKey()];
+  }
+
+  // New values use the dedicated application key. The former Supabase-key
+  // MAC stays in the verification set so persisted invitation/directory
+  // hashes and short-lived cookies survive a safe key rotation.
+  return [...new Set(keys)];
+}

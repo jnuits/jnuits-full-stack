@@ -1,8 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
-import Lightbox, { type Slide } from "yet-another-react-lightbox";
-import Captions from "yet-another-react-lightbox/plugins/captions";
+import type { Slide } from "yet-another-react-lightbox";
 import {
   startTransition,
   useCallback,
@@ -12,6 +12,12 @@ import {
   useState,
 } from "react";
 import type { GalleryImage } from "@/lib/content/gallery";
+
+// The lightbox bundle + CSS load on first open instead of every album visit.
+const GalleryLightbox = dynamic(
+  () => import("./gallery-lightbox").then((mod) => mod.GalleryLightbox),
+  { ssr: false }
+);
 
 type GalleryLoadMoreProps = {
   albumTitle: string;
@@ -24,8 +30,6 @@ type GalleryPageResponse = {
   items: GalleryImage[];
   nextCursor: string | null;
 };
-
-const LIGHTBOX_PLUGINS = [Captions] as const;
 
 function cleanText(value: string | null | undefined) {
   const trimmed = value?.replace(/\s+/g, " ").trim();
@@ -242,24 +246,13 @@ export function GalleryLoadMore({
         ))}
       </div>
 
-      <Lightbox
-        captions={{
-          descriptionMaxLines: 2,
-          descriptionTextAlign: "center",
-        }}
-        carousel={{
-          imageFit: "contain",
-          padding: "16px",
-          preload: 2,
-        }}
-        className="jnuits-gallery-lightbox"
-        close={() => setActiveIndex(null)}
-        controller={{ closeOnBackdropClick: true }}
-        index={activeIndex ?? 0}
-        open={activeIndex !== null}
-        plugins={LIGHTBOX_PLUGINS}
-        slides={lightboxSlides}
-      />
+      {activeIndex !== null ? (
+        <GalleryLightbox
+          activeIndex={activeIndex}
+          onClose={() => setActiveIndex(null)}
+          slides={lightboxSlides}
+        />
+      ) : null}
 
       <div ref={sentinelRef} />
 

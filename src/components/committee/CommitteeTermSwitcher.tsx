@@ -53,10 +53,28 @@ export function CommitteeTermSwitcher({
     defaultTermSlug || fallbackSlug
   );
   const activeTabRef = useRef<HTMLButtonElement | null>(null);
+  const pillRowRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollTerms, setCanScrollTerms] = useState(false);
 
   const activeTerm =
     terms.find((term) => term.slug === activeTermSlug) || terms[0] || null;
   const assignments = activeTerm ? assignmentsByTerm[activeTerm.slug] || [] : [];
+
+  useEffect(() => {
+    const pillRow = pillRowRef.current;
+
+    if (!pillRow) {
+      return;
+    }
+
+    const updateOverflow = () =>
+      setCanScrollTerms(pillRow.scrollWidth > pillRow.clientWidth + 1);
+
+    updateOverflow();
+    window.addEventListener("resize", updateOverflow);
+
+    return () => window.removeEventListener("resize", updateOverflow);
+  }, [terms]);
 
   useEffect(() => {
     const handleTermSelect = (event: Event) => {
@@ -103,46 +121,57 @@ export function CommitteeTermSwitcher({
           Executive Committee
         </p>
 
-        <div className="-mb-1 mt-5 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {terms.map((term) => {
-            const isActive = term.slug === activeTerm.slug;
-            const termNumber = term.termNumber || terms.length;
+        <div className="relative -mb-1 mt-5">
+          <div
+            className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            ref={pillRowRef}
+          >
+            {terms.map((term) => {
+              const isActive = term.slug === activeTerm.slug;
+              const termNumber = term.termNumber || terms.length;
 
-            return (
-              <button
-                aria-pressed={isActive}
-                className={cn(
-                  "inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                  isActive
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "border border-border bg-muted/60 text-muted-foreground hover:border-border/80 hover:bg-muted hover:text-foreground"
-                )}
-                key={term.slug}
-                onClick={() => setActiveTermSlug(term.slug)}
-                ref={isActive ? activeTabRef : null}
-                type="button"
-              >
-                <span className="font-black">
-                  {termNumber}
-                  {ordinalSuffix(termNumber)}
-                </span>
-                {term.isCurrent ? (
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "size-1.5 rounded-full bg-emerald-400",
-                      isActive && "animate-pulse"
-                    )}
-                  />
-                ) : null}
-                {term.dateConfidence !== "verified" && !term.isCurrent ? (
-                  <span className="text-[9px] font-bold text-amber-500">
-                    ~
+              return (
+                <button
+                  aria-pressed={isActive}
+                  className={cn(
+                    "inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "border border-border bg-muted/60 text-muted-foreground hover:border-border/80 hover:bg-muted hover:text-foreground"
+                  )}
+                  key={term.slug}
+                  onClick={() => setActiveTermSlug(term.slug)}
+                  ref={isActive ? activeTabRef : null}
+                  type="button"
+                >
+                  <span className="font-black">
+                    {termNumber}
+                    {ordinalSuffix(termNumber)}
                   </span>
-                ) : null}
-              </button>
-            );
-          })}
+                  {term.isCurrent ? (
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "size-1.5 rounded-full bg-emerald-400",
+                        isActive && "animate-pulse"
+                      )}
+                    />
+                  ) : null}
+                  {term.dateConfidence !== "verified" && !term.isCurrent ? (
+                    <span className="text-[9px] font-bold text-amber-500">
+                      ~
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+          {canScrollTerms ? (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-card to-transparent"
+            />
+          ) : null}
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">

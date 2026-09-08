@@ -3,27 +3,55 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { upsertCloudinaryMediaAsset } from "@/lib/content/media-assets";
+import { isCloudinaryAssetUrl } from "@/lib/cloudinary/config";
 import type { Json } from "@/lib/db/types";
 import { apiError } from "@/lib/errors/api-error";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const mediaAssetSchema = z.object({
-  altText: z.string().trim().max(300).optional(),
-  bytes: z.number().int().nonnegative().nullable().optional(),
-  durationSeconds: z.number().nonnegative().nullable().optional(),
-  format: z.string().trim().max(20).nullable().optional(),
-  height: z.number().int().positive().nullable().optional(),
-  isPublic: z.boolean(),
-  mediaKind: z.enum(["image", "video"]),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  publicId: z.string().trim().min(1),
-  resourceType: z.string().trim().min(1),
-  secureUrl: z.string().trim().url(),
-  thumbnailUrl: z.string().trim().url().nullable().optional(),
-  title: z.string().trim().max(160).optional(),
-  width: z.number().int().positive().nullable().optional(),
-});
+// Registered assets must live on the project's Cloudinary CDN — arbitrary
+// hosts would let a media manager point public pages at off-origin content.
+const cloudinaryAssetUrl = z.string().trim().url();
+
+const mediaAssetSchema = z
+  .object({
+    altText: z.string().trim().max(300).optional(),
+    bytes: z.number().int().nonnegative().nullable().optional(),
+    durationSeconds: z.number().nonnegative().nullable().optional(),
+    format: z.string().trim().max(20).nullable().optional(),
+    height: z.number().int().positive().nullable().optional(),
+    isPublic: z.boolean(),
+    mediaKind: z.enum(["image", "video"]),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    publicId: z.string().trim().min(1),
+    resourceType: z.enum(["image", "video"]),
+    secureUrl: cloudinaryAssetUrl,
+    thumbnailUrl: cloudinaryAssetUrl.nullable().optional(),
+    title: z.string().trim().max(160).optional(),
+    width: z.number().int().positive().nullable().optional(),
+  })
+  .superRefine((data, context) => {
+    if (data.mediaKind !== data.resourceType) {
+      context.addIssue({
+        code: "custom",
+        message: "The media kind must match the Cloudinary resource type.",
+        path: ["resourceType"],
+      });
+    }
+
+    for (const [field, value] of [
+      ["secureUrl", data.secureUrl],
+      ["thumbnailUrl", data.thumbnailUrl],
+    ] as const) {
+      if (value && !isCloudinaryAssetUrl(value, data.resourceType)) {
+        context.addIssue({
+          code: "custom",
+          message: "Asset URLs must use the configured Cloudinary account and resource type.",
+          path: [field],
+        });
+      }
+    }
+  });
 
 async function handlePost(request: NextRequest) {
   const permission = await requireAdminApiPermission("cms.media.manage", {
@@ -61,7 +89,7 @@ async function handlePost(request: NextRequest) {
     });
 
     revalidatePath("/admin/content");
-    revalidatePath("/gallery");
+    revalidatePath("/admin/content/media");
 
     return NextResponse.json(
       {

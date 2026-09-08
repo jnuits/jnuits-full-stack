@@ -12,14 +12,22 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
 .playwright-cli/
 .tmp-login-*.mjs
 .tmp-login-*.pid
+
+# local UI-audit / screenshot evidence
+/ui-evidence/
 
 # next.js
 /.next/
 /out/
 artifacts/logs
+
+# generated ops reports may contain claim codes / member PII — never commit
+/artifacts/reports/
 
 # production
 /build

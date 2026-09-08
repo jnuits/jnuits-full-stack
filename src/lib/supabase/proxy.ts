@@ -6,6 +6,7 @@ import {
   isAdminInvitationAcceptPath,
 } from "@/lib/admin/admin-invitation-flow";
 import { checkAdminMFA } from "@/lib/auth/mfa";
+import { normalizeRoleVersionClaim } from "@/lib/auth/role-version";
 import type { Database } from "@/lib/db/types";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/config";
 
@@ -54,28 +55,42 @@ function extractRBACClaims(claims: Record<string, unknown> | null): RBACClaims {
   };
 }
 
+type DatabaseClaimsSnapshot = {
+  adminRole: null | string;
+  portalRole: null | string;
+  roleVersion: null | number;
+};
+
 async function resolveDatabaseClaims(
   supabase: ReturnType<typeof createServerClient<Database>>,
   userId: string
-): Promise<RBACClaims> {
+): Promise<DatabaseClaimsSnapshot | null> {
   if (!userId) {
-    return {
-      adminRole: null,
-      portalRole: null,
-    };
+    return null;
   }
 
-  const { data } = await (supabase as never as {
-    rpc: (
-      fn: "current_rbac_claims_snapshot"
-    ) => Promise<{ data: unknown; error: { message?: string } | null }>;
-  }).rpc("current_rbac_claims_snapshot");
-  const snapshot = asRecord(data);
+  try {
+    const { data, error } = await (supabase as never as {
+      rpc: (
+        fn: "current_rbac_claims_snapshot"
+      ) => Promise<{ data: unknown; error: { message?: string } | null }>;
+    }).rpc("current_rbac_claims_snapshot");
 
-  return {
-    adminRole: asClaimString(snapshot.jnuits_admin_role),
-    portalRole: asClaimString(snapshot.jnuits_portal_role),
-  };
+    if (error || !data) {
+      return null;
+    }
+
+    const snapshot = asRecord(data);
+
+    return {
+      adminRole: asClaimString(snapshot.jnuits_admin_role),
+      portalRole: asClaimString(snapshot.jnuits_portal_role),
+      roleVersion: normalizeRoleVersionClaim(snapshot.jnuits_role_version),
+    };
+  } catch {
+    // RPC failure must degrade to claim-based roles, never to a lockout.
+    return null;
+  }
 }
 
 function isAdminPath(pathname: string) {
@@ -156,6 +171,11 @@ export async function updateSession(request: NextRequest) {
     getSupabaseUrl(),
     getSupabasePublishableKey(),
     {
+      cookieOptions: {
+        // Session refresh cookies must not travel over plaintext HTTP in
+        // production; localhost dev stays non-secure for http:// testing.
+        secure: process.env.NODE_ENV === "production",
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -180,19 +200,57 @@ export async function updateSession(request: NextRequest) {
   );
 
   const pathname = request.nextUrl.pathname;
+  // Anonymous requests carry no Supabase auth cookies at all, so the auth
+  // round-trips could only confirm "no session" before falling through to
+  // the protected-path redirect. Skip them to keep public pageviews off the
+  // auth-service critical path; any sb-* cookie means real session work.
+  const hasAuthCookies = request.cookies
+    .getAll()
+    .some((cookie) => cookie.name.startsWith("sb-"));
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  const { data } = await supabase.auth.getClaims();
+  } = hasAuthCookies
+    ? await supabase.auth.getUser()
+    : { data: { user: null } };
+  const { data } = hasAuthCookies
+    ? await supabase.auth.getClaims()
+    : { data: null };
   const claims = (data?.claims || null) as Record<string, unknown> | null;
   const hasSession = Boolean(user);
   const claimSnapshot = extractRBACClaims(claims);
+  const claimRoleVersion = normalizeRoleVersionClaim(
+    claims?.jnuits_role_version
+  );
   const databaseSnapshot =
-    hasSession && user && (!claimSnapshot.adminRole || !claimSnapshot.portalRole)
+    hasSession && user &&
+    (!claimSnapshot.adminRole ||
+      !claimSnapshot.portalRole ||
+      isProtectedPath(pathname))
       ? await resolveDatabaseClaims(supabase, user.id)
-      : { adminRole: null, portalRole: null };
-  const adminRole = claimSnapshot.adminRole || databaseSnapshot.adminRole;
-  const portalRole = claimSnapshot.portalRole || databaseSnapshot.portalRole;
+      : null;
+
+  // A role-version mismatch means the JWT predates a role change (e.g. a
+  // revocation that has not been refreshed into the token yet). Prefer the
+  // database snapshot on protected navigation so revocations apply
+  // immediately; an RPC failure (null snapshot) degrades to the claims.
+  const dbRoleVersion = databaseSnapshot?.roleVersion ?? null;
+  const claimsStale =
+    claimRoleVersion !== null &&
+    dbRoleVersion !== null &&
+    claimRoleVersion !== dbRoleVersion;
+
+  let adminRole: null | string = claimSnapshot.adminRole;
+  let portalRole: null | string = claimSnapshot.portalRole;
+
+  if (databaseSnapshot) {
+    if (claimsStale) {
+      adminRole = databaseSnapshot.adminRole;
+      portalRole = databaseSnapshot.portalRole;
+    } else {
+      adminRole ||= databaseSnapshot.adminRole;
+      portalRole ||= databaseSnapshot.portalRole;
+    }
+  }
 
   if (!hasSession && isProtectedPath(pathname)) {
     return redirectWithCookies(

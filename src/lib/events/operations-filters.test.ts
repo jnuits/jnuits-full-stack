@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  escapeEventRegistrationSearch,
+  buildEventRegistrationSearchPattern,
   eventRegistrationExportSearch,
   parseEventRegistrationFilters,
 } from "./operations-filters";
@@ -21,8 +21,13 @@ describe("event operations filters", () => {
     ).toBe("all");
   });
 
-  it("escapes PostgREST search metacharacters", () => {
-    expect(escapeEventRegistrationSearch("a%b,c")).toBe("a\\%b\\,c");
+  it("quotes PostgREST search values while preserving literal LIKE characters", () => {
+    expect(buildEventRegistrationSearchPattern('a%b_c,("quoted").')).toBe(
+      String.raw`"%a\\%b\\_c,(\"quoted\").%"`,
+    );
+    expect(buildEventRegistrationSearchPattern(String.raw`a\b`)).toBe(
+      String.raw`"%a\\\\b%"`,
+    );
   });
 
   it("preserves active filters in export links", () => {
