@@ -203,7 +203,6 @@ export function SiteHeader() {
     return () => window.clearTimeout(timeoutId);
   }, []);
 
-
   useEffect(() => {
     if (!mobileOpen) {
       return;
@@ -255,6 +254,17 @@ export function SiteHeader() {
           onNavigate={() => setMobileOpen(false)}
           pathname={pathname}
         />
+        <div className="mt-4 flex flex-col gap-2">
+          <a
+            className="primary-button site-header-auth-button text-sm text-center py-2.5 px-4 whitespace-nowrap"
+            href="https://forms.gle/s7Eizcv1VyM9mSL27"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setMobileOpen(false)}
+          >
+            Join As a Member
+          </a>
+        </div>
       </nav>
     </div>
   );
@@ -270,10 +280,20 @@ export function SiteHeader() {
           >
             <PublicNav pathname={pathname} />
           </nav>
-          <div className="site-header-actions">
+          <div className="site-header-actions flex items-center gap-2">
             <ThemeToggle />
+            <a
+              className="primary-button site-header-auth-button text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap inline-flex items-center justify-center shrink-0"
+              href="https://forms.gle/s7Eizcv1VyM9mSL27"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMobileOpen(false)}
+            >
+              <span className="sm:hidden">Join</span>
+              <span className="hidden sm:inline">Join As a Member</span>
+            </a>
             <Link
-              className="primary-button site-header-auth-button text-sm"
+              className="primary-button site-header-auth-button text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap shrink-0"
               href="/portal/dashboard"
               onClick={() => setMobileOpen(false)}
             >
@@ -283,7 +303,7 @@ export function SiteHeader() {
               aria-controls="mobile-site-navigation"
               aria-expanded={mobileOpen}
               aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
-              className="site-mobile-menu-button"
+              className="site-mobile-menu-button shrink-0"
               onClick={() => setMobileOpen((value) => !value)}
               type="button"
             >
