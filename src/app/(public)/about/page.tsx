@@ -10,7 +10,7 @@ import {
   type AboutCommunityReachItem,
 } from "@/lib/content/public-content";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 export const revalidate = 60;
 
@@ -292,8 +292,8 @@ function getAdvisorInitials(name: string) {
 }
 
 async function getAdvisorMessages(): Promise<AdvisorMessage[]> {
-  const supabase = await createClient();
-  const flexible = asFlexibleClient(supabase);
+  // Public, cookie-free client: keeps the ISR route out of dynamic rendering.
+  const flexible = asFlexibleClient(createPublicClient());
   const runQuery = (select: string) =>
     flexible
       .from("advisor_profiles" as string)

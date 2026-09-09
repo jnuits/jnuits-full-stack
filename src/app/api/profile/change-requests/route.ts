@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { isActiveDepartmentCode } from "@/lib/departments.server";
+import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -87,7 +88,6 @@ async function requireLinkedMemberUser() {
   const admin = createAdminClient();
   const { data: member, error } = await asFlexibleClient(admin)
     .from("members" as string)
-    .select("id, email, jnuits_id, full_name, member_type, department_code, lifecycle_status, portal_access_status")
     .select("id, email, jnuits_id, full_name, member_type, lifecycle_status, portal_access_status")
     .eq("user_id", userId)
     .maybeSingle();
@@ -213,18 +213,48 @@ async function handlePost(request: NextRequest) {
     parsed.data.departmentCode = departmentCode;
   }
 
+  const requestType = parsed.data.requestType || "profile_change";
+  const { data: pendingRequest } = await asFlexibleClient(viewer.admin)
+    .from("profile_update_requests" as string)
+    .select("id")
+    .eq("member_id", viewer.member.id)
+    .eq("request_type", requestType)
+    .eq("status", "pending")
+    .limit(1)
+    .maybeSingle();
+
+  if (pendingRequest?.id) {
+    return NextResponse.json(
+      {
+        message:
+          "You already have a pending request of this type. Wait for moderation before submitting a revised request.",
+      },
+      { status: 409 }
+    );
+  }
+
   const { data, error } = await viewer.admin
     .from("profile_update_requests")
     .insert({
       member_id: viewer.member.id,
       payload: parsed.data,
-      request_type: parsed.data.requestType || "profile_change",
+      request_type: requestType,
       status: "pending",
     })
     .select("id, request_type, payload, status, requested_at")
     .single();
 
   if (error) {
+    if (error.code === "23505") {
+      return NextResponse.json(
+        {
+          message:
+            "You already have a pending request of this type. Wait for moderation before submitting a revised request.",
+        },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
       { message: "Unable to submit profile change request." },
       { status: 500 }
@@ -238,7 +268,7 @@ async function handlePost(request: NextRequest) {
     entity_id: data.id,
     metadata: {
         memberId: viewer.member.id,
-        requestType: parsed.data.requestType || "profile_change",
+        requestType,
       },
   });
 
@@ -251,4 +281,6 @@ async function handlePost(request: NextRequest) {
   );
 }
 
-export const POST = withApiGuard(handlePost);
+export const POST = withApiGuard(handlePost, {
+  rateLimit: RATE_LIMITS.profileDirect,
+});

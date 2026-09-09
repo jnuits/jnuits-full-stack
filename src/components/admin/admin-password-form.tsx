@@ -3,14 +3,51 @@
 import { updateCurrentPassword } from "@/app/(auth)/actions";
 import { getPasswordPolicyError } from "@/lib/security/password-policy";
 import { getPasswordExposureError } from "@/lib/security/pwned-passwords";
-import { startTransition, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { TurnstileField } from "@/components/auth/turnstile-field";
 
-export function AdminPasswordForm() {
+type CaptchaConfig = { required: boolean; siteKey: string };
+
+export function AdminPasswordForm({ captcha }: { captcha: CaptchaConfig }) {
   const [message, setMessage] = useState<null | string>(null);
   const [error, setError] = useState<null | string>(null);
   const [pending, setPending] = useState(false);
   const [reauthPending, setReauthPending] = useState(false);
+  const [stepUpRequired, setStepUpRequired] = useState(false);
+  const [stepUpPassword, setStepUpPassword] = useState("");
+  const [verifyingStepUp, setVerifyingStepUp] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
+  const lastAttemptRef = useRef<{
+    confirmPassword: string;
+    nonce: string;
+    password: string;
+  } | null>(null);
+
+  async function submitUpdate(attempt: {
+    confirmPassword: string;
+    nonce: string;
+    password: string;
+  }) {
+    const result = await updateCurrentPassword(attempt);
+
+    if (!result.ok) {
+      if ("requiresStepUp" in result && result.requiresStepUp) {
+        setStepUpRequired(true);
+        lastAttemptRef.current = attempt;
+      }
+      setError(result.message);
+      setPending(false);
+      return;
+    }
+
+    setStepUpRequired(false);
+    setStepUpPassword("");
+    lastAttemptRef.current = null;
+    setMessage(result.message);
+    setPending(false);
+  }
 
   async function handleUpdate(formData: FormData) {
     const password = String(formData.get("password") || "");
@@ -39,20 +76,56 @@ export function AdminPasswordForm() {
       return;
     }
 
-    const result = await updateCurrentPassword({
+    await submitUpdate({
       confirmPassword,
       nonce,
       password,
     });
+  }
 
-    if (!result.ok) {
-      setError(result.message);
-      setPending(false);
+  async function verifyAndRetry() {
+    if (!lastAttemptRef.current || !stepUpPassword) {
+      setError("Enter your current password to continue.");
       return;
     }
 
-    setMessage(result.message);
-    setPending(false);
+    if (captcha.required && !captchaToken) {
+      setError("Complete the verification challenge.");
+      return;
+    }
+
+    setVerifyingStepUp(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/profile/step-up", {
+        body: JSON.stringify({ captchaToken, currentPassword: stepUpPassword }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        setError(payload?.message || "Current password verification failed.");
+        setCaptchaToken("");
+        setCaptchaAttempt((value) => value + 1);
+        setVerifyingStepUp(false);
+        return;
+      }
+    } catch {
+      setError("Verification request failed. Check your connection and retry.");
+      setCaptchaToken("");
+      setCaptchaAttempt((value) => value + 1);
+      setVerifyingStepUp(false);
+      return;
+    }
+
+    setVerifyingStepUp(false);
+    setStepUpPassword("");
+    setPending(true);
+    await submitUpdate(lastAttemptRef.current);
   }
 
   async function requestReauthenticationCode() {
@@ -114,6 +187,44 @@ export function AdminPasswordForm() {
             placeholder="Paste the code if Supabase asks for reauthentication"
           />
         </label>
+        {stepUpRequired ? (
+          <div className="sm:col-span-2 grid gap-2 rounded-lg border border-[var(--line)] p-3">
+            <label className="input-label" htmlFor="admin-stepup-password">
+              Verify current password
+              <input
+                autoComplete="current-password"
+                id="admin-stepup-password"
+                onChange={(event) => setStepUpPassword(event.target.value)}
+                placeholder="Enter the password you signed in with"
+                type="password"
+                value={stepUpPassword}
+              />
+            </label>
+            <p className="-mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+              Password changes require a fresh current-password verification.
+            </p>
+            {captcha.required ? (
+              <TurnstileField
+                key={captchaAttempt}
+                onTokenChange={setCaptchaToken}
+                siteKey={captcha.siteKey}
+              />
+            ) : null}
+            <button
+              className="secondary-button"
+              disabled={
+                verifyingStepUp ||
+                !stepUpPassword ||
+                pending ||
+                (captcha.required && !captchaToken)
+              }
+              onClick={() => startTransition(() => void verifyAndRetry())}
+              type="button"
+            >
+              {verifyingStepUp ? "Verifying..." : "Verify and update password"}
+            </button>
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-3 sm:col-span-2">
           <button className="primary-button" disabled={pending} type="submit">
             {pending ? "Updating..." : "Update password"}

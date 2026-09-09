@@ -13,6 +13,7 @@ export const baseRequiredEnv = [
 ];
 
 export const productionRequiredEnv = [
+  "APP_MAC_SECRET",
   "AUTH_CAPTCHA_REQUIRED",
   "CLOUDINARY_CLOUD_NAME",
   "CLOUDINARY_API_KEY",
@@ -74,6 +75,7 @@ export function validateEnv(env, options = {}) {
   if (production && !isBlank(env.AUTH_CAPTCHA_REQUIRED) && !isEnabled(env.AUTH_CAPTCHA_REQUIRED)) invalid.push("AUTH_CAPTCHA_REQUIRED must be explicitly enabled for production builds.");
   if (production && !isBlank(env.NEXT_PUBLIC_SENTRY_DSN) && !isValidUrl(env.NEXT_PUBLIC_SENTRY_DSN, { requireHttps: true })) invalid.push("NEXT_PUBLIC_SENTRY_DSN must be a valid https URL.");
   if (production && !isBlank(env.RATE_LIMIT_SECRET_SALT) && env.RATE_LIMIT_SECRET_SALT.trim().length < 32) invalid.push("RATE_LIMIT_SECRET_SALT must be at least 32 characters.");
+  if (production && !isBlank(env.APP_MAC_SECRET) && env.APP_MAC_SECRET.trim().length < 32) invalid.push("APP_MAC_SECRET must be at least 32 characters.");
   if (production && !isBlank(env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL) && !EMAIL_ADDRESS_PATTERN.test(env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL.trim())) invalid.push("GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL must be a valid email address.");
   if (production && !isBlank(env.RESEND_FROM_EMAIL) && !SENDER_ADDRESS_PATTERN.test(env.RESEND_FROM_EMAIL.trim())) invalid.push("RESEND_FROM_EMAIL must include a valid sender email address.");
 

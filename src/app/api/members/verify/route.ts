@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   clearDirectoryVerificationCookies,
-  hashDirectoryVerificationCode,
+  hashDirectoryVerificationCodeCandidates,
   setDirectoryVerificationCookies,
 } from "@/lib/auth/directory-verification";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -105,9 +105,11 @@ async function handleVerify(request: NextRequest): Promise<NextResponse> {
     return response;
   }
 
-  const submittedHash = hashDirectoryVerificationCode(parsed.data.verificationCode);
+  const submittedHashes = hashDirectoryVerificationCodeCandidates(
+    parsed.data.verificationCode
+  );
 
-  if (submittedHash !== member.verification_code_hash) {
+  if (!submittedHashes.includes(member.verification_code_hash)) {
     const response = NextResponse.json(
       { verified: false, message: "Verification code is invalid." },
       { status: 400 }

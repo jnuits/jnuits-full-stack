@@ -1,7 +1,10 @@
 import "server-only";
 
 import { createHmac, randomBytes } from "node:crypto";
-import { getSupabaseAdminKey } from "@/lib/supabase/config";
+import {
+  getApplicationMacKey,
+  getApplicationMacKeys,
+} from "@/lib/supabase/config";
 
 const INVITATION_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -11,10 +14,20 @@ export function normalizeInvitationCode(value: string) {
   return value.trim().toUpperCase();
 }
 
-export function hashInvitationCode(value: string) {
-  return createHmac("sha256", getSupabaseAdminKey())
+function createInvitationHash(value: string, key: string) {
+  return createHmac("sha256", key)
     .update(normalizeInvitationCode(value))
     .digest("hex");
+}
+
+export function hashInvitationCode(value: string) {
+  return createInvitationHash(value, getApplicationMacKey());
+}
+
+export function hashInvitationCodeCandidates(value: string) {
+  return getApplicationMacKeys().map((key) =>
+    createInvitationHash(value, key)
+  );
 }
 
 export function generateInvitationCode(length = 12) {

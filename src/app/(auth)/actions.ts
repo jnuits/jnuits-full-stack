@@ -2,7 +2,7 @@
 
 import type { User } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -17,14 +17,24 @@ import {
   enforceAuthActionProtection,
   shouldAttemptPostClaimAutoLogin,
 } from "@/lib/auth/action-protection";
+import { resolveSignOutRedirect } from "@/lib/auth/sign-out-redirect";
 import { checkAdminMFA } from "@/lib/auth/mfa";
 import { findAuthUserByEmail } from "@/lib/auth/auth-user-lookup";
 import { buildPasswordSignInPayload } from "@/lib/auth/password-sign-in";
+import {
+  isPasswordRecoveryActiveForUser,
+  PASSWORD_RECOVERY_COOKIE_NAME,
+} from "@/lib/auth/password-recovery";
 import { getSafeAuthErrorMessage } from "@/lib/auth/safe-auth-error";
+import { isStepUpActiveForUser, getStepUpCookieName } from "@/lib/auth/step-up";
+import {
+  DIRECTORY_VERIFIED_COOKIE,
+  DIRECTORY_VERIFIED_USER_COOKIE,
+} from "@/lib/auth/directory-verification";
 import { getAppBaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/db/types";
 import { logServerError } from "@/lib/errors/api-error";
-import { hashInvitationCode } from "@/lib/members/invitation-code";
+import { hashInvitationCodeCandidates } from "@/lib/members/invitation-code";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import { getPasswordPolicyError } from "@/lib/security/password-policy";
 import { getPasswordExposureError } from "@/lib/security/pwned-passwords";
@@ -35,6 +45,25 @@ import { createClient } from "@/lib/supabase/server";
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+// Step-up and directory-verification cookies must never outlive the session
+// they were minted for (logout or password rotation).
+async function clearPrivilegedSessionCookies() {
+  const cookieStore = await cookies();
+  cookieStore.delete(getStepUpCookieName());
+  cookieStore.delete(DIRECTORY_VERIFIED_COOKIE);
+  cookieStore.delete(DIRECTORY_VERIFIED_USER_COOKIE);
+  cookieStore.delete(PASSWORD_RECOVERY_COOKIE_NAME);
+}
+
+export async function performSignOut(redirectTo: string) {
+  const destination = resolveSignOutRedirect(redirectTo);
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  await clearPrivilegedSessionCookies();
+
+  redirect(destination);
 }
 
 const loginSchema = z.object({
@@ -567,11 +596,10 @@ export async function resendSignupConfirmation(formData: FormData) {
 
   if (error) {
     logServerError("resendSignupConfirmation", error);
-    redirect(
-      `/verify-email?error=${encodeMessage("Unable to request a confirmation email. Try again or contact JnUITS support.")}&email=${encodeMessage(parsed.data.email)}`
-    );
   }
 
+  // Uniform response regardless of provider outcome so the endpoint cannot
+  // be used as an account-existence oracle; the real signal is the inbox.
   redirect(
     `/verify-email?message=${encodeMessage("Confirmation email requested. Check your inbox for the newest link.")}&email=${encodeMessage(parsed.data.email)}`
   );
@@ -588,12 +616,27 @@ export async function updatePassword(formData: FormData) {
     );
   }
 
+  const supabase = await createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const cookieStore = await cookies();
+
+  if (
+    userError ||
+    !userData.user ||
+    !isPasswordRecoveryActiveForUser(cookieStore, userData.user.id)
+  ) {
+    redirect(
+      `/reset-password?error=${encodeMessage(
+        "This recovery link is invalid or expired. Request a new password reset."
+      )}`
+    );
+  }
+
   const exposureError = await getPasswordExposureError(parsed.data.password);
   if (exposureError) {
     redirect(`/reset-password?error=${encodeMessage(exposureError)}`);
   }
 
-  const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
 
   if (error) {
@@ -603,6 +646,12 @@ export async function updatePassword(formData: FormData) {
         getSafeAuthErrorMessage(error, "Unable to update your password. Try again.")
       )}`
     );
+  }
+
+  await clearPrivilegedSessionCookies();
+  const { error: signOutError } = await supabase.auth.signOut({ scope: "global" });
+  if (signOutError) {
+    logServerError("updatePassword.signOut", signOutError);
   }
 
   redirect(
@@ -642,6 +691,16 @@ export async function updateCurrentPassword(input: {
     };
   }
 
+  // A hijacked session must not be able to rotate the password without a
+  // fresh current-password verification (15-minute step-up cookie).
+  if (!isStepUpActiveForUser(await cookies(), userData.user.id)) {
+    return {
+      message: "Verify your current password first, then retry this change.",
+      ok: false as const,
+      requiresStepUp: true,
+    };
+  }
+
   const { error } = await supabase.auth.updateUser({
     nonce: input.nonce?.trim() || undefined,
     password: parsed.data.password,
@@ -654,6 +713,10 @@ export async function updateCurrentPassword(input: {
       ok: false as const,
     };
   }
+
+  // The old credential is dead — any outstanding privileged-session
+  // cookies minted under it must not carry over.
+  await clearPrivilegedSessionCookies();
 
   return {
     message: "Password updated for the current signed-in session.",
@@ -704,7 +767,7 @@ export async function claimProfile(formData: FormData) {
     .select(
       "id, member_id, max_uses, used_count, expires_at, is_active, recipient_email_snapshot, members!inner(id, jnuits_id, user_id, email, full_name, member_type)"
     )
-    .eq("code_hash", hashInvitationCode(invitationCode))
+    .in("code_hash", hashInvitationCodeCandidates(invitationCode))
     .eq("members.jnuits_id", jnuitsId)
     .is("revoked_at", null)
     .maybeSingle();

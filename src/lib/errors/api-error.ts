@@ -8,6 +8,7 @@
  * - Return a safe, human-readable message to the client.
  */
 
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 
 type JsonResponse = Record<string, unknown>;
@@ -61,14 +62,17 @@ export function getSafeErrorMessage(error: unknown, fallback = "Something went w
 
 /**
  * Log the raw error server-side without leaking it to the client.
- * In production, Sentry captures it automatically via the instrumentation layer.
+ * In production the error is reported to Sentry explicitly — handled
+ * exceptions never reach Sentry's automatic unhandled-error capture,
+ * so without this call caught failures (ledger writes, deliveries,
+ * rate-limit backend outages) would be invisible in production.
  */
 export function logServerError(context: string, error: unknown): void {
   if (process.env.NODE_ENV !== "production") {
     console.error(`[API Error] ${context}:`, error);
+    return;
   }
-  // Sentry auto-captures unhandled Node errors.
-  // For explicit captures you can import `captureException` from @sentry/nextjs here.
+  Sentry.captureException(error, { tags: { context } });
 }
 
 /**

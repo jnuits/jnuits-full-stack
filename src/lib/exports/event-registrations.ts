@@ -28,23 +28,34 @@ export const eventRegistrationExportColumns = [
   { key: "cancelledAt", label: "Cancelled at (UTC)" },
 ] as const;
 
+export type EventRegistrationExportRecord = Record<
+  (typeof eventRegistrationExportColumns)[number]["key"],
+  string
+>;
+
+export function eventRegistrationToExportRecord(
+  row: EventRegistrationExportRow
+): EventRegistrationExportRecord {
+  return {
+    cancelledAt: row.cancelled_at || "",
+    checkedInAt: row.checked_in_at || "",
+    email: row.registrant_email,
+    name: row.registrant_name,
+    phone: row.registrant_phone || "",
+    promotedAt: row.promoted_at || "",
+    reference: row.registration_code,
+    registeredAt: row.created_at,
+    status:
+      row.registration_status || (row.cancelled_at ? "cancelled" : "confirmed"),
+    waitlistedAt: row.waitlisted_at || "",
+  };
+}
+
 export function eventRegistrationsToExportTable(
   rows: readonly EventRegistrationExportRow[]
 ): ExportTable {
   return {
     columns: eventRegistrationExportColumns,
-    rows: rows.map((row) => ({
-      cancelledAt: row.cancelled_at || "",
-      checkedInAt: row.checked_in_at || "",
-      email: row.registrant_email,
-      name: row.registrant_name,
-      phone: row.registrant_phone || "",
-      promotedAt: row.promoted_at || "",
-      reference: row.registration_code,
-      registeredAt: row.created_at,
-      status:
-        row.registration_status || (row.cancelled_at ? "cancelled" : "confirmed"),
-      waitlistedAt: row.waitlisted_at || "",
-    })),
+    rows: rows.map((row) => eventRegistrationToExportRecord(row)),
   };
 }

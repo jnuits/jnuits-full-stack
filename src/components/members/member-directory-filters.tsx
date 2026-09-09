@@ -226,7 +226,7 @@ export function MemberDirectoryFilters({
       <form
         aria-busy={searchBusy}
         aria-labelledby="members-filter-title"
-        className="grid gap-3 rounded-xl border border-[var(--line)] bg-[var(--card)] p-3 shadow-[var(--shadow-xs)] sm:grid-cols-[minmax(18rem,1.3fr)_11rem_minmax(14rem,1fr)_11rem_auto] sm:items-center"
+        className="grid gap-3 rounded-xl border border-[var(--line)] bg-[var(--card)] p-3 shadow-[var(--shadow-xs)] lg:grid-cols-[minmax(18rem,1.3fr)_11rem_minmax(14rem,1fr)_11rem_auto] sm:grid-cols-2 lg:items-center"
         onSubmit={(event) => event.preventDefault()}
       >
         <div className="relative">
@@ -260,7 +260,7 @@ export function MemberDirectoryFilters({
         </div>
 
         <button
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--brand-blue)] hover:text-[var(--brand-blue)] sm:hidden"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--brand-blue)] hover:text-[var(--brand-blue)] lg:hidden"
           onClick={() => setDrawerOpen(true)}
           type="button"
         >
@@ -268,7 +268,7 @@ export function MemberDirectoryFilters({
           Filters{activeHiddenFilterCount ? ` · ${activeHiddenFilterCount}` : ""}
         </button>
 
-        <div className="hidden sm:contents">
+        <div className="hidden lg:contents">
           <FilterSelectStack
             departments={departments}
             filters={filters}
@@ -286,7 +286,7 @@ export function MemberDirectoryFilters({
       </form>
 
       {drawerOpen ? (
-        <div className="sm:hidden" role="dialog" aria-modal="true">
+        <div className="lg:hidden" role="dialog" aria-modal="true">
           <button
             aria-label="Close filters"
             className="filter-backdrop"

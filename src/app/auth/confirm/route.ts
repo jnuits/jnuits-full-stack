@@ -1,6 +1,7 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSafeNextPath } from "@/lib/auth/session";
+import { buildPasswordRecoveryCookie } from "@/lib/auth/password-recovery";
 import { logServerError } from "@/lib/errors/api-error";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -89,7 +90,22 @@ export async function GET(request: NextRequest) {
           .eq("user_id", user.id);
       }
 
-      return NextResponse.redirect(redirectTo);
+      const response = NextResponse.redirect(redirectTo);
+
+      if (type === "recovery" && user?.id) {
+        const recoveryCookie = buildPasswordRecoveryCookie(user.id);
+        response.cookies.set({
+          name: recoveryCookie.name,
+          value: recoveryCookie.value,
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          expires: recoveryCookie.expiresAt,
+          path: "/",
+        });
+      }
+
+      return response;
     }
   }
 

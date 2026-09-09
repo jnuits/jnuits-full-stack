@@ -9,7 +9,7 @@ import {
 import { createCsv, sha256 } from "@/lib/exports/tabular";
 import { createXlsxWorkbook } from "@/lib/exports/xlsx";
 import {
-  escapeEventRegistrationSearch,
+  buildEventRegistrationSearchPattern,
   parseEventRegistrationFilters,
   type EventRegistrationStatus,
 } from "@/lib/events/operations-filters";
@@ -20,7 +20,13 @@ import { asFlexibleClient } from "@/lib/supabase/flexible";
 
 export const runtime = "nodejs";
 const EXPORT_PAGE_SIZE = 500;
+// Buffered formats (xlsx/google-sheet) hold the full dataset in memory.
 const MAX_EXPORT_ROWS = 10_000;
+// CSV is also buffered so pagination and evidence failures happen before a
+// successful download response. Keep a hard cap to bound function memory.
+const MAX_CSV_EXPORT_ROWS = 50_000;
+const EXPORT_ROW_SELECT =
+  "registrant_name, registrant_email, registrant_phone, registration_code, registration_status, created_at, waitlisted_at, promoted_at, checked_in_at, cancelled_at, form_submissions(form_version_id)";
 type EventTarget = { id: string; legacyContentPostId: null | string };
 type ExportRegistrationRow = EventRegistrationExportRow & {
   form_submissions?: Array<{ form_version_id?: string }> | { form_version_id?: string } | null;
@@ -29,11 +35,6 @@ type ExportRegistrationRow = EventRegistrationExportRow & {
 function getEventIdentifier(request: Request) {
   const segments = new URL(request.url).pathname.split("/");
   return segments[segments.indexOf("events") + 1] || "";
-}
-function eventFilter(event: EventTarget) {
-  return event.legacyContentPostId
-    ? `or(event_id.eq.${event.id},event_post_id.eq.${event.legacyContentPostId})`
-    : `event_id.eq.${event.id}`;
 }
 function applyEventScope<T extends { eq: (column: string, value: string) => T; or: (filter: string) => T }>(query: T, event: EventTarget) {
   return event.legacyContentPostId
@@ -48,38 +49,73 @@ function applyStatus<T extends { eq: (column: string, value: string) => T; is: (
   return query;
 }
 
+type RegistrationFilters = ReturnType<typeof parseEventRegistrationFilters>;
+
+function applyRegistrationFilters<
+  T extends {
+    eq: (column: string, value: string) => T;
+    is: (column: string, value: null) => T;
+    not: (column: string, operator: string, value: null) => T;
+    or: (filter: string) => T;
+  },
+>(query: T, event: EventTarget, filters: RegistrationFilters): T {
+  const scopedQuery = applyStatus(applyEventScope(query, event), filters.status);
+  if (filters.query) {
+    const pattern = buildEventRegistrationSearchPattern(filters.query);
+    return scopedQuery.or(
+      `registrant_name.ilike.${pattern},registrant_email.ilike.${pattern},registration_code.ilike.${pattern}`,
+    );
+  }
+  return scopedQuery;
+}
+
 async function loadExportRows(
   admin: ReturnType<typeof asFlexibleClient>,
   event: EventTarget,
-  filters: ReturnType<typeof parseEventRegistrationFilters>
+  filters: RegistrationFilters,
+  totalRows: number,
 ) {
   const rows: ExportRegistrationRow[] = [];
-  for (let from = 0; from < MAX_EXPORT_ROWS; from += EXPORT_PAGE_SIZE) {
-    let query = admin.from("event_registrations")
-      .select("registrant_name, registrant_email, registrant_phone, registration_code, registration_status, created_at, waitlisted_at, promoted_at, checked_in_at, cancelled_at, form_submissions(form_version_id)")
-      .order("created_at", { ascending: true });
-    if (filters.query) {
-      const pattern = `%${escapeEventRegistrationSearch(filters.query)}%`;
-      const searchFilter = `or(registrant_name.ilike.${pattern},registrant_email.ilike.${pattern},registration_code.ilike.${pattern})`;
-      query = query.or(`and(${eventFilter(event)},${searchFilter})`);
-    } else {
-      query = applyEventScope(query, event);
-    }
-    query = applyStatus(query, filters.status);
-    const { data, error } = await query.range(from, from + EXPORT_PAGE_SIZE - 1);
+  for (let from = 0; from < totalRows; from += EXPORT_PAGE_SIZE) {
+    const to = Math.min(from + EXPORT_PAGE_SIZE - 1, totalRows - 1);
+    const { data, error } = await applyRegistrationFilters(
+      admin
+        .from("event_registrations")
+        .select(EXPORT_ROW_SELECT)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true }),
+      event,
+      filters,
+    ).range(from, to);
     if (error) throw new Error("Event registrations could not be exported.");
     const page = (data || []) as unknown as ExportRegistrationRow[];
     rows.push(...page);
-    if (page.length < EXPORT_PAGE_SIZE) return rows;
+    if (page.length < to - from + 1) return rows;
   }
-  throw new Error("This export exceeds the 10,000-row safety limit.");
+  return rows;
+}
+
+async function countExportRows(
+  admin: ReturnType<typeof asFlexibleClient>,
+  event: EventTarget,
+  filters: RegistrationFilters
+) {
+  const { count, error } = await applyRegistrationFilters(
+    admin.from("event_registrations").select("id", { count: "exact", head: true }),
+    event,
+    filters,
+  );
+  if (error) return null;
+  return count ?? 0;
 }
 
 function formVersionIds(rows: ExportRegistrationRow[]) {
   return Array.from(new Set(rows.flatMap((row) => {
     const relation = row.form_submissions;
     const submissions = Array.isArray(relation) ? relation : relation ? [relation] : [];
-    return submissions.map((item) => item.form_version_id).filter((id): id is string => Boolean(id));
+    return submissions
+      .map((item) => item.form_version_id)
+      .filter((id): id is string => Boolean(id));
   }))).sort();
 }
 
@@ -104,15 +140,27 @@ async function handleGet(request: NextRequest) {
 
   try {
     const admin = asFlexibleClient(createAdminClient());
-    const rows = await loadExportRows(admin, event, filters);
+    const exportName = `event-${event.id}-registrations`;
+    const totalRows = await countExportRows(admin, event, filters);
+    if (totalRows === null) {
+      return NextResponse.json({ error: "Event registrations could not be exported." }, { status: 500 });
+    }
+    const maxRows = format === "csv" ? MAX_CSV_EXPORT_ROWS : MAX_EXPORT_ROWS;
+    if (totalRows > maxRows) {
+      return NextResponse.json(
+        { error: `This export exceeds the ${maxRows.toLocaleString("en-US")}-row safety limit.` },
+        { status: 422 },
+      );
+    }
+
+    const rows = await loadExportRows(admin, event, filters, totalRows);
     const versions = formVersionIds(rows);
     const table = eventRegistrationsToExportTable(rows);
     const csv = createCsv(table);
-    const exportName = `event-${event.id}-registrations`;
     const googleSheet = format === "google-sheet"
       ? await uploadGoogleSheetSnapshot({ csv, filename: `${exportName}-${new Date().toISOString().slice(0, 10)}` })
       : null;
-    const body = format === "csv" ? Buffer.from(csv, "utf8") : format === "xlsx" ? createXlsxWorkbook(table, "Event registrations") : null;
+    const body = format === "xlsx" ? createXlsxWorkbook(table, "Event registrations") : null;
     const checksum = sha256(body || csv);
     const exportedAt = new Date().toISOString();
     const evidence = {
@@ -144,10 +192,17 @@ async function handleGet(request: NextRequest) {
     });
     if (audit.error) return NextResponse.json({ error: "The export audit record could not be saved." }, { status: 500 });
     if (googleSheet) return NextResponse.json({ id: googleSheet.id, success: true, webViewLink: googleSheet.webViewLink }, { headers: { "Cache-Control": "private, no-store" } });
-    const contentType = format === "csv" ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    return new NextResponse(body!, { headers: {
+    if (format === "csv") return new NextResponse(csv, { headers: {
       "Cache-Control": "private, no-store",
-      "Content-Disposition": `attachment; filename="${exportName}.${format}"`,
+      "Content-Disposition": `attachment; filename="${exportName}.csv"`,
+      "Content-Type": "text/csv; charset=utf-8",
+      "X-Export-Checksum": checksum,
+      "X-Export-Row-Count": String(rows.length),
+    }});
+    const contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    return new NextResponse(body, { headers: {
+      "Cache-Control": "private, no-store",
+      "Content-Disposition": `attachment; filename="${exportName}.xlsx"`,
       "Content-Type": contentType,
       "X-Export-Checksum": checksum,
       "X-Export-Row-Count": String(rows.length),

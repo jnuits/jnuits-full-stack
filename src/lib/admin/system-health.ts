@@ -60,6 +60,7 @@ export function buildMigrationParityReviewCheck(): SystemHealthCheck {
 
 export async function buildSystemHealthSnapshot() {
   const appBaseUrl = getAppBaseUrl();
+  const appMacLength = process.env.APP_MAC_SECRET?.trim().length || 0;
   const rateBackend = process.env.RATE_LIMIT_BACKEND?.trim().toLowerCase() || "";
   const rateSaltLength = process.env.RATE_LIMIT_SECRET_SALT?.trim().length || 0;
   const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
@@ -67,6 +68,7 @@ export async function buildSystemHealthSnapshot() {
     envCheck("Supabase URL", "NEXT_PUBLIC_SUPABASE_URL"),
     envCheck("Supabase publishable key", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
     envCheck("Supabase secret key", "SUPABASE_SECRET_KEY"),
+    { detail: appMacLength >= 32 ? "Secret length is acceptable." : "Secret must be at least 32 characters.", group: "Environment", label: "Application MAC secret", source: "runtime", status: appMacLength >= 32 ? "ok" : "fail" },
     { detail: isProduction ? "Production application URL is configured." : "Non-production application URL is configured.", group: "Environment", label: "App base URL", source: "runtime", status: isProduction && appBaseUrl.includes("localhost") ? "fail" : "ok" },
     { detail: rateBackend === "supabase" ? "Supabase-backed rate limiting is configured." : "Supabase-backed rate limiting is required.", group: "Environment", label: "Rate-limit backend", source: "runtime", status: rateBackend === "supabase" ? "ok" : "fail" },
     { detail: rateSaltLength >= 32 ? "Salt length is acceptable." : "Salt must be at least 32 characters.", group: "Environment", label: "Rate-limit salt", source: "runtime", status: rateSaltLength >= 32 ? "ok" : "fail" },

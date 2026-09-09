@@ -9,12 +9,13 @@ const mocks = vi.hoisted(() => ({
   generateInvitationCode: vi.fn(),
   getInvitationExpiryIso: vi.fn(),
   hashInvitationCode: vi.fn(),
+  hashInvitationCodeCandidates: vi.fn(),
   invitationInsert: vi.fn(),
   invitationInsertSelect: vi.fn(),
   invitationInsertSingle: vi.fn(),
   invitationUpdate: vi.fn(),
   invitationUpdateEq: vi.fn(),
-  lookupEq: vi.fn(),
+  lookupIn: vi.fn(),
   lookupMaybeSingle: vi.fn(),
   memberInvitationSelect: vi.fn(),
   sendEmail: vi.fn(),
@@ -24,6 +25,8 @@ vi.mock("@/lib/members/invitation-code", () => ({
   generateInvitationCode: () => mocks.generateInvitationCode(),
   getInvitationExpiryIso: (...args: unknown[]) => mocks.getInvitationExpiryIso(...args),
   hashInvitationCode: (...args: unknown[]) => mocks.hashInvitationCode(...args),
+  hashInvitationCodeCandidates: (...args: unknown[]) =>
+    mocks.hashInvitationCodeCandidates(...args),
 }));
 
 vi.mock("@/lib/members/claim-url", () => ({
@@ -74,12 +77,16 @@ describe("issueInvitationForMember", () => {
     mocks.generateInvitationCode.mockReturnValue("claim-code");
     mocks.getInvitationExpiryIso.mockReturnValue("2026-08-01T00:00:00.000Z");
     mocks.hashInvitationCode.mockReturnValue("claim-code-hash");
+    mocks.hashInvitationCodeCandidates.mockReturnValue([
+      "claim-code-hash",
+      "legacy-claim-code-hash",
+    ]);
     mocks.buildClaimProfileUrl.mockReturnValue("https://example.test/claim");
     mocks.buildAlumniInvitationEmail.mockReturnValue("<p>Alumni invitation</p>");
     mocks.buildMemberInvitationEmail.mockReturnValue("<p>Member invitation</p>");
     mocks.lookupMaybeSingle.mockResolvedValue({ data: null, error: null });
-    mocks.memberInvitationSelect.mockReturnValue({ eq: mocks.lookupEq });
-    mocks.lookupEq.mockReturnValue({ maybeSingle: mocks.lookupMaybeSingle });
+    mocks.memberInvitationSelect.mockReturnValue({ in: mocks.lookupIn });
+    mocks.lookupIn.mockReturnValue({ maybeSingle: mocks.lookupMaybeSingle });
     mocks.invitationInsertSingle.mockResolvedValue({
       data: { id: "invite-1" },
       error: null,
@@ -123,6 +130,10 @@ describe("issueInvitationForMember", () => {
         send_attempts: 0,
       })
     );
+    expect(mocks.lookupIn).toHaveBeenCalledWith("code_hash", [
+      "claim-code-hash",
+      "legacy-claim-code-hash",
+    ]);
     expect(mocks.sendEmail).toHaveBeenCalledWith({
       html: "<p>Alumni invitation</p>",
       idempotencyKey: "member-invitation/invite-1",

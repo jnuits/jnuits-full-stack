@@ -7,11 +7,14 @@ import {
 import { requireAdminPermission } from "@/lib/auth/session";
 import { apiError } from "@/lib/errors/api-error";
 
+// Auth gate runs outside the catch-all so unauthenticated visitors receive
+// the normal admin redirect (not a JSON 500 from a swallowed NEXT_REDIRECT).
 export async function GET(request: NextRequest) {
+  await requireAdminPermission("admin.audit.read", {
+    fallbackPath: "/admin/audit",
+  });
+
   try {
-    await requireAdminPermission("admin.audit.read", {
-      fallbackPath: "/admin/audit",
-    });
 
     const filters = parseAuditFilters(
       Object.fromEntries(request.nextUrl.searchParams.entries())

@@ -194,7 +194,7 @@ Evidence:
 - `gallery_album_items` exists in Supabase staging.
 
 Verification:
-- Supabase project URL confirmed as `https://fsirdkjgrcocowxqjhjg.supabase.co`.
+- Supabase project URL confirmed as `https://<staging-project-ref>.supabase.co`.
 - `public.gallery_albums`: base table.
 - `public.gallery_album_items`: base table.
 

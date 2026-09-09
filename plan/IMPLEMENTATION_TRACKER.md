@@ -22,9 +22,11 @@
 ## Phase A Completion Notes (2026-04-09)
 
 - Added `super_admin` seed + hierarchy-aware role resolution in Supabase via migration.
-- Ensured `super_admin` role + active grant for `jnuitsbd@gmail.com` in staging via ops script:
-  - `npm run ops:ensure-super-admin -- --apply --email jnuitsbd@gmail.com`
-  - Evidence: `artifacts/reports/membership/super-admin-ensure-20260409T082828Z.json`
+- Ensured the designated operations account (address redacted) has the
+  `super_admin` role + active grant in staging via the ops script:
+  - `npm run ops:ensure-super-admin -- --apply --email <super-admin-email>`
+  - The generated evidence report is retained outside Git because it contains
+    privileged-account identifiers.
 - Added safe return-to behavior hardening:
   - login redirects now sanitize `next` to block open redirects.
   - auth guard now includes fallback-aware `next` handling.

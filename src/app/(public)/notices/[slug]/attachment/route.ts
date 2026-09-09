@@ -24,6 +24,22 @@ function attachmentFileName(slug: string, contentType: string | null) {
   return `${slug}.${extension}`;
 }
 
+// Only genuinely passive types may render inline on our origin. Anything else
+// (HTML/SVG/XML planted as a Cloudinary raw asset) is forced to download so a
+// hostile payload can never execute in the site's context.
+export function mayRenderInline(contentType: string) {
+  const normalized = contentType.toLowerCase().split(";", 1)[0]?.trim();
+
+  return new Set([
+    "application/pdf",
+    "image/avif",
+    "image/gif",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]).has(normalized || "");
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ slug: string }> }
@@ -49,7 +65,7 @@ export async function GET(
   return new NextResponse(upstream.body, {
     headers: {
       "Cache-Control": "public, max-age=60, s-maxage=60",
-      "Content-Disposition": `inline; filename="${attachmentFileName(
+      "Content-Disposition": `${mayRenderInline(contentType) ? "inline" : "attachment"}; filename="${attachmentFileName(
         notice.slug,
         contentType
       )}"`,

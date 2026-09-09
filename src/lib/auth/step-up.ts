@@ -1,13 +1,16 @@
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { getSupabaseAdminKey } from "@/lib/supabase/config";
+import {
+  getApplicationMacKey,
+  getApplicationMacKeys,
+} from "@/lib/supabase/config";
 
 const STEP_UP_COOKIE_NAME = "jnuits-step-up";
 const STEP_UP_TTL_SECONDS = 15 * 60;
 
-function createSignature(userId: string, expiresAt: number) {
-  return createHmac("sha256", getSupabaseAdminKey())
+function createSignature(userId: string, expiresAt: number, key: string) {
+  return createHmac("sha256", key)
     .update(`${userId}:${expiresAt}`)
     .digest("hex");
 }
@@ -22,7 +25,7 @@ export function getStepUpExpiryDate(now = Date.now()) {
 
 export function createStepUpCookieValue(userId: string, expiresAt: Date) {
   const expiresMs = expiresAt.getTime();
-  const signature = createSignature(userId, expiresMs);
+  const signature = createSignature(userId, expiresMs, getApplicationMacKey());
 
   return `${userId}.${expiresMs}.${signature}`;
 }
@@ -42,7 +45,12 @@ export function isStepUpActiveForUser(
 
   const [cookieUserId, expiresAtRaw, signature] = rawValue.split(".");
 
-  if (!cookieUserId || !expiresAtRaw || !signature || cookieUserId !== userId) {
+  if (
+    !cookieUserId ||
+    !expiresAtRaw ||
+    !/^[a-f0-9]{64}$/i.test(signature || "") ||
+    cookieUserId !== userId
+  ) {
     return false;
   }
 
@@ -52,16 +60,18 @@ export function isStepUpActiveForUser(
     return false;
   }
 
-  const expectedSignature = createSignature(cookieUserId, expiresAt);
+  return getApplicationMacKeys().some((key) => {
+    const expectedSignature = createSignature(cookieUserId, expiresAt, key);
 
-  try {
-    return timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-    );
-  } catch {
-    return false;
-  }
+    try {
+      return timingSafeEqual(
+        Buffer.from(signature, "hex"),
+        Buffer.from(expectedSignature, "hex")
+      );
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function buildStepUpCookie(userId: string, now = Date.now()) {

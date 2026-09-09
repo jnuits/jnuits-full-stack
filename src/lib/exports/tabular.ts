@@ -45,15 +45,21 @@ function csvCell(value: unknown) {
   return `"${protectSpreadsheetCell(value).replace(/"/g, '""')}"`;
 }
 
-export function createCsv(table: ExportTable) {
-  const rows = [
-    table.columns.map((column) => csvCell(column.label)).join(","),
-    ...table.rows.map((row) =>
-      table.columns.map((column) => csvCell(row[column.key])).join(",")
-    ),
-  ];
+/** BOM-prefixed header line so Excel detects UTF-8. */
+export function createCsvHeader(columns: readonly ExportColumn[]) {
+  return `\uFEFF${columns.map((column) => csvCell(column.label)).join(",")}\r\n`;
+}
 
-  return `\uFEFF${rows.join("\r\n")}\r\n`;
+/** Single CRLF-terminated CSV line for streaming exports. */
+export function createCsvRow(columns: readonly ExportColumn[], row: Record<string, unknown>) {
+  return `${columns.map((column) => csvCell(row[column.key])).join(",")}\r\n`;
+}
+
+export function createCsv(table: ExportTable) {
+  return (
+    createCsvHeader(table.columns) +
+    table.rows.map((row) => createCsvRow(table.columns, row)).join("")
+  );
 }
 
 export function sha256(value: Buffer | string) {

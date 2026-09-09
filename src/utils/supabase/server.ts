@@ -10,6 +10,11 @@ export async function createClient() {
     getSupabaseUrl(),
     getSupabasePublishableKey(),
     {
+      cookieOptions: {
+        // Library defaults leave auth cookies readable by JS over plain HTTP;
+        // restrict them to secure transport in production.
+        secure: process.env.NODE_ENV === "production",
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();

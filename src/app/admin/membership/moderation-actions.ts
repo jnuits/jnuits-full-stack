@@ -17,6 +17,7 @@ import {
   generateInvitationCode,
   getInvitationExpiryIso,
   hashInvitationCode,
+  hashInvitationCodeCandidates,
 } from "@/lib/members/invitation-code";
 import {
   extractBatchNumber,
@@ -147,7 +148,7 @@ async function getNextInvitationCode(admin: ReturnType<typeof createAdminClient>
     const { data: existingInvite } = await admin
       .from("member_invitations")
       .select("id")
-      .eq("code_hash", codeHash)
+      .in("code_hash", hashInvitationCodeCandidates(code))
       .maybeSingle();
 
     if (!existingInvite) {

@@ -26,6 +26,7 @@ type UploadState = {
 
 type SignResponse = {
   apiKey?: string;
+  allowedFormats?: string;
   invalidate?: boolean;
   overwrite?: boolean;
   publicId?: string;
@@ -83,7 +84,7 @@ function getImageDimensions(file: File) {
 }
 
 async function validateImage(file: File) {
-  if (!file.type.startsWith("image/")) {
+  if (!new Set(["image/jpeg", "image/png", "image/webp"]).has(file.type)) {
     throw new Error("Choose a supported image file.");
   }
 
@@ -143,6 +144,7 @@ export function AvatarUploadField({
       if (
         !signResponse.ok ||
         !signBody?.apiKey ||
+        !signBody.allowedFormats ||
         !signBody.publicId ||
         !signBody.signature ||
         !signBody.timestamp ||
@@ -157,6 +159,7 @@ export function AvatarUploadField({
       const uploadFormData = new FormData();
       uploadFormData.append("file", file);
       uploadFormData.append("api_key", signBody.apiKey);
+      uploadFormData.append("allowed_formats", signBody.allowedFormats);
       uploadFormData.append("timestamp", String(signBody.timestamp));
       uploadFormData.append("signature", signBody.signature);
       uploadFormData.append("public_id", signBody.publicId);
@@ -189,14 +192,9 @@ export function AvatarUploadField({
 
       const completeResponse = await fetch("/api/profile/avatar/complete", {
         body: JSON.stringify({
-          bytes: uploadBody.bytes,
-          format: uploadBody.format,
-          height: uploadBody.height,
           publicId: uploadBody.public_id,
-          secureUrl: uploadBody.secure_url,
           targetId,
           targetType,
-          width: uploadBody.width,
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -300,7 +298,7 @@ export function AvatarUploadField({
               </span>
             </button>
             <input
-              accept="image/*"
+              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
               disabled={state.pending}
               hidden
               onChange={(event) => handleSelect(event.target.files)}

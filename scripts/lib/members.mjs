@@ -250,8 +250,15 @@ export function buildGeneratedJnuitsId(existingIds, now = new Date()) {
 }
 
 export function hashInvitationCode(value) {
+  const macKey =
+    clean(process.env.APP_MAC_SECRET) || clean(process.env.SUPABASE_SECRET_KEY);
+
+  if (!macKey) {
+    throw new Error("APP_MAC_SECRET or SUPABASE_SECRET_KEY is required.");
+  }
+
   return crypto
-    .createHmac("sha256", process.env.SUPABASE_SECRET_KEY)
+    .createHmac("sha256", macKey)
     .update(clean(value).toUpperCase())
     .digest("hex");
 }
@@ -276,10 +283,16 @@ export async function getNextInvitation(admin) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const code = generateInvitationCode();
     const codeHash = hashInvitationCode(code);
+    const legacyHash = clean(process.env.SUPABASE_SECRET_KEY)
+      ? crypto
+          .createHmac("sha256", clean(process.env.SUPABASE_SECRET_KEY))
+          .update(clean(code).toUpperCase())
+          .digest("hex")
+      : codeHash;
     const { data } = await admin
       .from("member_invitations")
       .select("id")
-      .eq("code_hash", codeHash)
+      .in("code_hash", [...new Set([codeHash, legacyHash])])
       .maybeSingle();
 
     if (!data) {

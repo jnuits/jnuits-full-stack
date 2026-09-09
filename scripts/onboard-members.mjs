@@ -287,8 +287,9 @@ async function main() {
       memberId,
       mode: args.apply ? "apply" : "dry-run",
       normalizedDepartmentCode: departmentResolution.departmentCode,
+      // Intentionally omit the raw CSV row: reports must not embed member
+      // contact PII (name/email). rowNumber + jnuitsId identify the source.
       rowNumber,
-      row,
     });
   }
 

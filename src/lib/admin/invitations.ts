@@ -6,6 +6,7 @@ import {
   generateInvitationCode,
   getInvitationExpiryIso,
   hashInvitationCode,
+  hashInvitationCodeCandidates,
 } from "@/lib/members/invitation-code";
 import { buildClaimProfileUrl } from "@/lib/members/claim-url";
 import {
@@ -54,7 +55,7 @@ export async function generateUniqueInvitationCode(admin: AdminClient) {
     const { data } = await flexibleAdmin
       .from("member_invitations" as string)
       .select("id")
-      .eq("code_hash", codeHash)
+      .in("code_hash", hashInvitationCodeCandidates(code))
       .maybeSingle();
 
     if (!data) {

@@ -9,6 +9,7 @@ import {
   requirePortalPermission,
   requirePortalUser,
 } from "@/lib/auth/session";
+import { logServerError } from "@/lib/errors/api-error";
 import { notifySupportTicketParticipant } from "@/lib/portal/ticket-notifications";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
@@ -105,11 +106,8 @@ export async function createSupportTicket(formData: FormData) {
     });
 
   if (ticketError) {
-    redirect(
-      `/portal/tickets?error=${encodeURIComponent(
-        ticketError?.message || "ticket-create"
-      )}`
-    );
+    logServerError("support ticket create", ticketError);
+    redirect("/portal/tickets?error=ticket-create");
   }
 
   await supabase.from("support_ticket_events").insert({
@@ -155,11 +153,8 @@ export async function replyToSupportTicket(formData: FormData) {
   });
 
   if (replyError) {
-    redirect(
-      `/portal/tickets?error=${encodeURIComponent(
-        replyError.message || "ticket-reply"
-      )}`
-    );
+    logServerError("support ticket reply insert", replyError);
+    redirect("/portal/tickets?error=ticket-reply");
   }
 
   await supabase.from("support_ticket_events").insert({

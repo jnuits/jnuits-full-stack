@@ -129,7 +129,7 @@ async function main() {
       invitationCode,
       memberId: application.processed_member_id,
       mode: args.apply ? "apply" : "dry-run",
-      name: application.name,
+      // Member name omitted: reports must not embed contact PII.
       writeFailure: failure,
     });
   }

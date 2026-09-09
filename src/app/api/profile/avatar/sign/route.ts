@@ -4,10 +4,12 @@ import { z } from "zod";
 import { createCloudinarySignature, getCloudinaryConfig } from "@/lib/cloudinary/config";
 import {
   authorizeAvatarTarget,
+  PROFILE_AVATAR_ALLOWED_FORMATS,
   PROFILE_AVATAR_UPLOAD_PRESET,
 } from "@/lib/profile/avatar-access";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
+import { apiError } from "@/lib/errors/api-error";
 
 const requestSchema = z.object({
   targetId: z.string().trim().uuid("Provide a valid profile identifier."),
@@ -41,6 +43,7 @@ async function handlePost(request: NextRequest) {
     const config = getCloudinaryConfig();
     const timestamp = Math.floor(Date.now() / 1000);
     const paramsToSign = {
+      allowed_formats: PROFILE_AVATAR_ALLOWED_FORMATS.join(","),
       invalidate: true,
       overwrite: true,
       public_id: authorization.target.publicId,
@@ -52,6 +55,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json(
       {
         apiKey: config.apiKey,
+        allowedFormats: PROFILE_AVATAR_ALLOWED_FORMATS.join(","),
         cloudName: config.cloudName,
         invalidate: true,
         overwrite: true,
@@ -64,15 +68,10 @@ async function handlePost(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    return NextResponse.json(
-      {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Cloudinary is not fully configured.",
-      },
-      { status: 500 }
-    );
+    return apiError(error, {
+      context: "avatar/sign cloudinary config",
+      fallback: "Avatar uploads are temporarily unavailable. Please try again later.",
+    });
   }
 }
 

@@ -46,7 +46,7 @@ type MemberRecord = {
 
 type CommitteeAssignmentRecord = Pick<
   Tables<"committee_assignments">,
-  "bio" | "display_name" | "ends_on" | "id" | "sort_order" | "starts_on" | "status" | "term_id"
+  "display_name" | "id" | "sort_order" | "term_id"
 > & {
   is_public?: boolean | null;
   public_title_override?: string | null;
@@ -63,7 +63,6 @@ type AdvisorProfileRecord = Pick<
   | "date_confidence"
   | "department"
   | "designation"
-  | "email"
   | "facebook_url"
   | "former_title"
   | "full_name"
@@ -74,22 +73,17 @@ type AdvisorProfileRecord = Pick<
   | "joined_on"
   | "left_on"
   | "linkedin_url"
-  | "publications"
   | "sort_order"
-  | "speech"
   | "status_note"
   | "tenure_display"
   | "title"
   | "website_url"
-  | "work_experience"
 >;
 
 export type PublicCommitteeAssignment = {
   avatarUrl: string | null;
-  bio: string | null;
   departmentName: string | null;
   displayName: string;
-  endsOn: string | null;
   facebookUrl: string | null;
   id: string;
   jnuitsId: string | null;
@@ -99,8 +93,6 @@ export type PublicCommitteeAssignment = {
   roleTitle: string;
   roleTitleBn: string | null;
   sortOrder: number;
-  startsOn: string | null;
-  status: string;
   websiteUrl: string | null;
 };
 
@@ -130,7 +122,6 @@ export type PublicAdvisorProfile = {
   dateConfidence: "estimated" | "verified";
   department: string | null;
   designation: string | null;
-  email: string | null;
   facebookUrl: string | null;
   formerTitle: string | null;
   fullName: string;
@@ -140,14 +131,11 @@ export type PublicAdvisorProfile = {
   joinedOn: string | null;
   leftOn: string | null;
   linkedinUrl: string | null;
-  publications: string[];
   sortOrder: number;
-  speech: string | null;
   statusNote: string | null;
   tenureDisplay: string | null;
   title: string | null;
   websiteUrl: string | null;
-  workExperience: string[];
 };
 
 export type PublicCommitteeDirectory = {
@@ -172,28 +160,6 @@ function resolveDepartmentName(member: MemberRecord | null) {
   }
 
   return departments.name || member?.department_code || null;
-}
-
-function asStringList(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => {
-      if (typeof item === "string") {
-        return item.trim();
-      }
-
-      if (item && typeof item === "object") {
-        const record = item as Record<string, unknown>;
-        return String(record.title || record.name || record.label || "").trim();
-      }
-
-      return "";
-    })
-    .filter(Boolean)
-    .slice(0, 6);
 }
 
 function asAdvisorType(value: string): PublicAdvisorProfile["advisorType"] {
@@ -234,10 +200,8 @@ function mapAssignment(assignment: CommitteeAssignmentRecord) {
 
   return {
     avatarUrl: member?.avatar_secure_url ?? null,
-    bio: assignment.bio,
     departmentName: resolveDepartmentName(member),
     displayName: assignment.display_name || member?.full_name || "Committee member",
-    endsOn: assignment.ends_on,
     facebookUrl: member?.facebook_url ?? null,
     id: assignment.id,
     jnuitsId: formatMembershipIdForDisplay(member?.jnuits_id) || null,
@@ -247,8 +211,6 @@ function mapAssignment(assignment: CommitteeAssignmentRecord) {
     roleTitle: assignment.public_title_override || role?.title || "Committee role",
     roleTitleBn: role?.title_bn || null,
     sortOrder: assignment.sort_order,
-    startsOn: assignment.starts_on,
-    status: assignment.status,
     websiteUrl: member?.website_url ?? null,
   } satisfies PublicCommitteeAssignment;
 }
@@ -292,9 +254,9 @@ async function loadAssignments(termIds: string[]) {
   const supabase = createPublicClient();
   const flexible = asFlexibleClient(supabase);
   const extendedSelect =
-    "id, term_id, display_name, bio, sort_order, starts_on, ends_on, status, is_public, public_title_override, committee_roles(title, title_bn, code, is_executive, is_public, sort_order, role_group), members(full_name, jnuits_id, department_code, avatar_secure_url, facebook_url, linkedin_url, website_url, departments(name))";
+    "id, term_id, display_name, sort_order, is_public, public_title_override, committee_roles(title, title_bn, code, is_executive, is_public, sort_order, role_group), members(full_name, jnuits_id, department_code, avatar_secure_url, facebook_url, linkedin_url, website_url, departments(name))";
   const baseSelect =
-    "id, term_id, display_name, bio, sort_order, starts_on, ends_on, status, committee_roles(title, code, is_executive, is_public, sort_order), members(full_name, jnuits_id, department_code, facebook_url, linkedin_url, website_url, departments(name))";
+    "id, term_id, display_name, sort_order, committee_roles(title, code, is_executive, is_public, sort_order), members(full_name, jnuits_id, department_code, facebook_url, linkedin_url, website_url, departments(name))";
 
   const extended = await flexible
     .from("committee_assignments" as string)
@@ -323,9 +285,9 @@ async function loadAdvisors() {
   const supabase = createPublicClient();
   const flexible = asFlexibleClient(supabase);
   const extendedSelect =
-    "id, advisor_jnuits_id, advisor_type, full_name, title, former_title, department, designation, email, avatar_secure_url, speech, bio, work_experience, publications, facebook_url, linkedin_url, website_url, jnu_profile_url, joined_on, left_on, tenure_display, date_confidence, status_note, is_current, is_public, sort_order";
+    "id, advisor_jnuits_id, advisor_type, full_name, title, former_title, department, designation, avatar_secure_url, bio, facebook_url, linkedin_url, website_url, jnu_profile_url, joined_on, left_on, tenure_display, date_confidence, status_note, is_current, is_public, sort_order";
   const baseSelect =
-    "id, advisor_type, full_name, title, department, designation, email, avatar_secure_url, speech, bio, work_experience, publications, facebook_url, linkedin_url, website_url, joined_on, left_on, is_current, is_public, sort_order";
+    "id, advisor_type, full_name, title, department, designation, avatar_secure_url, bio, facebook_url, linkedin_url, website_url, joined_on, left_on, is_current, is_public, sort_order";
 
   const extended = await flexible
     .from("advisor_profiles" as string)
@@ -357,7 +319,6 @@ async function loadAdvisors() {
     dateConfidence: advisor.date_confidence === "estimated" ? "estimated" : "verified",
     department: advisor.department,
     designation: advisor.designation,
-    email: advisor.email,
     facebookUrl: advisor.facebook_url,
     formerTitle: advisor.former_title || null,
     fullName: advisor.full_name,
@@ -367,14 +328,11 @@ async function loadAdvisors() {
     joinedOn: advisor.joined_on,
     leftOn: advisor.left_on,
     linkedinUrl: advisor.linkedin_url,
-    publications: asStringList(advisor.publications),
     sortOrder: advisor.sort_order,
-    speech: advisor.speech,
     statusNote: advisor.status_note || null,
     tenureDisplay: advisor.tenure_display || null,
     title: advisor.title,
     websiteUrl: advisor.website_url,
-    workExperience: asStringList(advisor.work_experience),
   }));
 }
 

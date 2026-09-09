@@ -8,6 +8,7 @@ import { recordSecurityEvent } from "@/lib/security/security-events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { logServerError } from "@/lib/errors/api-error";
 
 const preferencesSchema = z.object({
   notificationEmailOptIn: z
@@ -98,11 +99,8 @@ export async function savePortalProfilePreferences(formData: FormData) {
   );
 
   if (error) {
-    redirect(
-      `/portal/profile?error=${encodeURIComponent(
-        error.message || "preferences-save"
-      )}`
-    );
+    logServerError("portal preferences upsert", error);
+    redirect("/portal/profile?error=preferences-save");
   }
 
   revalidatePath("/portal/profile");
@@ -151,7 +149,8 @@ export async function requestAlumniConversionAction(formData: FormData) {
     });
 
   if (error) {
-    redirect(`/portal?error=${encodeURIComponent(error.message)}`);
+    logServerError("alumni conversion request insert", error);
+    redirect("/portal?error=account-request-failed");
   }
 
   await recordSecurityEvent(admin, {
@@ -198,7 +197,8 @@ export async function requestProfileDeletionAction(formData: FormData) {
     });
 
   if (error) {
-    redirect(`/portal?error=${encodeURIComponent(error.message)}`);
+    logServerError("profile deletion request insert", error);
+    redirect("/portal?error=account-request-failed");
   }
 
   await recordSecurityEvent(admin, {

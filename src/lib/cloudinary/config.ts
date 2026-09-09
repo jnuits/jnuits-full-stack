@@ -58,11 +58,34 @@ export function getCloudinaryPublicConfig(): CloudinaryPublicConfig {
   };
 }
 
-export function isCloudinaryAssetUrl(value: string) {
+export function isCloudinaryAssetUrl(
+  value: string,
+  expectedResourceType: "image" | "video" = "image"
+) {
   try {
     const url = new URL(value);
+    const cloudName =
+      clean(process.env.CLOUDINARY_CLOUD_NAME) ||
+      clean(process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
 
-    return url.hostname.endsWith("res.cloudinary.com");
+    if (!cloudName) {
+      return false;
+    }
+
+    const [account, resourceType, deliveryType] = url.pathname
+      .split("/")
+      .filter(Boolean);
+
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "res.cloudinary.com" &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      account === cloudName &&
+      resourceType === expectedResourceType &&
+      deliveryType === "upload"
+    );
   } catch {
     return false;
   }

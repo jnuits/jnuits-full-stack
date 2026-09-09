@@ -200,10 +200,17 @@ async function handleContactSubmit(request: NextRequest): Promise<NextResponse> 
     request.headers.get("referer")?.slice(0, 240) || "Public contact page"
   );
 
+  // Control characters have no business in a subject line; strip them so
+  // operator inboxes never see obfuscated spam formatting.
+  const safeSubjectLine = parsed.data.subject.replace(
+    /[\u0000-\u001f\u007f]/g,
+    " "
+  );
+
   const delivery = await sendEmail({
     to: brandProfile.email,
     replyTo,
-    subject: `[JnUITS Contact] ${parsed.data.subject}`,
+    subject: `[JnUITS Contact] ${safeSubjectLine}`,
     html: `
         <h2>New JnUITS contact message</h2>
         <p><strong>Name:</strong> ${safeName}</p>

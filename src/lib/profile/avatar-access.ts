@@ -1,5 +1,6 @@
 import "server-only";
 
+import { logServerError } from "@/lib/errors/api-error";
 import {
   getAuthContext,
   hasPermission,
@@ -15,6 +16,12 @@ export const PROFILE_AVATAR_MAX_BYTES = 1_048_576;
 export const PROFILE_AVATAR_MIN_DIMENSION = 400;
 export const PROFILE_AVATAR_MAX_DIMENSION = 800;
 export const PROFILE_AVATAR_STORED_DIMENSION = 400;
+export const PROFILE_AVATAR_ALLOWED_FORMATS = [
+  "jpg",
+  "jpeg",
+  "png",
+  "webp",
+] as const;
 
 export type AvatarTargetType = "admin_profile" | "member";
 
@@ -114,8 +121,9 @@ export async function authorizeAvatarTarget(
     const memberUserId = asOptionalString(member.user_id);
 
     if (error) {
+      logServerError("avatar-access member lookup", error);
       return {
-        message: error.message,
+        message: "Member profile could not be loaded.",
         ok: false,
         status: 500,
       };
@@ -173,8 +181,9 @@ export async function authorizeAvatarTarget(
   const profileUserId = asOptionalString(profile.user_id);
 
   if (error) {
+    logServerError("avatar-access admin profile lookup", error);
     return {
-      message: error.message,
+      message: "Admin profile could not be loaded.",
       ok: false,
       status: 500,
     };

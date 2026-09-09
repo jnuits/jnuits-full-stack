@@ -209,10 +209,13 @@ type BlogPostRecordWithRelations = ContentPostRecord & {
   members?: BlogMemberAuthorRecord | BlogMemberAuthorRecord[] | null;
 };
 
-const contentPostSelect =
-  "id, slug, title, category, summary, excerpt, body, published_at, read_time, location, starts_at, ends_at, cta_href, content_type, status, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)";
-const blogContentPostSelect =
-  `${contentPostSelect}, author_member_id, author_advisor_profile_id, members!content_posts_author_member_id_fkey(full_name, member_type), advisor_profiles!content_posts_author_advisor_profile_id_fkey(full_name, title, is_public)`;
+const contentPostCoreSelect =
+  "id, slug, title, category, summary, excerpt, published_at, read_time, location, starts_at, ends_at, cta_href, content_type, status, media_assets(secure_url, thumbnail_url, alt_text, title, media_kind)";
+const contentPostSelect = `${contentPostCoreSelect}, body`;
+const blogAuthorRelationSelect =
+  "author_member_id, author_advisor_profile_id, members!content_posts_author_member_id_fkey(full_name, member_type), advisor_profiles!content_posts_author_advisor_profile_id_fkey(full_name, title, is_public)";
+const blogContentPostSelect = `${contentPostSelect}, ${blogAuthorRelationSelect}`;
+const blogListPostSelect = `${contentPostCoreSelect}, ${blogAuthorRelationSelect}`;
 
 const fallbackBlogImage = "/images/home-group.jpg";
 const fallbackEventImage = "/images/workshop.jpg";
@@ -1206,9 +1209,11 @@ export const getAboutContent = cache(async () => {
 
 export const getPublishedBlogs = cache(async () => {
   const supabase = createPublicClient();
+  // List cards only need teaser fields; the full markdown body is fetched
+  // per-post by getPublishedPostByIdentifier.
   const { data } = await supabase
     .from("content_posts")
-    .select(blogContentPostSelect)
+    .select(blogListPostSelect)
     .eq("content_type", "blog")
     .eq("status", "published")
     .order("published_at", { ascending: false })

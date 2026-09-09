@@ -25,14 +25,18 @@ export function buildContentSecurityPolicy({
     "img-src 'self' data: blob: https://res.cloudinary.com",
     "font-src 'self' data:",
     "connect-src 'self' https://*.supabase.co https://api.pwnedpasswords.com https://challenges.cloudflare.com https://*.sentry.io",
-    "frame-src 'self' https://challenges.cloudflare.com",
+    "frame-src 'self' https://challenges.cloudflare.com https://www.google.com",
     "form-action 'self'",
   ].join("; ");
 }
 
 export function buildSecurityHeaders({
   allowUnsafeEval = process.env.NODE_ENV !== "production",
-  includeHsts = process.env.VERCEL_ENV === "production",
+  // HSTS must not depend on the hosting platform: any production build
+  // (Vercel or self-hosted) enforces HTTPS-only transport.
+  includeHsts =
+    process.env.VERCEL_ENV === "production" ||
+    process.env.NODE_ENV === "production",
 }: {
   allowUnsafeEval?: boolean;
   includeHsts?: boolean;

@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 50
     env:
       APP_BASE_URL: https://jnuits.org.bd
+      APP_MAC_SECRET: ci-placeholder-application-mac-secret-000000000000
       AUTH_CAPTCHA_REQUIRED: "true"
       CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
       CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret

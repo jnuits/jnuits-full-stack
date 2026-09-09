@@ -1,4 +1,7 @@
+import { cache } from "react";
+
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createPublicClient } from "@/lib/supabase/public";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -81,88 +84,93 @@ export interface ProjectFilters {
 }
 
 /** Returns non-archived projects, optional category/status filter. */
-export async function getPublishedProjects(
-  filters?: ProjectFilters
-): Promise<ProjectSummary[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const admin = createAdminClient() as any;
+export const getPublishedProjects = cache(
+  async (filters?: ProjectFilters): Promise<ProjectSummary[]> => {
+    const supabase = createPublicClient();
 
-  let query = admin
-    .from("projects")
-    .select("id, slug, title, tagline, description, tech_stack, category, status, cover_image_url, github_url, demo_url, is_featured, started_at, completed_at, created_at, project_contributors(id)")
-    .neq("status", "archived")
-    .order("is_featured", { ascending: false })
-    .order("created_at", { ascending: false });
+    let query = supabase
+      .from("projects")
+      .select("id, slug, title, tagline, description, tech_stack, category, status, cover_image_url, github_url, demo_url, is_featured, started_at, completed_at, created_at, project_contributors(id)")
+      .neq("status", "archived")
+      .order("is_featured", { ascending: false })
+      .order("created_at", { ascending: false });
 
-  if (filters?.category && filters.category !== "all") {
-    query = query.eq("category", filters.category);
+    if (filters?.category && filters.category !== "all") {
+      query = query.eq("category", filters.category);
+    }
+    if (filters?.status && filters.status !== "all") {
+      query = query.eq("status", filters.status);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) return [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data as any[]).map((row) => {
+      const contributors = Array.isArray(row.project_contributors)
+        ? row.project_contributors
+        : [];
+      return normaliseProject(row, contributors.length);
+    });
   }
-  if (filters?.status && filters.status !== "all") {
-    query = query.eq("status", filters.status);
-  }
-
-  const { data, error } = await query;
-  if (error || !data) return [];
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data as any[]).map((row) => {
-    const contributors = Array.isArray(row.project_contributors)
-      ? row.project_contributors
-      : [];
-    return normaliseProject(row, contributors.length);
-  });
-}
+);
 
 /** Returns a single project with its full contributor list. */
-export async function getProjectBySlug(slug: string): Promise<ProjectDetail | null> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const admin = createAdminClient() as any;
+export const getProjectBySlug = cache(
+  async (slug: string): Promise<ProjectDetail | null> => {
+    // Contributor identity lives in `members` (owner/admin-only SELECT), so
+    // this one join cannot run under the anon client. The projection below is
+    // limited to public-safe display columns.
+    const supabase = createAdminClient();
 
-  const { data: projectData, error: projectError } = await admin
-    .from("projects")
-    .select("id, slug, title, tagline, description, tech_stack, category, status, cover_image_url, github_url, demo_url, is_featured, started_at, completed_at, created_at")
-    .eq("slug", slug)
-    .maybeSingle();
+    const { data: projectData, error: projectError } = await supabase
+      .from("projects")
+      .select("id, slug, title, tagline, description, tech_stack, category, status, cover_image_url, github_url, demo_url, is_featured, started_at, completed_at, created_at")
+      .eq("slug", slug)
+      .neq("status", "archived")
+      .maybeSingle();
 
-  if (projectError || !projectData) return null;
+    if (projectError || !projectData) return null;
 
-  const { data: contributorData } = await admin
-    .from("project_contributors")
-    .select("member_id, role, joined_at, members(jnuits_id, full_name, batch_no, department_name)")
-    .eq("project_id", projectData.id)
-    .order("joined_at", { ascending: true, nullsFirst: false });
+    const { data: contributorData } = await supabase
+      .from("project_contributors")
+      .select("member_id, role, joined_at, members(jnuits_id, full_name, batch_no, department_name)")
+      .eq("project_id", projectData.id)
+      .order("joined_at", { ascending: true, nullsFirst: false });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const contributors = ((contributorData ?? []) as any[]).map(normaliseContributor);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contributors = ((contributorData ?? []) as any[]).map(normaliseContributor);
 
-  return {
-    ...normaliseProject(projectData, contributors.length),
-    contributors,
-  };
-}
+    return {
+      ...normaliseProject(projectData, contributors.length),
+      contributors,
+    };
+  }
+);
 
 /** Returns projects a given member contributed to. */
-export async function getMemberProjects(memberId: string): Promise<ProjectSummary[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const admin = createAdminClient() as any;
+export const getMemberProjects = cache(
+  async (memberId: string): Promise<ProjectSummary[]> => {
+    const supabase = createPublicClient();
 
-  const { data, error } = await admin
-    .from("project_contributors")
-    .select("role, projects(id, slug, title, tagline, description, tech_stack, category, status, cover_image_url, github_url, demo_url, is_featured, started_at, completed_at, created_at)")
-    .eq("member_id", memberId)
-    .neq("projects.status", "archived")
-    .order("created_at", { referencedTable: "projects", ascending: false });
+    const { data, error } = await supabase
+      .from("project_contributors")
+      .select("role, projects(id, slug, title, tagline, description, tech_stack, category, status, cover_image_url, github_url, demo_url, is_featured, started_at, completed_at, created_at)")
+      .eq("member_id", memberId)
+      .neq("projects.status", "archived")
+      .order("created_at", { referencedTable: "projects", ascending: false });
 
-  if (error || !data) return [];
+    if (error || !data) return [];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data as any[])
-    .map((row) => {
-      const proj = Array.isArray(row.projects) ? row.projects[0] : row.projects;
-      return proj ? normaliseProject(proj) : null;
-    })
-    .filter((p): p is ProjectSummary => p !== null);
-}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data as any[])
+      .map((row) => {
+        const proj = Array.isArray(row.projects) ? row.projects[0] : row.projects;
+        return proj ? normaliseProject(proj) : null;
+      })
+      .filter((p): p is ProjectSummary => p !== null);
+  }
+);
 
 /** Returns all projects for admin (including archived). */
 export async function getAllProjectsForAdmin(): Promise<ProjectSummary[]> {

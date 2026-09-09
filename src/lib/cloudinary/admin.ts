@@ -26,6 +26,74 @@ export type CloudinaryRenameResult = {
   width?: number;
 };
 
+export type CloudinaryImageResource = {
+  bytes: number;
+  format: string;
+  height: number;
+  publicId: string;
+  resourceType: string;
+  secureUrl: string;
+  type: string;
+  width: number;
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+export async function getCloudinaryImageResource(
+  publicId: string
+): Promise<CloudinaryImageResource> {
+  const config = getCloudinaryConfig();
+  const endpoint =
+    `https://api.cloudinary.com/v1_1/${config.cloudName}` +
+    `/resources/image/upload/${encodeURIComponent(publicId)}`;
+  const response = await fetch(endpoint, {
+    cache: "no-store",
+    headers: {
+      Authorization: `Basic ${Buffer.from(
+        `${config.apiKey}:${config.apiSecret}`
+      ).toString("base64")}`,
+    },
+  });
+  const payload = asRecord(await response.json().catch(() => null));
+
+  if (!response.ok) {
+    const cloudinaryError = asRecord(payload.error);
+    throw new Error(
+      typeof cloudinaryError.message === "string"
+        ? cloudinaryError.message
+        : "Cloudinary could not load the uploaded resource."
+    );
+  }
+
+  if (
+    typeof payload.bytes !== "number" ||
+    typeof payload.format !== "string" ||
+    typeof payload.height !== "number" ||
+    typeof payload.public_id !== "string" ||
+    typeof payload.resource_type !== "string" ||
+    typeof payload.secure_url !== "string" ||
+    typeof payload.type !== "string" ||
+    typeof payload.width !== "number"
+  ) {
+    throw new Error("Cloudinary returned incomplete metadata for the avatar.");
+  }
+
+  return {
+    bytes: payload.bytes,
+    format: payload.format.toLowerCase(),
+    height: payload.height,
+    publicId: payload.public_id,
+    resourceType: payload.resource_type,
+    secureUrl: payload.secure_url,
+    type: payload.type,
+    width: payload.width,
+  };
+}
+
 export function normalizeCloudinaryResourceType(
   resourceType: string | null | undefined
 ): CloudinaryAdminResourceType {

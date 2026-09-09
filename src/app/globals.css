@@ -4871,6 +4871,14 @@
   font-size: 0.82rem;
   font-weight: 700;
   color: color-mix(in oklab, var(--foreground) 86%, transparent);
+  min-width: 0;
+}
+
+.input-label > input,
+.input-label > select,
+.input-label > textarea {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .queue-link {
@@ -4911,6 +4919,9 @@
 .portal-form-grid {
   display: grid;
   gap: 1rem;
+  /* Constrain the implicit single-column track so wide intrinsic
+     content (file inputs, long values) cannot blow out the page. */
+  grid-auto-columns: minmax(0, 1fr);
 }
 
 .portal-message {
@@ -6766,7 +6777,7 @@ ul.clean-list {
   }
 }
 
-@media (min-width: 769px) and (max-width: 1099px) {
+@media (min-width: 768px) and (max-width: 1099px) {
   .about-hero {
     grid-template-columns: 1fr;
   }
@@ -7482,6 +7493,40 @@ footer {
   padding: 1.75rem 2rem 3rem;
 }
 
+/* Grid/flex items inside admin pages must be allowed to shrink below their
+   content's intrinsic width, otherwise long unbreakable strings (raw asset
+   IDs, JSON blobs) blow the page out horizontally. */
+.admin-content .grid > *,
+.admin-content [class*="grid-cols"] > *,
+.admin-content :is(
+  .admin-review-card,
+  .admin-metric-grid,
+  .admin-filter-form,
+  .admin-filter-grid,
+  .admin-quick-grid,
+  .admin-dashboard-split,
+  .admin-hub-grid,
+  .admin-album-create-flow,
+  .admin-create-upload-zone,
+  .admin-gallery-filter-bar,
+  .admin-gallery-list-row,
+  .admin-gallery-row,
+  .admin-editor-tabs,
+  .admin-album-details-grid,
+  .admin-media-workspace,
+  .admin-media-grid,
+  .admin-media-card,
+  .admin-media-drawer,
+  .admin-invite-layout,
+  .admin-invite-card,
+  .admin-invite-search-form,
+  .admin-slider-card,
+  .admin-slider-add-form,
+  .section-band
+) > * {
+  min-width: 0;
+}
+
 /* Page header */
 .admin-page-header {
   display: flex;
@@ -8058,7 +8103,9 @@ footer {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  white-space: nowrap;
+  white-space: normal;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   border: 1px solid transparent;
 }
 
@@ -8152,6 +8199,7 @@ footer {
   border-radius: 0.9rem;
   background: var(--card);
   transition: background 130ms ease, border-color 130ms ease;
+  min-width: 0;
 }
 
 .admin-card-row:hover {
@@ -8170,6 +8218,10 @@ footer {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Keeps long unbreakable tokens (e.g. Cloudinary public IDs) from
+     inflating grid-track min-content size; the row above constrains
+     the actual box so the ellipsis below still applies. */
+  overflow-wrap: anywhere;
 }
 
 .admin-card-row__meta {
@@ -8179,6 +8231,7 @@ footer {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .admin-card-row__actions {

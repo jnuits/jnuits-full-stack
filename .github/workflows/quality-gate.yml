@@ -50,6 +50,7 @@ jobs:
     timeout-minutes: 20
     env:
       APP_BASE_URL: https://jnuits.org.bd
+      APP_MAC_SECRET: ci-placeholder-application-mac-secret-000000000000
       AUTH_CAPTCHA_REQUIRED: "true"
       CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
       CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret
@@ -105,6 +106,7 @@ jobs:
     timeout-minutes: 25
     env:
       APP_BASE_URL: https://jnuits.org.bd
+      APP_MAC_SECRET: ci-placeholder-application-mac-secret-000000000000
       AUTH_CAPTCHA_REQUIRED: "true"
       CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
       CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret
@@ -310,6 +312,7 @@ jobs:
     timeout-minutes: 35
     env:
       APP_BASE_URL: https://jnuits.org.bd
+      APP_MAC_SECRET: ci-placeholder-application-mac-secret-000000000000
       AUTH_CAPTCHA_REQUIRED: "true"
       CLOUDINARY_API_KEY: ci-placeholder-cloudinary-api-key
       CLOUDINARY_API_SECRET: ci-placeholder-cloudinary-api-secret
@@ -420,11 +423,17 @@ jobs:
 
   secret_scan:
     name: Secret scan
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout full history
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Checkout fork pull request merge result
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -435,4 +444,12 @@ jobs:
           version: 8.24.3
 
       - name: Scan committed history
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
         run: gitleaks git --redact=100 --verbose --log-opts="--all" .
+
+      - name: Scan fork pull request diff
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true
+        env:
+          FORK_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          FORK_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: gitleaks git --redact=100 --verbose --log-opts="$FORK_PR_BASE_SHA..$FORK_PR_HEAD_SHA" .

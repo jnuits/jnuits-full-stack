@@ -9,11 +9,9 @@
 --   ENFORCED  - replay completeness, the bootstrap dependency, non-empty
 --               object inventories, and SECURITY DEFINER search_path pinning.
 --               None of these can produce a false failure.
---   EVIDENCE  - installed extensions, RLS coverage, anon and authenticated
---               write grants, and the applied version range. Raised as
---               notices rather than exceptions, because their legitimate
---               allowlists are not empty yet. Promote each one after a real
---               run establishes its allowlist. Do not promote by guessing.
+--   EVIDENCE  - installed extensions, anon and authenticated write grants,
+--               and the applied version range. Raised as notices rather than
+--               exceptions while the historical grant posture is unresolved.
 --
 -- What the Linux replay on 2026-07-27 established:
 --
@@ -21,12 +19,9 @@
 --   68 tables, 2 views, 66 functions, 142 policies, 51 triggers,
 --   413 constraints, 8 extensions
 --   34 of 34 SECURITY DEFINER functions pin search_path  -> now ENFORCED 4
---   1 table without RLS, membership_id_sequences         -> issue #76
+--   1 table without RLS, membership_id_sequences         -> fixed by the
+--                                                           20260825000000 migration
 --   anon and authenticated hold TRUNCATE by default ACL  -> issue #75
---
--- The membership_id_sequences finding is recovery drift, not a production
--- hole: production has RLS on that table, and a database rebuilt from the
--- migration chain does not. That is why EVIDENCE rls is still a notice.
 --
 -- No connection string, project ref, key, or PII is emitted anywhere below.
 
@@ -263,6 +258,191 @@ end
 $definer$;
 
 -- ---------------------------------------------------------------------------
+-- ENFORCED 5: application-specific hardening migrations deliver their stated
+-- guarantees. These are catalog checks rather than comments or NOTICE-only
+-- data guards: a migration recorded as applied must leave every invariant in
+-- place or the disposable replay fails.
+-- ---------------------------------------------------------------------------
+do $phase2_security$
+declare
+  invitation_using text;
+  invitation_check text;
+begin
+  if not exists (
+    select 1 from pg_class
+    where oid = 'public.membership_id_sequences'::regclass
+      and relrowsecurity
+  ) then
+    raise exception 'ENFORCED 5 failed: membership_id_sequences RLS is disabled.';
+  end if;
+
+  if has_table_privilege('anon', 'public.membership_id_sequences', 'SELECT')
+     or has_table_privilege('anon', 'public.membership_id_sequences', 'INSERT')
+     or has_table_privilege('anon', 'public.membership_id_sequences', 'UPDATE')
+     or has_table_privilege('anon', 'public.membership_id_sequences', 'DELETE')
+     or has_table_privilege('authenticated', 'public.membership_id_sequences', 'SELECT')
+     or has_table_privilege('authenticated', 'public.membership_id_sequences', 'INSERT')
+     or has_table_privilege('authenticated', 'public.membership_id_sequences', 'UPDATE')
+     or has_table_privilege('authenticated', 'public.membership_id_sequences', 'DELETE') then
+    raise exception 'ENFORCED 5 failed: browser roles retain membership_id_sequences privileges.';
+  end if;
+
+  select qual, with_check into invitation_using, invitation_check
+  from pg_policies
+  where schemaname = 'public'
+    and tablename = 'admin_invitations'
+    and policyname = 'admin invitations admin update';
+
+  if invitation_using is null
+     or invitation_check is null
+     or invitation_using not ilike '%invited_role_code%content_admin%'
+     or invitation_check not ilike '%invited_role_code%content_admin%'
+     or invitation_using ilike '%target_user_id%'
+     or invitation_check ilike '%target_user_id%' then
+    raise exception 'ENFORCED 5 failed: delegated admin invitation updates are not restricted to content_admin.';
+  end if;
+
+  if exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'operator_reports'
+      and cmd = 'INSERT'
+  ) then
+    raise exception 'ENFORCED 5 failed: operator_reports still has a browser INSERT policy.';
+  end if;
+
+  if has_function_privilege('anon', 'public.current_admin_role()', 'EXECUTE')
+     or has_function_privilege('anon', 'public.current_portal_role()', 'EXECUTE')
+     or has_function_privilege('anon', 'public.is_aal2()', 'EXECUTE') then
+    raise exception 'ENFORCED 5 failed: anon can execute an RBAC helper.';
+  end if;
+
+  raise notice 'ENFORCED 5 security policies passed.';
+end
+$phase2_security$;
+
+do $phase2_integrity$
+declare
+  event_delete "char";
+  post_delete "char";
+begin
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname = 'public'
+      and indexname = 'members_student_id_active_unique'
+      and indexdef ilike 'create unique index%lower(student_id)%'
+  ) then
+    raise exception 'ENFORCED 5 failed: active member student-id uniqueness is absent.';
+  end if;
+
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname = 'public'
+      and indexname = 'admin_invitations_one_pending_per_email'
+      and indexdef ilike 'create unique index%lower%email%'
+  ) then
+    raise exception 'ENFORCED 5 failed: pending invitation email uniqueness is not case-insensitive.';
+  end if;
+
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname = 'public'
+      and indexname = 'profile_update_requests_one_pending_per_type'
+      and indexdef ilike 'create unique index%member_id%request_type%'
+      and indexdef ilike '%status%pending%'
+  ) then
+    raise exception 'ENFORCED 5 failed: pending profile request uniqueness is absent.';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.alumni_onboarding_cases'::regclass
+      and conname = 'alumni_onboarding_cases_jnuits_id_format'
+      and contype = 'c'
+      and convalidated
+  ) then
+    raise exception 'ENFORCED 5 failed: validated alumni JnUITS-ID CHECK is absent.';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.event_registrations'::regclass
+      and conname = 'event_registrations_cancellation_consistent'
+      and contype = 'c'
+      and convalidated
+  ) then
+    raise exception 'ENFORCED 5 failed: cancellation status/timestamp CHECK is absent.';
+  end if;
+
+  if not exists (
+    select 1 from pg_trigger
+    where tgrelid = 'public.event_registrations'::regclass
+      and tgname = 'event_registrations_cancellation_sync'
+      and not tgisinternal
+      and (tgtype & 4) = 4
+      and (tgtype & 16) = 16
+  ) then
+    raise exception 'ENFORCED 5 failed: cancellation sync does not cover INSERT and UPDATE.';
+  end if;
+
+  select c.confdeltype into event_delete
+  from pg_constraint c
+  join pg_attribute a
+    on a.attrelid = c.conrelid and a.attnum = any(c.conkey)
+  where c.conrelid = 'public.event_registrations'::regclass
+    and c.confrelid = 'public.events'::regclass
+    and c.contype = 'f'
+    and a.attname = 'event_id'
+  limit 1;
+
+  select c.confdeltype into post_delete
+  from pg_constraint c
+  join pg_attribute a
+    on a.attrelid = c.conrelid and a.attnum = any(c.conkey)
+  where c.conrelid = 'public.event_registrations'::regclass
+    and c.confrelid = 'public.content_posts'::regclass
+    and c.contype = 'f'
+    and a.attname = 'event_post_id'
+  limit 1;
+
+  if event_delete is distinct from 'r' then
+    raise exception 'ENFORCED 5 failed: event registration event FK is not RESTRICT.';
+  end if;
+  if post_delete is distinct from 'n' then
+    raise exception 'ENFORCED 5 failed: event-post FK is not SET NULL.';
+  end if;
+
+  raise notice 'ENFORCED 5 integrity constraints passed.';
+end
+$phase2_integrity$;
+
+do $directory_facets$
+begin
+  if to_regprocedure(
+    'public.get_member_directory_facets(boolean,text,text,text,text)'
+  ) is null then
+    raise exception 'ENFORCED 5 failed: member-directory facet RPC is absent.';
+  end if;
+
+  if has_function_privilege(
+    'anon',
+    'public.get_member_directory_facets(boolean,text,text,text,text)',
+    'EXECUTE'
+  ) or has_function_privilege(
+    'authenticated',
+    'public.get_member_directory_facets(boolean,text,text,text,text)',
+    'EXECUTE'
+  ) then
+    raise exception 'ENFORCED 5 failed: browser roles can execute the service-only directory facet RPC.';
+  end if;
+
+  raise notice 'ENFORCED 5 directory facet RPC passed.';
+end
+$directory_facets$;
+
+-- ---------------------------------------------------------------------------
 -- EVIDENCE 1: installed extensions.
 -- ---------------------------------------------------------------------------
 do $extensions$
@@ -277,16 +457,10 @@ end
 $extensions$;
 
 -- ---------------------------------------------------------------------------
--- EVIDENCE 2: tables in public without RLS enabled.
+-- ENFORCED 6: every public table has RLS enabled.
 --
--- Still a notice, and the allowlist is NOT empty. The 2026-07-27 run found
--- exactly one offender, membership_id_sequences, which production does have
--- RLS on. That difference is recovery drift, tracked in issue #76: a database
--- rebuilt from the migration chain does not reproduce production's posture.
---
--- Promote this block to ENFORCED once #76 lands a forward migration and this
--- reports nothing. Do not promote it by allowlisting the offender; that would
--- bless the drift instead of fixing it.
+-- The 20260825000000 migration closed the sole replay drift found on
+-- 2026-07-27, so a newly introduced table without RLS is now a hard failure.
 -- ---------------------------------------------------------------------------
 do $rls$
 declare
@@ -299,11 +473,11 @@ begin
     and relname not like '\_jnuits\_%'
     and not relrowsecurity;
 
-  if offenders is null then
-    raise notice 'EVIDENCE rls: every table in public has RLS enabled.';
-  else
-    raise notice 'EVIDENCE rls: tables WITHOUT RLS enabled (see issue #76): %', offenders;
+  if offenders is not null then
+    raise exception 'ENFORCED 6 failed: public tables without RLS: %', offenders;
   end if;
+
+  raise notice 'ENFORCED 6 passed: every table in public has RLS enabled.';
 end
 $rls$;
 
