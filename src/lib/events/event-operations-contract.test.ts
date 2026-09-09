@@ -27,6 +27,7 @@ describe("event operations workspace contract", () => {
 
   it("records complete bounded export evidence", () => {
     expect(exportRoute).toContain("MAX_EXPORT_ROWS = 10_000");
+    expect(exportRoute).toContain("MAX_CSV_EXPORT_ROWS = 50_000");
     expect(exportRoute).toContain("form_version_ids");
     expect(exportRoute).toContain("filter_metadata: evidence");
     expect(exportRoute).toContain("requested_by_user_id");
@@ -50,8 +51,10 @@ describe("event operations workspace contract", () => {
   it("paginates exports deterministically without rejecting an exact-cap result", () => {
     expect(exportRoute).toContain('.order("id", { ascending: true })');
     expect(exportRoute).toContain("from < totalRows");
-    expect(exportRoute).toContain("streamRegistrationsCsv({");
-    expect(exportRoute).toContain("totalRows,");
+    expect(exportRoute).toContain(
+      "const rows = await loadExportRows(admin, event, filters, totalRows)",
+    );
+    expect(exportRoute).not.toContain("new ReadableStream");
     expect(exportRoute).not.toContain("from < MAX_EXPORT_ROWS");
     expect(exportRoute).not.toContain("from < maxRows");
   });

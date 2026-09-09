@@ -1,17 +1,13 @@
-import { createHash, type Hash } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import { hasPermission } from "@/lib/auth/session";
 import { resolveEventForAdminMutation } from "@/lib/content/events";
 import {
-  eventRegistrationExportColumns,
-  eventRegistrationToExportRecord,
   eventRegistrationsToExportTable,
   type EventRegistrationExportRow,
 } from "@/lib/exports/event-registrations";
-import { createCsv, createCsvHeader, createCsvRow, sha256 } from "@/lib/exports/tabular";
+import { createCsv, sha256 } from "@/lib/exports/tabular";
 import { createXlsxWorkbook } from "@/lib/exports/xlsx";
-import { logServerError } from "@/lib/errors/api-error";
 import {
   buildEventRegistrationSearchPattern,
   parseEventRegistrationFilters,
@@ -26,8 +22,9 @@ export const runtime = "nodejs";
 const EXPORT_PAGE_SIZE = 500;
 // Buffered formats (xlsx/google-sheet) hold the full dataset in memory.
 const MAX_EXPORT_ROWS = 10_000;
-// Streamed CSV keeps only one page in memory at a time, so the cap can be higher.
-const MAX_STREAMED_CSV_ROWS = 50_000;
+// CSV is also buffered so pagination and evidence failures happen before a
+// successful download response. Keep a hard cap to bound function memory.
+const MAX_CSV_EXPORT_ROWS = 50_000;
 const EXPORT_ROW_SELECT =
   "registrant_name, registrant_email, registrant_phone, registration_code, registration_status, created_at, waitlisted_at, promoted_at, checked_in_at, cancelled_at, form_submissions(form_version_id)";
 type EventTarget = { id: string; legacyContentPostId: null | string };
@@ -112,131 +109,14 @@ async function countExportRows(
   return count ?? 0;
 }
 
-/** Yields one fetched page at a time up to the already validated row count. */
-async function* iterateExportPages(
-  admin: ReturnType<typeof asFlexibleClient>,
-  event: EventTarget,
-  filters: RegistrationFilters,
-  totalRows: number,
-) {
-  for (let from = 0; from < totalRows; from += EXPORT_PAGE_SIZE) {
-    const to = Math.min(from + EXPORT_PAGE_SIZE - 1, totalRows - 1);
-    const { data, error } = await applyRegistrationFilters(
-      admin
-        .from("event_registrations")
-        .select(EXPORT_ROW_SELECT)
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true }),
-      event,
-      filters,
-    ).range(from, to);
-    if (error) throw new Error("Event registrations could not be exported.");
-    const page = (data || []) as unknown as ExportRegistrationRow[];
-    yield page;
-    if (page.length < to - from + 1) return;
-  }
-}
-
-function rowFormVersionIds(row: ExportRegistrationRow) {
-  const relation = row.form_submissions;
-  const submissions = Array.isArray(relation) ? relation : relation ? [relation] : [];
-  return submissions.map((item) => item.form_version_id).filter((id): id is string => Boolean(id));
-}
-
 function formVersionIds(rows: ExportRegistrationRow[]) {
-  return Array.from(new Set(rows.flatMap(rowFormVersionIds))).sort();
-}
-
-function enqueueCsvChunk(
-  controller: ReadableStreamDefaultController<Uint8Array>,
-  encoder: TextEncoder,
-  hash: Hash,
-  text: string
-) {
-  const chunk = encoder.encode(text);
-  hash.update(chunk);
-  controller.enqueue(chunk);
-}
-
-/**
- * Streams CSV page-by-page so memory stays bounded. The export job and audit
- * evidence rows are written when the stream completes (checksum/row count are
- * only known then); if the client aborts mid-stream no job row is recorded.
- */
-function streamRegistrationsCsv(options: {
-  admin: ReturnType<typeof asFlexibleClient>;
-  event: EventTarget;
-  filters: RegistrationFilters;
-  actorUserId: string;
-  totalRows: number;
-}) {
-  const encoder = new TextEncoder();
-  const hash = createHash("sha256");
-  const pages = iterateExportPages(options.admin, options.event, options.filters, options.totalRows);
-  const versionIds = new Set<string>();
-  let rowCount = 0;
-  let headerSent = false;
-
-  async function persistEvidence(checksum: string) {
-    const evidence = {
-      exported_at: new Date().toISOString(),
-      form_version_ids: Array.from(versionIds).sort(),
-      query: options.filters.query || null,
-      schema_version: 1,
-      status: options.filters.status,
-    };
-    try {
-      const job = await options.admin.from("event_export_jobs").insert({
-        checksum_sha256: checksum,
-        destination: "download",
-        event_id: options.event.id,
-        export_kind: "event_registrations",
-        filter_metadata: evidence,
-        format: "csv",
-        google_drive_file_id: null,
-        requested_by_user_id: options.actorUserId,
-        row_count: rowCount,
-        status: "completed",
-      });
-      if (job.error) throw job.error;
-      const audit = await options.admin.from("audit_events").insert({
-        action: "event.registrations_exported",
-        actor_user_id: options.actorUserId,
-        entity_id: options.event.id,
-        entity_type: "event",
-        metadata: { ...evidence, destination: "download", format: "csv", google_drive_file_id: null, row_count: rowCount, sha256: checksum },
-      });
-      if (audit.error) throw audit.error;
-    } catch (error) {
-      logServerError("event registrations streamed export evidence", error);
-    }
-  }
-
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        if (!headerSent) {
-          headerSent = true;
-          enqueueCsvChunk(controller, encoder, hash, createCsvHeader(eventRegistrationExportColumns));
-        }
-        const { value, done } = await pages.next();
-        if (done) {
-          await persistEvidence(hash.digest("hex"));
-          controller.close();
-          return;
-        }
-        for (const id of value.flatMap(rowFormVersionIds)) versionIds.add(id);
-        const lines = value
-          .map((row) => createCsvRow(eventRegistrationExportColumns, eventRegistrationToExportRecord(row)))
-          .join("");
-        if (lines) enqueueCsvChunk(controller, encoder, hash, lines);
-        rowCount += value.length;
-      } catch (error) {
-        logServerError("event registrations streamed export", error);
-        controller.error(error);
-      }
-    },
-  });
+  return Array.from(new Set(rows.flatMap((row) => {
+    const relation = row.form_submissions;
+    const submissions = Array.isArray(relation) ? relation : relation ? [relation] : [];
+    return submissions
+      .map((item) => item.form_version_id)
+      .filter((id): id is string => Boolean(id));
+  }))).sort();
 }
 
 async function handleGet(request: NextRequest) {
@@ -265,29 +145,12 @@ async function handleGet(request: NextRequest) {
     if (totalRows === null) {
       return NextResponse.json({ error: "Event registrations could not be exported." }, { status: 500 });
     }
-    const maxRows = format === "csv" ? MAX_STREAMED_CSV_ROWS : MAX_EXPORT_ROWS;
+    const maxRows = format === "csv" ? MAX_CSV_EXPORT_ROWS : MAX_EXPORT_ROWS;
     if (totalRows > maxRows) {
       return NextResponse.json(
         { error: `This export exceeds the ${maxRows.toLocaleString("en-US")}-row safety limit.` },
         { status: 422 },
       );
-    }
-
-    if (format === "csv") {
-      const stream = streamRegistrationsCsv({
-        actorUserId: permission.auth.user.id,
-        admin,
-        event,
-        filters,
-        totalRows,
-      });
-      // Checksum/row-count headers are omitted: they are only known after the
-      // final page; the authoritative values live in the export job + audit rows.
-      return new NextResponse(stream, { headers: {
-        "Cache-Control": "private, no-store",
-        "Content-Disposition": `attachment; filename="${exportName}.csv"`,
-        "Content-Type": "text/csv; charset=utf-8",
-      }});
     }
 
     const rows = await loadExportRows(admin, event, filters, totalRows);
@@ -329,6 +192,13 @@ async function handleGet(request: NextRequest) {
     });
     if (audit.error) return NextResponse.json({ error: "The export audit record could not be saved." }, { status: 500 });
     if (googleSheet) return NextResponse.json({ id: googleSheet.id, success: true, webViewLink: googleSheet.webViewLink }, { headers: { "Cache-Control": "private, no-store" } });
+    if (format === "csv") return new NextResponse(csv, { headers: {
+      "Cache-Control": "private, no-store",
+      "Content-Disposition": `attachment; filename="${exportName}.csv"`,
+      "Content-Type": "text/csv; charset=utf-8",
+      "X-Export-Checksum": checksum,
+      "X-Export-Row-Count": String(rows.length),
+    }});
     const contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     return new NextResponse(body, { headers: {
       "Cache-Control": "private, no-store",
