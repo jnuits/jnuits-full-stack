@@ -1,4 +1,4 @@
-# JnUITS Full Stack 16.2.11 [Restored]
+# JnUITS Full Stack 16.2.11 [prod]
 
 Unified Next.js + Supabase application for the JnUITS public site, member portal, certificate verification, and technical admin workflows.
 
