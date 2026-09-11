@@ -25,6 +25,17 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  async redirects() {
+    return [
+      {
+        source: "/memberDirectory",
+        destination: "https://memberlistjnuits.vercel.app/",
+        permanent: true, // true দিলে ব্রাউজার এটা ক্যাশ করে রাখবে (308 redirect)। প্রয়োজন হলে false দিতে পারেন।
+      },
+    ];
+  },
+  
   images: {
     // Cloudinary already applies bounded transformations. Avoid Next's optional
     // Sharp optimizer until stable Next supports patched Sharp 0.35.x.
