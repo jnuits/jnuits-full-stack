@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
       {
         source: "/memberDirectory",
         destination: "https://memberlistjnuits.vercel.app/",
-        permanent: true, // true দিলে ব্রাউজার এটা ক্যাশ করে রাখবে (308 redirect)। প্রয়োজন হলে false দিতে পারেন।
+        permanent: false, // true দিলে ব্রাউজার এটা ক্যাশ করে রাখবে (308 redirect)। প্রয়োজন হলে false দিতে পারেন।
       },
     ];
   },
