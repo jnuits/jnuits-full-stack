@@ -365,12 +365,7 @@ export async function TicketsScreen({
                             return (
                               <div
                                 key={messageRecord.id}
-                                style={{
-                                  border: "1px solid var(--line)",
-                                  borderRadius: "1rem",
-                                  padding: "0.85rem 1rem",
-                                  background: "var(--surface-2)",
-                                }}
+                                className="portal-message-bubble"
                               >
                                 <div
                                   style={{
@@ -394,6 +389,8 @@ export async function TicketsScreen({
                                     fontSize: "0.88rem",
                                     lineHeight: 1.7,
                                     whiteSpace: "pre-wrap",
+                                    overflowWrap: "anywhere",
+                                    wordBreak: "break-word",
                                   }}
                                 >
                                   {messageRecord.body_markdown}

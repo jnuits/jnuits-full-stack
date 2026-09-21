@@ -9,6 +9,7 @@ export type TurnstileApi = {
       "error-callback"?: () => void;
       "expired-callback"?: () => void;
       sitekey: string;
+      size?: "compact" | "flexible" | "normal";
       theme?: "auto" | "dark" | "light";
     }
   ) => TurnstileWidgetId;
@@ -28,6 +29,7 @@ export function renderTurnstileWidget(options: {
     "error-callback": options.onError,
     "expired-callback": options.onExpired,
     sitekey: options.siteKey,
+    size: "flexible",
     theme: "auto",
   });
 }

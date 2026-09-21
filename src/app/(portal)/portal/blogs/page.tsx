@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   saveMemberBlogDraft,
   submitMemberBlogDraft,
@@ -181,7 +182,7 @@ export default async function PortalBlogsPage({
                     />
                   </label>
 
-                  <div style={{ display: "grid", gap: "0.9rem", gridTemplateColumns: "1fr 1fr" }}>
+                  <div className="portal-form-grid-2col">
                     <label className="input-label" htmlFor="blog-slug">
                       Slug
                       <input
@@ -342,13 +343,13 @@ export default async function PortalBlogsPage({
                 </p>
               ) : (
                 <div style={{ display: "grid", gap: "0.65rem" }}>
-                  {drafts.map((draft) => (
+                  {drafts.slice(0, 5).map((draft) => (
                     <div key={draft.id} className="portal-draft-card">
                       <div className="portal-draft-card__header">
                         <p className="portal-draft-card__title">{draft.title}</p>
-                    <span className={`portal-badge ${statusBadgeClass(draft.status)}`}>
-                      {draft.status.replaceAll("_", " ")}
-                    </span>
+                        <span className={`portal-badge ${statusBadgeClass(draft.status)}`}>
+                          {draft.status.replaceAll("_", " ")}
+                        </span>
                       </div>
                       {draft.summary && (
                         <p className="portal-draft-card__summary">{draft.summary}</p>
@@ -374,12 +375,59 @@ export default async function PortalBlogsPage({
                             year: "numeric",
                           })}
                         </span>
-                        <a className="queue-link" href={`/portal/blogs?edit=${draft.id}`}>
+                        <Link className="queue-link" href={`/portal/blogs?edit=${draft.id}`}>
                           Edit draft →
-                        </a>
+                        </Link>
                       </div>
                     </div>
                   ))}
+                  {drafts.length > 5 ? (
+                    <details className="portal-disclosure">
+                      <summary className="portal-disclosure__summary">
+                        Show {drafts.length - 5} older draft{drafts.length - 5 === 1 ? "" : "s"}
+                      </summary>
+                      <div style={{ display: "grid", gap: "0.65rem", marginTop: "0.65rem" }}>
+                        {drafts.slice(5).map((draft) => (
+                          <div key={draft.id} className="portal-draft-card">
+                            <div className="portal-draft-card__header">
+                              <p className="portal-draft-card__title">{draft.title}</p>
+                              <span className={`portal-badge ${statusBadgeClass(draft.status)}`}>
+                                {draft.status.replaceAll("_", " ")}
+                              </span>
+                            </div>
+                            {draft.summary && (
+                              <p className="portal-draft-card__summary">{draft.summary}</p>
+                            )}
+                            {draft.review_note && (
+                              <p
+                                className="portal-draft-card__summary"
+                                style={{
+                                  borderLeft: "2px solid var(--brand-gold)",
+                                  paddingLeft: "0.75rem",
+                                  marginTop: "0.5rem",
+                                  color: "var(--foreground)",
+                                }}
+                              >
+                                <strong>Editor note:</strong> {draft.review_note}
+                              </p>
+                            )}
+                            <div className="portal-draft-card__footer">
+                              <span className="portal-draft-card__date">
+                                {new Date(draft.updated_at).toLocaleDateString("en-BD", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </span>
+                              <Link className="queue-link" href={`/portal/blogs?edit=${draft.id}`}>
+                                Edit draft →
+                              </Link>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ) : null}
                 </div>
               )}
             </div>

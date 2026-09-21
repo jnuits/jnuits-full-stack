@@ -67,7 +67,7 @@ export function DirectoryVerificationForm({
         <div>
           <p className="profile-edit-kicker">Directory gate</p>
           <h2 className="profile-edit-title">
-            Verify your directory session before exposing sensitive workplace data
+            Verify directory session
           </h2>
         </div>
         <span className="profile-edit-status" data-state={verified ? "complete" : "locked"}>

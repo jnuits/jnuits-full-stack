@@ -204,11 +204,11 @@ export default async function PortalActivityPage() {
               ) : (
                 <div className="grid gap-3">
                   {requests.map((request) => (
-                    <article key={request.id} className="portal-info-row">
-                      <span className="portal-info-row__label">
-                        {request.label}
-                      </span>
-                      <span className="portal-info-row__value">
+                    <article key={request.id} className="portal-draft-card">
+                      <div className="portal-draft-card__header">
+                        <p className="portal-draft-card__title">
+                          {request.label}
+                        </p>
                         <span
                           className={`portal-badge portal-badge--${requestTone(
                             request.status
@@ -216,10 +216,10 @@ export default async function PortalActivityPage() {
                         >
                           {request.status}
                         </span>
-                        <span className="mt-2 block text-xs text-[var(--muted-foreground)]">
-                          {formatDate(request.requested_at)}
-                        </span>
-                      </span>
+                      </div>
+                      <p className="portal-draft-card__date">
+                        {formatDate(request.requested_at)}
+                      </p>
                     </article>
                   ))}
                 </div>

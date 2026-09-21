@@ -171,23 +171,24 @@ export async function MentorshipScreen({
                       placeholder="career planning, product, competitive programming"
                     />
                   </label>
-                  <label className="input-label" style={{ gap: "0.6rem" }}>
-                    <span>Publish as available mentor</span>
-                    <label style={{ alignItems: "center", display: "flex", gap: "0.55rem" }}>
+                  <div style={{ display: "grid", gap: "0.4rem" }}>
+                    <span style={{ fontSize: "0.84rem", fontWeight: 600 }}>Publish as available mentor</span>
+                    <label style={{ alignItems: "flex-start", display: "flex", gap: "0.55rem", cursor: canAdvertiseAsMentor ? "pointer" : "default" }}>
                       <input
                         defaultChecked={workspace.selfProfile?.opt_in ?? false}
                         disabled={!canAdvertiseAsMentor}
                         name="optIn"
                         type="checkbox"
                         value="true"
+                        style={{ marginTop: "0.2rem" }}
                       />
-                      <span>
+                      <span style={{ fontSize: "0.85rem", color: "var(--foreground)", lineHeight: 1.4 }}>
                         {canAdvertiseAsMentor
                           ? "Show this profile in the alumni mentorship directory."
                           : "Mentor publishing is reserved for alumni-side participants."}
                       </span>
                     </label>
-                  </label>
+                  </div>
                   <button className="primary-button" type="submit">
                     Save mentorship profile
                   </button>
@@ -258,7 +259,7 @@ export async function MentorshipScreen({
                     {workspace.mentors.map((mentor) => (
                       <article key={mentor.user_id} className="portal-project-card">
                         <div style={{ display: "grid", gap: "0.55rem" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
                             <div>
                               <h2 style={{ fontSize: "1rem", fontWeight: 800, letterSpacing: "-0.03em" }}>
                                 {mentor.member?.full_name || "Alumni mentor"}
@@ -387,12 +388,7 @@ export async function MentorshipScreen({
                                 relationship.messages.map((messageRecord) => (
                                   <div
                                     key={messageRecord.id}
-                                    style={{
-                                      border: "1px solid var(--line)",
-                                      borderRadius: "1rem",
-                                      padding: "0.85rem 1rem",
-                                      background: "var(--surface-2)",
-                                    }}
+                                    className="portal-message-bubble"
                                   >
                                     <div
                                       style={{
@@ -415,6 +411,8 @@ export async function MentorshipScreen({
                                         fontSize: "0.88rem",
                                         lineHeight: 1.7,
                                         whiteSpace: "pre-wrap",
+                                        overflowWrap: "anywhere",
+                                        wordBreak: "break-word",
                                       }}
                                     >
                                       {messageRecord.body_markdown}

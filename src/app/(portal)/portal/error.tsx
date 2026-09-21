@@ -15,7 +15,7 @@ export default function PortalError({
   }, [error]);
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center py-16 text-center">
+    <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-16 text-center">
       <p className="text-xs font-semibold uppercase tracking-widest text-primary/70">
         Something went wrong
       </p>

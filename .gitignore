@@ -22,6 +22,8 @@
 /ui-evidence/
 /artifacts/admin-snapshots/
 admin-snapshots/
+/portal-snapshots/
+portal-snapshots/
 
 # next.js
 /.next/
@@ -67,3 +69,6 @@ artifacts/backups/
 
 # disposable migration replay scratch stacks (supabase/verification)
 /.replay-scratch/
+
+# test snapshots
+/portal-snapshots/

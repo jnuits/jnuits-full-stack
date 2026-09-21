@@ -166,6 +166,7 @@ export async function ProfileScreen({
               compact
               currentUrl={member.avatar_secure_url ?? null}
               displayName={member.full_name}
+              showLegacyAvatar={false}
               targetId={member.id}
               targetType="member"
             />
@@ -317,9 +318,9 @@ export async function ProfileScreen({
                     </select>
                   </label>
 
-                  <label className="input-label" style={{ gap: "0.65rem" }}>
-                    <span>Email notifications</span>
-                    <label style={{ alignItems: "center", display: "flex", gap: "0.55rem" }}>
+                  <div style={{ display: "grid", gap: "0.4rem" }}>
+                    <span style={{ fontSize: "0.84rem", fontWeight: 600 }}>Email notifications</span>
+                    <label style={{ alignItems: "center", display: "flex", gap: "0.55rem", cursor: "pointer" }}>
                       <input
                         defaultChecked={snapshot.settings?.notification_email_opt_in ?? true}
                         disabled={!canMutateProfile}
@@ -327,13 +328,13 @@ export async function ProfileScreen({
                         type="checkbox"
                         value="true"
                       />
-                      <span>Receive account and workflow notices by email</span>
+                      <span style={{ fontSize: "0.85rem", color: "var(--foreground)" }}>Receive account and workflow notices by email</span>
                     </label>
-                  </label>
+                  </div>
 
-                  <label className="input-label" style={{ gap: "0.65rem" }}>
-                    <span>Ticket digests</span>
-                    <label style={{ alignItems: "center", display: "flex", gap: "0.55rem" }}>
+                  <div style={{ display: "grid", gap: "0.4rem" }}>
+                    <span style={{ fontSize: "0.84rem", fontWeight: 600 }}>Ticket digests</span>
+                    <label style={{ alignItems: "center", display: "flex", gap: "0.55rem", cursor: "pointer" }}>
                       <input
                         defaultChecked={snapshot.settings?.ticket_digest_opt_in ?? true}
                         disabled={!canMutateProfile}
@@ -341,11 +342,11 @@ export async function ProfileScreen({
                         type="checkbox"
                         value="true"
                       />
-                      <span>Receive ticket queue and reply digests</span>
+                      <span style={{ fontSize: "0.85rem", color: "var(--foreground)" }}>Receive ticket queue and reply digests</span>
                     </label>
-                  </label>
+                  </div>
 
-                  <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.35rem" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", marginTop: "0.35rem" }}>
                     <button className="primary-button" disabled={!canMutateProfile} type="submit">
                       Save preferences
                     </button>

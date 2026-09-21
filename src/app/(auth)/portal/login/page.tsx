@@ -43,7 +43,7 @@ export default async function PortalLoginPage({
           {error}
         </p>
       ) : null}
-      <form className="mt-8 grid gap-4">
+      <form className="mt-8 grid gap-4 min-w-0">
         <label className="input-label" htmlFor="portal-login-email">
           Email address
           <input

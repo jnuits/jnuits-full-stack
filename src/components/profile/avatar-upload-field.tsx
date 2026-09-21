@@ -115,7 +115,7 @@ export function AvatarUploadField({
   compact = false,
   currentUrl,
   displayName,
-  showLegacyAvatar = true,
+  showLegacyAvatar = false,
   targetId,
   targetType,
 }: AvatarUploadFieldProps) {
@@ -258,11 +258,6 @@ export function AvatarUploadField({
           gap: "0.65rem",
         }}
       >
-        <ProfileAvatar
-          name={displayName}
-          src={currentUrl}
-          size={compact ? "md" : "lg"}
-        />
         {showLegacyAvatar ? (
           <div
             aria-hidden="true"
@@ -276,7 +271,13 @@ export function AvatarUploadField({
           >
             {currentUrl ? null : initials}
           </div>
-        ) : null}
+        ) : (
+          <ProfileAvatar
+            name={displayName}
+            src={currentUrl}
+            size={compact ? "md" : "lg"}
+          />
+        )}
         {canUpload ? (
           <>
             <button

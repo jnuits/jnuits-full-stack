@@ -404,10 +404,10 @@ export async function PortalOverviewScreen({
               You haven&apos;t been added to any JnUITS projects yet. Contact an admin to be assigned as a contributor.
             </p>
           ) : (
-            <div className="portal-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(18rem, 1fr))" }}>
+            <div className="portal-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 18rem), 1fr))" }}>
               {memberProjects.slice(0, 3).map((project) => (
                 <div key={project.id} className="portal-project-card">
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.6rem" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.6rem", flexWrap: "wrap" }}>
                     <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "0.96rem", letterSpacing: "-0.02em", lineHeight: 1.25 }}>
                       {project.title}
                     </p>

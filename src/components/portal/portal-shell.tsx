@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -122,6 +122,8 @@ export function PortalShell({
 }: PortalShellProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const wasSidebarOpenRef = useRef(false);
   const navGroups = portalRole === "advisor" ? ADVISOR_NAV_GROUPS : NAV_GROUPS;
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() =>
     getDefaultExpandedGroups(navGroups)
@@ -131,6 +133,36 @@ export function PortalShell({
     if (sidebarOpen) setSidebarOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
+
+  // Restore focus to toggle button when sidebar closes
+  useEffect(() => {
+    if (wasSidebarOpenRef.current && !sidebarOpen) {
+      toggleButtonRef.current?.focus();
+    }
+    wasSidebarOpenRef.current = sidebarOpen;
+  }, [sidebarOpen]);
+
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [sidebarOpen]);
+
+  // Close drawer on Escape key press
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSidebarOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sidebarOpen]);
 
   useEffect(() => {
     setExpandedGroups((current) => {
@@ -160,6 +192,10 @@ export function PortalShell({
 
   return (
     <>
+      <a href="#portal-main-content" className="portal-skip-link">
+        Skip to main content
+      </a>
+
       <div
         className="portal-sidebar-overlay"
         data-open={sidebarOpen ? "true" : "false"}
@@ -172,14 +208,21 @@ export function PortalShell({
         className="portal-sidebar"
         data-open={sidebarOpen ? "true" : "false"}
         aria-label={portalRole === "advisor" ? "Advisor portal navigation" : "Member portal navigation"}
-        style={{
-          transform: sidebarOpen ? "translateX(0)" : undefined,
-        }}
       >
         <div className="portal-sidebar__header">
           <div className="portal-sidebar__brand">
             <SiteBrand compact href="/portal" />
-            <ThemeToggle />
+            <div className="flex items-center gap-1.5">
+              <ThemeToggle />
+              <button
+                type="button"
+                className="portal-sidebar-close"
+                aria-label="Close navigation"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
           <div className="portal-id-card">
@@ -265,26 +308,39 @@ export function PortalShell({
 
       <div className="portal-content">
         <div className="portal-topbar">
-          <button
-            className="portal-sidebar-toggle"
-            aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-            aria-expanded={sidebarOpen}
-            onClick={() => setSidebarOpen((v) => !v)}
-          >
-            {sidebarOpen ? <X size={15} /> : <Menu size={15} />}
-          </button>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="portal-badge portal-badge--member">
+          <div className="portal-topbar__left flex items-center gap-3 min-w-0">
+            <button
+              ref={toggleButtonRef}
+              className="portal-sidebar-toggle"
+              aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+              aria-expanded={sidebarOpen}
+              onClick={() => setSidebarOpen((v) => !v)}
+            >
+              {sidebarOpen ? <X size={15} /> : <Menu size={15} />}
+            </button>
+            <div className="hidden md:flex items-center gap-2 min-w-0 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+              <span>JnUITS</span>
+              <span className="text-[var(--line)]">/</span>
+              <span className="text-[var(--foreground)] truncate">
+                {portalRole === "advisor" ? "Advisor Portal" : "Member Portal"}
+              </span>
+            </div>
+          </div>
+          <div className="ml-auto flex items-center gap-2 min-w-0">
+            <span
+              className="portal-badge portal-badge--member"
+              title={getPortalRoleLabel(portalRole)}
+            >
               {getPortalRoleLabel(portalRole)}
             </span>
             <LogoutButton
-              className="secondary-button inline-flex items-center gap-2 text-sm"
+              className="secondary-button inline-flex items-center gap-2 text-sm shrink-0"
               redirectTo="/portal/login"
             />
           </div>
         </div>
 
-        <main className="portal-main" id="portal-main-content">
+        <main className="portal-main" id="portal-main-content" tabIndex={-1}>
           {children}
         </main>
       </div>

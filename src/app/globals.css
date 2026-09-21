@@ -92,6 +92,7 @@
   --brand-green: #19835f;
   --brand-rust: #c24e3e;
   --panel: color-mix(in oklab, var(--card) 88%, var(--secondary) 12%);
+  --surface-2: color-mix(in oklab, var(--card) 88%, var(--secondary) 12%);
   --line: color-mix(in oklab, var(--border) 84%, var(--foreground) 16%);
   --bg: var(--background);
   --danger: var(--destructive);
@@ -153,6 +154,7 @@
   --sidebar-border: oklch(0.2669 0.0455 277.1124);
   --sidebar-ring: oklch(0.6372 0.1475 269.1627);
   --bg: var(--background);
+  --surface-2: color-mix(in oklab, var(--card) 80%, var(--secondary) 20%);
   --danger: var(--destructive);
   --about-primary: oklch(0.82 0.085 260);
   --about-accent: oklch(0.72 0.15 260);
@@ -3656,18 +3658,34 @@
 }
 
 .avatar-upload-row {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .avatar-upload-row .secondary-button {
-  flex-wrap: nowrap;
   white-space: nowrap;
 }
 
 .avatar-upload-info span {
+  position: absolute;
   bottom: calc(100% + 0.45rem);
   left: 50%;
   transform: translate(-50%, 4px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 30;
+  width: max-content;
+  max-width: min(15rem, calc(100vw - 3rem));
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: normal;
+  box-shadow: var(--shadow-md);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
 }
 
 .avatar-upload-info:hover span,
@@ -3677,6 +3695,21 @@
   opacity: 1;
   transform: translate(-50%, 0);
   visibility: visible;
+}
+
+@media (max-width: 640px) {
+  .avatar-upload-info span {
+    left: auto;
+    right: 0;
+    transform: translateY(4px);
+  }
+
+  .avatar-upload-info:hover span,
+  .avatar-upload-info:focus-within span,
+  .secondary-button:hover .avatar-upload-info span,
+  .secondary-button:focus-within .avatar-upload-info span {
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 768px) {
@@ -3989,6 +4022,92 @@
    PORTAL DESIGN SYSTEM — Premium member workspace
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ── Portal Skip to Main Content Link (WCAG 2.4.1) ────────────────────────── */
+
+.portal-skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 1000;
+  padding: 0.6rem 1.2rem;
+  background: var(--card);
+  color: var(--foreground);
+  border: 2px solid var(--brand-blue);
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  transform: translateY(-200%);
+  transition: transform 0.15s ease-in-out;
+  text-decoration: none;
+}
+.portal-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: none;
+}
+
+/* ── Mobile Sidebar Close Button ─────────────────────────────────────────── */
+
+.portal-sidebar-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 0.6rem;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel) 88%, transparent);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background 130ms ease;
+}
+.portal-sidebar-close:hover {
+  background: color-mix(in oklab, var(--panel) 68%, transparent);
+}
+
+/* ── Portal Message Bubble (Mentorship & Tickets) ────────────────────────── */
+
+.portal-message-bubble {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ── Portal Form Grid (Responsive 2-col) ─────────────────────────────────── */
+
+.portal-form-grid-2col {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 641px) {
+  .portal-form-grid-2col {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ── Portal Disclosure (Clamped Drafts) ──────────────────────────────────── */
+
+.portal-disclosure {
+  margin-top: 0.75rem;
+}
+.portal-disclosure__summary {
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--brand-blue);
+  padding: 0.5rem 0;
+  user-select: none;
+}
+.portal-disclosure__summary:hover {
+  text-decoration: underline;
+}
+
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 
 .portal-sidebar {
@@ -4202,6 +4321,13 @@
   backdrop-filter: blur(12px);
 }
 
+.portal-topbar .portal-badge {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .portal-main {
   flex: 1;
   padding: 2rem 1.75rem;
@@ -4254,7 +4380,7 @@
 .portal-stat-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
 }
 
 .portal-stat-card {
@@ -4425,7 +4551,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
   padding: 1rem 1.3rem;
   border-bottom: 1px solid var(--line);
   background: color-mix(in oklab, var(--panel) 65%, transparent);
@@ -4556,6 +4683,8 @@
   font-weight: 600;
   line-height: 1.4;
   color: var(--foreground);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .portal-info-row__value[data-locked="true"] {
@@ -4671,6 +4800,8 @@
   font-size: 0.86rem;
   font-weight: 700;
   line-height: 1.3;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .portal-timeline-item__meta {
@@ -4696,15 +4827,30 @@
 
 .portal-draft-card__header {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.4rem 0.6rem;
   margin-bottom: 0.4rem;
 }
 
-.portal-draft-card__title { font-size: 0.88rem; font-weight: 700; line-height: 1.3; flex: 1; }
+.portal-draft-card__title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.35;
+  flex: 1 1 11rem;
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
 
-.portal-draft-card__summary { font-size: 0.78rem; color: var(--muted-foreground); line-height: 1.6; }
+.portal-draft-card__summary {
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
 .portal-draft-card__footer {
   display: flex;
@@ -5241,10 +5387,15 @@
 
 .profile-edit-title {
   font-family: var(--font-heading), sans-serif;
-  font-size: 1.62rem;
-  line-height: 1.04;
+  font-size: clamp(1.12rem, 1.8vw, 1.35rem);
+  line-height: 1.25;
   font-weight: 800;
   letter-spacing: 0;
+}
+
+.profile-edit-card--hero .profile-edit-title {
+  font-size: clamp(1.25rem, 2.2vw, 1.55rem);
+  line-height: 1.2;
 }
 
 .profile-edit-side-title {
@@ -10736,7 +10887,7 @@ footer {
 }
 
 /* ---------------------------------------------------------------------------
-   PORTAL RESPONSIVE � Mobile sidebar behavior
+   PORTAL RESPONSIVE — Mobile sidebar & layout behavior
    --------------------------------------------------------------------------- */
 
 /* Desktop: sidebar always visible, content offset */
@@ -10746,6 +10897,9 @@ footer {
   }
   .portal-topbar .portal-sidebar-toggle {
     display: none;
+  }
+  .portal-sidebar-close {
+    display: none !important;
   }
 }
 
@@ -10758,17 +10912,71 @@ footer {
   .portal-sidebar[data-open="true"] {
     transform: translateX(0);
   }
+  .portal-sidebar-close {
+    display: inline-flex;
+  }
   .portal-content {
     margin-left: 0;
   }
   .portal-topbar {
     display: flex;
+    padding: 0.65rem 1rem;
+    gap: 0.5rem;
+  }
+  .portal-topbar .portal-badge {
+    max-width: 9rem;
+    font-size: 0.65rem;
+    padding: 0.2rem 0.5rem;
   }
   .portal-main {
     padding: 1.25rem 1rem;
   }
   .portal-actions-grid {
-    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+  }
+}
+
+/* Mobile: identity banner full-width action stacking & wrap protection */
+@media (max-width: 640px) {
+  .portal-identity-banner {
+    padding: 1.1rem 1rem;
+    gap: 0.9rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .portal-identity-banner__info {
+    width: 100%;
+    min-width: 0;
+  }
+  .portal-identity-banner__meta {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .portal-identity-banner__meta code {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .portal-identity-banner__actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* Ultra-compact mobile (375px, 320px) */
+@media (max-width: 375px) {
+  .portal-topbar {
+    padding: 0.5rem 0.6rem;
+    gap: 0.35rem;
+  }
+  .portal-topbar .portal-badge {
+    max-width: 6.25rem;
+  }
+  .portal-main {
+    padding: 1rem 0.75rem;
+  }
+  .portal-section__header {
+    padding: 0.75rem 0.85rem;
+    gap: 0.5rem;
   }
 }
 

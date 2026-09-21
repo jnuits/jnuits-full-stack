@@ -86,7 +86,7 @@ export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }
   }
 
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-2 min-w-0 max-w-full overflow-hidden">
       <Script
         async
         defer
@@ -98,7 +98,7 @@ export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }
         }}
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
       />
-      <div ref={containerRef} />
+      <div ref={containerRef} className="min-w-0 max-w-full overflow-hidden" />
       <input name={name} type="hidden" value={token} />
     </div>
   );

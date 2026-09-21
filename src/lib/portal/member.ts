@@ -91,13 +91,18 @@ function resolvePortalAccess(member: MemberRecord | null): PortalAccessState {
     return {
       lifecycleStatus: null,
       memberId: null,
+      memberType: null,
       portalAccessStatus: null,
     };
   }
 
   return {
-    lifecycleStatus: member.lifecycle_status ?? "current",
+    lifecycleStatus:
+      member.lifecycle_status ??
+      (member.member_type as "alumni" | "current") ??
+      "current",
     memberId: member.id,
+    memberType: (member.member_type as "alumni" | "current") ?? null,
     portalAccessStatus: member.portal_access_status ?? "active",
   };
 }
