@@ -303,7 +303,7 @@ function MemberCandidateCard({
             ))}
           </div>
           {candidate.blockedReason ? (
-            <p className="mt-3 break-words text-xs font-semibold text-[var(--danger)]">
+            <p className="mt-3 break-words text-xs font-semibold text-[var(--brand-rust)]">
               {candidate.blockedReason}
             </p>
           ) : null}

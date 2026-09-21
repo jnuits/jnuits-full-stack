@@ -75,6 +75,14 @@ function formatAdminDate(value: null | string) {
   });
 }
 
+function blogStatusBadgeClass(status: string) {
+  if (status === "published") return "abadge--published";
+  if (status === "pending_review") return "abadge--pending";
+  if (status === "change_requested") return "abadge--rejected";
+  if (status === "archived") return "abadge--draft";
+  return "abadge--draft";
+}
+
 function normalizeFilter(value: string | string[] | undefined, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
 }
@@ -396,12 +404,14 @@ export default async function BlogsPage({
             <h2 className="admin-card-row__title">Editorial registry</h2>
           </div>
           <AutoSubmitForm action="/admin/content/blogs" className="blog-post-filters">
-            <Filter aria-hidden="true" size={14} />
-            <input
-              defaultValue={filters.q}
-              name="q"
-              placeholder="Search title, slug, category"
-            />
+            <div className="blog-post-filters__search">
+              <Filter aria-hidden="true" size={14} />
+              <input
+                defaultValue={filters.q}
+                name="q"
+                placeholder="Search title, slug, category"
+              />
+            </div>
             <select defaultValue={filters.status} name="status">
               <option value="all">All statuses</option>
               <option value="draft">Draft</option>
@@ -430,7 +440,7 @@ export default async function BlogsPage({
           />
         ) : (
           <div className="admin-card-list">
-            {filteredPosts.map((post) => (
+            {filteredPosts.slice(0, 6).map((post) => (
               <div className="admin-card-row" key={post.id}>
                 <div className="admin-card-row__body">
                   <p className="admin-card-row__title blog-bengali-text">
@@ -452,11 +462,7 @@ export default async function BlogsPage({
                   </p>
                 </div>
                 <div className="admin-card-row__actions">
-                  <span
-                    className={`abadge abadge--${
-                      post.status === "published" ? "published" : "draft"
-                    }`}
-                  >
+                  <span className={`abadge ${blogStatusBadgeClass(post.status)}`}>
                     {post.status.replaceAll("_", " ")}
                   </span>
                   <Link
@@ -469,6 +475,50 @@ export default async function BlogsPage({
                 </div>
               </div>
             ))}
+            {filteredPosts.length > 6 && (
+              <details className="admin-expandable-details mt-2">
+                <summary className="cursor-pointer text-xs font-semibold text-[var(--color-primary)] py-1 hover:underline">
+                  Show {filteredPosts.length - 6} older blog posts
+                </summary>
+                <div className="admin-card-list mt-2">
+                  {filteredPosts.slice(6).map((post) => (
+                    <div className="admin-card-row" key={post.id}>
+                      <div className="admin-card-row__body">
+                        <p className="admin-card-row__title blog-bengali-text">
+                          {post.title}
+                        </p>
+                        <p className="admin-card-row__meta">
+                          {post.slug} · {post.category || "No category"} · Updated{" "}
+                          {formatAdminDate(post.updated_at)}
+                        </p>
+                        <p className="admin-card-row__meta">
+                          {makeBlogTeaser(
+                            {
+                              body: post.body,
+                              excerpt: post.excerpt,
+                              summary: post.summary,
+                            },
+                            150
+                          )}
+                        </p>
+                      </div>
+                      <div className="admin-card-row__actions">
+                        <span className={`abadge ${blogStatusBadgeClass(post.status)}`}>
+                          {post.status.replaceAll("_", " ")}
+                        </span>
+                        <Link
+                          className="admin-btn admin-btn--ghost"
+                          href={`/admin/content/blogs?edit=${post.id}`}
+                          style={{ fontSize: "0.77rem", padding: "0.3rem 0.75rem" }}
+                        >
+                          Edit
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
         )}
       </section>

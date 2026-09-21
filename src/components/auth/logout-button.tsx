@@ -35,6 +35,7 @@ export function LogoutButton({
 
   return (
     <button
+      aria-label={pending ? "Signing out" : "Logout"}
       className={className}
       disabled={pending}
       onClick={() => {
@@ -43,7 +44,9 @@ export function LogoutButton({
       type="button"
     >
       <LogOut aria-hidden="true" size={14} />
-      {pending ? "Signing out..." : "Logout"}
+      <span className="admin-logout-text">
+        {pending ? "Signing out..." : "Logout"}
+      </span>
     </button>
   );
 }

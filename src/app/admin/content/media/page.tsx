@@ -163,7 +163,7 @@ export default async function MediaPage() {
           </div>
         ) : (
           <div className="admin-card-list">
-            {media.map((asset) => (
+            {media.slice(0, 6).map((asset) => (
               <div key={asset.id} className="admin-card-row">
                 <div className="admin-hub-tile__icon" style={{ flexShrink: 0 }}>
                   <ImageIcon size={16} />
@@ -202,6 +202,54 @@ export default async function MediaPage() {
                 </div>
               </div>
             ))}
+            {media.length > 6 && (
+              <details className="admin-expandable-details mt-2">
+                <summary className="cursor-pointer text-xs font-semibold text-[var(--color-primary)] py-1 hover:underline">
+                  Show {media.length - 6} more registered assets
+                </summary>
+                <div className="admin-card-list mt-2">
+                  {media.slice(6).map((asset) => (
+                    <div key={asset.id} className="admin-card-row">
+                      <div className="admin-hub-tile__icon" style={{ flexShrink: 0 }}>
+                        <ImageIcon size={16} />
+                      </div>
+                      <div className="admin-card-row__body">
+                        <p className="admin-card-row__title">{asset.title || asset.public_id}</p>
+                        <p className="admin-card-row__meta">{asset.public_id}</p>
+                        {asset.deleted_at ? (
+                          <p className="admin-card-row__meta">
+                            Restore window:{" "}
+                            {asset.trash_restore_deadline
+                              ? new Date(asset.trash_restore_deadline).toLocaleDateString("en-GB")
+                              : "manual review required"}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="admin-card-row__actions">
+                        <span className={`abadge ${asset.deleted_at ? "abadge--draft" : "abadge--active"}`}>
+                          {asset.deleted_at ? "In trash" : asset.media_kind}
+                        </span>
+                        {asset.deleted_at ? (
+                          <form action={restoreMediaAssetFromTrashAction}>
+                            <input name="assetId" type="hidden" value={asset.id} />
+                            <button className="admin-btn admin-btn--secondary" type="submit">
+                              <RotateCcw size={14} /> Restore
+                            </button>
+                          </form>
+                        ) : (
+                          <form action={moveMediaAssetToTrashAction}>
+                            <input name="assetId" type="hidden" value={asset.id} />
+                            <button className="admin-btn admin-btn--secondary" type="submit">
+                              <Trash2 size={14} /> Move to trash
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
         )}
       </section>

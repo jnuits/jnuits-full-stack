@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { LogoutButton } from "@/components/auth/logout-button";
 import {
   BarChart2,
   BellRing,
@@ -21,6 +21,7 @@ import {
   Phone,
   RefreshCcw,
   ScrollText,
+  Search,
   ShieldCheck,
   UserCog,
   Users,
@@ -29,6 +30,8 @@ import {
 } from "lucide-react";
 import { SiteBrand } from "@/components/layout/site-brand";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { AdminCommandPalette } from "./admin-command-palette";
+import { AdminNetworkStatus } from "./admin-network-status";
 import type {
   AdminBadgeCounts,
   AdminShellNavigationItem,
@@ -100,21 +103,22 @@ function buildNavGroups(
 
 interface Props {
   badgeCounts: AdminBadgeCounts;
+  children?: React.ReactNode;
   navigationItems: AdminShellNavigationItem[];
 }
 
-export function AdminNavClient({ badgeCounts, navigationItems }: Props) {
+export function AdminNavClient({
+  badgeCounts,
+  children,
+  navigationItems,
+}: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set()
   );
-  const [toggleSlot, setToggleSlot] = useState<HTMLElement | null>(null);
   const groups = buildNavGroups(badgeCounts, navigationItems);
-
-  useEffect(() => {
-    setToggleSlot(document.getElementById("admin-sidebar-toggle-slot"));
-  }, []);
 
   function isActive(href: string): boolean {
     if (href === "/admin") return pathname === "/admin";
@@ -126,9 +130,40 @@ export function AdminNavClient({ badgeCounts, navigationItems }: Props) {
   )?.label;
 
   useEffect(() => {
+    function handleGlobalKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
+  useEffect(() => {
     if (open) setOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        document.getElementById("admin-sidebar-toggle")?.focus();
+      }
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!activeGroupLabel || !collapsibleGroups.has(activeGroupLabel)) {
@@ -187,7 +222,11 @@ export function AdminNavClient({ badgeCounts, navigationItems }: Props) {
   }
 
   return (
-    <>
+    <div className="admin-layout">
+      <a href="#admin-main" className="admin-skip-link">
+        Skip to main content
+      </a>
+
       <div
         className="admin-sidebar-overlay"
         data-open={open ? "true" : "false"}
@@ -202,7 +241,17 @@ export function AdminNavClient({ badgeCounts, navigationItems }: Props) {
       >
         <div className="admin-sidebar__brand">
           <SiteBrand compact href="/admin" />
-          <span className="admin-sidebar__brand-badge">Admin</span>
+          <div className="flex items-center gap-1.5">
+            <span className="admin-sidebar__brand-badge">Admin</span>
+            <button
+              className="admin-sidebar-close"
+              aria-label="Close navigation"
+              onClick={() => setOpen(false)}
+              type="button"
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
 
         <nav className="admin-sidebar__nav">
@@ -274,30 +323,57 @@ export function AdminNavClient({ badgeCounts, navigationItems }: Props) {
         </div>
       </aside>
 
-      {toggleSlot ? createPortal(
-        <button
-          id="admin-sidebar-toggle"
-          className="admin-sidebar-toggle"
-          aria-label={open ? "Close sidebar" : "Open sidebar"}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-          type="button"
-        >
-          {open ? <X size={16} /> : <Menu size={16} />}
-        </button>,
-        toggleSlot
-      ) : (
-        <button
-          id="admin-sidebar-toggle"
-          className="admin-sidebar-toggle"
-          aria-label={open ? "Close sidebar" : "Open sidebar"}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-          type="button"
-        >
-          {open ? <X size={16} /> : <Menu size={16} />}
-        </button>
-      )}
-    </>
+      <div className="admin-page-wrap">
+        <header className="admin-topbar">
+          <div className="admin-topbar__left">
+            <button
+              id="admin-sidebar-toggle"
+              className="admin-sidebar-toggle"
+              aria-label={open ? "Close sidebar" : "Open sidebar"}
+              aria-expanded={open}
+              onClick={() => setOpen((v) => !v)}
+              type="button"
+            >
+              {open ? <X size={16} /> : <Menu size={16} />}
+            </button>
+            <span className="admin-topbar__title">
+              <span className="admin-topbar__title-desktop">
+                JnUITS — Operator Workspace
+              </span>
+              <span className="admin-topbar__title-mobile">Operator Workspace</span>
+            </span>
+          </div>
+          <div className="admin-topbar__right">
+            <button
+              type="button"
+              className="admin-topbar__search-btn"
+              onClick={() => setCommandOpen(true)}
+              aria-label="Search admin workspace (Ctrl+K or ⌘K)"
+              title="Search and jump to any section (Ctrl+K / ⌘K)"
+            >
+              <Search size={14} aria-hidden="true" />
+              <span className="admin-topbar__search-text">Search...</span>
+              <kbd className="admin-topbar__search-kbd">⌘K</kbd>
+            </button>
+            <AdminNetworkStatus />
+            <LogoutButton
+              className="secondary-button admin-topbar__logout inline-flex items-center gap-2 text-sm"
+              redirectTo="/admin/login"
+            />
+            <ThemeToggle />
+          </div>
+        </header>
+
+        <main id="admin-main" tabIndex={-1} className="admin-content">
+          {children}
+        </main>
+      </div>
+
+      <AdminCommandPalette
+        isOpen={commandOpen}
+        onClose={() => setCommandOpen(false)}
+        navigationItems={navigationItems}
+      />
+    </div>
   );
 }

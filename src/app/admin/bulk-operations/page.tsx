@@ -141,29 +141,63 @@ export default async function AdminBulkOperationsPage({
             {operations.length === 0 ? (
               <div className="empty-state">No bulk operations staged yet.</div>
             ) : (
-              operations.map((operation) => (
-                <a
-                  key={operation.id}
-                  className="route-tile"
-                  href={`/admin/bulk-operations?operationId=${operation.id}`}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3>{operation.operation_type.replaceAll("_", " ")}</h3>
-                      <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-                        {operation.original_filename || "CSV"} • {operation.created_at.slice(0, 10)}
-                      </p>
+              <>
+                {operations.slice(0, 5).map((operation) => (
+                  <a
+                    key={operation.id}
+                    className="route-tile"
+                    href={`/admin/bulk-operations?operationId=${operation.id}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3>{operation.operation_type.replaceAll("_", " ")}</h3>
+                        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                          {operation.original_filename || "CSV"} • {operation.created_at.slice(0, 10)}
+                        </p>
+                      </div>
+                      <span className="status-pill">{operation.status}</span>
                     </div>
-                    <span className="status-pill">{operation.status}</span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="detail-chip">{operation.total_rows} total</span>
-                    <span className="detail-chip">{operation.valid_rows} valid</span>
-                    <span className="detail-chip">{operation.error_rows} errors</span>
-                    <span className="detail-chip">{operation.committed_rows} committed</span>
-                  </div>
-                </a>
-              ))
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="detail-chip">{operation.total_rows} total</span>
+                      <span className="detail-chip">{operation.valid_rows} valid</span>
+                      <span className="detail-chip">{operation.error_rows} errors</span>
+                      <span className="detail-chip">{operation.committed_rows} committed</span>
+                    </div>
+                  </a>
+                ))}
+                {operations.length > 5 && (
+                  <details className="admin-expandable-details mt-1">
+                    <summary className="cursor-pointer text-xs font-semibold text-[var(--color-primary)] py-1 hover:underline">
+                      Show {operations.length - 5} older previews
+                    </summary>
+                    <div className="mt-3 grid gap-3">
+                      {operations.slice(5).map((operation) => (
+                        <a
+                          key={operation.id}
+                          className="route-tile"
+                          href={`/admin/bulk-operations?operationId=${operation.id}`}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <h3>{operation.operation_type.replaceAll("_", " ")}</h3>
+                              <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                                {operation.original_filename || "CSV"} • {operation.created_at.slice(0, 10)}
+                              </p>
+                            </div>
+                            <span className="status-pill">{operation.status}</span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="detail-chip">{operation.total_rows} total</span>
+                            <span className="detail-chip">{operation.valid_rows} valid</span>
+                            <span className="detail-chip">{operation.error_rows} errors</span>
+                            <span className="detail-chip">{operation.committed_rows} committed</span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -199,28 +233,61 @@ export default async function AdminBulkOperationsPage({
             {selectedRows.length === 0 ? (
               <div className="empty-state">Select a preview to inspect rows.</div>
             ) : (
-              selectedRows.map((row) => (
-                <article key={row.id} className="application-card">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-[family-name:var(--font-heading)] text-[1.25rem]">
-                        Row {row.row_number}
-                      </h3>
-                      <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-                        {JSON.stringify(row.normalized_data)}
-                      </p>
+              <>
+                {selectedRows.slice(0, 5).map((row) => (
+                  <article key={row.id} className="application-card">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-[family-name:var(--font-heading)] text-[1.25rem]">
+                          Row {row.row_number}
+                        </h3>
+                        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                          {JSON.stringify(row.normalized_data)}
+                        </p>
+                      </div>
+                      <span className="status-pill">{row.status}</span>
                     </div>
-                    <span className="status-pill">{row.status}</span>
-                  </div>
-                  {row.errors.length > 0 ? (
-                    <ul className="mt-3 grid gap-1 text-sm text-red-600">
-                      {row.errors.map((error) => (
-                        <li key={error}>{error}</li>
+                    {row.errors.length > 0 ? (
+                      <ul className="mt-3 grid gap-1 text-sm text-[var(--brand-rust)]">
+                        {row.errors.map((error) => (
+                          <li key={error}>{error}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </article>
+                ))}
+                {selectedRows.length > 5 && (
+                  <details className="admin-expandable-details mt-2">
+                    <summary className="cursor-pointer text-xs font-semibold text-[var(--color-primary)] py-1 hover:underline">
+                      Show remaining {selectedRows.length - 5} preview rows
+                    </summary>
+                    <div className="mt-3 grid gap-3">
+                      {selectedRows.slice(5).map((row) => (
+                        <article key={row.id} className="application-card">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <h3 className="font-[family-name:var(--font-heading)] text-[1.25rem]">
+                                Row {row.row_number}
+                              </h3>
+                              <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                                {JSON.stringify(row.normalized_data)}
+                              </p>
+                            </div>
+                            <span className="status-pill">{row.status}</span>
+                          </div>
+                          {row.errors.length > 0 ? (
+                            <ul className="mt-3 grid gap-1 text-sm text-[var(--brand-rust)]">
+                              {row.errors.map((error) => (
+                                <li key={error}>{error}</li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </article>
                       ))}
-                    </ul>
-                  ) : null}
-                </article>
-              ))
+                    </div>
+                  </details>
+                )}
+              </>
             )}
           </div>
         </div>

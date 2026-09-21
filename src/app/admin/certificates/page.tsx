@@ -738,7 +738,7 @@ export default async function AdminCertificatesPage({
               <div className="empty-state">No import batches found.</div>
             ) : (
               <div style={{ display: "grid", gap: "0.6rem" }}>
-                {batches.map((batch) => (
+                {batches.slice(0, 4).map((batch) => (
                   <div key={batch.id} className="portal-draft-card">
                     <div className="portal-draft-card__header">
                       <p
@@ -793,6 +793,70 @@ export default async function AdminCertificatesPage({
                     </div>
                   </div>
                 ))}
+                {batches.length > 4 && (
+                  <details className="admin-expandable-details mt-1">
+                    <summary className="text-xs font-semibold cursor-pointer text-[var(--color-primary)] py-1 hover:underline">
+                      Show {batches.length - 4} older import batches
+                    </summary>
+                    <div style={{ display: "grid", gap: "0.6rem", marginTop: "0.6rem" }}>
+                      {batches.slice(4).map((batch) => (
+                        <div key={batch.id} className="portal-draft-card">
+                          <div className="portal-draft-card__header">
+                            <p
+                              className="portal-draft-card__title"
+                              style={{ fontSize: "0.82rem" }}
+                            >
+                              {batch.source_name}
+                            </p>
+                            <span
+                              className={`portal-badge ${batchStatusClass(batch.status)}`}
+                            >
+                              {batch.status}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "0.4rem",
+                              marginTop: "0.4rem",
+                            }}
+                          >
+                            <span className="detail-chip">
+                              <Download size={9} /> {batch.inserted_count} inserted
+                            </span>
+                            {batch.updated_count > 0 && (
+                              <span className="detail-chip">
+                                {batch.updated_count} updated
+                              </span>
+                            )}
+                            {batch.rejected_count > 0 && (
+                              <span
+                                className="detail-chip"
+                                style={{ color: "var(--brand-rust)" }}
+                              >
+                                {batch.rejected_count} rejected
+                              </span>
+                            )}
+                            <span className="detail-chip">
+                              {batch.source_row_count} rows
+                            </span>
+                          </div>
+                          <div className="portal-draft-card__footer">
+                            <span className="portal-draft-card__date">
+                              {fmtDate(batch.started_at)}
+                            </span>
+                            {batch.finished_at && (
+                              <span className="portal-draft-card__date">
+                                {fmtDate(batch.finished_at)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
             )}
           </div>

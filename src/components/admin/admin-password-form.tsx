@@ -243,7 +243,7 @@ export function AdminPasswordForm({ captcha }: { captcha: CaptchaConfig }) {
       </form>
 
       {message ? (
-        <p className="text-sm font-medium text-emerald-600">{message}</p>
+        <p className="text-sm font-medium text-[var(--brand-green)]">{message}</p>
       ) : null}
       {error ? (
         <p className="text-sm font-medium text-[var(--brand-rust)]">{error}</p>

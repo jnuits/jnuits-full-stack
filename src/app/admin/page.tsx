@@ -429,6 +429,9 @@ export default async function AdminPage() {
             <h2 className="font-[family-name:var(--font-heading)] text-lg font-bold tracking-[-0.02em]">
               Recent activity
             </h2>
+            <Link href="/admin/audit" className="queue-link text-xs">
+              View all →
+            </Link>
           </div>
           {auditLogs.length === 0 ? (
             <p className="text-sm text-[var(--muted-foreground)]">
@@ -436,7 +439,7 @@ export default async function AdminPage() {
             </p>
           ) : (
             <div className="admin-activity-feed">
-              {auditLogs.map((log) => (
+              {auditLogs.slice(0, 5).map((log) => (
                 <div key={log.id as string} className="admin-activity-item">
                   <span className="admin-activity-item__dot" />
                   <div>
@@ -456,6 +459,35 @@ export default async function AdminPage() {
                   </span>
                 </div>
               ))}
+              {auditLogs.length > 5 && (
+                <details className="admin-expandable-details mt-2">
+                  <summary className="text-xs text-[var(--color-primary)] cursor-pointer py-1 font-medium hover:underline">
+                    +{auditLogs.length - 5} more recent activities
+                  </summary>
+                  <div className="pt-2">
+                    {auditLogs.slice(5).map((log) => (
+                      <div key={log.id as string} className="admin-activity-item">
+                        <span className="admin-activity-item__dot" />
+                        <div>
+                          <p className="admin-activity-item__action">
+                            {((log.action as string) || "system")
+                              .replace(/_/g, " ")
+                              .replace(/\b\w/g, (c) => c.toUpperCase())}
+                          </p>
+                          <p className="admin-activity-item__meta">
+                            {(log.entity_type as string)
+                              ? `on ${log.entity_type}`
+                              : "platform event"}
+                          </p>
+                        </div>
+                        <span className="admin-activity-item__time">
+                          {relativeTime(log.created_at as string)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
           )}
           </section>

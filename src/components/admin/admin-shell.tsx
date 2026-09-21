@@ -1,5 +1,3 @@
-import { LogoutButton } from "@/components/auth/logout-button";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
 import {
   adminAccessItems,
   getAdminNavPermissionCodes,
@@ -125,38 +123,11 @@ export async function AdminShell({
   };
 
   return (
-    <div className="admin-layout">
-      {/* Client component renders sidebar (with icons defined client-side) */}
-      <AdminNavClient
-        badgeCounts={badgeCounts}
-        navigationItems={navigationItems}
-      />
-
-      {/* Right-side page wrapper */}
-      <div className="admin-page-wrap">
-        {/* Sticky topbar */}
-        <header className="admin-topbar">
-          <div className="admin-topbar__left">
-            <span id="admin-sidebar-toggle-slot" className="admin-sidebar-toggle-slot" />
-            <span className="admin-topbar__title">
-              <span className="admin-topbar__title-desktop">
-                JnUITS — Operator Workspace
-              </span>
-              <span className="admin-topbar__title-mobile">Operator Workspace</span>
-            </span>
-          </div>
-          <div className="admin-topbar__right">
-            <LogoutButton
-              className="secondary-button inline-flex items-center gap-2 text-sm"
-              redirectTo="/admin/login"
-            />
-            <ThemeToggle />
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main className="admin-content">{children}</main>
-      </div>
-    </div>
+    <AdminNavClient
+      badgeCounts={badgeCounts}
+      navigationItems={navigationItems}
+    >
+      {children}
+    </AdminNavClient>
   );
 }

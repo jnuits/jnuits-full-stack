@@ -103,6 +103,26 @@ export function BlogPublishChecklist({ defaults }: BlogPublishChecklistProps) {
     };
   }, [defaults]);
 
+  useEffect(() => {
+    if (!dialog) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setDialog(null);
+        publishButtonRef.current?.focus();
+      }
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [dialog]);
+
   function confirmPublish() {
     const button = publishButtonRef.current;
     setDialog(null);

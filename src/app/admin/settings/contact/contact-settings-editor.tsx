@@ -45,7 +45,7 @@ function feedbackIcon(status: SaveStatus) {
   }
 
   if (status === "saved") {
-    return <CheckCircle2 aria-hidden="true" size={14} className="text-emerald-600" />;
+    return <CheckCircle2 aria-hidden="true" size={14} className="text-[var(--brand-green)]" />;
   }
 
   if (status === "error") {

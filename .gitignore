@@ -20,6 +20,8 @@
 
 # local UI-audit / screenshot evidence
 /ui-evidence/
+/artifacts/admin-snapshots/
+admin-snapshots/
 
 # next.js
 /.next/

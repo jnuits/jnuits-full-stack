@@ -118,6 +118,25 @@ export function NoticeEditorSaveIndicator({
     };
   }, []);
 
+  useEffect(() => {
+    if (!pendingHref) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setPendingHref(null);
+      }
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [pendingHref]);
+
   const resolvedState = pending ? "saving" : state;
   const visible = resolvedState !== "idle";
   const label =

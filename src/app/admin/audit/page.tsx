@@ -31,8 +31,11 @@ function metadataPreview(value: unknown) {
     return "No metadata";
   }
 
-  const text = JSON.stringify(value);
-  return text.length > 220 ? `${text.slice(0, 220)}...` : text;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function entityHref(event: AuditExplorerEvent) {
@@ -182,9 +185,14 @@ export default async function AdminAuditPage({
                     </div>
                     <span className="status-pill">{formatDate(event.created_at)}</span>
                   </div>
-                  <pre className="mt-4 whitespace-pre-wrap rounded-lg border border-[var(--line)] bg-[var(--background)] p-3 text-xs leading-6 [overflow-wrap:anywhere] text-[var(--muted-foreground)]">
-                    {metadataPreview(event.metadata)}
-                  </pre>
+                  <details className="admin-expandable-details mt-3">
+                    <summary className="cursor-pointer text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                      Metadata payload ({event.metadata && typeof event.metadata === "object" ? Object.keys(event.metadata).length : 0} fields)
+                    </summary>
+                    <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-[var(--line)] bg-[var(--background)] p-3 text-xs leading-6 [overflow-wrap:anywhere] text-[var(--muted-foreground)]">
+                      {metadataPreview(event.metadata)}
+                    </pre>
+                  </details>
                   {href ? (
                     <Link className="queue-link mt-3 inline-flex" href={href}>
                       Open related admin area
