@@ -254,7 +254,6 @@ export function AvatarUploadField({
         style={{
           alignItems: "center",
           display: "flex",
-          flexWrap: "nowrap",
           gap: "0.65rem",
         }}
       >

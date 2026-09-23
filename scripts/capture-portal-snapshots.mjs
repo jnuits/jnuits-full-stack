@@ -3,6 +3,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "@playwright/test";
+import {
+  expectedPortalLanding,
+  hasPortalAuditFailures,
+  isIgnorablePortalConsoleError,
+  isExpectedPortalLanding,
+  normalizePortalRoute,
+} from "./lib/portal-audit-contracts.mjs";
 
 const ROOT = process.cwd();
 const OUTPUT_BASE = path.join(ROOT, "portal-snapshots");
@@ -26,13 +33,6 @@ const password = process.env.PORTAL_PASSWORD || process.env.E2E_CURRENT_MEMBER_P
 const baseUrl = (process.env.BASE_URL || process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 const role = process.env.PORTAL_ROLE || (process.env.E2E_ALUMNI_MEMBER_EMAIL ? "alumni" : "member");
 const specificRoutesArg = process.env.PORTAL_ROUTES;
-
-const EXPECTED_REDIRECTS = new Map([
-  ["/portal/dashboard", "/portal"],
-  ["/profile", "/portal/profile"],
-  ["/profile/edit", "/portal/profile/edit"],
-  ["/profile/change-password", "/portal/profile/change-password"],
-]);
 
 const storageStatePath = path.join(OUTPUT_BASE, `storage-state-${role}.json`);
 const hasStorageState = fs.existsSync(storageStatePath);
@@ -60,33 +60,69 @@ async function safeEvaluate(page, fn, ...args) {
   }
 }
 
-function normalizeRoute(value) {
-  const url = new URL(value, baseUrl);
-  return `${url.pathname}${url.search}`;
-}
-
-function expectedLandedRoute(route, isAuthenticated) {
-  const normalized = normalizeRoute(route);
-  if (!isAuthenticated && !normalized.startsWith("/portal/login") && !normalized.startsWith("/portal/access-pending")) {
-    // Unauthenticated access redirects to login
-    return `/portal/login?next=${encodeURIComponent(normalized)}`;
-  }
-  return EXPECTED_REDIRECTS.get(normalized) || normalized;
-}
-
-async function hideDevBadges(page) {
-  await safeEvaluate(page, () => {
-    const selectors = [
-      "nextjs-portal",
-      "[data-nextjs-toast]",
-      "[data-nextjs-dialog]",
-      "#__next-build-watcher",
+function authenticatedRoutesForRole(portalRole) {
+  if (portalRole === "advisor") {
+    return [
+      "/portal",
+      "/portal/dashboard",
+      "/portal/advisor/profile",
+      "/portal/blogs",
+      "/portal/profile/change-password",
+      "/portal/login",
+      "/portal/access-pending",
+      "/profile/change-password",
     ];
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el) el.style.display = "none";
-    }
-  }).catch(() => undefined);
+  }
+
+  return [
+    "/portal",
+    "/portal/dashboard",
+    "/portal/profile",
+    "/portal/profile/edit",
+    "/portal/profile/change-password",
+    "/portal/blogs",
+    "/portal/tickets",
+    "/portal/mentorship",
+    "/portal/projects",
+    "/portal/activity",
+    "/portal/login",
+    "/portal/access-pending",
+    "/profile",
+    "/profile/edit",
+    "/profile/change-password",
+  ];
+}
+
+async function verifyMobileDrawer(page) {
+  await page.setViewportSize({ width: 360, height: 740 });
+
+  const toggle = page.getByRole("button", { name: /open sidebar/i });
+  if ((await toggle.count()) === 0 || !(await toggle.isVisible())) {
+    throw new Error("Mobile portal navigation toggle is missing at 360px");
+  }
+
+  await toggle.click();
+  const sidebar = page.getByRole("complementary", {
+    name: /(?:member|advisor) portal navigation/i,
+  });
+  await sidebar.waitFor({ state: "visible" });
+
+  const focusIsInside = await sidebar.evaluate((element) =>
+    element.contains(document.activeElement)
+  );
+  if (!focusIsInside) {
+    throw new Error("Mobile portal navigation did not receive focus after opening");
+  }
+
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(
+    (element) => element?.getAttribute("data-open") === "false",
+    await sidebar.elementHandle()
+  );
+
+  if (!(await toggle.evaluate((element) => element === document.activeElement))) {
+    throw new Error("Mobile portal navigation did not restore focus after closing");
+  }
 }
 
 async function main() {
@@ -170,13 +206,9 @@ async function main() {
       const text = msg.text();
       const loc = msg.location();
       const url = loc ? loc.url || "" : "";
-      // Ignore harmless external assets and Cloudflare anti-bot console probing
-      if (
-        text.includes("favicon.ico") ||
-        text.includes("font-size:0;color:transparent") ||
-        url.includes("challenges.cloudflare.com") ||
-        url.includes("turnstile")
-      ) {
+      // Ignore only known non-application diagnostics. Other framework,
+      // application, and CAPTCHA errors remain release-blocking signals.
+      if (isIgnorablePortalConsoleError({ text, url })) {
         return;
       }
       consoleErrors.push({
@@ -197,23 +229,7 @@ async function main() {
   if (specificRoutesArg) {
     targetRoutes = specificRoutesArg.split(",").map((r) => r.trim()).filter(Boolean);
   } else if (isAuthenticated) {
-    targetRoutes = [
-      "/portal",
-      "/portal/dashboard",
-      "/portal/profile",
-      "/portal/profile/edit",
-      "/portal/profile/change-password",
-      "/portal/blogs",
-      "/portal/tickets",
-      "/portal/mentorship",
-      "/portal/projects",
-      "/portal/activity",
-      "/portal/login",
-      "/portal/access-pending",
-      "/profile",
-      "/profile/edit",
-      "/profile/change-password",
-    ];
+    targetRoutes = authenticatedRoutesForRole(role);
   } else {
     // Unauthenticated mode: test entry & guard routes + redirect safety
     targetRoutes = [
@@ -227,6 +243,8 @@ async function main() {
     ];
   }
 
+  const runMode = isAuthenticated ? "authenticated" : "guest";
+
   console.log(`\nTesting ${targetRoutes.length} portal routes:`);
   for (const r of targetRoutes) {
     console.log(` - ${r}`);
@@ -236,6 +254,7 @@ async function main() {
     role,
     baseUrl,
     isAuthenticated,
+    runMode,
     timestamp: new Date().toISOString(),
     routesRequested: targetRoutes.length,
     routesChecked: 0,
@@ -245,11 +264,17 @@ async function main() {
     routeResults: {},
   };
 
+  let drawerInteractionVerified = false;
+
   for (const route of targetRoutes) {
     activeRoute = route;
     const routeSlug = route.replace(/^\//, "").replace(/\//g, "-").replace(/\?/g, "_").replace(/=/g, "-");
-    const routeOutputDir = path.join(OUTPUT_BASE, role, routeSlug);
+    const routeOutputDir = path.join(OUTPUT_BASE, role, runMode, routeSlug);
     fs.mkdirSync(routeOutputDir, { recursive: true });
+
+    const findingStart = auditResults.findings.length;
+    const consoleErrorStart = consoleErrors.length;
+    const pageErrorStart = pageErrors.length;
 
     console.log(`\nTesting route: ${route} (${routeSlug})`);
     auditResults.routeResults[route] = {
@@ -278,21 +303,56 @@ async function main() {
 
       await page.waitForLoadState("domcontentloaded").catch(() => undefined);
 
-      const requestedRoute = normalizeRoute(route);
-      const landedUrl = new URL(page.url());
-      const landedRoute = `${landedUrl.pathname}${landedUrl.search}`;
+      const requestedRoute = normalizePortalRoute(route, baseUrl);
+      const expectedRoute = expectedPortalLanding(
+        requestedRoute,
+        isAuthenticated,
+        baseUrl
+      );
+      await page
+        .waitForURL(
+          (url) => normalizePortalRoute(url.href, baseUrl) === expectedRoute,
+          { timeout: 5000 }
+        )
+        .catch(() => undefined);
+
+      const landedRoute = normalizePortalRoute(page.url(), baseUrl);
       const redirected = landedRoute !== requestedRoute;
 
       Object.assign(auditResults.routeResults[route], {
         requestedRoute,
+        expectedRoute,
         landedRoute,
         redirected,
         responseStatus,
       });
 
+      if (
+        !isExpectedPortalLanding({
+          baseUrl,
+          isAuthenticated,
+          landedRoute,
+          requestedRoute,
+        })
+      ) {
+        throw new Error(
+          `Unexpected landing for ${route}: expected ${expectedRoute}, received ${landedRoute}`
+        );
+      }
+
       if (redirected) {
         console.log(` Verified redirect: ${route} -> ${landedRoute}`);
         auditResults.redirectsVerified++;
+      }
+
+      if (
+        isAuthenticated &&
+        !drawerInteractionVerified &&
+        (requestedRoute === "/portal" || requestedRoute === "/portal/dashboard")
+      ) {
+        await verifyMobileDrawer(page);
+        drawerInteractionVerified = true;
+        auditResults.routeResults[route].drawerInteractionVerified = true;
       }
 
       for (const theme of THEMES) {
@@ -308,7 +368,6 @@ async function main() {
         for (const vp of VIEWPORTS) {
           await page.setViewportSize({ width: vp.width, height: vp.height });
           await page.waitForTimeout(200);
-          await hideDevBadges(page);
 
           // Measure horizontal overflow
           const metrics = await safeEvaluate(page, () => {
@@ -342,12 +401,41 @@ async function main() {
               }
             }
 
+            const frameworkErrors = [];
+            const frameworkErrorSelectors = [
+              "nextjs-portal [data-nextjs-dialog]",
+              "nextjs-portal [role='dialog']",
+              "nextjs-portal [data-nextjs-toast]",
+            ];
+            for (const selector of frameworkErrorSelectors) {
+              for (const element of document.querySelectorAll(selector)) {
+                const rect = element.getBoundingClientRect();
+                const styles = window.getComputedStyle(element);
+                if (
+                  rect.width > 0 &&
+                  rect.height > 0 &&
+                  styles.display !== "none" &&
+                  styles.visibility !== "hidden"
+                ) {
+                  frameworkErrors.push(
+                    (element.textContent || selector).trim().slice(0, 300)
+                  );
+                }
+              }
+            }
+
+            const meaningfulTextLength = (body?.innerText || "")
+              .replace(/\s+/g, " ")
+              .trim().length;
+
             return {
               scrollWidth,
               clientWidth,
               overflow,
               overflowingElements,
               brokenImages,
+              frameworkErrors,
+              meaningfulTextLength,
             };
           });
 
@@ -360,6 +448,8 @@ async function main() {
             overflow: metrics.overflow,
             overflowingElements: metrics.overflowingElements,
             brokenImages: metrics.brokenImages,
+            frameworkErrors: metrics.frameworkErrors,
+            meaningfulTextLength: metrics.meaningfulTextLength,
           };
 
           if (isOverflowing) {
@@ -374,27 +464,69 @@ async function main() {
             auditResults.findings.push(finding);
           }
 
+          if (metrics.frameworkErrors.length > 0) {
+            const finding = `[FRAMEWORK_ERROR] ${route} on ${vp.label} (${theme}): ${metrics.frameworkErrors.join(" | ")}`;
+            console.error(`  ${finding}`);
+            auditResults.findings.push(finding);
+          }
+
+          if (metrics.meaningfulTextLength < 20) {
+            const finding = `[BLANK_PAGE] ${route} on ${vp.label} (${theme}): only ${metrics.meaningfulTextLength} visible text characters`;
+            console.error(`  ${finding}`);
+            auditResults.findings.push(finding);
+          }
+
           // Capture full-length screenshot for all viewports and themes
           const snapshotFile = path.join(routeOutputDir, `${vp.label}_${theme}.png`);
-          await page.screenshot({ path: snapshotFile, fullPage: true }).catch(() => undefined);
+          await page.screenshot({ path: snapshotFile, fullPage: true });
         }
       }
 
-      auditResults.routesChecked++;
-      auditResults.routesVerified++;
-      auditResults.routeResults[route].status = "pass";
-      console.log(` ${route} PASS across all viewports`);
+      const routeFindings = auditResults.findings.slice(findingStart);
+      const routeConsoleErrors = consoleErrors.slice(consoleErrorStart);
+      const routePageErrors = pageErrors.slice(pageErrorStart);
+      Object.assign(auditResults.routeResults[route], {
+        consoleErrors: routeConsoleErrors,
+        pageErrors: routePageErrors,
+      });
+
+      if (
+        hasPortalAuditFailures({
+          findings: routeFindings,
+          consoleErrors: routeConsoleErrors,
+          pageErrors: routePageErrors,
+        })
+      ) {
+        auditResults.routeResults[route].status = "fail";
+        auditResults.routeResults[route].errors.push(
+          `${routeFindings.length} finding(s), ${routeConsoleErrors.length} console error(s), ${routePageErrors.length} page error(s)`
+        );
+        console.error(` ${route} FAIL across one or more viewports`);
+      } else {
+        auditResults.routesVerified++;
+        auditResults.routeResults[route].status = redirected
+          ? "redirect-verified"
+          : "verified";
+        console.log(` ${route} PASS across all viewports`);
+      }
     } catch (err) {
       console.error(` ${route} FAIL: ${err.message}`);
       auditResults.routeResults[route].status = "fail";
       auditResults.routeResults[route].errors.push(err.message);
       auditResults.findings.push(`[ROUTE_ERROR] ${route}: ${err.message}`);
+    } finally {
+      auditResults.routesChecked++;
     }
   }
 
   await browser.close();
 
-  const reportPath = path.join(OUTPUT_BASE, "portal-audit-report.json");
+  auditResults.consoleErrors = consoleErrors;
+  auditResults.pageErrors = pageErrors;
+  const reportPath = path.join(
+    OUTPUT_BASE,
+    `portal-audit-report-${role}-${runMode}.json`
+  );
   fs.writeFileSync(reportPath, JSON.stringify(auditResults, null, 2), "utf8");
   console.log(`\nAudit Report saved to: ${reportPath}`);
 
@@ -421,9 +553,11 @@ async function main() {
     }
   }
 
-  const hasCriticalFailures =
-    auditResults.findings.some((f) => f.startsWith("[OVERFLOW]") || f.startsWith("[ROUTE_ERROR]")) ||
-    pageErrors.length > 0;
+  const hasCriticalFailures = hasPortalAuditFailures({
+    findings: auditResults.findings,
+    consoleErrors,
+    pageErrors,
+  });
 
   if (hasCriticalFailures) {
     console.error("\nFAIL: Critical UI or runtime defects found during portal audit.");

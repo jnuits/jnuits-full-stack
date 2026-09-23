@@ -1,4 +1,5 @@
 export type TurnstileWidgetId = string;
+export type TurnstileWidgetSize = "compact" | "flexible" | "normal";
 
 export type TurnstileApi = {
   remove: (widgetId: TurnstileWidgetId) => void;
@@ -9,7 +10,7 @@ export type TurnstileApi = {
       "error-callback"?: () => void;
       "expired-callback"?: () => void;
       sitekey: string;
-      size?: "compact" | "flexible" | "normal";
+      size?: TurnstileWidgetSize;
       theme?: "auto" | "dark" | "light";
     }
   ) => TurnstileWidgetId;
@@ -21,6 +22,7 @@ export function renderTurnstileWidget(options: {
   onError?: () => void;
   onExpired?: () => void;
   onSuccess: (token: string) => void;
+  size?: TurnstileWidgetSize;
   siteKey: string;
   turnstile: TurnstileApi;
 }) {
@@ -29,7 +31,7 @@ export function renderTurnstileWidget(options: {
     "error-callback": options.onError,
     "expired-callback": options.onExpired,
     sitekey: options.siteKey,
-    size: "flexible",
+    size: options.size ?? "flexible",
     theme: "auto",
   });
 }

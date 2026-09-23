@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -101,6 +101,42 @@ describe("PortalShell", () => {
     expect(aside).toHaveAttribute("data-open", "false");
     expect(document.body.style.overflow).toBe("");
     expect(toggleButton).toHaveFocus();
+  });
+
+  it("moves focus into the mobile drawer and traps Tab navigation inside it", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PortalShell memberName="Jane Doe" jnuitsId="JN-001">
+        <button type="button">Page action</button>
+      </PortalShell>
+    );
+
+    const toggleButton = screen.getByRole("button", { name: /open sidebar/i });
+    await user.click(toggleButton);
+
+    const aside = screen.getByRole("complementary", {
+      name: /member portal navigation/i,
+    });
+    const closeButton = within(aside).getByRole("button", {
+      name: /close navigation/i,
+    });
+    const firstDrawerControl = within(aside).getByRole("button", {
+      name: /toggle color theme/i,
+    });
+    const drawerLinks = within(aside).getAllByRole("link");
+    const lastDrawerLink = drawerLinks.at(-1);
+
+    expect(closeButton).toHaveFocus();
+    expect(lastDrawerLink).toBeDefined();
+
+    lastDrawerLink?.focus();
+    await user.tab();
+    expect(firstDrawerControl).toHaveFocus();
+
+    firstDrawerControl.focus();
+    await user.tab({ shift: true });
+    expect(lastDrawerLink).toHaveFocus();
   });
 
   it("renders advisor navigation groups when portalRole is advisor", () => {

@@ -17,6 +17,7 @@
     "audit:admin-access": "node scripts/check-admin-access-map.cjs",
     "audit:admin-ui": "node scripts/check-admin-responsive-patterns.cjs",
     "audit:admin-snapshots": "node scripts/capture-admin-snapshots.mjs",
+    "audit:portal-snapshots": "node scripts/capture-portal-snapshots.mjs",
     "migration:check": "node scripts/check-migration-parity.cjs",
     "migration:check-order": "node scripts/check-migration-dependencies.mjs",
     "migration:check-order:strict": "node scripts/check-migration-dependencies.mjs --strict",

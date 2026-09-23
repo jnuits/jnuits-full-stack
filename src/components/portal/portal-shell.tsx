@@ -123,6 +123,8 @@ export function PortalShell({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const wasSidebarOpenRef = useRef(false);
   const navGroups = portalRole === "advisor" ? ADVISOR_NAV_GROUPS : NAV_GROUPS;
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() =>
@@ -152,12 +154,43 @@ export function PortalShell({
     };
   }, [sidebarOpen]);
 
-  // Close drawer on Escape key press
+  // Move focus into the mobile drawer and keep keyboard navigation inside it.
   useEffect(() => {
     if (!sidebarOpen) return;
+
+    closeButtonRef.current?.focus();
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setSidebarOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !sidebarRef.current) {
+        return;
+      }
+
+      const focusable = Array.from(
+        sidebarRef.current.querySelectorAll<HTMLElement>(
+          'a[href]:not([tabindex="-1"]), button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      );
+      const first = focusable[0];
+      const last = focusable.at(-1);
+
+      if (!first || !last) {
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!sidebarRef.current.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -205,6 +238,8 @@ export function PortalShell({
       />
 
       <aside
+        ref={sidebarRef}
+        id="portal-sidebar-navigation"
         className="portal-sidebar"
         data-open={sidebarOpen ? "true" : "false"}
         aria-label={portalRole === "advisor" ? "Advisor portal navigation" : "Member portal navigation"}
@@ -215,6 +250,7 @@ export function PortalShell({
             <div className="flex items-center gap-1.5">
               <ThemeToggle />
               <button
+                ref={closeButtonRef}
                 type="button"
                 className="portal-sidebar-close"
                 aria-label="Close navigation"
@@ -312,6 +348,7 @@ export function PortalShell({
             <button
               ref={toggleButtonRef}
               className="portal-sidebar-toggle"
+              aria-controls="portal-sidebar-navigation"
               aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
               aria-expanded={sidebarOpen}
               onClick={() => setSidebarOpen((v) => !v)}

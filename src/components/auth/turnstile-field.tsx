@@ -7,6 +7,7 @@ import {
   renderTurnstileWidget,
   resetTurnstileWidget,
   type TurnstileApi,
+  type TurnstileWidgetSize,
 } from "@/lib/security/turnstile-client";
 
 type TurnstileFieldProps = {
@@ -30,9 +31,14 @@ declare global {
   }
 }
 
+function resolveWidgetSize(width: number): TurnstileWidgetSize {
+  return width > 0 && width < 300 ? "compact" : "flexible";
+}
+
 export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }: TurnstileFieldProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const widgetSizeRef = useRef<TurnstileWidgetSize | null>(null);
   const onTokenChangeRef = useRef(onTokenChange);
   const [token, setToken] = useState("");
   const [scriptReady, setScriptReady] = useState(false);
@@ -52,9 +58,22 @@ export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }
     onTokenChangeRef.current?.(token);
   }, [token]);
 
-  const renderWidget = useCallback(() => {
-    if (!siteKey || !containerRef.current || !window.turnstile || widgetIdRef.current) {
+  const renderWidget = useCallback((requestedSize?: TurnstileWidgetSize) => {
+    if (!siteKey || !containerRef.current || !window.turnstile) {
       return;
+    }
+
+    const measuredWidth = containerRef.current.getBoundingClientRect().width;
+    const nextSize = requestedSize ?? resolveWidgetSize(measuredWidth);
+
+    if (widgetIdRef.current && widgetSizeRef.current === nextSize) {
+      return;
+    }
+
+    if (widgetIdRef.current) {
+      removeTurnstileWidget(window.turnstile, widgetIdRef.current);
+      widgetIdRef.current = null;
+      widgetSizeRef.current = null;
     }
 
     const resetWidget = () => {
@@ -67,17 +86,42 @@ export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }
       onError: resetWidget,
       onExpired: resetWidget,
       onSuccess: setToken,
+      size: nextSize,
       siteKey,
       turnstile: window.turnstile,
     });
+    widgetSizeRef.current = nextSize;
   }, [siteKey]);
 
   useEffect(() => {
     renderWidget();
 
+    const container = containerRef.current;
+    const observer =
+      container && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver((entries) => {
+            const width =
+              entries[0]?.contentRect.width ??
+              container.getBoundingClientRect().width;
+            const nextSize = resolveWidgetSize(width);
+            if (
+              widgetIdRef.current &&
+              widgetSizeRef.current !== nextSize
+            ) {
+              setToken("");
+            }
+            renderWidget(nextSize);
+          })
+        : null;
+    if (observer && container) {
+      observer.observe(container);
+    }
+
     return () => {
+      observer?.disconnect();
       removeTurnstileWidget(window.turnstile, widgetIdRef.current);
       widgetIdRef.current = null;
+      widgetSizeRef.current = null;
     };
   }, [renderWidget, scriptReady]);
 
@@ -86,7 +130,7 @@ export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }
   }
 
   return (
-    <div className="grid gap-2 min-w-0 max-w-full overflow-hidden">
+    <div className="grid gap-2 min-w-0 max-w-full">
       <Script
         async
         defer
@@ -98,7 +142,7 @@ export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }
         }}
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
       />
-      <div ref={containerRef} className="min-w-0 max-w-full overflow-hidden" />
+      <div ref={containerRef} className="min-w-0 max-w-full" />
       <input name={name} type="hidden" value={token} />
     </div>
   );
