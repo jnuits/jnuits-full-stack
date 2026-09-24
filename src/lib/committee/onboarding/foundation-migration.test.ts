@@ -67,4 +67,15 @@ describe("committee onboarding foundation migration", () => {
       "grant select on table public.committee_term_positions to anon",
     );
   });
+
+  it("registers executable bootstrap assertions", () => {
+    const replay = readFileSync(
+      resolve(process.cwd(), "supabase/verification/assert-bootstrap-replay.sql"),
+      "utf8",
+    );
+
+    expect(replay).toContain("ENFORCED 7 committee onboarding foundation");
+    expect(replay).toContain("content_admin cannot manage onboarding operations");
+    expect(replay).toContain("hidden legacy duplicate term number remains allowed");
+  });
 });

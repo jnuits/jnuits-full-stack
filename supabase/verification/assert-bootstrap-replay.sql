@@ -443,6 +443,276 @@ end
 $directory_facets$;
 
 -- ---------------------------------------------------------------------------
+-- ENFORCED 7: committee onboarding foundation.
+-- ---------------------------------------------------------------------------
+do $committee_onboarding_shape$
+declare
+  permission_function text;
+begin
+  if to_regclass('public.committee_term_positions') is null then
+    raise exception 'ENFORCED 7 failed: committee_term_positions is absent.';
+  end if;
+
+  if not (
+    select relrowsecurity
+    from pg_class
+    where oid = 'public.committee_term_positions'::regclass
+  ) then
+    raise exception 'ENFORCED 7 failed: committee_term_positions RLS is disabled.';
+  end if;
+
+  if exists (
+    select 1
+    from public.committee_assignments as assignment
+    where not exists (
+      select 1
+      from public.committee_term_positions as position
+      where position.term_id = assignment.term_id
+        and position.role_id = assignment.role_id
+    )
+  ) then
+    raise exception 'ENFORCED 7 failed: assignment lacks position backfill.';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_indexes
+    where schemaname = 'public'
+      and indexname = 'committee_terms_one_public_executive_number_idx'
+      and indexdef ilike 'create unique index%term_number%where%is_public%'
+  ) then
+    raise exception 'ENFORCED 7 failed: public term-number uniqueness is absent.';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_indexes
+    where schemaname = 'public'
+      and indexname = 'committee_assignments_linked_appointment_unique_idx'
+      and indexdef ilike 'create unique index%term_id%role_id%member_id%'
+  ) then
+    raise exception 'ENFORCED 7 failed: appointment uniqueness is absent.';
+  end if;
+
+  if has_table_privilege('anon', 'public.committee_term_positions', 'SELECT')
+     or has_table_privilege('anon', 'public.committee_term_positions', 'INSERT')
+     or has_table_privilege('anon', 'public.committee_term_positions', 'UPDATE')
+     or has_table_privilege('anon', 'public.committee_term_positions', 'DELETE') then
+    raise exception 'ENFORCED 7 failed: anon can access term positions.';
+  end if;
+
+  if not has_table_privilege(
+    'authenticated', 'public.committee_term_positions', 'SELECT'
+  ) or not has_table_privilege(
+    'authenticated', 'public.committee_term_positions', 'INSERT'
+  ) or not has_table_privilege(
+    'authenticated', 'public.committee_term_positions', 'UPDATE'
+  ) or not has_table_privilege(
+    'authenticated', 'public.committee_term_positions', 'DELETE'
+  ) then
+    raise exception 'ENFORCED 7 failed: authenticated grants are incomplete.';
+  end if;
+
+  if has_function_privilege(
+    'anon', 'public.can_manage_bulk_operation_type(text)', 'EXECUTE'
+  ) then
+    raise exception 'ENFORCED 7 failed: anon can execute permission routing.';
+  end if;
+
+  select pg_get_functiondef(
+    'public.can_manage_bulk_operation_type(text)'::regprocedure
+  ) into permission_function;
+
+  if (
+    select prosecdef
+    from pg_proc
+    where oid = 'public.can_manage_bulk_operation_type(text)'::regprocedure
+  ) or permission_function not ilike '%admin.committee.manage%'
+     or permission_function not ilike '%admin.membership.manage%'
+     or permission_function not ilike '%admin.bulk.manage%' then
+    raise exception 'ENFORCED 7 failed: permission routing is incomplete.';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'bulk_operations'
+      and policyname = 'bulk operations scoped manage'
+      and coalesce(qual, '') ilike '%can_manage_bulk_operation_type%'
+      and coalesce(with_check, '') ilike '%can_manage_bulk_operation_type%'
+  ) then
+    raise exception 'ENFORCED 7 failed: parent staging policy is not scoped.';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'bulk_operation_rows'
+      and policyname = 'bulk operation rows scoped manage'
+      and coalesce(qual, '') ilike '%can_manage_bulk_operation_type%'
+      and coalesce(with_check, '') ilike '%can_manage_bulk_operation_type%'
+  ) then
+    raise exception 'ENFORCED 7 failed: row staging policy is not scoped.';
+  end if;
+
+  raise notice 'ENFORCED 7 committee onboarding foundation shape passed.';
+end
+$committee_onboarding_shape$;
+
+do $committee_onboarding_term_uniqueness$
+declare
+  public_term_id constant uuid := '00000000-0000-4000-8000-000000009901';
+  hidden_term_id constant uuid := '00000000-0000-4000-8000-000000009902';
+begin
+  insert into public.committee_terms (
+    id,
+    slug,
+    title,
+    starts_on,
+    status,
+    is_public,
+    term_number,
+    term_kind,
+    is_current
+  ) values (
+    public_term_id,
+    'replay-public-committee-999',
+    'Replay Public Committee 999',
+    date '2099-01-01',
+    'archived',
+    true,
+    999,
+    'executive',
+    false
+  );
+
+  insert into public.committee_terms (
+    id,
+    slug,
+    title,
+    starts_on,
+    status,
+    is_public,
+    term_number,
+    term_kind,
+    is_current
+  ) values (
+    hidden_term_id,
+    'replay-hidden-committee-999',
+    'Replay Hidden Committee 999',
+    date '2098-01-01',
+    'archived',
+    false,
+    999,
+    'executive',
+    false
+  );
+
+  raise notice 'ENFORCED 7 hidden legacy duplicate term number remains allowed.';
+
+  begin
+    insert into public.committee_terms (
+      slug,
+      title,
+      starts_on,
+      status,
+      is_public,
+      term_number,
+      term_kind,
+      is_current
+    ) values (
+      'replay-second-public-committee-999',
+      'Replay Second Public Committee 999',
+      date '2097-01-01',
+      'archived',
+      true,
+      999,
+      'executive',
+      false
+    );
+    raise exception 'ENFORCED 7 failed: duplicate public term was accepted.';
+  exception
+    when unique_violation then
+      raise notice 'ENFORCED 7 duplicate public term number rejected.';
+  end;
+
+  delete from public.committee_terms
+  where id in (public_term_id, hidden_term_id);
+end
+$committee_onboarding_term_uniqueness$;
+
+do $committee_onboarding_permissions$
+declare
+  actor_id uuid;
+  admin_role_id uuid;
+  content_admin_role_id uuid;
+begin
+  select id
+    into actor_id
+  from auth.users
+  order by created_at
+  limit 1;
+
+  select id
+    into admin_role_id
+  from public.rbac_platform_roles
+  where code = 'admin'
+    and scope = 'admin';
+
+  select id
+    into content_admin_role_id
+  from public.rbac_platform_roles
+  where code = 'content_admin'
+    and scope = 'admin';
+
+  if actor_id is null or admin_role_id is null or content_admin_role_id is null then
+    raise exception 'ENFORCED 7 failed: permission fixtures are unavailable.';
+  end if;
+
+  perform set_config('request.jwt.claim.sub', actor_id::text, true);
+  insert into public.rbac_user_platform_roles (user_id, role_id, scope, note)
+  values (
+    actor_id,
+    content_admin_role_id,
+    'admin',
+    'committee onboarding replay content-admin fixture'
+  );
+
+  if public.can_manage_bulk_operation_type('committee_roster_import')
+     or public.can_manage_bulk_operation_type('member_profile_import')
+     or public.can_manage_bulk_operation_type('legacy_member_import') then
+    raise exception 'ENFORCED 7 failed: content_admin can manage onboarding operations.';
+  end if;
+  raise notice 'ENFORCED 7 content_admin cannot manage onboarding operations.';
+
+  delete from public.rbac_user_platform_roles
+  where user_id = actor_id
+    and note = 'committee onboarding replay content-admin fixture';
+
+  insert into public.rbac_user_platform_roles (user_id, role_id, scope, note)
+  values (
+    actor_id,
+    admin_role_id,
+    'admin',
+    'committee onboarding replay admin fixture'
+  );
+
+  if not public.can_manage_bulk_operation_type('committee_roster_import')
+     or not public.can_manage_bulk_operation_type('member_profile_import')
+     or not public.can_manage_bulk_operation_type('legacy_member_import') then
+    raise exception 'ENFORCED 7 failed: admin operation routing is incomplete.';
+  end if;
+
+  delete from public.rbac_user_platform_roles
+  where user_id = actor_id
+    and note = 'committee onboarding replay admin fixture';
+  raise notice 'ENFORCED 7 committee onboarding permission routing passed.';
+end
+$committee_onboarding_permissions$;
+
+-- ---------------------------------------------------------------------------
 -- EVIDENCE 1: installed extensions.
 -- ---------------------------------------------------------------------------
 do $extensions$
