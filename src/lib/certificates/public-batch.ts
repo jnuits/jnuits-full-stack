@@ -3,7 +3,23 @@ import type { Tables } from "@/lib/db/types";
 export const MAX_BATCH_IDS = 25;
 export const MAX_CERTIFICATE_ID_LENGTH = 80;
 
-export type PublicCertificateRecord = Tables<"public_certificates">;
+type GeneratedPublicCertificateRecord = Tables<"public_certificates">;
+type RequiredPublicCertificateField =
+  | "certificate_id"
+  | "details"
+  | "exam_or_event"
+  | "exam_or_event_name"
+  | "full_name"
+  | "issue_date";
+
+export type PublicCertificateRecord = Omit<
+  GeneratedPublicCertificateRecord,
+  RequiredPublicCertificateField
+> & {
+  [Field in RequiredPublicCertificateField]: NonNullable<
+    GeneratedPublicCertificateRecord[Field]
+  >;
+};
 
 export function normalizeCertificateId(value: string) {
   return value.trim().toUpperCase();

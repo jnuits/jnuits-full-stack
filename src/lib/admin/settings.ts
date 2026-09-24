@@ -73,7 +73,7 @@ export async function getAdminSettingsSnapshot() {
     return null;
   }
 
-  const sessionClient = asFlexibleClient(await createClient());
+  const sessionClient = await createClient();
   const admin = asFlexibleClient(createAdminClient());
   const [
     userResult,
