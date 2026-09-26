@@ -16,6 +16,7 @@ import {
   X,
   Unlock,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -29,6 +30,8 @@ import {
   updateCycleMemberStateAction,
   updateMembershipCycleStatusAction,
 } from "@/app/admin/membership/actions";
+import { MemberProfileEditor } from "@/components/admin/member-profile-editor";
+import { IntakeWorkspace } from "@/components/admin/onboarding/intake-workspace";
 import { runBoundedTasks } from "@/lib/async/bounded-concurrency";
 
 export type MembershipCycleClientRecord = {
@@ -68,18 +71,25 @@ export type InvitationBatchClientRecord = {
 
 export type ManagedMemberClientRecord = {
   avatar_secure_url: null | string;
+  batch_no: null | number;
   currentPortalRole: "alumni" | "alumni_ambassador" | "executive" | "member";
+  department_code: null | string;
   displayJnuitsId: string;
   email: null | string;
+  facebook_url: null | string;
   full_name: string;
   id: string;
   is_profile_claimed: boolean | null;
   jnuits_id: string;
   lifecycle_status: null | string;
+  linkedin_url: null | string;
   member_type: null | string;
+  phone: null | string;
   portal_access_status: null | string;
+  student_id: null | string;
   updated_at: string;
   user_id: null | string;
+  website_url: null | string;
 };
 
 export type PortalRoleOptionClientRecord = {
@@ -143,6 +153,7 @@ const cycleMemberStates = [
 ] as const;
 const stickyNavItems = [
   { label: "Members", tabId: "tab-members", targetId: "member-operations" },
+  { label: "Profile Intake", tabId: "tab-intake", targetId: "member-profile-intake" },
   { label: "Cycles", tabId: "tab-cycles", targetId: "cycle-management" },
   { label: "Enrollment", tabId: "tab-enrollment", targetId: "member-enrollment" },
   { label: "Registry", tabId: "tab-registry", targetId: "cycle-registry" },
@@ -153,6 +164,7 @@ const stickySectionToTab: Record<string, (typeof stickyNavItems)[number]["tabId"
   "cycle-management": "tab-cycles",
   "cycle-registry": "tab-registry",
   "member-enrollment": "tab-enrollment",
+  "member-profile-intake": "tab-intake",
   "member-operations": "tab-members",
   "renewal-queue": "tab-registry",
 };
@@ -574,6 +586,7 @@ function MemberOperationsSection({
   managedMembers: ManagedMemberClientRecord[];
   portalRoleOptions: PortalRoleOptionClientRecord[];
 }) {
+  const router = useRouter();
   const [members, setMembers] = useState(managedMembers);
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(() => new Set());
   const [editingMemberId, setEditingMemberId] = useState<null | string>(null);
@@ -962,7 +975,7 @@ function MemberOperationsSection({
         >
           <button
             onClick={() => {
-              window.location.href = "/admin/invitations#issue";
+              router.push("/admin/invitations#issue");
               setOpenMenu(null);
             }}
             type="button"
@@ -1012,12 +1025,11 @@ function MemberOperationsSection({
 
       {editingMember ? (
         <ManagedMemberCard
-          key={editingMember.id}
+          key={`${editingMember.id}:${editingMember.updated_at}`}
           member={editingMember}
           onClose={() => setEditingMemberId(null)}
           onSaved={(updatedMember) => {
             updateMemberInTable(updatedMember);
-            setEditingMemberId(null);
           }}
           portalRoleOptions={portalRoleOptions}
         />
@@ -1157,6 +1169,7 @@ function ManagedMemberCard({
             lifecycle_status: lifecycle,
             portal_access_status: portalAccess,
           });
+          onClose();
         }, 1800);
       } catch (saveError) {
         setSaveState("idle");
@@ -1189,6 +1202,7 @@ function ManagedMemberCard({
           ...member,
           portal_access_status: "suspended",
         });
+        onClose();
       } catch (saveError) {
         setSaveState("idle");
         setError(saveError instanceof Error ? saveError.message : "Unable to revoke portal access.");
@@ -1210,6 +1224,39 @@ function ManagedMemberCard({
           Close
         </button>
       </div>
+      <MemberProfileEditor
+        member={{
+          batchNo: member.batch_no,
+          departmentCode: member.department_code,
+          email: member.email || "",
+          expectedUpdatedAt: member.updated_at,
+          facebookUrl: member.facebook_url,
+          fullName: member.full_name,
+          id: member.id,
+          jnuitsId: member.jnuits_id,
+          lifecycleStatus: getMemberLifecycle(member),
+          linkedinUrl: member.linkedin_url,
+          phone: member.phone,
+          studentId: member.student_id,
+          websiteUrl: member.website_url,
+        }}
+        onSaved={(profile) => {
+          onSaved({
+            ...member,
+            batch_no: profile.batchNo,
+            department_code: profile.departmentCode,
+            email: profile.email || null,
+            facebook_url: profile.facebookUrl,
+            full_name: profile.fullName,
+            jnuits_id: profile.jnuitsId,
+            linkedin_url: profile.linkedinUrl,
+            phone: profile.phone,
+            student_id: profile.studentId,
+            updated_at: profile.expectedUpdatedAt,
+            website_url: profile.websiteUrl,
+          });
+        }}
+      />
       <div className="membership-inline-editor__body">
         <label htmlFor={`inline-lifecycle-${member.id}`}>
           Lifecycle
@@ -2328,6 +2375,21 @@ export function MembershipDbClient({
         memberRoleFilter={memberRoleFilter}
         portalRoleOptions={portalRoleOptions}
       />
+
+      <section className="section-band" id="member-profile-intake">
+        <div className="membership-table-heading">
+          <div>
+            <span className="eyebrow">Profile intake</span>
+            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.7rem)] leading-[0.96] tracking-[-0.04em]">
+              Import or enter member profiles safely
+            </h2>
+          </div>
+          <p>Draft, validate, correct, and commit without changing privacy, access, or roles.</p>
+        </div>
+        <div className="mt-6">
+          <IntakeWorkspace operationType="member_profile_import" />
+        </div>
+      </section>
 
       <AccountRequestsSection accountRequests={accountRequests} />
 

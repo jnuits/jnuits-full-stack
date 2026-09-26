@@ -205,7 +205,7 @@ export default async function AdminMembershipPage({
     let managedMembersQuery = flexibleAdmin
       .from("members" as string)
       .select(
-        "id, user_id, jnuits_id, full_name, email, member_type, is_profile_claimed, lifecycle_status, portal_access_status, avatar_secure_url, updated_at",
+        "id, user_id, jnuits_id, full_name, email, member_type, is_profile_claimed, lifecycle_status, portal_access_status, avatar_secure_url, department_code, batch_no, phone, student_id, facebook_url, linkedin_url, website_url, updated_at",
         { count: "exact" }
       )
       .not("jnuits_id", "ilike", "JNUITS-ADMIN-%");
