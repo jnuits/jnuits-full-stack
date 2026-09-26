@@ -713,6 +713,418 @@ end
 $committee_onboarding_permissions$;
 
 -- ---------------------------------------------------------------------------
+-- ENFORCED 8: committee onboarding draft publication.
+-- ---------------------------------------------------------------------------
+do $committee_onboarding_publish_shape$
+begin
+  if to_regprocedure(
+    'public.edit_onboarding_draft_row(uuid,uuid,integer,jsonb,jsonb,jsonb,text)'
+  ) is null
+     or to_regprocedure(
+       'public.set_onboarding_draft_row_excluded(uuid,uuid,integer,boolean,text)'
+     ) is null
+     or to_regprocedure('public.validate_onboarding_draft(uuid,integer)') is null
+     or to_regprocedure(
+       'public.commit_onboarding_draft(uuid,integer,boolean)'
+     ) is null then
+    raise exception 'ENFORCED 8 failed: an onboarding draft RPC is missing.';
+  end if;
+
+  if has_function_privilege(
+    'anon',
+    'public.commit_onboarding_draft(uuid,integer,boolean)',
+    'EXECUTE'
+  ) or not has_function_privilege(
+    'authenticated',
+    'public.commit_onboarding_draft(uuid,integer,boolean)',
+    'EXECUTE'
+  ) then
+    raise exception 'ENFORCED 8 failed: onboarding publish grants are unsafe.';
+  end if;
+
+  if exists (
+    select 1
+    from pg_proc
+    where oid in (
+      'public.edit_onboarding_draft_row(uuid,uuid,integer,jsonb,jsonb,jsonb,text)'::regprocedure,
+      'public.set_onboarding_draft_row_excluded(uuid,uuid,integer,boolean,text)'::regprocedure,
+      'public.validate_onboarding_draft(uuid,integer)'::regprocedure,
+      'public.commit_onboarding_draft(uuid,integer,boolean)'::regprocedure
+    )
+      and (
+        not prosecdef
+        or proconfig is null
+        or not exists (
+          select 1 from unnest(proconfig) as config
+          where config like 'search\_path=%'
+        )
+      )
+  ) then
+    raise exception 'ENFORCED 8 failed: onboarding RPC definer posture is unsafe.';
+  end if;
+
+  raise notice 'ENFORCED 8 committee onboarding draft publication shape passed.';
+end
+$committee_onboarding_publish_shape$;
+
+do $committee_onboarding_publish_behavior$
+declare
+  operation_id constant uuid := '00000000-0000-4000-8000-000000009911';
+  row_id constant uuid := '00000000-0000-4000-8000-000000009912';
+  committee_operation_id constant uuid := '00000000-0000-4000-8000-000000009913';
+  committee_row_id constant uuid := '00000000-0000-4000-8000-000000009914';
+  seat_operation_id constant uuid := '00000000-0000-4000-8000-000000009915';
+  seat_row_id constant uuid := '00000000-0000-4000-8000-000000009916';
+  fixture_term_id constant uuid := '00000000-0000-4000-8000-000000009917';
+  fixture_role_id constant uuid := '00000000-0000-4000-8000-000000009918';
+  actor_id uuid;
+  admin_role_id uuid;
+  fixture_member_id uuid;
+  previous_current_term_id uuid;
+  term_updated_at timestamptz;
+  position_updated_at timestamptz;
+  member_updated_at timestamptz;
+  before_auth_users integer;
+  after_auth_users integer;
+  result jsonb;
+begin
+  select id into actor_id
+  from auth.users
+  order by created_at
+  limit 1;
+
+  select id into admin_role_id
+  from public.rbac_platform_roles
+  where code = 'admin' and scope = 'admin';
+
+  if actor_id is null or admin_role_id is null then
+    raise exception 'ENFORCED 8 failed: permission fixtures are unavailable.';
+  end if;
+
+  delete from public.audit_events where entity_id = operation_id::text;
+  delete from public.bulk_operations where id = operation_id;
+  delete from public.members where jnuits_id = 'JNUITS-2099001';
+  delete from public.rbac_user_platform_roles
+  where user_id = actor_id and note = 'onboarding publish replay fixture';
+
+  select count(*)::integer into before_auth_users from auth.users;
+
+  insert into public.bulk_operations (
+    id,
+    operation_type,
+    status,
+    source_kind,
+    draft_revision,
+    total_rows,
+    valid_rows,
+    error_rows,
+    created_by_user_id,
+    metadata
+  ) values (
+    operation_id,
+    'member_profile_import',
+    'draft',
+    'manual',
+    1,
+    1,
+    1,
+    0,
+    actor_id,
+    jsonb_build_object('schemaVersion', 1)
+  );
+
+  insert into public.bulk_operation_rows (
+    id,
+    operation_id,
+    row_number,
+    raw_data,
+    normalized_data,
+    status,
+    errors
+  ) values (
+    row_id,
+    operation_id,
+    2,
+    jsonb_build_object(
+      'full_name', 'Replay Onboarding Member',
+      'jnuits_id', 'JNUITS-2099001',
+      'email', 'onboarding-replay@local.invalid',
+      'classification', 'current'
+    ),
+    jsonb_build_object(
+      'schemaVersion', 1,
+      'operationType', 'member_profile_import',
+      'normalized', jsonb_build_object(
+        'fullName', 'Replay Onboarding Member',
+        'jnuitsId', 'JNUITS-2099001',
+        'email', 'onboarding-replay@local.invalid',
+        'classification', 'current'
+      ),
+      'identity', jsonb_build_object('kind', 'create', 'memberId', null),
+      'targetVersions', jsonb_build_object(
+        'memberUpdatedAt', null,
+        'positionUpdatedAt', null,
+        'assignmentUpdatedAt', null
+      )
+    ),
+    'valid',
+    '[]'::jsonb
+  );
+
+  perform set_config('request.jwt.claim.sub', actor_id::text, true);
+
+  begin
+    perform public.commit_onboarding_draft(operation_id, 1, false);
+    raise exception 'ENFORCED 8 failed: unauthorized onboarding commit succeeded.';
+  exception
+    when insufficient_privilege then
+      raise notice 'ENFORCED 8 unauthorized onboarding commit rejected.';
+  end;
+
+  insert into public.rbac_user_platform_roles (user_id, role_id, scope, note)
+  values (actor_id, admin_role_id, 'admin', 'onboarding publish replay fixture');
+
+  begin
+    perform public.commit_onboarding_draft(operation_id, 0, false);
+    raise exception 'ENFORCED 8 failed: stale onboarding draft was accepted.';
+  exception
+    when serialization_failure then
+      raise notice 'ENFORCED 8 stale onboarding draft rejected.';
+  end;
+
+  result := public.validate_onboarding_draft(operation_id, 1);
+  if result ->> 'status' <> 'previewed' then
+    raise exception 'ENFORCED 8 failed: draft validation did not complete.';
+  end if;
+
+  result := public.commit_onboarding_draft(operation_id, 1, false);
+  if result ->> 'status' <> 'committed'
+     or not exists (
+       select 1 from public.members
+       where jnuits_id = 'JNUITS-2099001'
+         and email = 'onboarding-replay@local.invalid'
+         and full_name = 'Replay Onboarding Member'
+     )
+     or not exists (
+       select 1 from public.audit_events
+       where entity_id = operation_id::text
+         and action = 'member.onboarding_draft_committed'
+         and actor_user_id = actor_id
+     ) then
+    raise exception 'ENFORCED 8 failed: onboarding commit is incomplete.';
+  end if;
+
+  result := public.commit_onboarding_draft(operation_id, 1, false);
+  if result ->> 'status' <> 'already_committed'
+     or (select count(*) from public.members where jnuits_id = 'JNUITS-2099001') <> 1 then
+    raise exception 'ENFORCED 8 failed: onboarding commit retry was not idempotent.';
+  end if;
+  raise notice 'ENFORCED 8 onboarding commit retry was idempotent.';
+
+  select count(*)::integer into after_auth_users from auth.users;
+  if after_auth_users <> before_auth_users then
+    raise exception 'ENFORCED 8 failed: profile import created an authentication account.';
+  end if;
+
+  select id, updated_at into fixture_member_id, member_updated_at
+  from public.members
+  where jnuits_id = 'JNUITS-2099001';
+
+  select id into previous_current_term_id
+  from public.committee_terms
+  where term_kind = 'executive' and is_current
+  order by starts_on desc
+  limit 1;
+
+  insert into public.committee_roles (
+    id, code, title, sort_order, is_executive, is_public,
+    role_group, min_slots, max_slots, default_slots
+  ) values (
+    fixture_role_id, 'replay-onboarding-president', 'Replay President', 1, true, true,
+    'executive', 0, 1, 1
+  );
+
+  insert into public.committee_terms (
+    id, slug, title, starts_on, status, is_public, term_number,
+    term_kind, is_current, target_executive_slots
+  ) values (
+    fixture_term_id, 'replay-onboarding-committee', 'Replay Onboarding Committee',
+    date '2099-02-01', 'draft', false, 998, 'executive', false, 1
+  ) returning updated_at into term_updated_at;
+
+  insert into public.committee_term_positions (
+    term_id, role_id, public_label, role_group, priority, is_public,
+    min_slots, max_slots, target_slots, created_by_user_id, updated_by_user_id
+  ) values (
+    fixture_term_id, fixture_role_id, 'Replay President', 'executive', 1, true,
+    0, 1, 1, actor_id, actor_id
+  ) returning updated_at into position_updated_at;
+
+  insert into public.bulk_operations (
+    id, operation_type, status, source_kind, target_term_id,
+    draft_revision, total_rows, valid_rows, error_rows,
+    created_by_user_id, metadata
+  ) values (
+    committee_operation_id, 'committee_roster_import', 'draft', 'manual', fixture_term_id,
+    1, 1, 1, 0, actor_id,
+    jsonb_build_object('schemaVersion', 1, 'targetTermUpdatedAt', term_updated_at)
+  );
+
+  insert into public.bulk_operation_rows (
+    id, operation_id, row_number, raw_data, normalized_data, status, errors
+  ) values (
+    committee_row_id,
+    committee_operation_id,
+    2,
+    '{}'::jsonb,
+    jsonb_build_object(
+      'schemaVersion', 1,
+      'operationType', 'committee_roster_import',
+      'normalized', jsonb_build_object(
+        'fullName', 'Replay Onboarding Member',
+        'jnuitsId', 'JNUITS-2099001',
+        'email', 'onboarding-replay@local.invalid',
+        'classification', 'current',
+        'positionRoleId', fixture_role_id,
+        'targetTermId', fixture_term_id,
+        'assignment', jsonb_build_object(
+          'starts_on', '2099-02-01', 'ends_on', null, 'sort_order', 1,
+          'is_public', true, 'status', 'active'
+        )
+      ),
+      'identity', jsonb_build_object('kind', 'update', 'memberId', fixture_member_id),
+      'assignment', jsonb_build_object(
+        'action', 'create', 'assignmentId', null,
+        'roleId', fixture_role_id, 'termId', fixture_term_id
+      ),
+      'assignmentPatch', jsonb_build_object(
+        'starts_on', '2099-02-01', 'ends_on', null, 'sort_order', 1,
+        'is_public', true, 'status', 'active'
+      ),
+      'targetVersions', jsonb_build_object(
+        'memberUpdatedAt', member_updated_at,
+        'positionUpdatedAt', position_updated_at,
+        'assignmentUpdatedAt', null
+      )
+    ),
+    'valid',
+    '[]'::jsonb
+  );
+
+  perform public.validate_onboarding_draft(committee_operation_id, 1);
+  result := public.commit_onboarding_draft(committee_operation_id, 1, true);
+  if result ->> 'status' <> 'committed'
+     or not exists (
+       select 1 from public.committee_assignments
+       where committee_assignments.term_id = fixture_term_id
+         and committee_assignments.role_id = fixture_role_id
+         and committee_assignments.member_id = fixture_member_id
+         and import_batch_id = committee_operation_id
+     )
+     or not exists (
+       select 1 from public.committee_terms
+       where id = fixture_term_id and is_current and is_public and status = 'active'
+     ) then
+    raise exception 'ENFORCED 8 failed: committee appointment publication is incomplete.';
+  end if;
+
+  result := public.commit_onboarding_draft(committee_operation_id, 1, true);
+  if result ->> 'status' <> 'already_committed'
+     or (
+       select count(*) from public.committee_assignments
+       where committee_assignments.term_id = fixture_term_id
+         and committee_assignments.role_id = fixture_role_id
+         and committee_assignments.member_id = fixture_member_id
+     ) <> 1 then
+    raise exception 'ENFORCED 8 failed: committee appointment retry duplicated data.';
+  end if;
+
+  select updated_at into term_updated_at
+  from public.committee_terms where id = fixture_term_id;
+
+  insert into public.bulk_operations (
+    id, operation_type, status, source_kind, target_term_id,
+    draft_revision, total_rows, valid_rows, error_rows,
+    created_by_user_id, metadata
+  ) values (
+    seat_operation_id, 'committee_roster_import', 'draft', 'manual', fixture_term_id,
+    1, 1, 1, 0, actor_id,
+    jsonb_build_object('schemaVersion', 1, 'targetTermUpdatedAt', term_updated_at)
+  );
+
+  insert into public.bulk_operation_rows (
+    id, operation_id, row_number, raw_data, normalized_data, status, errors
+  ) values (
+    seat_row_id,
+    seat_operation_id,
+    2,
+    '{}'::jsonb,
+    jsonb_build_object(
+      'schemaVersion', 1,
+      'operationType', 'committee_roster_import',
+      'normalized', jsonb_build_object(
+        'fullName', 'Replay Seat Limit Member',
+        'jnuitsId', 'JNUITS-2099002',
+        'email', 'onboarding-seat-replay@local.invalid',
+        'classification', 'current',
+        'positionRoleId', fixture_role_id,
+        'targetTermId', fixture_term_id,
+        'assignment', jsonb_build_object(
+          'starts_on', '2099-02-01', 'ends_on', null, 'sort_order', 2,
+          'is_public', true, 'status', 'active'
+        )
+      ),
+      'identity', jsonb_build_object('kind', 'create', 'memberId', null),
+      'assignment', jsonb_build_object(
+        'action', 'create', 'assignmentId', null,
+        'roleId', fixture_role_id, 'termId', fixture_term_id
+      ),
+      'assignmentPatch', jsonb_build_object(
+        'starts_on', '2099-02-01', 'ends_on', null, 'sort_order', 2,
+        'is_public', true, 'status', 'active'
+      ),
+      'targetVersions', jsonb_build_object(
+        'memberUpdatedAt', null,
+        'positionUpdatedAt', position_updated_at,
+        'assignmentUpdatedAt', null
+      )
+    ),
+    'valid',
+    '[]'::jsonb
+  );
+
+  perform public.validate_onboarding_draft(seat_operation_id, 1);
+  begin
+    perform public.commit_onboarding_draft(seat_operation_id, 1, false);
+    raise exception 'ENFORCED 8 failed: configured seat limit was exceeded.';
+  exception
+    when check_violation then
+      if exists (select 1 from public.members where jnuits_id = 'JNUITS-2099002') then
+        raise exception 'ENFORCED 8 failed: seat-limit rollback left a member behind.';
+      end if;
+      raise notice 'ENFORCED 8 committee seat limit rolled back atomically.';
+  end;
+
+  delete from public.audit_events where entity_id = operation_id::text;
+  delete from public.audit_events
+  where entity_id in (committee_operation_id::text, seat_operation_id::text);
+  delete from public.bulk_operations
+  where id in (operation_id, committee_operation_id, seat_operation_id);
+  update public.committee_terms set is_current = false where id = fixture_term_id;
+  if previous_current_term_id is not null then
+    update public.committee_terms set is_current = true where id = previous_current_term_id;
+  end if;
+  delete from public.committee_terms where id = fixture_term_id;
+  delete from public.committee_roles where id = fixture_role_id;
+  delete from public.members where jnuits_id = 'JNUITS-2099001';
+  delete from public.rbac_user_platform_roles
+  where user_id = actor_id and note = 'onboarding publish replay fixture';
+
+  raise notice 'ENFORCED 8 committee onboarding draft publication passed.';
+end
+$committee_onboarding_publish_behavior$;
+
+-- ---------------------------------------------------------------------------
 -- EVIDENCE 1: installed extensions.
 -- ---------------------------------------------------------------------------
 do $extensions$

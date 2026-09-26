@@ -51,6 +51,7 @@
     "test:e2e:matrix": "node scripts/run-playwright-matrix.cjs",
     "test:runtime-probe": "node scripts/runtime-smoke-probe.mjs",
     "db:verify-admin-invite-search": "node scripts/verify-admin-invite-search-migration.cjs",
+    "db:verify-committee-onboarding": "vitest run --project node src/lib/committee/onboarding/foundation-migration.test.ts src/lib/committee/onboarding/draft-publish-migration.test.ts",
     "db:audit-cleanup": "node scripts/verify-supabase-cleanup-readiness.cjs",
     "db:types:generate": "bash supabase/verification/run-bootstrap-replay.sh --generate-types"
   },

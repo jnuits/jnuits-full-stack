@@ -31,9 +31,13 @@ evidence that the function should be revoked.
 | `current_member_id()` | RLS ownership checks for member-linked rows | Reads only the member ID linked to `auth.uid()` | The caller's own member ID or null | Keep authenticated execute |
 | `current_member_type()` | RLS policy branching for member/alumni flows | Reads only the member type linked to `auth.uid()` | The caller's own type or null | Keep authenticated execute |
 | `current_rbac_claims_snapshot()` | SSR/proxy fallback while a fresh JWT claim is not yet available | Reads only active roles and member ID for `auth.uid()` | The caller's own role/member snapshot | Keep authenticated execute |
+| `edit_onboarding_draft_row(uuid,uuid,integer,jsonb,jsonb,jsonb,text)` | Correct one persisted onboarding draft row while advancing its revision | Committee managers must be able to stage constrained member changes without receiving general member-table write access | Operation ID and the new draft revision after permission, state, and revision checks | Keep authenticated execute |
 | `has_permission(text)` | Canonical permission predicate in RLS and server/session checks | Reads RBAC join tables that ordinary callers must not select directly | Boolean for the caller's own permission | Keep authenticated execute |
 | `is_admin_totp_enforced()` | Admin MFA routing before a user reaches AAL2 | Reads the global security setting that is otherwise protected | Global boolean only | Keep authenticated execute |
 | `is_super_admin()` | RLS hierarchy checks | Reads only whether `auth.uid()` has the super-admin grant | Boolean for the caller | Keep authenticated execute |
+| `set_onboarding_draft_row_excluded(uuid,uuid,integer,boolean,text)` | Exclude or restore a persisted onboarding row with attribution | Atomically updates row exclusion state and invalidates the parent validation revision | Operation ID and the new draft revision | Keep authenticated execute |
+| `validate_onboarding_draft(uuid,integer)` | Seal one draft revision for publication | Locks the parent and rows and validates their persisted contract across permission-scoped staging tables | Operation ID, revision, valid-row count, and preview status | Keep authenticated execute |
+| `commit_onboarding_draft(uuid,integer,boolean)` | Atomically publish validated member/profile and committee appointment changes | Committee managers need a narrow path that can update identities and appointments without broad membership access; the function rechecks permission, versions, identities, positions, media, and seat limits | Aggregate commit result; completed retries return the stored result | Keep authenticated execute |
 
 ## Narrowing Candidate
 

@@ -4181,6 +4181,14 @@ export type Database = {
         Args: { target_operation_id: string }
         Returns: Json
       }
+      commit_onboarding_draft: {
+        Args: {
+          p_expected_revision: number
+          p_make_current?: boolean
+          p_operation_id: string
+        }
+        Returns: Json
+      }
       confirm_form_submission: {
         Args: { p_confirmation_token_hash: string; p_submission_id: string }
         Returns: {
@@ -4231,6 +4239,18 @@ export type Database = {
       current_member_type: { Args: never; Returns: string }
       current_portal_role: { Args: never; Returns: string }
       current_rbac_claims_snapshot: { Args: never; Returns: Json }
+      edit_onboarding_draft_row: {
+        Args: {
+          p_errors: Json
+          p_expected_revision: number
+          p_normalized_data: Json
+          p_operation_id: string
+          p_raw_data: Json
+          p_row_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
       finalize_member_invitation_claim: {
         Args: {
           target_email: string
@@ -4453,6 +4473,16 @@ export type Database = {
         }
         Returns: Json
       }
+      set_onboarding_draft_row_excluded: {
+        Args: {
+          p_excluded: boolean
+          p_expected_revision: number
+          p_operation_id: string
+          p_reason?: string
+          p_row_id: string
+        }
+        Returns: Json
+      }
       transition_form_definition_lifecycle: {
         Args: {
           p_actor_user_id: string
@@ -4487,6 +4517,10 @@ export type Database = {
         Returns: {
           form_version_id: string
         }[]
+      }
+      validate_onboarding_draft: {
+        Args: { p_expected_revision: number; p_operation_id: string }
+        Returns: Json
       }
     }
     Enums: {
