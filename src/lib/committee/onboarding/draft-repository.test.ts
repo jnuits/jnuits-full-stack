@@ -1,0 +1,301 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { IntakeTable } from "./intake-contracts";
+import {
+  buildOnboardingDraftRows,
+  createSupabaseOnboardingDraftGateway,
+  editOnboardingDraftRow,
+  getMemberSearchWindow,
+  persistOnboardingDraft,
+  publishOnboardingDraft,
+  searchOnboardingMembers,
+  setOnboardingDraftRowExcluded,
+  sha256IntakeSource,
+  validateOnboardingDraft,
+  type OnboardingDraftGateway,
+} from "./draft-repository";
+
+const operationId = "11111111-1111-4111-8111-111111111111";
+const actorUserId = "22222222-2222-4222-8222-222222222222";
+
+function createGateway(overrides: Partial<OnboardingDraftGateway> = {}): OnboardingDraftGateway {
+  return {
+    call: vi.fn().mockResolvedValue({}),
+    createOperation: vi.fn().mockResolvedValue({ draftRevision: 1, id: operationId }),
+    createRows: vi.fn().mockResolvedValue(undefined),
+    deleteOperation: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+describe("committee onboarding draft repository", () => {
+  it("hashes source bytes with a stable lowercase SHA-256 digest", () => {
+    expect(sha256IntakeSource("hello")).toBe(
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    );
+  });
+
+  it("marks every side of a cross-row identity conflict as an error", () => {
+    const table: IntakeTable = {
+      availableSheets: [],
+      headers: [
+        { columnIndex: 0, key: "full_name", label: "Full name" },
+        { columnIndex: 1, key: "jnuits_id", label: "JnUITS ID" },
+        { columnIndex: 2, key: "email", label: "Email" },
+        { columnIndex: 3, key: "classification", label: "Classification" },
+      ],
+      rows: [
+        {
+          sourceRowNumber: 2,
+          values: {
+            classification: "current",
+            email: "one@example.com",
+            full_name: "Member One",
+            jnuits_id: "JNUITS-2026001",
+          },
+        },
+        {
+          sourceRowNumber: 3,
+          values: {
+            classification: "current",
+            email: "two@example.com",
+            full_name: "Member Two",
+            jnuits_id: "JNUITS-2026001",
+          },
+        },
+      ],
+      selectedSheet: null,
+    };
+
+    const rows = buildOnboardingDraftRows({
+      context: {
+        approvedMedia: [],
+        existingAssignments: [],
+        existingMembers: [],
+        positions: [],
+      },
+      mapping: {
+        classification: "classification",
+        email: "email",
+        fullName: "full_name",
+        jnuitsId: "jnuits_id",
+      },
+      operationType: "member_profile_import",
+      table,
+      targetTermId: null,
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.status === "error")).toBe(true);
+    expect(
+      rows.every((row) => row.errors.some((issue) => issue.code === "draft_identity_conflict"))
+    ).toBe(true);
+  });
+
+  it("persists only metadata, normalized decisions, and rows, never source bytes", async () => {
+    const gateway = createGateway();
+    const rows = [
+      {
+        errors: [],
+        normalizedData: {
+          assignment: null,
+          assignmentPatch: null,
+          identity: { kind: "create" as const, memberId: null },
+          memberPatch: { full_name: "Member One" },
+          normalized: { fullName: "Member One" },
+          operationType: "member_profile_import" as const,
+          schemaVersion: 1 as const,
+          targetVersions: {
+            assignmentUpdatedAt: null,
+            memberUpdatedAt: null,
+            positionUpdatedAt: null,
+          },
+          warnings: [],
+        },
+        rawData: { full_name: "Member One" },
+        rowNumber: 2,
+        status: "valid" as const,
+      },
+    ];
+
+    const result = await persistOnboardingDraft(gateway, {
+      actorUserId,
+      metadata: {
+        columnMapping: { fullName: "full_name" },
+        operationType: "member_profile_import",
+        originalFilename: "members.csv",
+        schemaVersion: 1,
+        sourceKind: "csv",
+        sourceSha256: "a".repeat(64),
+        targetTermId: null,
+      },
+      rows,
+    });
+
+    expect(result).toEqual({
+      draftRevision: 1,
+      errorRows: 0,
+      operationId,
+      totalRows: 1,
+      validRows: 1,
+    });
+    expect(gateway.createOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createdByUserId: actorUserId,
+        metadata: {
+          columnMapping: { fullName: "full_name" },
+          schemaVersion: 1,
+        },
+        sourceSha256: "a".repeat(64),
+      })
+    );
+    expect(JSON.stringify(vi.mocked(gateway.createOperation).mock.calls[0])).not.toContain(
+      "sourceBytes"
+    );
+    expect(gateway.createRows).toHaveBeenCalledWith(operationId, rows);
+  });
+
+  it("removes the parent draft when row persistence fails", async () => {
+    const gateway = createGateway({
+      createRows: vi.fn().mockRejectedValue(new Error("row insert failed")),
+    });
+
+    await expect(
+      persistOnboardingDraft(gateway, {
+        actorUserId,
+        metadata: {
+          columnMapping: {},
+          operationType: "member_profile_import",
+          schemaVersion: 1,
+          sourceKind: "manual",
+          targetTermId: null,
+        },
+        rows: [],
+      })
+    ).rejects.toThrow("row insert failed");
+
+    expect(gateway.deleteOperation).toHaveBeenCalledWith(operationId);
+  });
+
+  it("passes optimistic revisions to edit, exclusion, validation, and publish RPCs", async () => {
+    const call = vi.fn()
+      .mockResolvedValueOnce({ draftRevision: 7, operationId })
+      .mockResolvedValueOnce({ draftRevision: 8, operationId })
+      .mockResolvedValueOnce({ draftRevision: 8, operationId, status: "previewed" })
+      .mockResolvedValueOnce({ operationId, status: "committed" });
+    const gateway = createGateway({ call });
+
+    await editOnboardingDraftRow(gateway, {
+      expectedRevision: 6,
+      operationId,
+      row: {
+        errors: [],
+        normalizedData: {
+          assignment: null,
+          assignmentPatch: null,
+          identity: { kind: "create", memberId: null },
+          memberPatch: {},
+          normalized: {},
+          operationType: "member_profile_import",
+          schemaVersion: 1,
+          targetVersions: {
+            assignmentUpdatedAt: null,
+            memberUpdatedAt: null,
+            positionUpdatedAt: null,
+          },
+          warnings: [],
+        },
+        rawData: {},
+        rowNumber: 2,
+        status: "valid",
+      },
+      rowId: "33333333-3333-4333-8333-333333333333",
+    });
+    await setOnboardingDraftRowExcluded(gateway, {
+      excluded: true,
+      expectedRevision: 7,
+      operationId,
+      reason: "Duplicate roster line",
+      rowId: "33333333-3333-4333-8333-333333333333",
+    });
+    await validateOnboardingDraft(gateway, { expectedRevision: 8, operationId });
+    await publishOnboardingDraft(gateway, {
+      expectedRevision: 8,
+      makeCurrent: true,
+      operationId,
+    });
+
+    expect(call).toHaveBeenNthCalledWith(1, "edit_onboarding_draft_row", {
+      p_errors: [],
+      p_expected_revision: 6,
+      p_normalized_data: expect.objectContaining({ schemaVersion: 1 }),
+      p_operation_id: operationId,
+      p_raw_data: {},
+      p_row_id: "33333333-3333-4333-8333-333333333333",
+      p_status: "valid",
+    });
+    expect(call).toHaveBeenNthCalledWith(2, "set_onboarding_draft_row_excluded", {
+      p_excluded: true,
+      p_expected_revision: 7,
+      p_operation_id: operationId,
+      p_reason: "Duplicate roster line",
+      p_row_id: "33333333-3333-4333-8333-333333333333",
+    });
+    expect(call).toHaveBeenNthCalledWith(3, "validate_onboarding_draft", {
+      p_expected_revision: 8,
+      p_operation_id: operationId,
+    });
+    expect(call).toHaveBeenNthCalledWith(4, "commit_onboarding_draft", {
+      p_expected_revision: 8,
+      p_make_current: true,
+      p_operation_id: operationId,
+    });
+  });
+
+  it("calculates stable one-based member-search pagination windows", () => {
+    expect(getMemberSearchWindow({ page: 1, pageSize: 20 })).toEqual({ from: 0, to: 19 });
+    expect(getMemberSearchWindow({ page: 3, pageSize: 20 })).toEqual({ from: 40, to: 59 });
+  });
+
+  it("surfaces a stale publish as a reloadable optimistic-concurrency conflict", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { code: "40001", message: "raw database detail" },
+    });
+    const gateway = createSupabaseOnboardingDraftGateway({ rpc } as never);
+
+    await expect(
+      publishOnboardingDraft(gateway, {
+        expectedRevision: 3,
+        makeCurrent: false,
+        operationId,
+      })
+    ).rejects.toMatchObject({
+      code: "40001",
+      message: "The draft changed. Reload it and try again.",
+    });
+  });
+
+  it("applies the calculated range to paginated member searches", async () => {
+    const range = vi.fn().mockResolvedValue({ count: 45, data: [], error: null });
+    const builder = {
+      neq: vi.fn(),
+      order: vi.fn(),
+      range,
+      select: vi.fn(),
+    };
+    builder.select.mockReturnValue(builder);
+    builder.neq.mockReturnValue(builder);
+    builder.order.mockReturnValue(builder);
+    const client = { from: vi.fn().mockReturnValue(builder) };
+
+    const result = await searchOnboardingMembers(client as never, {
+      page: 3,
+      pageSize: 20,
+      query: "",
+    });
+
+    expect(range).toHaveBeenCalledWith(40, 59);
+    expect(result).toEqual({ members: [], page: 3, pageSize: 20, total: 45 });
+  });
+});
