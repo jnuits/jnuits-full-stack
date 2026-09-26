@@ -17,6 +17,34 @@ export type CommitteeOnboardingOperationType =
 export type CommitteeIntakeSourceKind =
   (typeof COMMITTEE_INTAKE_SOURCE_KINDS)[number];
 
+export const COMMITTEE_ONBOARDING_CANONICAL_FIELDS = [
+  "fullName",
+  "jnuitsId",
+  "email",
+  "classification",
+  "departmentCode",
+  "batchNo",
+  "phone",
+  "studentId",
+  "facebookUrl",
+  "linkedinUrl",
+  "websiteUrl",
+  "avatarMediaId",
+  "committeeTerm",
+  "position",
+  "startsOn",
+  "endsOn",
+  "sortOrder",
+  "isPublic",
+  "assignmentStatus",
+] as const;
+
+export type CommitteeOnboardingCanonicalField =
+  (typeof COMMITTEE_ONBOARDING_CANONICAL_FIELDS)[number];
+export type CommitteeOnboardingColumnMapping = Partial<
+  Record<CommitteeOnboardingCanonicalField, string>
+>;
+
 const sourceDigestSchema = z
   .string()
   .regex(/^[a-f0-9]{64}$/, "Source digest must be a lowercase SHA-256 value.");
