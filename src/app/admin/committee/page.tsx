@@ -5,7 +5,6 @@ import {
   type AdvisorProfileClientRecord,
   type CommitteeAssignmentClientRecord,
   type CommitteeHistoryRecord,
-  type CommitteeMemberOption,
   type CommitteeRoleClientRecord,
   type CommitteeTermClientRecord,
 } from "@/components/admin/committee-workspace-client";
@@ -17,6 +16,7 @@ import {
   formatAdvisorJnuitsIdForDisplay,
   formatMembershipIdForDisplay,
 } from "@/lib/members/jnuits-id";
+import type { CommitteeTermPositionClientRecord } from "@/lib/committee/term-positions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
@@ -53,13 +53,6 @@ type RoleRecord = {
   title_bn?: string | null;
 };
 
-type MemberRecord = {
-  email: null | string;
-  full_name: string;
-  id: string;
-  jnuits_id: null | string;
-};
-
 type AssignmentRecord = {
   bio: null | string;
   committee_roles?: RoleRecord | RoleRecord[] | null;
@@ -75,11 +68,15 @@ type AssignmentRecord = {
         email?: null | string;
         full_name?: null | string;
         jnuits_id?: null | string;
+        lifecycle_status?: null | string;
+        member_type?: null | string;
       }
     | {
         email?: null | string;
         full_name?: null | string;
         jnuits_id?: null | string;
+        lifecycle_status?: null | string;
+        member_type?: null | string;
       }[]
     | null;
   public_title_override?: null | string;
@@ -87,6 +84,21 @@ type AssignmentRecord = {
   sort_order: number;
   starts_on: null | string;
   status: string;
+  term_id: string;
+};
+
+type PositionRecord = {
+  committee_roles?: { code?: null | string } | { code?: null | string }[] | null;
+  id: string;
+  is_public: boolean;
+  max_slots: number;
+  min_slots: number;
+  priority: number;
+  public_label: string;
+  public_label_bn: null | string;
+  role_group: string;
+  role_id: string;
+  target_slots: number;
   term_id: string;
 };
 
@@ -194,7 +206,7 @@ async function loadAssignments(
   const extended = await flexibleAdmin
     .from("committee_assignments" as string)
     .select(
-      "id, term_id, role_id, member_id, display_name, public_title_override, bio, sort_order, starts_on, ends_on, status, is_public, committee_roles(id, code, title, title_bn, role_group), committee_terms(title), members(full_name, jnuits_id, email)"
+      "id, term_id, role_id, member_id, display_name, public_title_override, bio, sort_order, starts_on, ends_on, status, is_public, committee_roles(id, code, title, title_bn, role_group), committee_terms(title), members(full_name, jnuits_id, email, lifecycle_status, member_type)"
     )
     .in("term_id", termIds)
     .order("sort_order", { ascending: true });
@@ -206,12 +218,31 @@ async function loadAssignments(
   const base = await flexibleAdmin
     .from("committee_assignments" as string)
     .select(
-      "id, term_id, role_id, member_id, display_name, bio, sort_order, starts_on, ends_on, status, committee_roles(id, code, title), committee_terms(title), members(full_name, jnuits_id, email)"
+      "id, term_id, role_id, member_id, display_name, bio, sort_order, starts_on, ends_on, status, committee_roles(id, code, title), committee_terms(title), members(full_name, jnuits_id, email, lifecycle_status, member_type)"
     )
     .in("term_id", termIds)
     .order("sort_order", { ascending: true });
 
   return (base.data || []) as AssignmentRecord[];
+}
+
+async function loadPositions(
+  flexibleAdmin: ReturnType<typeof asFlexibleClient>,
+  termIds: string[]
+): Promise<PositionRecord[]> {
+  if (termIds.length === 0) return [];
+
+  const result = await flexibleAdmin
+    .from("committee_term_positions" as string)
+    .select(
+      "id, term_id, role_id, public_label, public_label_bn, role_group, priority, is_public, min_slots, max_slots, target_slots, committee_roles(code)"
+    )
+    .in("term_id", termIds)
+    .order("priority", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (result.error) throw result.error;
+  return (result.data || []) as PositionRecord[];
 }
 
 async function loadAdvisors(
@@ -262,10 +293,10 @@ function mapTerm(term: TermRecord, assignmentCount: number): CommitteeTermClient
 function mapRole(role: RoleRecord): CommitteeRoleClientRecord {
   return {
     code: role.code,
-    defaultSlots: role.default_slots || 1,
+    defaultSlots: role.default_slots ?? 1,
     id: role.id,
-    maxSlots: role.max_slots || 1,
-    minSlots: role.min_slots || 1,
+    maxSlots: role.max_slots ?? 1,
+    minSlots: role.min_slots ?? 1,
     roleGroup: role.role_group || (role.is_executive ? "executive" : "advisor"),
     sortOrder: role.sort_order,
     title: role.title,
@@ -287,7 +318,9 @@ function mapAssignment(assignment: AssignmentRecord): CommitteeAssignmentClientR
     isPublic: assignment.is_public ?? true,
     jnuitsId: formatMembershipIdForDisplay(member?.jnuits_id) || member?.jnuits_id || null,
     memberId: assignment.member_id || null,
+    memberLifecycleStatus: member?.lifecycle_status || null,
     memberName: member?.full_name || null,
+    memberType: member?.member_type || null,
     publicTitleOverride: assignment.public_title_override || null,
     roleCode: role?.code || null,
     roleGroup: role?.role_group || (role?.is_executive ? "executive" : null),
@@ -299,6 +332,24 @@ function mapAssignment(assignment: AssignmentRecord): CommitteeAssignmentClientR
     status: assignment.status,
     termId: assignment.term_id,
     termTitle: term?.title || null,
+  };
+}
+
+function mapPosition(position: PositionRecord): CommitteeTermPositionClientRecord {
+  const role = resolveOne(position.committee_roles);
+  return {
+    id: position.id,
+    isPublic: position.is_public,
+    maxSlots: position.max_slots,
+    minSlots: position.min_slots,
+    priority: position.priority,
+    publicLabel: position.public_label,
+    publicLabelBn: position.public_label_bn || null,
+    roleCode: role?.code || "unknown-role",
+    roleGroup: position.role_group,
+    roleId: position.role_id,
+    targetSlots: position.target_slots,
+    termId: position.term_id,
   };
 }
 
@@ -345,16 +396,10 @@ export default async function AdminCommitteePage() {
     cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value
   );
 
-  const [termsRawAll, rolesRaw, membersResult, advisorsRaw, historyResult] =
+  const [termsRawAll, rolesRaw, advisorsRaw, historyResult] =
     await Promise.all([
       loadTerms(flexibleAdmin),
       loadRoles(flexibleAdmin),
-      flexibleAdmin
-        .from("members" as string)
-        .select("id, full_name, jnuits_id, email")
-        .not("jnuits_id", "like", "JNUITS-ADMIN-%")
-        .order("full_name", { ascending: true })
-        .limit(500),
       loadAdvisors(flexibleAdmin),
       flexibleAdmin
         .from("audit_events" as string)
@@ -368,14 +413,19 @@ export default async function AdminCommitteePage() {
     (term) => (term.term_kind || "executive") === "executive"
   );
   const termIds = termsRaw.map((term) => term.id);
-  const assignmentsRaw = await loadAssignments(flexibleAdmin, termIds);
+  const [assignmentsRaw, positionsRaw] = await Promise.all([
+    loadAssignments(flexibleAdmin, termIds),
+    loadPositions(flexibleAdmin, termIds),
+  ]);
+  const publicExecutivePositionKeys = new Set(
+    positionsRaw
+      .filter((position) => position.role_group === "executive" && position.is_public)
+      .map((position) => `${position.term_id}:${position.role_id}`)
+  );
   const assignmentCounts = new Map<string, number>();
 
   for (const assignment of assignmentsRaw) {
-    const role = resolveOne(assignment.committee_roles);
-    const roleGroup = role?.role_group || (role?.is_executive ? "executive" : null);
-    if (roleGroup !== "executive") continue;
-    if (role?.code === "joint-secretary") continue;
+    if (!publicExecutivePositionKeys.has(`${assignment.term_id}:${assignment.role_id}`)) continue;
     if ((assignment.status || "") === "planned") continue;
     if (assignment.is_public === false) continue;
     assignmentCounts.set(
@@ -384,14 +434,6 @@ export default async function AdminCommitteePage() {
     );
   }
 
-  const members = ((membersResult.data || []) as MemberRecord[]).map(
-    (member): CommitteeMemberOption => ({
-      email: member.email || null,
-      fullName: member.full_name,
-      id: member.id,
-      jnuitsId: formatMembershipIdForDisplay(member.jnuits_id) || member.jnuits_id,
-    })
-  );
   const history = ((historyResult.data || []) as AuditRecord[]).map(
     (event): CommitteeHistoryRecord => ({
       action: event.action,
@@ -410,7 +452,7 @@ export default async function AdminCommitteePage() {
       assignments={assignmentsRaw.map(mapAssignment)}
       flash={flash}
       history={history}
-      members={members}
+      positions={positionsRaw.map(mapPosition)}
       roles={rolesRaw.map(mapRole)}
       terms={termsRaw.map((term) => mapTerm(term, assignmentCounts.get(term.id) || 0))}
     />

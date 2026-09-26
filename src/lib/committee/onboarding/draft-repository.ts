@@ -751,7 +751,7 @@ export async function searchOnboardingMembers(
       email: typeof member.email === "string" ? member.email : null,
       fullName: String(member.full_name),
       id: String(member.id),
-      jnuitsId: String(member.jnuits_id),
+      jnuitsId: typeof member.jnuits_id === "string" ? member.jnuits_id : null,
       lifecycleStatus: String(member.lifecycle_status),
       memberType: String(member.member_type),
     })),

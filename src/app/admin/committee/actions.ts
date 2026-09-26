@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
+import { committeeTermPositionInputSchema } from "@/lib/committee/term-positions";
 import {
   normalizeAdvisorJnuitsId,
   normalizeJnuitsIdForCreation,
@@ -548,6 +549,167 @@ export async function setCommitteeTermCurrent(formData: FormData) {
     tone: "success",
     title: "Current committee updated",
     message: "The public committee page now prioritizes the selected executive committee.",
+  });
+  redirect("/admin/committee");
+}
+
+export async function saveCommitteeTermPosition(formData: FormData) {
+  const actorUserId = await requireCommitteeAdmin();
+  const admin = createAdminClient();
+  const parsed = committeeTermPositionInputSchema.safeParse(
+    pickFormFields(formData, [
+      "termId",
+      "roleId",
+      "publicLabel",
+      "publicLabelBn",
+      "roleGroup",
+      "priority",
+      "isPublic",
+      "minSlots",
+      "maxSlots",
+      "targetSlots",
+    ])
+  );
+
+  if (!parsed.success) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Committee position not saved",
+      message: parsed.error.issues[0]?.message || "Review the position settings and try again.",
+    });
+    redirect("/admin/committee");
+  }
+
+  const {
+    isPublic,
+    maxSlots,
+    minSlots,
+    priority,
+    publicLabel,
+    publicLabelBn,
+    roleGroup,
+    roleId,
+    targetSlots,
+    termId,
+  } = parsed.data;
+  const [{ data: term, error: termError }, { data: role, error: roleError }] =
+    await Promise.all([
+      admin
+        .from("committee_terms")
+        .select("id, title, term_kind")
+        .eq("id", termId)
+        .maybeSingle(),
+      admin
+        .from("committee_roles")
+        .select("id, title")
+        .eq("id", roleId)
+        .maybeSingle(),
+    ]);
+
+  if (termError || roleError || !term || !role || (term.term_kind || "executive") !== "executive") {
+    await setAdminFlash({
+      tone: "error",
+      title: "Committee position not saved",
+      message:
+        termError || roleError
+          ? safeCommitteeError(
+              termError || roleError,
+              "saveTermPositionContext",
+              "Unable to verify the committee term and canonical role."
+            )
+          : "Choose a valid executive committee term and canonical role.",
+    });
+    redirect("/admin/committee");
+  }
+
+  const { data: existing, error: existingError } = await admin
+    .from("committee_term_positions")
+    .select(
+      "id, term_id, role_id, public_label, public_label_bn, role_group, priority, is_public, min_slots, max_slots, target_slots"
+    )
+    .eq("term_id", termId)
+    .eq("role_id", roleId)
+    .maybeSingle();
+
+  if (existingError) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Committee position not saved",
+      message: safeCommitteeError(
+        existingError,
+        "loadTermPosition",
+        "Unable to load the existing term position."
+      ),
+    });
+    redirect("/admin/committee");
+  }
+
+  const payload = {
+    is_public: isPublic,
+    max_slots: maxSlots,
+    min_slots: minSlots,
+    priority,
+    public_label: publicLabel,
+    public_label_bn: publicLabelBn,
+    role_group: roleGroup,
+    target_slots: targetSlots,
+    updated_by_user_id: actorUserId,
+  };
+  const mutation = existing
+    ? admin
+        .from("committee_term_positions")
+        .update(payload)
+        .eq("id", existing.id)
+        .select(
+          "id, term_id, role_id, public_label, public_label_bn, role_group, priority, is_public, min_slots, max_slots, target_slots"
+        )
+        .single()
+    : admin
+        .from("committee_term_positions")
+        .insert({
+          ...payload,
+          created_by_user_id: actorUserId,
+          role_id: roleId,
+          term_id: termId,
+        })
+        .select(
+          "id, term_id, role_id, public_label, public_label_bn, role_group, priority, is_public, min_slots, max_slots, target_slots"
+        )
+        .single();
+  const { data: saved, error: saveError } = await mutation;
+
+  if (saveError || !saved) {
+    await setAdminFlash({
+      tone: "error",
+      title: "Committee position not saved",
+      message: saveError
+        ? safeCommitteeError(saveError, "saveTermPosition", "Unable to save the committee position.")
+        : "Unable to save the committee position.",
+    });
+    redirect("/admin/committee");
+  }
+
+  await admin.from("audit_events").insert({
+    actor_user_id: actorUserId,
+    action: existing
+      ? "committee.term_position_updated"
+      : "committee.term_position_created",
+    entity_id: saved.id,
+    entity_type: "committee_term_position",
+    metadata: {
+      after: saved,
+      before: existing,
+      roleId,
+      termId,
+    },
+  });
+
+  revalidatePath("/admin/committee");
+  revalidatePath("/committee");
+  await setAdminFlash({
+    tone: "success",
+    title: existing ? "Committee position updated" : "Committee position created",
+    message: `${publicLabel} is configured for ${term.title}.`,
   });
   redirect("/admin/committee");
 }
@@ -1117,6 +1279,16 @@ export async function commitCommitteeImport(formData: FormData) {
   }
 
   const { csvContent, importType, termId } = parsed.data;
+  if (importType !== "advisor_profiles") {
+    await setAdminFlash({
+      tone: "error",
+      title: "Use the validated roster workspace",
+      message:
+        "Executive and sub-executive roster imports must be reviewed and published through an onboarding draft.",
+    });
+    redirect("/admin/committee");
+  }
+
   const rows = parseCsvRows(csvContent);
 
   if (rows.length === 0) {

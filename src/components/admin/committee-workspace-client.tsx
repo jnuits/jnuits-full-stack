@@ -7,7 +7,6 @@ import {
   CheckCircle,
   CalendarDays,
   ChevronRight,
-  ClipboardList,
   Clock3,
   ExternalLink,
   Eye,
@@ -24,7 +23,6 @@ import {
   Search,
   ShieldCheck,
   Settings,
-  Upload,
   UserCheck,
   UserRoundX,
   Users,
@@ -36,7 +34,6 @@ import { useFormStatus } from "react-dom";
 
 import {
   bulkUpdateCommitteeAssignments,
-  commitCommitteeImport,
   linkAdvisorAuthUser,
   removeCommitteeAssignment,
   saveAdvisorProfile,
@@ -44,6 +41,17 @@ import {
   saveCommitteeTerm,
   setCommitteeTermCurrent,
 } from "@/app/admin/committee/actions";
+import {
+  CommitteeMemberSearch,
+  type CommitteeMemberSearchOption,
+} from "@/components/admin/committee-member-search";
+import { CommitteeOnboardingPanel } from "@/components/admin/committee-onboarding-panel";
+import { CommitteePositionEditor } from "@/components/admin/committee-position-editor";
+import {
+  rolesForCommitteeTerm,
+  sortCommitteeAssignmentsByTermRoles,
+  type CommitteeTermPositionClientRecord,
+} from "@/lib/committee/term-positions";
 
 type AdminFlash = {
   message: string;
@@ -92,7 +100,9 @@ export type CommitteeAssignmentClientRecord = {
   isPublic: boolean;
   jnuitsId: null | string;
   memberId: null | string;
+  memberLifecycleStatus: null | string;
   memberName: null | string;
+  memberType: null | string;
   publicTitleOverride: null | string;
   roleCode: null | string;
   roleGroup: null | string;
@@ -104,13 +114,6 @@ export type CommitteeAssignmentClientRecord = {
   status: string;
   termId: string;
   termTitle: null | string;
-};
-
-export type CommitteeMemberOption = {
-  email: null | string;
-  fullName: string;
-  id: string;
-  jnuitsId: null | string;
 };
 
 export type AdvisorProfileClientRecord = {
@@ -159,39 +162,20 @@ type CommitteeWorkspaceClientProps = {
   assignments: CommitteeAssignmentClientRecord[];
   flash: AdminFlash;
   history: CommitteeHistoryRecord[];
-  members: CommitteeMemberOption[];
+  positions: CommitteeTermPositionClientRecord[];
   roles: CommitteeRoleClientRecord[];
   terms: CommitteeTermClientRecord[];
 };
 
 const navItems = [
   ["Terms", "committee-terms"],
+  ["Positions", "committee-positions"],
   ["Executive Roster", "committee-roster"],
   ["Advisors", "committee-advisors"],
-  ["Imports", "committee-imports"],
+  ["Roster Intake", "committee-imports"],
   ["Validation", "committee-validation"],
   ["History", "committee-history"],
 ] as const;
-
-type CommitteeImportType =
-  | "advisor_profiles"
-  | "executive_roster"
-  | "sub_executive_internal";
-
-type ImportPreviewRow = {
-  detail: string;
-  rowNumber: number;
-  status: "error" | "ok" | "warning";
-  summary: string;
-};
-
-type ImportPreview = {
-  errors: number;
-  ready: boolean;
-  rows: ImportPreviewRow[];
-  total: number;
-  warnings: number;
-};
 
 type FloatingActionMenu =
   | {
@@ -292,297 +276,6 @@ function formatAdvisorDisplayName(advisor: Pick<AdvisorProfileClientRecord, "ful
   return `${title} ${advisor.fullName}`;
 }
 
-function normalizeImportHeader(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
-function parseImportLine(line: string) {
-  const cells: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
-
-    if (char === '"' && inQuotes && next === '"') {
-      current += '"';
-      index += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      inQuotes = !inQuotes;
-      continue;
-    }
-
-    if (char === "," && !inQuotes) {
-      cells.push(current.trim());
-      current = "";
-      continue;
-    }
-
-    current += char;
-  }
-
-  cells.push(current.trim());
-  return cells;
-}
-
-function parseImportRows(csvContent: string) {
-  const lines = csvContent
-    .replace(/^\uFEFF/, "")
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0);
-
-  if (lines.length < 2) return [];
-
-  const headers = parseImportLine(lines[0] || "").map(normalizeImportHeader);
-  return lines.slice(1).map((line, index) => {
-    const cells = parseImportLine(line);
-    const row: Record<string, string> = { row_number: String(index + 2) };
-
-    headers.forEach((header, headerIndex) => {
-      row[header] = cells[headerIndex]?.trim() || "";
-    });
-
-    return row;
-  });
-}
-
-function readImportValue(row: Record<string, string>, keys: string[]) {
-  for (const key of keys) {
-    const value = row[normalizeImportHeader(key)];
-    if (value) return value.trim();
-  }
-
-  return "";
-}
-
-function normalizeImportRole(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function normalizeImportMemberId(value: string) {
-  const raw = value.trim().toUpperCase();
-  const standard = raw.match(/^JNUITS-(\d{7})$/);
-  const digits = raw.match(/^(\d{7})$/);
-  return standard ? `JNUITS-${standard[1]}` : digits ? `JNUITS-${digits[1]}` : raw;
-}
-
-function normalizeImportAdvisorId(value: string) {
-  const raw = value.trim().toUpperCase();
-  return /^JNUITS-(CA|MOD|RA)\d{4}$/.test(raw) ? raw : "";
-}
-
-function advisorTypeFromImport(value: string) {
-  const key = normalizeImportRole(value);
-  if (["chief-advisor", "main-advisor", "vc", "vice-chancellor"].includes(key)) return "main_advisor";
-  if (["moderator", "mentor", "moderator-mentor", "mentor-moderator"].includes(key)) return "moderator_mentor";
-  if (["honorable-advisor", "honourable-advisor", "respected-advisor", "advisor", "ra"].includes(key)) return "honorable_advisor";
-  return value.trim();
-}
-
-function buildImportPreview({
-  assignments,
-  csvContent,
-  importType,
-  members,
-  roles,
-  selectedTermId,
-}: {
-  assignments: CommitteeAssignmentClientRecord[];
-  csvContent: string;
-  importType: CommitteeImportType;
-  members: CommitteeMemberOption[];
-  roles: CommitteeRoleClientRecord[];
-  selectedTermId: null | string;
-}): ImportPreview {
-  const rows = parseImportRows(csvContent);
-  const previewRows: ImportPreviewRow[] = [];
-
-  if (!csvContent.trim()) {
-    return { errors: 0, ready: false, rows: [], total: 0, warnings: 0 };
-  }
-
-  if (rows.length === 0) {
-    return {
-      errors: 1,
-      ready: false,
-      rows: [
-        {
-          detail: "CSV must include a header row and at least one data row.",
-          rowNumber: 1,
-          status: "error",
-          summary: "No data rows",
-        },
-      ],
-      total: 0,
-      warnings: 0,
-    };
-  }
-
-  if (importType === "advisor_profiles") {
-    for (const [index, row] of rows.entries()) {
-      const rowNumber = Number(readImportValue(row, ["row_number"])) || index + 2;
-      const fullName = readImportValue(row, ["full_name", "name", "advisor_name"]);
-      const advisorType = advisorTypeFromImport(readImportValue(row, ["advisor_type", "type", "role"]));
-      const advisorId = readImportValue(row, ["advisor_jnuits_id", "advisor_id", "jnuits_id"]);
-
-      if (!fullName) {
-        previewRows.push({
-          detail: "Advisor profile rows require full_name.",
-          rowNumber,
-          status: "error",
-          summary: "Missing advisor name",
-        });
-        continue;
-      }
-
-      if (!["main_advisor", "moderator_mentor", "honorable_advisor"].includes(advisorType)) {
-        previewRows.push({
-          detail: "advisor_type must be main_advisor, moderator_mentor, or honorable_advisor.",
-          rowNumber,
-          status: "error",
-          summary: fullName,
-        });
-        continue;
-      }
-
-      if (advisorId && !normalizeImportAdvisorId(advisorId)) {
-        previewRows.push({
-          detail: "Advisor ID must look like JNUITS-CA0001, JNUITS-MOD0001, or JNUITS-RA0001.",
-          rowNumber,
-          status: "error",
-          summary: fullName,
-        });
-        continue;
-      }
-
-      previewRows.push({
-        detail: `${humanize(advisorType)}${advisorId ? ` · ${advisorId}` : " · ID will be allocated"}`,
-        rowNumber,
-        status: "ok",
-        summary: fullName,
-      });
-    }
-  } else {
-    const roleByKey = new Map<string, CommitteeRoleClientRecord>();
-    const memberById = new Map<string, CommitteeMemberOption>();
-    const memberByEmail = new Map<string, CommitteeMemberOption>();
-    const existingCounts = new Map<string, number>();
-    const pendingCounts = new Map<string, number>();
-
-    roles.forEach((role) => {
-      roleByKey.set(normalizeImportRole(role.code), role);
-      roleByKey.set(normalizeImportRole(role.title), role);
-    });
-    members.forEach((member) => {
-      if (member.jnuitsId) memberById.set(normalizeImportMemberId(member.jnuitsId), member);
-      if (member.email) memberByEmail.set(member.email.toLowerCase(), member);
-    });
-    assignments
-      .filter((assignment) => assignment.termId === selectedTermId && assignment.isPublic && assignment.status !== "planned")
-      .forEach((assignment) => {
-        existingCounts.set(assignment.roleId, (existingCounts.get(assignment.roleId) || 0) + 1);
-      });
-
-    if (!selectedTermId) {
-      previewRows.push({
-        detail: "Choose a target executive committee term before previewing roster imports.",
-        rowNumber: 1,
-        status: "error",
-        summary: "Missing target term",
-      });
-    }
-
-    for (const [index, row] of rows.entries()) {
-      const rowNumber = Number(readImportValue(row, ["row_number"])) || index + 2;
-      const rawRole =
-        readImportValue(row, ["role_code", "role", "role_title"]) ||
-        (importType === "sub_executive_internal" ? "sub-executive-member" : "");
-      const role = roleByKey.get(normalizeImportRole(rawRole));
-      const memberId = normalizeImportMemberId(readImportValue(row, ["jnuits_id", "member_jnuits_id", "membership_id"]));
-      const email = readImportValue(row, ["email", "member_email"]).toLowerCase();
-      const member = memberById.get(memberId) || memberByEmail.get(email);
-      const displayName = readImportValue(row, ["display_name", "member_name", "name", "full_name"]) || member?.fullName || "";
-
-      if (!role) {
-        previewRows.push({
-          detail: `Role "${rawRole || "(blank)"}" was not found in the committee role catalog.`,
-          rowNumber,
-          status: "error",
-          summary: displayName || "Unknown row",
-        });
-        continue;
-      }
-
-      if (importType === "executive_roster" && !isPublicExecutiveRole(role)) {
-        previewRows.push({
-          detail: "Public executive imports cannot use advisor, sub-executive, or deprecated roles.",
-          rowNumber,
-          status: "error",
-          summary: displayName || role.title,
-        });
-        continue;
-      }
-
-      if (importType === "executive_roster" && !member) {
-        previewRows.push({
-          detail: "Public executive rows must match an existing member by JnUITS ID or email.",
-          rowNumber,
-          status: "error",
-          summary: displayName || role.title,
-        });
-        continue;
-      }
-
-      if (!member && !displayName) {
-        previewRows.push({
-          detail: "Internal rows still need a display_name when no member is linked.",
-          rowNumber,
-          status: "error",
-          summary: role.title,
-        });
-        continue;
-      }
-
-      const nextCount = (existingCounts.get(role.id) || 0) + (pendingCounts.get(role.id) || 0) + 1;
-      pendingCounts.set(role.id, (pendingCounts.get(role.id) || 0) + 1);
-
-      previewRows.push({
-        detail:
-          importType === "executive_roster"
-            ? `${role.title} · ${member?.jnuitsId || memberId}`
-            : `${role.title} · internal only`,
-        rowNumber,
-        status: role.maxSlots && nextCount > role.maxSlots ? "warning" : "ok",
-        summary: member?.fullName || displayName,
-      });
-    }
-  }
-
-  const errors = previewRows.filter((row) => row.status === "error").length;
-  const warnings = previewRows.filter((row) => row.status === "warning").length;
-
-  return {
-    errors,
-    ready: rows.length > 0 && errors === 0,
-    rows: previewRows,
-    total: rows.length,
-    warnings,
-  };
-}
-
 function summarizeMetadata(metadata: Record<string, unknown>) {
   const pairs = Object.entries(metadata).slice(0, 3);
   if (pairs.length === 0) return "No metadata recorded.";
@@ -592,45 +285,30 @@ function summarizeMetadata(metadata: Record<string, unknown>) {
     .join(" · ");
 }
 
-function isPublicExecutiveRole(
-  role: Pick<CommitteeRoleClientRecord, "code" | "roleGroup">
-) {
-  return role.roleGroup === "executive" && role.code !== "joint-secretary";
-}
-
-function isPublicExecutiveAssignment(
-  assignment: Pick<CommitteeAssignmentClientRecord, "roleCode" | "roleGroup">
-) {
-  return (
-    assignment.roleGroup === "executive" &&
-    assignment.roleCode !== "joint-secretary"
-  );
-}
-
 function validateSeatCounts(
-  currentTerm: CommitteeTermClientRecord | undefined,
+  term: CommitteeTermClientRecord | undefined,
   roles: CommitteeRoleClientRecord[],
   assignments: CommitteeAssignmentClientRecord[]
 ) {
-  if (!currentTerm) return [];
+  if (!term) return [];
 
-  const executiveRoles = roles.filter(isPublicExecutiveRole);
+  const roleIds = new Set(roles.map((role) => role.id));
   const publicAssignments = assignments.filter(
     (assignment) =>
-      assignment.termId === currentTerm.id &&
-      isPublicExecutiveAssignment(assignment) &&
+      assignment.termId === term.id &&
+      roleIds.has(assignment.roleId) &&
       assignment.isPublic &&
       assignment.status !== "planned"
   );
   const messages: string[] = [];
 
-  if (publicAssignments.length !== currentTerm.targetExecutiveSlots) {
+  if (publicAssignments.length !== term.targetExecutiveSlots) {
     messages.push(
-      `Public roster has ${publicAssignments.length} seats; target is ${currentTerm.targetExecutiveSlots}.`
+      `Public roster has ${publicAssignments.length} seats; target is ${term.targetExecutiveSlots}.`
     );
   }
 
-  for (const role of executiveRoles) {
+  for (const role of roles) {
     const count = publicAssignments.filter((assignment) => assignment.roleId === role.id).length;
     if (count < role.minSlots || count > role.maxSlots) {
       messages.push(
@@ -1200,26 +878,6 @@ function IconInput({
       </span>
       {helper ? <span className="text-xs normal-case tracking-normal text-muted-foreground">{helper}</span> : null}
     </Field>
-  );
-}
-
-function inferredMemberLifecycle(member: CommitteeMemberOption) {
-  const id = (member.jnuitsId || "").toUpperCase();
-  return /^JNUITS-0{2,}/.test(id) ? "Alumni" : "Current";
-}
-
-function MemberLifecyclePill({ member }: { member: CommitteeMemberOption }) {
-  const lifecycle = inferredMemberLifecycle(member);
-
-  return (
-    <span className={cx(
-      "rounded-full px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal",
-      lifecycle === "Current"
-        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-        : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
-    )}>
-      {lifecycle}
-    </span>
   );
 }
 
@@ -1861,37 +1519,35 @@ function TermForm({
 function AssignmentForm({
   assignment,
   executiveRoles,
-  members,
   onCancel,
   selectedRoleCounts,
   selectedTerm,
 }: {
   assignment: CommitteeAssignmentClientRecord | null;
   executiveRoles: CommitteeRoleClientRecord[];
-  members: CommitteeMemberOption[];
   onCancel: () => void;
   selectedRoleCounts: Map<string, number>;
   selectedTerm: CommitteeTermClientRecord | undefined;
 }) {
-  const [selectedMemberId, setSelectedMemberId] = useState(assignment?.memberId || "");
-  const [memberQuery, setMemberQuery] = useState("");
+  const initialMember: CommitteeMemberSearchOption | null = assignment?.memberId
+    ? {
+        email: assignment.email,
+        fullName: assignment.memberName || assignment.displayName || "Linked member",
+        id: assignment.memberId,
+        jnuitsId: assignment.jnuitsId,
+        lifecycleStatus:
+          assignment.memberLifecycleStatus || assignment.memberType || "current",
+        memberType: assignment.memberType || assignment.memberLifecycleStatus || "current",
+      }
+    : null;
+  const [selectedMember, setSelectedMember] = useState<CommitteeMemberSearchOption | null>(
+    initialMember
+  );
   const [selectedRoleId, setSelectedRoleId] = useState(assignment?.roleId || "");
   const [isPublic, setIsPublic] = useState(assignment?.isPublic ?? true);
   const status = assignment?.status || "active";
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const selectedMember = members.find((member) => member.id === selectedMemberId);
   const selectedRole = executiveRoles.find((role) => role.id === selectedRoleId);
-  const memberResults = useMemo(() => {
-    const needle = memberQuery.trim().toLowerCase();
-    if (!needle) return members.slice(0, 8);
-    return members
-      .filter((member) =>
-        [member.fullName, member.jnuitsId, member.email]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(needle))
-      )
-      .slice(0, 8);
-  }, [memberQuery, members]);
   const roleGroups = ["Leadership", "Secretaries", "Executive Members"].map((group) => ({
     group,
     roles: executiveRoles.filter((role) => roleGroupTitle(role) === group),
@@ -1906,85 +1562,38 @@ function AssignmentForm({
       <div className="flex flex-1 flex-col gap-5 p-5">
         <input name="assignmentId" type="hidden" value={assignment?.id || ""} />
         <MicroLabel>Member</MicroLabel>
-        <Field>
-          Member lookup
-          <input name="memberId" type="hidden" value={selectedMemberId} />
-          <div className="rounded-xl border border-border bg-background p-3">
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <PanelInput
-                className="w-full pl-9"
-                onChange={(event) => setMemberQuery(event.target.value)}
-                placeholder="Search by name or JnUITS ID..."
-                type="search"
-                value={memberQuery}
-              />
-            </label>
-            <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-border">
-              {memberResults.length ? memberResults.map((member) => (
-                <button
-                  className={cx(
-                    "flex w-full items-center gap-3 border-b border-border px-3 py-2 text-left transition-colors last:border-0 hover:bg-muted/40",
-                    selectedMemberId === member.id && "bg-primary/5"
-                  )}
-                  key={member.id}
-                  onClick={() => {
-                    setSelectedMemberId(member.id);
-                    setMemberQuery(member.fullName);
-                  }}
-                  type="button"
-                >
-                  <AvatarToken id={member.id} name={member.fullName} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold normal-case tracking-normal text-foreground">{member.fullName}</span>
-                    <span className="block truncate text-xs normal-case tracking-normal text-muted-foreground">{member.jnuitsId || "No JnUITS ID"}</span>
-                  </span>
-                  <MemberLifecyclePill member={member} />
-                </button>
-              )) : (
-                <p className="px-3 py-4 text-sm normal-case tracking-normal text-muted-foreground">No members match this search.</p>
-              )}
-            </div>
-          </div>
-          <span className="text-xs normal-case tracking-normal text-muted-foreground">
-            Only current and alumni members can hold executive positions. Lifecycle is read-only here and managed in Membership DB.
+        <div className="grid gap-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Member lookup
+          </p>
+          <CommitteeMemberSearch
+            initialMember={initialMember}
+            onSelect={setSelectedMember}
+          />
+          <span className="text-xs text-muted-foreground">
+            Search is paginated on the server. Lifecycle comes from Membership DB and is read-only here.
           </span>
-        </Field>
+        </div>
         {selectedMember ? (
-          <div className="relative rounded-xl border border-border bg-muted/30 p-3">
-            <button
-              aria-label="Clear selected member"
-              className="absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-lg border border-border bg-background hover:bg-muted"
-              onClick={() => setSelectedMemberId("")}
-              type="button"
-            >
-              <X className="size-3.5" aria-hidden="true" />
-            </button>
-            <div className="flex items-center gap-3 pr-9">
-              <AvatarToken id={selectedMember.id} name={selectedMember.fullName} size="md" />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{selectedMember.fullName}</p>
-                <p className="text-xs text-muted-foreground">{selectedMember.jnuitsId || "No JnUITS ID"} · {selectedMember.email || "No email"}</p>
-                <div className="mt-1">
-                  <MemberLifecyclePill member={selectedMember} />
-                </div>
-                <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <Info className="size-3.5" aria-hidden="true" />
-                  Lifecycle is managed in Membership DB.
-                  <a className="font-medium text-primary hover:underline" href="/admin/membership" rel="noreferrer" target="_blank">View profile →</a>
-                </p>
-              </div>
-            </div>
-          </div>
+          <>
+            <input name="displayName" type="hidden" value="" />
+            <p className="inline-flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+              <Info className="size-3.5" aria-hidden="true" />
+              Lifecycle is managed in Membership DB.
+              <a className="font-medium text-primary hover:underline" href="/admin/membership" rel="noreferrer" target="_blank">
+                View profile →
+              </a>
+            </p>
+          </>
         ) : (
           <Field>
             Historical display name
             <PanelInput name="displayName" defaultValue={assignment?.displayName || ""} placeholder="Used only when no member record is linked" />
-            <span className="text-xs normal-case tracking-normal text-muted-foreground">Used only for historical rosters that cannot be linked to a member record.</span>
+            <span className="text-xs normal-case tracking-normal text-muted-foreground">
+              Used only for historical rosters that cannot be linked to a member record.
+            </span>
           </Field>
         )}
-        {selectedMemberId ? <input name="displayName" type="hidden" value="" /> : null}
-
         <MicroLabel>Role & Term</MicroLabel>
         <Field>
           Role
@@ -2503,7 +2112,7 @@ export function CommitteeWorkspaceClient({
   assignments,
   flash,
   history,
-  members,
+  positions,
   roles,
   terms,
 }: CommitteeWorkspaceClientProps) {
@@ -2524,9 +2133,6 @@ export function CommitteeWorkspaceClient({
   const [showNewTerm, setShowNewTerm] = useState(false);
   const [showNewAssignment, setShowNewAssignment] = useState(false);
   const [showNewAdvisor, setShowNewAdvisor] = useState(false);
-  const [importType, setImportType] = useState<CommitteeImportType>("executive_roster");
-  const [importCsvContent, setImportCsvContent] = useState("");
-  const [importTermId, setImportTermId] = useState<string | null>(initialTermId);
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -2552,14 +2158,32 @@ export function CommitteeWorkspaceClient({
     terms.find((term) => term.slug === "6th-executive-committee") ||
     terms[0];
   const selectedTerm = terms.find((term) => term.id === selectedTermId) || currentTerm;
-  const termAssignments = selectedTerm
-    ? assignments.filter(
-        (assignment) =>
-          assignment.termId === selectedTerm.id &&
-          isPublicExecutiveAssignment(assignment)
-      )
-    : assignments.filter(isPublicExecutiveAssignment);
-  const executiveRoles = roles.filter(isPublicExecutiveRole);
+  const executiveRoles = useMemo(
+    () => rolesForCommitteeTerm({ positions, roles, termId: selectedTerm?.id }),
+    [positions, roles, selectedTerm?.id]
+  );
+  const executiveRoleIds = useMemo(
+    () => new Set(executiveRoles.map((role) => role.id)),
+    [executiveRoles]
+  );
+  const executiveRoleById = useMemo(
+    () => new Map(executiveRoles.map((role) => [role.id, role])),
+    [executiveRoles]
+  );
+  const termAssignments = useMemo(
+    () =>
+      selectedTerm
+        ? sortCommitteeAssignmentsByTermRoles(
+            assignments.filter(
+              (assignment) =>
+                assignment.termId === selectedTerm.id &&
+                executiveRoleIds.has(assignment.roleId)
+            ),
+            executiveRoles
+          )
+        : [],
+    [assignments, executiveRoleIds, executiveRoles, selectedTerm]
+  );
   const filteredAssignments = useMemo(() => {
     const needle = search.trim().toLowerCase();
     if (!needle) return termAssignments;
@@ -2569,13 +2193,14 @@ export function CommitteeWorkspaceClient({
         assignment.displayName,
         assignment.jnuitsId,
         assignment.email,
+        executiveRoleById.get(assignment.roleId)?.title,
         assignment.roleTitle,
         assignment.termTitle,
       ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle))
     );
-  }, [search, termAssignments]);
+  }, [executiveRoleById, search, termAssignments]);
   const selectedVisibleAssignmentCount = filteredAssignments.filter((assignment) =>
     selectedAssignmentIds.has(assignment.id)
   ).length;
@@ -2607,19 +2232,7 @@ export function CommitteeWorkspaceClient({
     });
   }, [advisorSearch, advisorStatusFilter, advisorTypeFilter, advisors]);
   const selectedAdvisor = advisors.find((advisor) => advisor.id === editingAdvisorId) || null;
-  const importPreview = useMemo(
-    () =>
-      buildImportPreview({
-        assignments,
-        csvContent: importCsvContent,
-        importType,
-        members,
-        roles,
-        selectedTermId: importTermId,
-      }),
-    [assignments, importCsvContent, importTermId, importType, members, roles]
-  );
-  const validationMessages = validateSeatCounts(currentTerm, roles, assignments);
+  const validationMessages = validateSeatCounts(selectedTerm, executiveRoles, assignments);
   const groupedValidationMessages = useMemo(() => {
     const groups = new Map<string, string[]>();
     validationMessages.forEach((message) => {
@@ -2685,13 +2298,6 @@ export function CommitteeWorkspaceClient({
       });
       return next;
     });
-  }
-
-  function handleCsvFile(file: File | null) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setImportCsvContent(String(reader.result || ""));
-    reader.readAsText(file);
   }
 
   function openActionMenu(
@@ -2910,6 +2516,30 @@ export function CommitteeWorkspaceClient({
 
           <SectionShell
             actions={
+              <PanelSelect
+                aria-label="Position term"
+                className="w-full sm:w-64"
+                onChange={(event) => setSelectedTermId(event.target.value || null)}
+                value={selectedTerm?.id || ""}
+              >
+                {terms.map((term) => (
+                  <option key={term.id} value={term.id}>{term.title}</option>
+                ))}
+              </PanelSelect>
+            }
+            id="committee-positions"
+            label="Positions"
+            title="Term-specific position settings"
+          >
+            <CommitteePositionEditor
+              positions={positions}
+              roles={roles}
+              term={selectedTerm}
+            />
+          </SectionShell>
+
+          <SectionShell
+            actions={
               <>
                 <PanelSelect
                   aria-label="Committee term"
@@ -2928,7 +2558,7 @@ export function CommitteeWorkspaceClient({
             }
             id="committee-roster"
             label="Executive roster"
-            title="21-seat public committee assignments"
+            title="Public committee assignments"
           >
             <div className="mb-4 flex flex-col gap-1 text-xs text-muted-foreground">
               <p>Sub-Executive rows remain internal and are excluded from the public committee page.</p>
@@ -2989,8 +2619,8 @@ export function CommitteeWorkspaceClient({
             <TableCard>
               {filteredAssignments.length === 0 ? (
                 <EmptyPanel
-                  action={<GhostButton onClick={() => scrollTo("committee-imports")} type="button"><Import className="size-3.5" /> Import roster</GhostButton>}
-                  description="Use Add assignment or import a CSV roster to populate the 6th Executive Committee."
+                  action={<GhostButton onClick={() => scrollTo("committee-imports")} type="button"><Import className="size-3.5" /> Build roster draft</GhostButton>}
+                  description="Use Add assignment for one record or the validated roster workspace for a spreadsheet, CSV, TSV, or manual batch."
                   icon={UserRoundX}
                   title="No public executive assignments in this term"
                 />
@@ -3016,7 +2646,9 @@ export function CommitteeWorkspaceClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredAssignments.map((assignment, index) => (
+                    {filteredAssignments.map((assignment, index) => {
+                      const termRole = executiveRoleById.get(assignment.roleId);
+                      return (
                       <tr className="h-16 border-b border-border transition-colors last:border-0 hover:bg-muted/30" key={assignment.id}>
                         <td className="px-4">
                           <input
@@ -3037,8 +2669,8 @@ export function CommitteeWorkspaceClient({
                           </div>
                         </td>
                         <td className="px-4">
-                          <p className="font-medium">{assignment.publicTitleOverride || assignment.roleTitle || "Committee role"}</p>
-                          <p className="text-xs text-muted-foreground">{assignment.roleTitleBn}</p>
+                          <p className="font-medium">{assignment.publicTitleOverride || termRole?.title || assignment.roleTitle || "Committee role"}</p>
+                          <p className="text-xs text-muted-foreground">{termRole?.titleBn || assignment.roleTitleBn}</p>
                         </td>
                         <td className="px-4"><Badge value={assignment.status === "active" ? "current" : assignment.status} /></td>
                         <td className="px-4 text-muted-foreground">{assignment.termTitle || "Term"}</td>
@@ -3066,7 +2698,8 @@ export function CommitteeWorkspaceClient({
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -3216,118 +2849,16 @@ export function CommitteeWorkspaceClient({
             </TableCard>
           </SectionShell>
 
-          <SectionShell id="committee-imports" label="Imports" title="Preview and commit committee CSV imports">
-            <div className="grid gap-3 md:grid-cols-3">
-              {[
-                [ClipboardList, "Preview first", "Bulk EC import validates member links, slot counts, duplicate roles, and public visibility before committing."],
-                [ShieldCheck, "Keep sub-exec internal", "Sub-Executive rows can be stored for election evidence, but they never appear on the public committee page."],
-                [UserRoundX, "Advisors separate", "Teacher advisors use advisor profiles, not member or alumni records, and have independent joined/left dates."],
-              ].map(([Icon, title, copy]) => {
-                const TileIcon = Icon as LucideIcon;
-                return (
-                  <article className="flex gap-3 rounded-xl border border-border bg-muted/30 p-4" key={String(title)}>
-                    <span className="inline-flex size-9 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-sm">
-                      <TileIcon aria-hidden="true" className="size-4" />
-                    </span>
-                    <div>
-                      <h3 className="text-sm font-semibold">{title as string}</h3>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">{copy as string}</p>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-
-            <form action={commitCommitteeImport} className="mt-4 rounded-xl border border-border bg-card shadow-sm">
-              <div className="grid gap-4 border-b border-border p-5 md:grid-cols-2">
-                <Field>
-                  Import type
-                  <PanelSelect name="importType" onChange={(event) => setImportType(event.target.value as CommitteeImportType)} value={importType}>
-                    <option value="executive_roster">EC current / historical roster</option>
-                    <option value="sub_executive_internal">Sub-executive voter records</option>
-                    <option value="advisor_profiles">Honorable advisors</option>
-                  </PanelSelect>
-                </Field>
-                <Field>
-                  Target term
-                  <PanelSelect disabled={importType === "advisor_profiles"} name="termId" onChange={(event) => setImportTermId(event.target.value || null)} value={importTermId || ""}>
-                    <option value="">Select term</option>
-                    {terms.map((term) => (
-                      <option key={term.id} value={term.id}>{term.title}</option>
-                    ))}
-                  </PanelSelect>
-                </Field>
-                <label className="md:col-span-2">
-                  <input
-                    accept=".csv,text/csv"
-                    className="sr-only"
-                    onChange={(event) => handleCsvFile(event.target.files?.[0] || null)}
-                    type="file"
-                  />
-                  <span className="flex min-h-[130px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/20 p-6 text-center transition-colors hover:border-primary/60 hover:bg-primary/5">
-                    <Upload className="size-6 text-muted-foreground" />
-                    <span className="text-sm font-medium">Drop CSV file here or click to browse</span>
-                    <span className="text-xs text-muted-foreground">Accepts .csv files only</span>
-                  </span>
-                </label>
-                <Field className="md:col-span-2">
-                  CSV content
-                  <PanelTextarea
-                    name="csvContent"
-                    onChange={(event) => setImportCsvContent(event.target.value)}
-                    placeholder={importType === "advisor_profiles" ? "advisor_jnuits_id,advisor_type,full_name,title,department,email,is_current,is_public" : "role_code,jnuits_id,display_name,public_title_override,sort_order,status,is_public"}
-                    rows={6}
-                    value={importCsvContent}
-                  />
-                </Field>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                <p className="text-sm text-muted-foreground">
-                  {importPreview.total > 0
-                    ? `${importPreview.total - importPreview.errors} valid rows, ${importPreview.warnings} warnings, ${importPreview.errors} errors.`
-                    : "No import previews yet."}
-                </p>
-                <div className="flex gap-2">
-                  <GhostButton onClick={() => setImportCsvContent("")} type="button">Clear CSV</GhostButton>
-                  <SubmitButton disabled={!importPreview.ready} title={importPreview.warnings ? `${importPreview.warnings} warnings will be imported. Review before committing.` : undefined}>
-                    Commit import
-                  </SubmitButton>
-                </div>
-              </div>
-            </form>
-
-            <TableCard>
-              {importPreview.rows.length === 0 ? (
-                <EmptyPanel
-                  description="Select an import type and paste or upload a CSV file to preview validation results before commit."
-                  icon={Import}
-                  title="No import previews yet"
-                />
-              ) : (
-                <div className="max-h-80 overflow-auto">
-                  <table className="admin-responsive-table w-full min-w-max text-left text-sm">
-                    <thead className="sticky top-0 border-b border-border bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
-                      <tr className="h-10">
-                        <th className="px-4 font-semibold" scope="col">Row #</th>
-                        <th className="px-4 font-semibold" scope="col">Status</th>
-                        <th className="px-4 font-semibold" scope="col">Summary</th>
-                        <th className="px-4 font-semibold" scope="col">Detail</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {importPreview.rows.map((row) => (
-                        <tr className="h-12 border-b border-border last:border-0" key={`${row.rowNumber}-${row.summary}`}>
-                          <td className="px-4">{row.rowNumber}</td>
-                          <td className="px-4"><Badge value={row.status === "ok" ? "current" : row.status === "warning" ? "pending" : "inactive"} /></td>
-                          <td className="px-4 font-medium">{row.summary}</td>
-                          <td className="px-4 text-muted-foreground">{row.detail}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </TableCard>
+          <SectionShell
+            id="committee-imports"
+            label="Roster intake"
+            title="Build and publish a validated roster draft"
+          >
+            <CommitteeOnboardingPanel
+              initialTermId={selectedTerm?.id || initialTermId}
+              key={selectedTerm?.id || "no-term"}
+              terms={terms.map((term) => ({ id: term.id, title: term.title }))}
+            />
           </SectionShell>
 
           <SectionShell id="committee-validation" label="Validation" title="Publication readiness">
@@ -3678,7 +3209,7 @@ export function CommitteeWorkspaceClient({
           <AssignmentForm
             assignment={selectedAssignment}
             executiveRoles={executiveRoles}
-            members={members}
+            key={selectedAssignment?.id || "new-assignment"}
             onCancel={() => {
               setEditingAssignmentId(null);
               setShowNewAssignment(false);
