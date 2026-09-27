@@ -13,7 +13,7 @@ const profileActions = fs.readFileSync(
   "utf8"
 );
 const publishMigration = fs.readFileSync(
-  path.join(root, "supabase/migrations/20260926054927_committee_onboarding_draft_publish.sql"),
+  path.join(root, "supabase/migrations/20260927014437_committee_onboarding_draft_publish.sql"),
   "utf8"
 );
 

@@ -42,7 +42,7 @@
 - `src/lib/committee/onboarding/contracts.test.ts` — focused metadata validation tests.
 - `src/lib/committee/onboarding/foundation-migration.test.ts` — static migration safety and authorization assertions.
 - `src/lib/committee/onboarding/generated-db-types.test.ts` — generated-type sentinel for downstream repositories.
-- `supabase/migrations/20260924090000_committee_onboarding_foundation.sql` — additive schema, constraints, RLS, grants, and permission router.
+- `supabase/migrations/20260927014347_committee_onboarding_foundation.sql` — additive schema, constraints, RLS, grants, and permission router.
 
 ### Modified files
 
@@ -199,7 +199,7 @@ git commit -m "feat(committee): define onboarding draft contracts"
 **Files:**
 
 - Create: `src/lib/committee/onboarding/foundation-migration.test.ts`
-- Create: `supabase/migrations/20260924090000_committee_onboarding_foundation.sql`
+- Create: `supabase/migrations/20260927014347_committee_onboarding_foundation.sql`
 
 **Interfaces:**
 
@@ -217,7 +217,7 @@ import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(resolve(
   process.cwd(),
-  "supabase/migrations/20260924090000_committee_onboarding_foundation.sql"
+  "supabase/migrations/20260927014347_committee_onboarding_foundation.sql"
 ), "utf8");
 
 describe("committee onboarding foundation migration", () => {
@@ -276,7 +276,7 @@ supabase migration new committee_onboarding_foundation
 $generated = @(Get-ChildItem -LiteralPath 'supabase/migrations' -Filter '*_committee_onboarding_foundation.sql')
 if ($generated.Count -ne 1) { throw "Expected exactly one generated migration." }
 $root = [IO.Path]::GetFullPath((Join-Path (Get-Location) 'supabase/migrations')) + [IO.Path]::DirectorySeparatorChar
-$destination = [IO.Path]::GetFullPath((Join-Path (Get-Location) 'supabase/migrations/20260924090000_committee_onboarding_foundation.sql'))
+$destination = [IO.Path]::GetFullPath((Join-Path (Get-Location) 'supabase/migrations/20260927014347_committee_onboarding_foundation.sql'))
 if (-not $destination.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { throw "Migration destination escaped the repository." }
 Move-Item -LiteralPath $generated[0].FullName -Destination $destination
 ```
@@ -285,7 +285,7 @@ Expected: CLI 2.109.1; one generated file; final path matches the Files block.
 
 - [ ] **Step 4: Implement the additive migration**
 
-Write `supabase/migrations/20260924090000_committee_onboarding_foundation.sql`:
+Write `supabase/migrations/20260927014347_committee_onboarding_foundation.sql`:
 
 ```sql
 begin;
@@ -516,7 +516,7 @@ Expected: 5 tests PASS and the migration dependency checker reports no findings.
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add src/lib/committee/onboarding/foundation-migration.test.ts supabase/migrations/20260924090000_committee_onboarding_foundation.sql
+git add src/lib/committee/onboarding/foundation-migration.test.ts supabase/migrations/20260927014347_committee_onboarding_foundation.sql
 git commit -m "feat(db): add committee onboarding foundation"
 ```
 
