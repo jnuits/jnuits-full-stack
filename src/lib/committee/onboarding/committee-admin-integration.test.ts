@@ -34,7 +34,9 @@ describe("committee admin onboarding integration", () => {
     expect(page).toContain('.from("committee_term_positions" as string)');
     expect(workspace).toContain("<CommitteePositionEditor");
     expect(actions).toContain("export async function saveCommitteeTermPosition");
-    expect(actions).toContain('action: existing\n      ? "committee.term_position_updated"');
+    expect(actions.replace(/\r\n/g, "\n")).toContain(
+      'action: existing\n      ? "committee.term_position_updated"'
+    );
     expect(actions).toContain('entity_type: "committee_term_position"');
   });
 });
