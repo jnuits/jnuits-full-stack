@@ -130,6 +130,7 @@ async function loadTerms() {
       .in("status", ["active", "upcoming", "archived"])
       .order("term_number", { ascending: false, nullsFirst: false })
       .order("starts_on", { ascending: false })
+      .order("id", { ascending: true })
       .range(from, to)
   );
 }

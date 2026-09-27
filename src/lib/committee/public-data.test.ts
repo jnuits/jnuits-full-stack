@@ -76,4 +76,17 @@ describe("public committee server data access", () => {
       /email|phone|student_id|metadata|notes|user_id|portal_access|claim|invitation/i
     );
   });
+
+  it("uses a unique final key when paging public committee terms", () => {
+    const source = readFileSync(
+      fileURLToPath(new URL("./public.ts", import.meta.url)),
+      "utf8"
+    );
+    const termLoader = source.slice(
+      source.indexOf("async function loadTerms()"),
+      source.indexOf("async function loadPositions(")
+    );
+
+    expect(termLoader).toContain('.order("id", { ascending: true })');
+  });
 });

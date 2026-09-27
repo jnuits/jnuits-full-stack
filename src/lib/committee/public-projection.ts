@@ -178,6 +178,7 @@ function compareTerms(
   right: PublicCommitteeProjectionTermRow
 ) {
   return (
+    Number(right.is_current) - Number(left.is_current) ||
     (right.term_number ?? -1) - (left.term_number ?? -1) ||
     right.starts_on.localeCompare(left.starts_on) ||
     left.id.localeCompare(right.id)

@@ -326,6 +326,31 @@ describe("public committee projection", () => {
     ]);
   });
 
+  it("places the current term before a higher-numbered upcoming term", () => {
+    const input = makeInput();
+    const template = input.terms[0];
+
+    input.terms = [
+      ...input.terms,
+      {
+        ...template,
+        election_date: null,
+        id: "term-7",
+        is_current: false,
+        slug: "seventh-committee",
+        starts_on: "2027-01-01",
+        status: "upcoming",
+        summary: "Upcoming committee",
+        term_number: 7,
+        title: "7th Executive Committee",
+      },
+    ];
+
+    expect(
+      projectPublicCommitteeDirectory(input).terms.map((term) => term.termNumber)
+    ).toEqual([6, 7, 5]);
+  });
+
   it("uses the stored term target only when no public roster positions are configured", () => {
     const directory = projectPublicCommitteeDirectory(makeInput());
     const historical = directory.terms.find((term) => term.id === "term-5");

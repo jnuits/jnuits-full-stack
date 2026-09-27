@@ -2,7 +2,7 @@ import { GraduationCap } from "lucide-react";
 
 import { AdvisorCompactCard } from "@/components/committee/AdvisorCompactCard";
 import { AdvisorFeaturedCard } from "@/components/committee/AdvisorFeaturedCard";
-import type { PublicAdvisorProfile } from "@/lib/committee/public";
+import type { PublicAdvisorProfile } from "@/lib/committee/public-contracts";
 
 export function AdvisorBoardSection({
   advisors,

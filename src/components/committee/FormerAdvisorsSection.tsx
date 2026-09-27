@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Award, ChevronDown, GraduationCap, ShieldCheck } from "lucide-react";
 
 import { FormerAdvisorTimelineRow } from "@/components/committee/FormerAdvisorCard";
-import type { PublicAdvisorProfile } from "@/lib/committee/public";
+import type { PublicAdvisorProfile } from "@/lib/committee/public-contracts";
 
 const GROUPS = [
   {

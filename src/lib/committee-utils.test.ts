@@ -96,4 +96,16 @@ describe("committee roster display grouping", () => {
     expect(source).not.toContain("Members elected July 7, 2025");
     expect(source).toContain("targetExecutiveSlots");
   });
+
+  it("preserves the projector's current-first term order on the committee page", () => {
+    const source = readFileSync(
+      fileURLToPath(
+        new URL("../app/(public)/committee/page.tsx", import.meta.url)
+      ),
+      "utf8"
+    );
+
+    expect(source).toContain("const executiveTerms = publicExecutiveTerms;");
+    expect(source).not.toContain("[...publicExecutiveTerms].sort");
+  });
 });

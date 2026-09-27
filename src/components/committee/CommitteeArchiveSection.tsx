@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Archive, ChevronDown, ChevronUp } from "lucide-react";
 
 import { ArchiveTermRow } from "@/components/committee/ArchiveTermRow";
-import type { PublicCommitteeTerm } from "@/lib/committee/public";
+import type { PublicCommitteeTerm } from "@/lib/committee/public-contracts";
 
 export function CommitteeArchiveSection({
   terms,
