@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { MemberProfileCard } from "@/components/members/member-profile-card";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
-import { getPublicMemberByJnuitsId } from "@/lib/members/directory";
+import { getPublicMemberProfileByJnuitsId } from "@/lib/members/public-profile";
 
 function getBackHref(from: string | string[] | undefined) {
   const value = Array.isArray(from) ? from[0] : from;
@@ -36,7 +36,7 @@ export default async function MemberProfilePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ jnuitsId }, sp] = await Promise.all([params, searchParams]);
-  const member = await getPublicMemberByJnuitsId(jnuitsId);
+  const member = await getPublicMemberProfileByJnuitsId(jnuitsId);
 
   if (!member) {
     notFound();
