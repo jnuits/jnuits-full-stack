@@ -1,401 +1,273 @@
+import "server-only";
+
 import { cache } from "react";
 
-import type { Tables } from "@/lib/db/types";
+import type {
+  PublicCommitteeDirectory,
+  PublicCommitteeMemberProfile,
+  PublicCommitteeTerm,
+} from "@/lib/committee/public-contracts";
 import {
-  formatAdvisorJnuitsIdForDisplay,
-  formatMembershipIdForDisplay,
-} from "@/lib/members/jnuits-id";
+  projectPublicCommitteeDirectory,
+  type PublicCommitteeProjectionAdvisorRow,
+  type PublicCommitteeProjectionAssignmentRow,
+  type PublicCommitteeProjectionDepartmentRow,
+  type PublicCommitteeProjectionMemberRow,
+  type PublicCommitteeProjectionPositionRow,
+  type PublicCommitteeProjectionRoleRow,
+  type PublicCommitteeProjectionTermRow,
+} from "@/lib/committee/public-projection";
+import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
-import { createPublicClient } from "@/lib/supabase/public";
 
-type CommitteeTermRecord = Pick<
-  Tables<"committee_terms">,
-  "ends_on" | "id" | "is_public" | "slug" | "starts_on" | "status" | "summary" | "title"
-> & {
-  date_confidence?: string | null;
-  election_date?: string | null;
-  is_current?: boolean | null;
-  target_executive_slots?: number | null;
-  tenure_note?: string | null;
-  term_kind?: string | null;
-  term_number?: number | null;
-  voter_rule_note?: string | null;
+export type {
+  PublicAdvisorProfile,
+  PublicCommitteeAppointment,
+  PublicCommitteeAssignment,
+  PublicCommitteeDirectory,
+  PublicCommitteeMemberProfile,
+  PublicCommitteeTerm,
+} from "@/lib/committee/public-contracts";
+
+const PUBLIC_COMMITTEE_PAGE_SIZE = 500;
+const PUBLIC_COMMITTEE_FILTER_CHUNK_SIZE = 100;
+
+const PUBLIC_COMMITTEE_TERM_SELECT =
+  "id, slug, title, summary, starts_on, ends_on, status, is_public, term_number, term_kind, election_date, is_current, date_confidence, tenure_note, target_executive_slots, voter_rule_note";
+const PUBLIC_COMMITTEE_POSITION_SELECT =
+  "id, term_id, role_id, public_label, public_label_bn, role_group, priority, is_public, min_slots, max_slots, target_slots";
+const PUBLIC_COMMITTEE_ASSIGNMENT_SELECT =
+  "id, term_id, role_id, member_id, display_name, sort_order, status, is_public, public_title_override";
+const PUBLIC_COMMITTEE_ROLE_SELECT = "id, code";
+const PUBLIC_COMMITTEE_MEMBER_SELECT =
+  "id, jnuits_id, full_name, department_code, avatar_secure_url, facebook_url, linkedin_url, website_url";
+const PUBLIC_COMMITTEE_DEPARTMENT_SELECT = "code, name";
+const PUBLIC_COMMITTEE_ADVISOR_SELECT =
+  "id, advisor_jnuits_id, advisor_type, full_name, title, former_title, department, designation, avatar_secure_url, bio, facebook_url, linkedin_url, website_url, jnu_profile_url, joined_on, left_on, tenure_display, date_confidence, status_note, is_current, is_public, sort_order";
+
+type SupabasePageResult<T> = {
+  data: T[] | null;
+  error: unknown;
 };
 
-type CommitteeRoleRecord = Pick<
-  Tables<"committee_roles">,
-  "code" | "is_executive" | "is_public" | "sort_order" | "title"
-> & {
-  default_slots?: number | null;
-  max_slots?: number | null;
-  min_slots?: number | null;
-  role_group?: string | null;
-  title_bn?: string | null;
-};
+export async function collectSupabasePages<T>(
+  fetchPage: (
+    from: number,
+    to: number
+  ) => PromiseLike<SupabasePageResult<T>>,
+  pageSize = PUBLIC_COMMITTEE_PAGE_SIZE
+): Promise<T[]> {
+  if (!Number.isInteger(pageSize) || pageSize < 1) {
+    throw new Error("Unable to load public committee data.");
+  }
 
-type MemberRecord = {
-  avatar_secure_url?: string | null;
-  department_code?: string | null;
-  facebook_url?: string | null;
-  full_name?: string | null;
-  jnuits_id?: string | null;
-  linkedin_url?: string | null;
-  website_url?: string | null;
-  departments?: { name?: string | null } | { name?: string | null }[] | null;
-};
+  const rows: T[] = [];
 
-type CommitteeAssignmentRecord = Pick<
-  Tables<"committee_assignments">,
-  "display_name" | "id" | "sort_order" | "term_id"
-> & {
-  is_public?: boolean | null;
-  public_title_override?: string | null;
-  committee_roles?: CommitteeRoleRecord | CommitteeRoleRecord[] | null;
-  members?: MemberRecord | MemberRecord[] | null;
-};
+  for (let from = 0; ; from += pageSize) {
+    const result = await fetchPage(from, from + pageSize - 1);
 
-type AdvisorProfileRecord = Pick<
-  Tables<"advisor_profiles">,
-  | "advisor_type"
-  | "advisor_jnuits_id"
-  | "avatar_secure_url"
-  | "bio"
-  | "date_confidence"
-  | "department"
-  | "designation"
-  | "facebook_url"
-  | "former_title"
-  | "full_name"
-  | "id"
-  | "is_current"
-  | "is_public"
-  | "jnu_profile_url"
-  | "joined_on"
-  | "left_on"
-  | "linkedin_url"
-  | "sort_order"
-  | "status_note"
-  | "tenure_display"
-  | "title"
-  | "website_url"
->;
+    if (result.error) {
+      throw new Error("Unable to load public committee data.");
+    }
 
-export type PublicCommitteeAssignment = {
-  avatarUrl: string | null;
-  departmentName: string | null;
-  displayName: string;
-  facebookUrl: string | null;
-  id: string;
-  jnuitsId: string | null;
-  linkedinUrl: string | null;
-  roleCode: string;
-  roleGroup: string;
-  roleTitle: string;
-  roleTitleBn: string | null;
-  sortOrder: number;
-  websiteUrl: string | null;
-};
+    const page = result.data || [];
+    rows.push(...page);
 
-export type PublicCommitteeTerm = {
-  assignments: PublicCommitteeAssignment[];
-  dateConfidence: "estimated" | "verified";
-  electionDate: string | null;
-  endsOn: string | null;
-  id: string;
-  isCurrent: boolean;
-  slug: string;
-  startsOn: string;
-  status: string;
-  summary: string | null;
-  targetExecutiveSlots: number;
-  tenureNote: string | null;
-  termNumber: number | null;
-  title: string;
-  voterRuleNote: string | null;
-};
-
-export type PublicAdvisorProfile = {
-  advisorJnuitsId: string | null;
-  advisorType: "honorable_advisor" | "main_advisor" | "moderator_mentor";
-  avatarUrl: string | null;
-  bio: string | null;
-  dateConfidence: "estimated" | "verified";
-  department: string | null;
-  designation: string | null;
-  facebookUrl: string | null;
-  formerTitle: string | null;
-  fullName: string;
-  id: string;
-  isCurrent: boolean;
-  jnuProfileUrl: string | null;
-  joinedOn: string | null;
-  leftOn: string | null;
-  linkedinUrl: string | null;
-  sortOrder: number;
-  statusNote: string | null;
-  tenureDisplay: string | null;
-  title: string | null;
-  websiteUrl: string | null;
-};
-
-export type PublicCommitteeDirectory = {
-  advisors: PublicAdvisorProfile[];
-  currentTerm: PublicCommitteeTerm | null;
-  terms: PublicCommitteeTerm[];
-};
-
-function resolveRelation<T>(value: T | T[] | null | undefined) {
-  return Array.isArray(value) ? value[0] || null : value || null;
+    if (page.length < pageSize) {
+      return rows;
+    }
+  }
 }
 
-function resolveDepartmentName(member: MemberRecord | null) {
-  const departments = member?.departments;
-
-  if (!departments) {
-    return member?.department_code || null;
-  }
-
-  if (Array.isArray(departments)) {
-    return departments[0]?.name || member?.department_code || null;
-  }
-
-  return departments.name || member?.department_code || null;
+function unique(values: Array<string | null>) {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
 
-function asAdvisorType(value: string): PublicAdvisorProfile["advisorType"] {
-  if (
-    value === "main_advisor" ||
-    value === "moderator_mentor" ||
-    value === "honorable_advisor"
-  ) {
-    return value;
+function chunks<T>(
+  values: readonly T[],
+  size = PUBLIC_COMMITTEE_FILTER_CHUNK_SIZE
+) {
+  const result: T[][] = [];
+
+  for (let index = 0; index < values.length; index += size) {
+    result.push(values.slice(index, index + size));
   }
 
-  return "honorable_advisor";
+  return result;
 }
 
-function isExecutiveRole(role: CommitteeRoleRecord | null) {
-  if (!role) {
-    return false;
+async function collectFilteredRows<T>(
+  values: readonly string[],
+  fetchChunkPage: (
+    chunk: readonly string[],
+    from: number,
+    to: number
+  ) => PromiseLike<SupabasePageResult<T>>
+) {
+  const rows: T[] = [];
+
+  for (const chunk of chunks(values)) {
+    rows.push(
+      ...(await collectSupabasePages<T>((from, to) =>
+        fetchChunkPage(chunk, from, to)
+      ))
+    );
   }
 
-  if (role.role_group) {
-    return role.role_group === "executive" && role.code !== "joint-secretary";
-  }
-
-  return (
-    role.is_executive &&
-    role.code !== "joint-secretary" &&
-    role.code !== "sub-executive-member"
-  );
-}
-
-function mapAssignment(assignment: CommitteeAssignmentRecord) {
-  const role = resolveRelation(assignment.committee_roles);
-  const member = resolveRelation(assignment.members);
-
-  if (!isExecutiveRole(role)) {
-    return null;
-  }
-
-  return {
-    avatarUrl: member?.avatar_secure_url ?? null,
-    departmentName: resolveDepartmentName(member),
-    displayName: assignment.display_name || member?.full_name || "Committee member",
-    facebookUrl: member?.facebook_url ?? null,
-    id: assignment.id,
-    jnuitsId: formatMembershipIdForDisplay(member?.jnuits_id) || null,
-    linkedinUrl: member?.linkedin_url ?? null,
-    roleCode: role?.code || "committee-role",
-    roleGroup: role?.role_group || "executive",
-    roleTitle: assignment.public_title_override || role?.title || "Committee role",
-    roleTitleBn: role?.title_bn || null,
-    sortOrder: assignment.sort_order,
-    websiteUrl: member?.website_url ?? null,
-  } satisfies PublicCommitteeAssignment;
+  return rows;
 }
 
 async function loadTerms() {
-  const supabase = createPublicClient();
-  const flexible = asFlexibleClient(supabase);
-  const extendedSelect =
-    "id, slug, title, summary, starts_on, ends_on, status, is_public, term_number, term_kind, election_date, is_current, date_confidence, tenure_note, target_executive_slots, voter_rule_note";
-  const baseSelect = "id, slug, title, summary, starts_on, ends_on, status, is_public";
+  const admin = asFlexibleClient(createAdminClient());
 
-  const extended = await flexible
-    .from("committee_terms" as string)
-    .select(extendedSelect)
-    .eq("is_public", true)
-    .eq("term_kind", "executive")
-    .in("status", ["active", "upcoming", "archived"])
-    .order("starts_on", { ascending: false })
-    .limit(24);
-
-  if (!extended.error) {
-    return (extended.data || []) as CommitteeTermRecord[];
-  }
-
-  const fallback = await flexible
-    .from("committee_terms" as string)
-    .select(baseSelect)
-    .eq("is_public", true)
-    .in("status", ["active", "upcoming", "archived"])
-    .order("starts_on", { ascending: false })
-    .limit(24);
-
-  return (fallback.data || []) as CommitteeTermRecord[];
+  return collectSupabasePages<PublicCommitteeProjectionTermRow>((from, to) =>
+    admin
+      .from("committee_terms" as string)
+      .select(PUBLIC_COMMITTEE_TERM_SELECT)
+      .eq("is_public", true)
+      .eq("term_kind", "executive")
+      .in("status", ["active", "upcoming", "archived"])
+      .order("term_number", { ascending: false, nullsFirst: false })
+      .order("starts_on", { ascending: false })
+      .range(from, to)
+  );
 }
 
-async function loadAssignments(termIds: string[]) {
-  if (termIds.length === 0) {
-    return [] as CommitteeAssignmentRecord[];
-  }
+async function loadPositions(termIds: readonly string[]) {
+  if (termIds.length === 0) return [];
+  const admin = asFlexibleClient(createAdminClient());
 
-  const supabase = createPublicClient();
-  const flexible = asFlexibleClient(supabase);
-  const extendedSelect =
-    "id, term_id, display_name, sort_order, is_public, public_title_override, committee_roles(title, title_bn, code, is_executive, is_public, sort_order, role_group), members(full_name, jnuits_id, department_code, avatar_secure_url, facebook_url, linkedin_url, website_url, departments(name))";
-  const baseSelect =
-    "id, term_id, display_name, sort_order, committee_roles(title, code, is_executive, is_public, sort_order), members(full_name, jnuits_id, department_code, facebook_url, linkedin_url, website_url, departments(name))";
+  return collectFilteredRows<PublicCommitteeProjectionPositionRow>(
+    termIds,
+    (termIdChunk, from, to) =>
+      admin
+        .from("committee_term_positions" as string)
+        .select(PUBLIC_COMMITTEE_POSITION_SELECT)
+        .in("term_id", termIdChunk)
+        .order("term_id", { ascending: true })
+        .order("priority", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+  );
+}
 
-  const extended = await flexible
-    .from("committee_assignments" as string)
-    .select(extendedSelect)
-    .in("term_id", termIds)
-    .neq("status", "planned")
-    .order("sort_order", { ascending: true })
-    .limit(512);
+async function loadAssignments(termIds: readonly string[]) {
+  if (termIds.length === 0) return [];
+  const admin = asFlexibleClient(createAdminClient());
 
-  if (!extended.error) {
-    return (extended.data || []) as CommitteeAssignmentRecord[];
-  }
+  return collectFilteredRows<PublicCommitteeProjectionAssignmentRow>(
+    termIds,
+    (termIdChunk, from, to) =>
+      admin
+        .from("committee_assignments" as string)
+        .select(PUBLIC_COMMITTEE_ASSIGNMENT_SELECT)
+        .in("term_id", termIdChunk)
+        .eq("is_public", true)
+        .neq("status", "planned")
+        .order("term_id", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+  );
+}
 
-  const fallback = await flexible
-    .from("committee_assignments" as string)
-    .select(baseSelect)
-    .in("term_id", termIds)
-    .neq("status", "planned")
-    .order("sort_order", { ascending: true })
-    .limit(512);
+async function loadRoles(roleIds: readonly string[]) {
+  if (roleIds.length === 0) return [];
+  const admin = asFlexibleClient(createAdminClient());
 
-  return (fallback.data || []) as CommitteeAssignmentRecord[];
+  return collectFilteredRows<PublicCommitteeProjectionRoleRow>(
+    roleIds,
+    (roleIdChunk, from, to) =>
+      admin
+        .from("committee_roles" as string)
+        .select(PUBLIC_COMMITTEE_ROLE_SELECT)
+        .in("id", roleIdChunk)
+        .order("id", { ascending: true })
+        .range(from, to)
+  );
+}
+
+async function loadMembers(memberIds: readonly string[]) {
+  if (memberIds.length === 0) return [];
+  const admin = asFlexibleClient(createAdminClient());
+
+  return collectFilteredRows<PublicCommitteeProjectionMemberRow>(
+    memberIds,
+    (memberIdChunk, from, to) =>
+      admin
+        .from("members" as string)
+        .select(PUBLIC_COMMITTEE_MEMBER_SELECT)
+        .in("id", memberIdChunk)
+        .order("id", { ascending: true })
+        .range(from, to)
+  );
+}
+
+async function loadDepartments(departmentCodes: readonly string[]) {
+  if (departmentCodes.length === 0) return [];
+  const admin = asFlexibleClient(createAdminClient());
+
+  return collectFilteredRows<PublicCommitteeProjectionDepartmentRow>(
+    departmentCodes,
+    (departmentCodeChunk, from, to) =>
+      admin
+        .from("departments" as string)
+        .select(PUBLIC_COMMITTEE_DEPARTMENT_SELECT)
+        .in("code", departmentCodeChunk)
+        .order("code", { ascending: true })
+        .range(from, to)
+  );
 }
 
 async function loadAdvisors() {
-  const supabase = createPublicClient();
-  const flexible = asFlexibleClient(supabase);
-  const extendedSelect =
-    "id, advisor_jnuits_id, advisor_type, full_name, title, former_title, department, designation, avatar_secure_url, bio, facebook_url, linkedin_url, website_url, jnu_profile_url, joined_on, left_on, tenure_display, date_confidence, status_note, is_current, is_public, sort_order";
-  const baseSelect =
-    "id, advisor_type, full_name, title, department, designation, avatar_secure_url, bio, facebook_url, linkedin_url, website_url, joined_on, left_on, is_current, is_public, sort_order";
+  const admin = asFlexibleClient(createAdminClient());
 
-  const extended = await flexible
-    .from("advisor_profiles" as string)
-    .select(extendedSelect)
-    .eq("is_public", true)
-    .order("sort_order", { ascending: true })
-    .order("full_name", { ascending: true })
-    .limit(32);
-
-  const result = !extended.error
-    ? extended
-    : await flexible
-        .from("advisor_profiles" as string)
-        .select(baseSelect)
-        .eq("is_public", true)
-        .order("sort_order", { ascending: true })
-        .order("full_name", { ascending: true })
-        .limit(32);
-
-  if (result.error) {
-    return [] as PublicAdvisorProfile[];
-  }
-
-  return ((result.data || []) as AdvisorProfileRecord[]).map((advisor): PublicAdvisorProfile => ({
-    advisorJnuitsId: formatAdvisorJnuitsIdForDisplay(advisor.advisor_jnuits_id),
-    advisorType: asAdvisorType(advisor.advisor_type),
-    avatarUrl: advisor.avatar_secure_url,
-    bio: advisor.bio,
-    dateConfidence: advisor.date_confidence === "estimated" ? "estimated" : "verified",
-    department: advisor.department,
-    designation: advisor.designation,
-    facebookUrl: advisor.facebook_url,
-    formerTitle: advisor.former_title || null,
-    fullName: advisor.full_name,
-    id: advisor.id,
-    isCurrent: advisor.is_current,
-    jnuProfileUrl: advisor.jnu_profile_url || null,
-    joinedOn: advisor.joined_on,
-    leftOn: advisor.left_on,
-    linkedinUrl: advisor.linkedin_url,
-    sortOrder: advisor.sort_order,
-    statusNote: advisor.status_note || null,
-    tenureDisplay: advisor.tenure_display || null,
-    title: advisor.title,
-    websiteUrl: advisor.website_url,
-  }));
-}
-
-function mapTerm(
-  term: CommitteeTermRecord,
-  assignments: CommitteeAssignmentRecord[]
-): PublicCommitteeTerm {
-  return {
-    assignments: assignments
-      .map(mapAssignment)
-      .filter((assignment): assignment is PublicCommitteeAssignment =>
-        Boolean(assignment)
-      )
-      .sort((left, right) => left.sortOrder - right.sortOrder),
-    dateConfidence: term.date_confidence === "estimated" ? "estimated" : "verified",
-    electionDate: term.election_date || null,
-    endsOn: term.ends_on,
-    id: term.id,
-    isCurrent: Boolean(term.is_current),
-    slug: term.slug,
-    startsOn: term.starts_on,
-    status: term.status,
-    summary: term.summary,
-    targetExecutiveSlots: term.target_executive_slots || 21,
-    tenureNote: term.tenure_note || null,
-    termNumber: term.term_number || null,
-    title: term.title,
-    voterRuleNote: term.voter_rule_note || null,
-  };
-}
-
-export const getPublicCommitteeDirectory = cache(async () => {
-  const [terms, advisors] = await Promise.all([loadTerms(), loadAdvisors()]);
-  const executiveTerms = terms.filter((term) => (term.term_kind || "executive") === "executive");
-  const termIds = executiveTerms.map((term) => term.id);
-  const assignments = await loadAssignments(termIds);
-  const assignmentsByTerm = new Map<string, CommitteeAssignmentRecord[]>();
-
-  for (const assignment of assignments) {
-    if (assignment.is_public === false) {
-      continue;
-    }
-
-    const list = assignmentsByTerm.get(assignment.term_id) || [];
-    list.push(assignment);
-    assignmentsByTerm.set(assignment.term_id, list);
-  }
-
-  const mappedTerms = executiveTerms.map((term) =>
-    mapTerm(term, assignmentsByTerm.get(term.id) || [])
+  return collectSupabasePages<PublicCommitteeProjectionAdvisorRow>((from, to) =>
+    admin
+      .from("advisor_profiles" as string)
+      .select(PUBLIC_COMMITTEE_ADVISOR_SELECT)
+      .eq("is_public", true)
+      .order("sort_order", { ascending: true })
+      .order("full_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
   );
-  const currentTerm =
-    mappedTerms.find((term) => term.isCurrent) ||
-    mappedTerms.find((term) => term.slug === "6th-executive-committee") ||
-    mappedTerms[0] ||
-    null;
+}
 
-  return {
-    advisors,
-    currentTerm,
-    terms: mappedTerms,
-  } satisfies PublicCommitteeDirectory;
-});
+export const getPublicCommitteeDirectory = cache(
+  async (): Promise<PublicCommitteeDirectory> => {
+    const [terms, advisors] = await Promise.all([loadTerms(), loadAdvisors()]);
+    const termIds = terms.map((term) => term.id);
+    const [positions, assignments] = await Promise.all([
+      loadPositions(termIds),
+      loadAssignments(termIds),
+    ]);
+    const roleIds = unique([
+      ...positions.map((position) => position.role_id),
+      ...assignments.map((assignment) => assignment.role_id),
+    ]);
+    const memberIds = unique(assignments.map((assignment) => assignment.member_id));
+    const [roles, members] = await Promise.all([
+      loadRoles(roleIds),
+      loadMembers(memberIds),
+    ]);
+    const departmentCodes = unique(
+      members.map((member) => member.department_code)
+    );
+    const departments = await loadDepartments(departmentCodes);
+
+    return projectPublicCommitteeDirectory({
+      advisors,
+      assignments,
+      departments,
+      members,
+      positions,
+      roles,
+      terms,
+    });
+  }
+);
 
 function matchCommitteeAlias(
   alias: "5th" | "advisory",
@@ -413,14 +285,15 @@ function matchCommitteeAlias(
 
 export const resolveCommitteeAliasSlug = cache(
   async (alias: "5th" | "advisory") => {
-    const directory = await getPublicCommitteeDirectory();
-
     if (alias === "advisory") {
       return null;
     }
 
-    const matched = directory.terms.find((term) => matchCommitteeAlias(alias, term));
-    return matched?.slug || null;
+    const directory = await getPublicCommitteeDirectory();
+    return (
+      directory.terms.find((term) => matchCommitteeAlias(alias, term))?.slug ||
+      null
+    );
   }
 );
 
@@ -434,5 +307,30 @@ export const getPublicCommitteeTermByIdentifier = cache(
 
     const directory = await getPublicCommitteeDirectory();
     return directory.terms.find((term) => term.slug === normalized) || null;
+  }
+);
+
+export const getPublicCommitteeMemberProfileByJnuitsId = cache(
+  async (jnuitsId: string): Promise<PublicCommitteeMemberProfile | null> => {
+    let decodedId: string;
+
+    try {
+      decodedId = decodeURIComponent(jnuitsId);
+    } catch {
+      return null;
+    }
+
+    const displayId = formatMembershipIdForDisplay(decodedId);
+
+    if (!displayId) {
+      return null;
+    }
+
+    const directory = await getPublicCommitteeDirectory();
+    return (
+      directory.memberProfiles.find(
+        (profile) => profile.jnuitsId.toLowerCase() === displayId.toLowerCase()
+      ) || null
+    );
   }
 );
