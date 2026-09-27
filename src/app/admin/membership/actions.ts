@@ -10,6 +10,7 @@ import {
 } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
+import { revalidatePublicCommitteeProjection } from "@/lib/committee/revalidation";
 import type { TablesInsert } from "@/lib/db/types";
 import {
   buildAlumniConversionDecisionEmail,
@@ -252,7 +253,7 @@ export async function updateMemberLifecycle(
   }
 
   revalidatePath("/admin/membership");
-  revalidatePath("/members");
+  revalidatePublicCommitteeProjection();
 
   return {
     message: "Member lifecycle and portal access status were updated.",

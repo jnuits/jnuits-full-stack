@@ -8,6 +8,7 @@ import type { Database } from "@/lib/db/types";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
+import { revalidatePublicCommitteeProjection } from "@/lib/committee/revalidation";
 import { isActiveDepartmentCode } from "@/lib/departments.server";
 import { getAppBaseUrl } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -1013,6 +1014,7 @@ export async function approveWorkplaceUpdateRequest(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/profile");
   revalidatePath("/profile/edit");
+  revalidatePublicCommitteeProjection();
   await setAdminFlash({
     tone: "success",
     title: "Workplace request approved",
@@ -1367,7 +1369,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
 
     revalidatePath("/admin");
     revalidatePath("/admin/profile-changes");
-    revalidatePath("/members");
+    revalidatePublicCommitteeProjection();
     revalidatePath("/portal/profile");
     revalidatePath("/portal/profile/edit");
     await setAdminFlash({
@@ -1571,7 +1573,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
   });
 
   revalidatePath("/admin");
-  revalidatePath("/members");
+  revalidatePublicCommitteeProjection();
   revalidatePath("/profile");
   revalidatePath("/profile/edit");
   revalidatePath("/portal/profile");

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
+import { revalidatePublicCommitteeProjection } from "@/lib/committee/revalidation";
 import { committeeTermPositionInputSchema } from "@/lib/committee/term-positions";
 import {
   normalizeAdvisorJnuitsId,
@@ -486,7 +487,7 @@ export async function saveCommitteeTerm(formData: FormData) {
   });
 
   revalidatePath("/admin/committee");
-  revalidatePath("/committee");
+  revalidatePublicCommitteeProjection();
   await setAdminFlash({
     tone: "success",
     title: termId ? "Committee term updated" : "Committee term created",
@@ -544,7 +545,7 @@ export async function setCommitteeTermCurrent(formData: FormData) {
   });
 
   revalidatePath("/admin/committee");
-  revalidatePath("/committee");
+  revalidatePublicCommitteeProjection();
   await setAdminFlash({
     tone: "success",
     title: "Current committee updated",
@@ -705,7 +706,7 @@ export async function saveCommitteeTermPosition(formData: FormData) {
   });
 
   revalidatePath("/admin/committee");
-  revalidatePath("/committee");
+  revalidatePublicCommitteeProjection();
   await setAdminFlash({
     tone: "success",
     title: existing ? "Committee position updated" : "Committee position created",
@@ -865,7 +866,7 @@ export async function saveCommitteeAssignment(formData: FormData) {
   });
 
   revalidatePath("/admin/committee");
-  revalidatePath("/committee");
+  revalidatePublicCommitteeProjection();
   await setAdminFlash({
     tone: "success",
     title: assignmentId
@@ -910,7 +911,7 @@ export async function removeCommitteeAssignment(formData: FormData) {
   });
 
   revalidatePath("/admin/committee");
-  revalidatePath("/committee");
+  revalidatePublicCommitteeProjection();
   await setAdminFlash({
     tone: "success",
     title: "Committee assignment removed",
@@ -978,7 +979,7 @@ export async function bulkUpdateCommitteeAssignments(formData: FormData) {
   });
 
   revalidatePath("/admin/committee");
-  revalidatePath("/committee");
+  revalidatePublicCommitteeProjection();
   await setAdminFlash({
     tone: "success",
     title: "Bulk roster update saved",
@@ -1128,7 +1129,7 @@ export async function saveAdvisorProfile(formData: FormData) {
   });
 
   revalidatePath("/admin/committee");
-  revalidatePath("/committee");
+  revalidatePublicCommitteeProjection();
   await setAdminFlash({
     tone: "success",
     title: advisorId ? "Advisor profile updated" : "Advisor profile created",
@@ -1253,7 +1254,7 @@ export async function linkAdvisorAuthUser(formData: FormData) {
   });
 
   revalidatePath("/admin/committee");
-  revalidatePath("/committee");
+  revalidatePublicCommitteeProjection();
   await setAdminFlash({
     tone: "success",
     title: "Advisor portal user linked",
@@ -1303,7 +1304,7 @@ export async function commitCommitteeImport(formData: FormData) {
   if (importType === "advisor_profiles") {
     const result = await commitAdvisorProfileImport(admin, actorUserId, rows);
     revalidatePath("/admin/committee");
-    revalidatePath("/committee");
+    revalidatePublicCommitteeProjection();
     await setAdminFlash({
       tone: "success",
       title: "Advisor import committed",
@@ -1318,7 +1319,7 @@ export async function commitCommitteeImport(formData: FormData) {
   });
 
   revalidatePath("/admin/committee");
-  revalidatePath("/committee");
+  revalidatePublicCommitteeProjection();
   await setAdminFlash({
     tone: "success",
     title:
@@ -1952,7 +1953,7 @@ export async function rolloverCommitteeTerm(formData: FormData) {
   });
 
   revalidatePath("/admin/committee");
-  revalidatePath("/committee");
+  revalidatePublicCommitteeProjection();
   revalidatePath("/admin/reports");
   await setAdminFlash({
     tone: "success",
