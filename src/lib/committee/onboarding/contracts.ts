@@ -59,6 +59,7 @@ export const committeeDraftMetadataSchema = z
     sourceKind: z.enum(COMMITTEE_INTAKE_SOURCE_KINDS),
     sourceSha256: sourceDigestSchema.optional(),
     targetTermId: z.string().uuid().nullable(),
+    targetTermUpdatedAt: z.string().datetime({ offset: true }).nullable().default(null),
   })
   .superRefine((value, context) => {
     if (value.sourceKind !== "manual" && !value.sourceSha256) {
@@ -77,10 +78,21 @@ export const committeeDraftMetadataSchema = z
       });
     }
 
-    if (value.operationType === "member_profile_import" && value.targetTermId) {
+    if (value.operationType === "committee_roster_import" && !value.targetTermUpdatedAt) {
       context.addIssue({
         code: "custom",
-        message: "Member profile drafts cannot target a committee term.",
+        message: "Committee roster drafts require the target term revision.",
+        path: ["targetTermUpdatedAt"],
+      });
+    }
+
+    if (
+      value.operationType === "member_profile_import" &&
+      (value.targetTermId || value.targetTermUpdatedAt)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Member profile drafts cannot target a committee term or revision.",
         path: ["targetTermId"],
       });
     }

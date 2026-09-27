@@ -14,6 +14,7 @@ describe("committee onboarding draft metadata", () => {
       sourceKind: "xlsx",
       sourceSha256: digest,
       targetTermId: "a53b45fc-c338-42a5-adec-db5350f580a3",
+      targetTermUpdatedAt: "2026-09-26T05:49:27.000Z",
     });
 
     expect(metadata.sourceKind).toBe("xlsx");
@@ -52,6 +53,28 @@ describe("committee onboarding draft metadata", () => {
         sourceKind: "manual",
         targetTermId: "a53b45fc-c338-42a5-adec-db5350f580a3",
       }).success,
+    ).toBe(false);
+  });
+
+  it("requires the target term concurrency token only for committee roster imports", () => {
+    expect(
+      committeeDraftMetadataSchema.safeParse({
+        columnMapping: {},
+        operationType: "committee_roster_import",
+        schemaVersion: 1,
+        sourceKind: "manual",
+        targetTermId: "a53b45fc-c338-42a5-adec-db5350f580a3",
+      }).success
+    ).toBe(false);
+    expect(
+      committeeDraftMetadataSchema.safeParse({
+        columnMapping: {},
+        operationType: "member_profile_import",
+        schemaVersion: 1,
+        sourceKind: "manual",
+        targetTermId: null,
+        targetTermUpdatedAt: "2026-09-26T05:49:27.000Z",
+      }).success
     ).toBe(false);
   });
 

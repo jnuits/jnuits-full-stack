@@ -308,6 +308,13 @@ export async function createOnboardingDraftAction(
     );
     const mapping = resolveColumnMapping(inspected.table.headers, overrides);
     const targetTermInput = optionalFormText(formData, "targetTermId");
+    const targetTermId = targetTermInput ? uuidSchema.parse(targetTermInput) : null;
+    const readClient = createAdminClient();
+    const context = await loadOnboardingNormalizationContext(readClient, {
+      mapping,
+      table: inspected.table,
+      targetTermId,
+    });
     const metadata = parseCommitteeDraftMetadata({
       columnMapping: mapping,
       operationType: request.operationType,
@@ -316,13 +323,8 @@ export async function createOnboardingDraftAction(
       sheetName: inspected.table.selectedSheet ?? undefined,
       sourceKind: request.sourceKind,
       sourceSha256: inspected.sourceSha256,
-      targetTermId: targetTermInput ?? null,
-    });
-    const readClient = createAdminClient();
-    const context = await loadOnboardingNormalizationContext(readClient, {
-      mapping,
-      table: inspected.table,
-      targetTermId: metadata.targetTermId,
+      targetTermId,
+      targetTermUpdatedAt: context.targetTermUpdatedAt,
     });
     const rows = buildOnboardingDraftRows({
       context,

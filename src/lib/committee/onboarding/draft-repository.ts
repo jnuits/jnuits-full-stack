@@ -40,6 +40,7 @@ export type OnboardingNormalizationContext = {
   existingAssignments: ExistingAssignmentSnapshot[];
   existingMembers: ExistingMemberSnapshot[];
   positions: PositionSnapshot[];
+  targetTermUpdatedAt: string | null;
 };
 
 export type PersistedOnboardingDraftRow = {
@@ -350,6 +351,9 @@ export async function persistOnboardingDraft(
       columnMapping: metadata.columnMapping,
       schemaVersion: metadata.schemaVersion,
       ...(metadata.sheetName ? { sheetName: metadata.sheetName } : {}),
+      ...(metadata.targetTermUpdatedAt
+        ? { targetTermUpdatedAt: metadata.targetTermUpdatedAt }
+        : {}),
     },
     operationType: metadata.operationType,
     originalFilename: metadata.originalFilename ?? null,
@@ -640,7 +644,24 @@ export async function loadOnboardingNormalizationContext(
 
   let positions: PositionSnapshot[] = [];
   let existingAssignments: ExistingAssignmentSnapshot[] = [];
+  let targetTermUpdatedAt: string | null = null;
   if (input.targetTermId) {
+    const { data: targetTerm, error: targetTermError } = await flexible
+      .from("committee_terms")
+      .select("id, term_kind, updated_at")
+      .eq("id", input.targetTermId)
+      .maybeSingle();
+    if (targetTermError) {
+      databaseFailure(targetTermError, "Unable to load the target committee term.");
+    }
+    if (!targetTerm || String(targetTerm.term_kind) !== "executive") {
+      throw new OnboardingDraftRepositoryError(
+        "invalid_target_term",
+        "Choose a valid executive committee term."
+      );
+    }
+    targetTermUpdatedAt = String(targetTerm.updated_at);
+
     const { data: positionData, error: positionError } = await flexible
       .from("committee_term_positions")
       .select(
@@ -716,7 +737,13 @@ export async function loadOnboardingNormalizationContext(
     width: asset.width as number | null,
   }));
 
-  return { approvedMedia, existingAssignments, existingMembers, positions };
+  return {
+    approvedMedia,
+    existingAssignments,
+    existingMembers,
+    positions,
+    targetTermUpdatedAt,
+  };
 }
 
 export function getMemberSearchWindow(input: { page: number; pageSize: number }) {

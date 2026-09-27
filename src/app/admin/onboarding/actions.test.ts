@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  buildOnboardingDraftRows: vi.fn(),
   createAdminClient: vi.fn(),
   createClient: vi.fn(),
   inspectOnboardingSource: vi.fn(),
+  loadOnboardingNormalizationContext: vi.fn(),
   loadOnboardingDraft: vi.fn(),
+  persistOnboardingDraft: vi.fn(),
   publishOnboardingDraft: vi.fn(),
   requireAdminPermission: vi.fn(),
   revalidatePath: vi.fn(),
@@ -38,14 +41,19 @@ vi.mock("@/lib/committee/onboarding/draft-repository", async (importOriginal) =>
   >();
   return {
     ...actual,
+    buildOnboardingDraftRows: (...args: unknown[]) => mocks.buildOnboardingDraftRows(...args),
     createSupabaseOnboardingDraftGateway: vi.fn(() => ({ call: vi.fn() })),
     inspectOnboardingSource: (...args: unknown[]) => mocks.inspectOnboardingSource(...args),
+    loadOnboardingNormalizationContext: (...args: unknown[]) =>
+      mocks.loadOnboardingNormalizationContext(...args),
     loadOnboardingDraft: (...args: unknown[]) => mocks.loadOnboardingDraft(...args),
+    persistOnboardingDraft: (...args: unknown[]) => mocks.persistOnboardingDraft(...args),
     publishOnboardingDraft: (...args: unknown[]) => mocks.publishOnboardingDraft(...args),
   };
 });
 
 import {
+  createOnboardingDraftAction,
   inspectOnboardingSourceAction,
   publishOnboardingDraftAction,
 } from "@/app/admin/onboarding/actions";
@@ -69,6 +77,21 @@ describe("committee onboarding Server Actions", () => {
     mocks.requireAdminPermission.mockResolvedValue({ user: { id: "operator-1" } });
     mocks.createClient.mockResolvedValue({ session: true });
     mocks.createAdminClient.mockReturnValue({ admin: true });
+    mocks.buildOnboardingDraftRows.mockReturnValue([]);
+    mocks.loadOnboardingNormalizationContext.mockResolvedValue({
+      approvedMedia: [],
+      existingAssignments: [],
+      existingMembers: [],
+      positions: [],
+      targetTermUpdatedAt: "2026-09-26T05:49:27.000Z",
+    });
+    mocks.persistOnboardingDraft.mockResolvedValue({
+      draftRevision: 1,
+      errorRows: 0,
+      operationId,
+      totalRows: 0,
+      validRows: 0,
+    });
     mocks.inspectOnboardingSource.mockResolvedValue({
       originalFilename: null,
       sourceSha256: "a".repeat(64),
@@ -118,6 +141,24 @@ describe("committee onboarding Server Actions", () => {
       })
     );
     expect(JSON.stringify(result)).not.toContain("sourceBytes");
+  });
+
+  it("persists the target term concurrency token on committee drafts", async () => {
+    const formData = sourceForm("committee_roster_import");
+    formData.set("targetTermId", "a53b45fc-c338-42a5-adec-db5350f580a3");
+
+    const result = await createOnboardingDraftAction(formData);
+
+    expect(result.ok).toBe(true);
+    expect(mocks.persistOnboardingDraft).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          targetTermId: "a53b45fc-c338-42a5-adec-db5350f580a3",
+          targetTermUpdatedAt: "2026-09-26T05:49:27.000Z",
+        }),
+      })
+    );
   });
 
   it("derives an existing draft's permission from the stored operation before publish", async () => {

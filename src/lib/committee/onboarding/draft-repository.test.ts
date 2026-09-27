@@ -6,6 +6,7 @@ import {
   createSupabaseOnboardingDraftGateway,
   editOnboardingDraftRow,
   getMemberSearchWindow,
+  loadOnboardingNormalizationContext,
   persistOnboardingDraft,
   publishOnboardingDraft,
   searchOnboardingMembers,
@@ -73,6 +74,7 @@ describe("committee onboarding draft repository", () => {
         existingAssignments: [],
         existingMembers: [],
         positions: [],
+        targetTermUpdatedAt: null,
       },
       mapping: {
         classification: "classification",
@@ -128,6 +130,7 @@ describe("committee onboarding draft repository", () => {
         sourceKind: "csv",
         sourceSha256: "a".repeat(64),
         targetTermId: null,
+        targetTermUpdatedAt: null,
       },
       rows,
     });
@@ -169,12 +172,82 @@ describe("committee onboarding draft repository", () => {
           schemaVersion: 1,
           sourceKind: "manual",
           targetTermId: null,
+          targetTermUpdatedAt: null,
         },
         rows: [],
       })
     ).rejects.toThrow("row insert failed");
 
     expect(gateway.deleteOperation).toHaveBeenCalledWith(operationId);
+  });
+
+  it("persists the target term concurrency token for committee drafts", async () => {
+    const gateway = createGateway();
+
+    await persistOnboardingDraft(gateway, {
+      actorUserId,
+      metadata: {
+        columnMapping: {},
+        operationType: "committee_roster_import",
+        schemaVersion: 1,
+        sourceKind: "manual",
+        targetTermId: "a53b45fc-c338-42a5-adec-db5350f580a3",
+        targetTermUpdatedAt: "2026-09-26T05:49:27.000Z",
+      },
+      rows: [],
+    });
+
+    expect(gateway.createOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          targetTermUpdatedAt: "2026-09-26T05:49:27.000Z",
+        }),
+      })
+    );
+  });
+
+  it("loads the authoritative target term revision for committee drafts", async () => {
+    const termQuery = {
+      eq: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: {
+          id: "a53b45fc-c338-42a5-adec-db5350f580a3",
+          term_kind: "executive",
+          updated_at: "2026-09-26T05:49:27.123456+00:00",
+        },
+        error: null,
+      }),
+      select: vi.fn(),
+    };
+    termQuery.select.mockReturnValue(termQuery);
+    termQuery.eq.mockReturnValue(termQuery);
+    const positionQuery = {
+      eq: vi.fn(),
+      order: vi.fn().mockResolvedValue({ data: [], error: null }),
+      select: vi.fn(),
+    };
+    positionQuery.select.mockReturnValue(positionQuery);
+    positionQuery.eq.mockReturnValue(positionQuery);
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === "committee_terms") return termQuery;
+        if (table === "committee_term_positions") return positionQuery;
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    const context = await loadOnboardingNormalizationContext(client as never, {
+      mapping: {},
+      table: {
+        availableSheets: [],
+        headers: [],
+        rows: [],
+        selectedSheet: null,
+      },
+      targetTermId: "a53b45fc-c338-42a5-adec-db5350f580a3",
+    });
+
+    expect(context.targetTermUpdatedAt).toBe("2026-09-26T05:49:27.123456+00:00");
   });
 
   it("passes optimistic revisions to edit, exclusion, validation, and publish RPCs", async () => {
