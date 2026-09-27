@@ -3,27 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { MemberAvatar } from "@/components/members/member-avatar";
-import {
-  getPublicCommitteeTermByIdentifier,
-  type PublicCommitteeAssignment,
-} from "@/lib/committee/public";
-
-const ROLE_GROUPS = [
-  "president",
-  "vice-president",
-  "general-secretary",
-  "assistant-general-secretary",
-  "organizing-secretary",
-  "treasurer",
-  "office-secretary",
-  "workshop-secretary",
-  "it-secretary",
-  "publication-secretary",
-  "public-relations-secretary",
-  "education-research-secretary",
-  "international-secretary",
-  "executive-member",
-];
+import type { PublicCommitteeAssignment } from "@/lib/committee/public-contracts";
+import { getPublicCommitteeTermByIdentifier } from "@/lib/committee/public";
+import { groupCommitteeAssignmentsByPosition } from "@/lib/committee-utils";
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -95,14 +77,12 @@ function CommitteeMemberRow({ member }: { member: PublicCommitteeAssignment }) {
 }
 
 function RoleSection({
-  assignments,
-  roleCode,
+  label,
+  members,
 }: {
-  assignments: PublicCommitteeAssignment[];
-  roleCode: string;
+  label: string;
+  members: PublicCommitteeAssignment[];
 }) {
-  const members = assignments.filter((assignment) => assignment.roleCode === roleCode);
-
   if (members.length === 0) {
     return null;
   }
@@ -110,7 +90,7 @@ function RoleSection({
   return (
     <section className="grid gap-3">
       <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-        {members[0]?.roleTitle}
+        {label}
       </h2>
       <div className="grid gap-3">
         {members.map((member) => (
@@ -132,6 +112,8 @@ export default async function CommitteeTermPage({
   if (!term) {
     notFound();
   }
+
+  const positionGroups = groupCommitteeAssignmentsByPosition(term.assignments);
 
   return (
     <main className="shell py-12">
@@ -181,11 +163,11 @@ export default async function CommitteeTermPage({
 
         {term.assignments.length > 0 ? (
           <div className="mt-8 grid gap-7">
-            {ROLE_GROUPS.map((roleCode) => (
+            {positionGroups.map((group) => (
               <RoleSection
-                assignments={term.assignments}
-                key={roleCode}
-                roleCode={roleCode}
+                key={group.key}
+                label={group.label}
+                members={group.assignments}
               />
             ))}
           </div>

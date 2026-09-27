@@ -11,7 +11,7 @@ import type {
   PublicAdvisorProfile,
   PublicCommitteeAssignment,
   PublicCommitteeTerm,
-} from "@/lib/committee/public";
+} from "@/lib/committee/public-contracts";
 
 export function CommitteePageClient({
   advisors,
@@ -52,7 +52,7 @@ export function CommitteePageClient({
         <CommitteeDivider />
         <CommitteeTermSwitcher
           assignmentsByTerm={assignmentsByTerm}
-          defaultTermSlug={currentTerm?.slug || "6th-executive-committee"}
+          defaultTermSlug={currentTerm?.slug || executiveTerms[0]?.slug || ""}
           terms={executiveTerms}
         />
 

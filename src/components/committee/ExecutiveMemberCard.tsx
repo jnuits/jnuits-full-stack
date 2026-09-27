@@ -23,7 +23,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { useMediaQuery } from "@/hooks/use-media-query";
-import type { PublicCommitteeAssignment } from "@/lib/committee/public";
+import type { PublicCommitteeAssignment } from "@/lib/committee/public-contracts";
 import { getInitials } from "@/lib/committee-utils";
 
 function cn(...classes: Array<false | null | string | undefined>) {

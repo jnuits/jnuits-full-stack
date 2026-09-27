@@ -20,24 +20,17 @@ import { ExecutiveMemberCard } from "@/components/committee/ExecutiveMemberCard"
 import type {
   PublicCommitteeAssignment,
   PublicCommitteeTerm,
-} from "@/lib/committee/public";
+} from "@/lib/committee/public-contracts";
 import {
   formatCommitteeDate,
   formatCommitteeDateRange,
-  groupByRoleCategory,
+  groupCommitteeAssignmentsByPosition,
   ordinalSuffix,
-  type CommitteeRoleCategory,
 } from "@/lib/committee-utils";
 
 function cn(...classes: Array<false | null | string | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
-
-const categoryLabels: Record<CommitteeRoleCategory, string> = {
-  leadership: "Leadership",
-  secretaries: "Secretaries",
-  executiveMembers: "Executive Members",
-};
 
 export function CommitteeTermSwitcher({
   assignmentsByTerm,
@@ -270,8 +263,11 @@ function TermEmptyState({ term }: { term: PublicCommitteeTerm }) {
           </Link>
         </div>
         <p className="mt-6 text-xs text-muted-foreground/60">
-          Members elected July 7, 2025 - {term.targetExecutiveSlots} executive
-          seats
+          {formatCommitteeDateRange(term.startsOn, term.endsOn, {
+            estimated: term.dateConfidence === "estimated",
+          })}
+          {" · "}
+          {term.targetExecutiveSlots} configured executive seats
         </p>
       </div>
     );
@@ -309,35 +305,25 @@ function TermRosterGrid({
   isCurrent: boolean;
   termTitle: string;
 }) {
-  const grouped = useMemo(() => groupByRoleCategory(assignments), [assignments]);
-  const entries = Object.entries(grouped) as Array<
-    [CommitteeRoleCategory, PublicCommitteeAssignment[]]
-  >;
+  const groups = useMemo(
+    () => groupCommitteeAssignmentsByPosition(assignments),
+    [assignments]
+  );
 
   return (
     <div className="mt-8 space-y-10">
-      {entries.map(([category, members]) => {
-        if (members.length === 0) return null;
-
-        return (
-          <div key={category}>
+      {groups.map((group) => (
+          <div key={group.key}>
             <div className="mb-6 flex items-center gap-4">
               <div className="h-px flex-1 bg-border/60" />
               <span className="flex-shrink-0 px-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
-                {categoryLabels[category]}
+                {group.label}
               </span>
               <div className="h-px flex-1 bg-border/60" />
             </div>
 
-            <div
-              className={cn(
-                "grid gap-3",
-                category === "executiveMembers"
-                  ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
-                  : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
-              )}
-            >
-              {members.map((assignment, index) => (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {group.assignments.map((assignment, index) => (
                 <div
                   className="animate-[jnuits-fade-rise_300ms_var(--motion-ease)_both]"
                   key={assignment.id}
@@ -352,8 +338,7 @@ function TermRosterGrid({
               ))}
             </div>
           </div>
-        );
-      })}
+        ))}
     </div>
   );
 }

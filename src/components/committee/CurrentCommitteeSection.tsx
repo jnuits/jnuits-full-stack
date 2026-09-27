@@ -13,41 +13,12 @@ import { MemberAvatar } from "@/components/members/member-avatar";
 import type {
   PublicCommitteeAssignment,
   PublicCommitteeTerm,
-} from "@/lib/committee/public";
-import { formatCommitteeDate } from "@/lib/committee-utils";
-
-const ROLE_GROUPS = [
-  {
-    columns: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-    label: "Leadership",
-    roles: [
-      "president",
-      "vice-president",
-      "general-secretary",
-      "assistant-general-secretary",
-    ],
-  },
-  {
-    columns: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-    label: "Secretaries",
-    roles: [
-      "organizing-secretary",
-      "treasurer",
-      "office-secretary",
-      "workshop-secretary",
-      "it-secretary",
-      "publication-secretary",
-      "public-relations-secretary",
-      "education-research-secretary",
-      "international-secretary",
-    ],
-  },
-  {
-    columns: "grid-cols-1 sm:grid-cols-3 lg:grid-cols-4",
-    label: "Executive Members",
-    roles: ["executive-member"],
-  },
-];
+} from "@/lib/committee/public-contracts";
+import {
+  formatCommitteeDate,
+  formatCommitteeDateRange,
+  groupCommitteeAssignmentsByPosition,
+} from "@/lib/committee-utils";
 
 export function CurrentCommitteeSection({
   term,
@@ -71,6 +42,7 @@ export function CurrentCommitteeSection({
   }
 
   const seatsFilled = term.assignments.length;
+  const positionGroups = groupCommitteeAssignmentsByPosition(term.assignments);
 
   return (
     <section id="current-committee">
@@ -105,13 +77,11 @@ export function CurrentCommitteeSection({
 
       {term.assignments.length > 0 ? (
         <div className="mt-10">
-          {ROLE_GROUPS.map((group) => (
+          {positionGroups.map((group) => (
             <RoleGroup
-              assignments={term.assignments}
-              columns={group.columns}
-              key={group.label}
+              key={group.key}
               label={group.label}
-              roleCodes={group.roles}
+              members={group.assignments}
             />
           ))}
         </div>
@@ -121,7 +91,10 @@ export function CurrentCommitteeSection({
             term.electionDate ? formatCommitteeDate(term.electionDate) : "on record"
           }. The public roster will be published once member-linked executive assignments are imported and validated.`}
           href={`/committee/${term.slug}`}
-          title="The 6th Executive Committee roster will be published soon"
+          detail={`${formatCommitteeDateRange(term.startsOn, term.endsOn, {
+            estimated: term.dateConfidence === "estimated",
+          })} · ${term.targetExecutiveSlots} configured executive seats`}
+          title={`The ${term.title} roster will be published soon`}
         />
       )}
     </section>
@@ -170,10 +143,12 @@ function InfoChip({
 }
 
 function PendingRoster({
+  detail,
   description,
   href,
   title,
 }: {
+  detail?: string;
   description: string;
   href: string;
   title: string;
@@ -198,9 +173,9 @@ function PendingRoster({
           Open term shell
         </Link>
       </div>
-      <p className="mt-6 text-xs text-muted-foreground/60">
-        Members elected July 7, 2025 - 21 executive seats
-      </p>
+      {detail ? (
+        <p className="mt-6 text-xs text-muted-foreground/60">{detail}</p>
+      ) : null}
     </div>
   );
 }
@@ -274,20 +249,12 @@ function PodiumSeal() {
 }
 
 function RoleGroup({
-  assignments,
-  columns,
   label,
-  roleCodes,
+  members,
 }: {
-  assignments: PublicCommitteeAssignment[];
-  columns: string;
   label: string;
-  roleCodes: string[];
+  members: PublicCommitteeAssignment[];
 }) {
-  const members = assignments.filter((assignment) =>
-    roleCodes.includes(assignment.roleCode)
-  );
-
   if (members.length === 0) return null;
 
   return (
@@ -299,7 +266,7 @@ function RoleGroup({
         </h3>
         <span className="h-px flex-1 bg-border" />
       </div>
-      <div className={`grid gap-4 ${columns}`}>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {members.map((member) => (
           <ExecutiveCard key={member.id} member={member} />
         ))}
