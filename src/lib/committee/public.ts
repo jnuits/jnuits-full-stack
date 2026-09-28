@@ -1,5 +1,6 @@
 import "server-only";
 
+import { connection } from "next/server";
 import { cache } from "react";
 
 import type {
@@ -238,6 +239,8 @@ async function loadAdvisors() {
 
 export const getPublicCommitteeDirectory = cache(
   async (): Promise<PublicCommitteeDirectory> => {
+    await connection();
+
     const [terms, advisors] = await Promise.all([loadTerms(), loadAdvisors()]);
     const termIds = terms.map((term) => term.id);
     const [positions, assignments] = await Promise.all([

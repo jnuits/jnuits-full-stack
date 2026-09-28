@@ -89,4 +89,21 @@ describe("public committee server data access", () => {
 
     expect(termLoader).toContain('.order("id", { ascending: true })');
   });
+
+  it("defers privileged committee reads until a real request exists", () => {
+    const source = readFileSync(
+      fileURLToPath(new URL("./public.ts", import.meta.url)),
+      "utf8"
+    );
+    const directoryLoader = source.slice(
+      source.indexOf("export const getPublicCommitteeDirectory"),
+      source.indexOf("function matchCommitteeAlias")
+    );
+
+    expect(source).toContain('import { connection } from "next/server";');
+    expect(directoryLoader).toContain("await connection();");
+    expect(directoryLoader.indexOf("await connection();")).toBeLessThan(
+      directoryLoader.indexOf("loadTerms()")
+    );
+  });
 });
