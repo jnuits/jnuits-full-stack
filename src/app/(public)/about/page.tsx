@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import {
   getPublicCommitteeDirectory,
   type PublicCommitteeTerm,
@@ -651,16 +652,26 @@ function renderTimelineTitle(item: TimelineMilestoneItem): ReactNode {
   );
 }
 
+async function getAboutCommitteeTerms(): Promise<PublicCommitteeTerm[]> {
+  try {
+    return (await getPublicCommitteeDirectory()).terms;
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("About committee timeline unavailable:", error);
+    return [];
+  }
+}
+
 export default async function AboutPage() {
-  const [aboutContent, committeeDirectory, advisorMessages] = await Promise.all([
+  const [aboutContent, committeeTerms, advisorMessages] = await Promise.all([
     getAboutContent(),
-    getPublicCommitteeDirectory(),
+    getAboutCommitteeTerms(),
     getAdvisorMessages(),
   ]);
   const optimizedSrc = toCloudinaryOptimizedSrc(aboutContent.imageSrc);
   const timelineItems = buildTimelineMilestones(
     aboutContent.timeline,
-    committeeDirectory.terms
+    committeeTerms
   );
   const timelineGroups = groupTimelineByYear(timelineItems);
   const statItems = [

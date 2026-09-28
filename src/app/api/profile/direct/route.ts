@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { isStepUpActiveForUser } from "@/lib/auth/step-up";
+import { revalidatePublicCommitteeProjection } from "@/lib/committee/revalidation";
 import { isActiveDepartmentCode } from "@/lib/departments.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
@@ -180,7 +181,7 @@ async function handleDirectEdit(
 
   revalidatePath("/profile");
   revalidatePath("/profile/edit");
-  revalidatePath("/members");
+  revalidatePublicCommitteeProjection();
   revalidatePath("/portal/profile");
   revalidatePath("/portal/profile/edit");
 

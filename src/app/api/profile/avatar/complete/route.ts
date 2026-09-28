@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { isCloudinaryAssetUrl } from "@/lib/cloudinary/config";
 import { getCloudinaryImageResource } from "@/lib/cloudinary/admin";
+import { revalidatePublicCommitteeProjection } from "@/lib/committee/revalidation";
 import {
   authorizeAvatarTarget,
   PROFILE_AVATAR_ALLOWED_FORMATS,
@@ -132,7 +133,9 @@ async function handlePost(request: NextRequest) {
     targetUserId: authorization.target.targetUserId,
   });
 
-  revalidatePath("/members");
+  if (authorization.target.targetType === "member") {
+    revalidatePublicCommitteeProjection();
+  }
   revalidatePath("/portal/profile");
   revalidatePath("/portal/profile/edit");
 

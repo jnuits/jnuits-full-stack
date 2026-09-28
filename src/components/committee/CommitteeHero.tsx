@@ -2,7 +2,7 @@
 
 import { Building2, CalendarDays, ChevronDown, Vote } from "lucide-react";
 
-import type { PublicCommitteeTerm } from "@/lib/committee/public";
+import type { PublicCommitteeTerm } from "@/lib/committee/public-contracts";
 import { formatCommitteeDate } from "@/lib/committee-utils";
 
 export function CommitteeHero({
@@ -17,7 +17,7 @@ export function CommitteeHero({
   onAdvisorHistoryClick: () => void;
 }) {
   const seatsFilled = currentTerm?.assignments.length || 0;
-  const targetSeats = currentTerm?.targetExecutiveSlots || 21;
+  const targetSeats = currentTerm?.targetExecutiveSlots ?? 0;
   const seatValue = `${seatsFilled}/${targetSeats}`;
   const scrollToCurrentCommittee = () => {
     document

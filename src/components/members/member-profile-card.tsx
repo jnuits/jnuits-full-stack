@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Copy, Globe2, LockIcon } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import type { ReactNode } from "react";
@@ -8,7 +9,10 @@ import type { ReactNode } from "react";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { StatusBadge } from "@/components/members/status-badge";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
-import type { MemberDirectoryEntry } from "@/lib/members/directory";
+import type {
+  PublicDirectoryMemberProfile,
+  PublicMemberProfile,
+} from "@/lib/members/public-profile-contract";
 
 function FacebookIcon() {
   return (
@@ -46,7 +50,7 @@ function LinkedinIcon() {
   );
 }
 
-function getWorkplaceValue(member: MemberDirectoryEntry) {
+function getWorkplaceValue(member: PublicDirectoryMemberProfile) {
   if (!member.workplace.visible || !member.workplace.currentOrganization) {
     return null;
   }
@@ -113,10 +117,13 @@ function CopyableProfileId({ id }: { id: string }) {
   );
 }
 
-export function MemberProfileCard({ member }: { member: MemberDirectoryEntry }) {
-  const workplace = getWorkplaceValue(member);
+export function MemberProfileCard({ member }: { member: PublicMemberProfile }) {
+  const directoryMember = member.scope === "directory" ? member : null;
+  const workplace = directoryMember ? getWorkplaceValue(directoryMember) : null;
   const hasSocialLinks = Boolean(
-    member.facebookUrl || member.linkedinUrl || member.websiteUrl
+    directoryMember?.facebookUrl ||
+      directoryMember?.linkedinUrl ||
+      directoryMember?.websiteUrl
   );
 
   return (
@@ -125,7 +132,9 @@ export function MemberProfileCard({ member }: { member: MemberDirectoryEntry }) 
         <MemberAvatar name={member.fullName} size={96} src={member.avatarSecureUrl} />
         <div className="profile-hero-info">
           <h1 className="profile-name">{member.fullName}</h1>
-          <StatusBadge memberType={member.memberType} />
+          {directoryMember ? (
+            <StatusBadge memberType={directoryMember.memberType} />
+          ) : null}
           <CopyableProfileId id={member.jnuitsId} />
         </div>
       </div>
@@ -138,21 +147,68 @@ export function MemberProfileCard({ member }: { member: MemberDirectoryEntry }) 
         </h2>
         <dl className="profile-fields">
           <ProfileField label="Department" value={member.departmentName} />
-          <ProfileField
-            fallback={
-              <span className="private-label">
-                <LockIcon size={13} aria-hidden="true" />
-                Kept private
-              </span>
-            }
-            label="Workplace"
-            value={workplace}
-          />
-          <ProfileField label="Location" value={member.workplace.workLocation} />
+          {directoryMember ? (
+            <>
+              <ProfileField
+                fallback={
+                  <span className="private-label">
+                    <LockIcon size={13} aria-hidden="true" />
+                    Kept private
+                  </span>
+                }
+                label="Workplace"
+                value={workplace}
+              />
+              <ProfileField
+                label="Location"
+                value={directoryMember.workplace.workLocation}
+              />
+            </>
+          ) : null}
         </dl>
       </section>
 
-      {hasSocialLinks ? (
+      {member.committeeAppointments.length > 0 ? (
+        <>
+          <hr className="profile-divider" />
+          <section
+            className="profile-section"
+            aria-labelledby="profile-committee-title"
+          >
+            <h2 className="profile-section-title" id="profile-committee-title">
+              Committee service
+            </h2>
+            <ul className="grid gap-3">
+              {member.committeeAppointments.map((appointment) => (
+                <li key={appointment.assignmentId}>
+                  <Link
+                    aria-label={`${appointment.roleTitle}, ${appointment.termTitle}`}
+                    className="block rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4 transition hover:border-[var(--brand-blue)]/40"
+                    href={`/committee/${encodeURIComponent(appointment.termSlug)}`}
+                  >
+                    <span className="block text-sm font-semibold text-[var(--foreground)]">
+                      {appointment.roleTitle}
+                      {appointment.roleTitleBn
+                        ? ` · ${appointment.roleTitleBn}`
+                        : ""}
+                    </span>
+                    <span className="mt-1 block text-sm text-[var(--muted-foreground)]">
+                      {appointment.termTitle}
+                    </span>
+                    {appointment.dateConfidence === "estimated" ? (
+                      <span className="mt-2 block text-xs font-medium text-amber-600 dark:text-amber-400">
+                        Estimated dates
+                      </span>
+                    ) : null}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      ) : null}
+
+      {directoryMember && hasSocialLinks ? (
         <>
           <hr className="profile-divider" />
           <section className="profile-section" aria-labelledby="profile-connect-title">
@@ -160,11 +216,11 @@ export function MemberProfileCard({ member }: { member: MemberDirectoryEntry }) 
               Connect
             </h2>
             <div className="profile-links">
-              {member.facebookUrl ? (
+              {directoryMember.facebookUrl ? (
                 <a
                   aria-label={`${member.fullName}'s Facebook profile`}
                   className="profile-link-btn"
-                  href={member.facebookUrl}
+                  href={directoryMember.facebookUrl}
                   rel="noopener noreferrer"
                   target="_blank"
                   title="Facebook"
@@ -173,11 +229,11 @@ export function MemberProfileCard({ member }: { member: MemberDirectoryEntry }) 
                   Facebook
                 </a>
               ) : null}
-              {member.linkedinUrl ? (
+              {directoryMember.linkedinUrl ? (
                 <a
                   aria-label={`${member.fullName}'s LinkedIn profile`}
                   className="profile-link-btn"
-                  href={member.linkedinUrl}
+                  href={directoryMember.linkedinUrl}
                   rel="noopener noreferrer"
                   target="_blank"
                   title="LinkedIn"
@@ -186,11 +242,11 @@ export function MemberProfileCard({ member }: { member: MemberDirectoryEntry }) 
                   LinkedIn
                 </a>
               ) : null}
-              {member.websiteUrl ? (
+              {directoryMember.websiteUrl ? (
                 <a
                   aria-label={`${member.fullName}'s website`}
                   className="profile-link-btn"
-                  href={member.websiteUrl}
+                  href={directoryMember.websiteUrl}
                   rel="noopener noreferrer"
                   target="_blank"
                   title="Website"

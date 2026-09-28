@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { CalendarDays, ExternalLink } from "lucide-react";
 
-import type { PublicAdvisorProfile } from "@/lib/committee/public";
+import type { PublicAdvisorProfile } from "@/lib/committee/public-contracts";
 import {
   formatAdvisorDisplayName,
   formatAdvisorTenure,

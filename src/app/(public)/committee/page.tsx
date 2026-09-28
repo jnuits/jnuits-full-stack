@@ -35,9 +35,7 @@ async function CommitteeContent() {
   const publicExecutiveTerms = directory.terms.filter(
     (term) => !term.slug.toLowerCase().includes("advisory")
   );
-  const executiveTerms = [...publicExecutiveTerms].sort(
-    (first, second) => (second.termNumber || 0) - (first.termNumber || 0)
-  );
+  const executiveTerms = publicExecutiveTerms;
   const assignmentsByTerm = Object.fromEntries(
     executiveTerms.map((term) => [term.slug, term.assignments])
   );

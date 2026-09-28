@@ -1,6 +1,6 @@
 import { ArrowRight, CalendarDays } from "lucide-react";
 
-import type { PublicCommitteeTerm } from "@/lib/committee/public";
+import type { PublicCommitteeTerm } from "@/lib/committee/public-contracts";
 import { formatCommitteeDate } from "@/lib/committee-utils";
 
 function cn(...classes: Array<false | null | string | undefined>) {

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { requireAdminPermission } from "@/lib/auth/session";
+import { revalidatePublicCommitteeProjection } from "@/lib/committee/revalidation";
 import {
   COMMITTEE_INTAKE_SOURCE_KINDS,
   COMMITTEE_ONBOARDING_CANONICAL_FIELDS,
@@ -258,12 +259,10 @@ async function requireStoredDraft(operationId: string) {
   return { draft, sessionClient };
 }
 
-function revalidateOnboardingPaths() {
+function revalidateOnboardingAdminPaths() {
   revalidatePath(ONBOARDING_PATH);
   revalidatePath("/admin/committee");
   revalidatePath("/admin/membership");
-  revalidatePath("/committee");
-  revalidatePath("/members");
 }
 
 export async function inspectOnboardingSourceAction(
@@ -338,7 +337,7 @@ export async function createOnboardingDraftAction(
       createSupabaseOnboardingDraftGateway(sessionClient),
       { actorUserId, metadata, rows }
     );
-    revalidateOnboardingPaths();
+    revalidateOnboardingAdminPaths();
     return {
       data: result,
       message:
@@ -468,7 +467,8 @@ export async function publishOnboardingDraftAction(
       createSupabaseOnboardingDraftGateway(sessionClient),
       parsed
     );
-    revalidateOnboardingPaths();
+    revalidateOnboardingAdminPaths();
+    revalidatePublicCommitteeProjection();
     return { data: result, message: "Onboarding draft published.", ok: true };
   } catch (error) {
     return actionError(error, "Unable to publish the onboarding draft.");
