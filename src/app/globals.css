@@ -18819,6 +18819,7 @@ a[href="/admin/content/notices/new"].admin-btn--primary:focus-visible,
 .markdown-editor {
   display: grid;
   gap: 1rem;
+  container: markdown-editor / inline-size;
 }
 
 .markdown-editor__toolbar {
@@ -18867,9 +18868,9 @@ a[href="/admin/content/notices/new"].admin-btn--primary:focus-visible,
   gap: 1rem;
 }
 
-@media (min-width: 1100px) {
+@container markdown-editor (min-width: 48rem) {
   .markdown-editor__grid {
-    grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.92fr);
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.92fr);
     align-items: start;
   }
 }
