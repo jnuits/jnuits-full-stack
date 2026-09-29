@@ -1217,12 +1217,51 @@ export type Database = {
           },
         ]
       }
+      department_aliases: {
+        Row: {
+          alias: string
+          alias_kind: string
+          created_at: string
+          department_code: string
+          is_active: boolean
+          normalized_alias: string
+          updated_at: string
+        }
+        Insert: {
+          alias: string
+          alias_kind: string
+          created_at?: string
+          department_code: string
+          is_active?: boolean
+          normalized_alias?: string
+          updated_at?: string
+        }
+        Update: {
+          alias?: string
+          alias_kind?: string
+          created_at?: string
+          department_code?: string
+          is_active?: boolean
+          normalized_alias?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "department_aliases_department_code_fkey"
+            columns: ["department_code"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       departments: {
         Row: {
           code: string
           created_at: string
           is_active: boolean
           name: string
+          short_code: string
           sort_order: number
           updated_at: string
         }
@@ -1231,6 +1270,7 @@ export type Database = {
           created_at?: string
           is_active?: boolean
           name: string
+          short_code: string
           sort_order?: number
           updated_at?: string
         }
@@ -1239,6 +1279,7 @@ export type Database = {
           created_at?: string
           is_active?: boolean
           name?: string
+          short_code?: string
           sort_order?: number
           updated_at?: string
         }
@@ -2840,6 +2881,7 @@ export type Database = {
           id: string
           is_profile_claimed: boolean
           jnuits_id: string
+          joined_on: string | null
           last_name: string | null
           lifecycle_changed_at: string | null
           lifecycle_changed_by_user_id: string | null
@@ -2881,6 +2923,7 @@ export type Database = {
           id?: string
           is_profile_claimed?: boolean
           jnuits_id: string
+          joined_on?: string | null
           last_name?: string | null
           lifecycle_changed_at?: string | null
           lifecycle_changed_by_user_id?: string | null
@@ -2922,6 +2965,7 @@ export type Database = {
           id?: string
           is_profile_claimed?: boolean
           jnuits_id?: string
+          joined_on?: string | null
           last_name?: string | null
           lifecycle_changed_at?: string | null
           lifecycle_changed_by_user_id?: string | null

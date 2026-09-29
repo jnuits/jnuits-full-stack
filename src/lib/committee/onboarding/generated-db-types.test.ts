@@ -17,4 +17,16 @@ describe("generated committee onboarding database types", () => {
     expectTypeOf<Tables<"bulk_operations">["target_term_id"]>().toEqualTypeOf<string | null>();
     expectTypeOf<Tables<"bulk_operation_rows">["is_excluded"]>().toEqualTypeOf<boolean>();
   });
+
+  it("exposes the canonical member intake catalog", () => {
+    expectTypeOf<Tables<"departments">["short_code"]>().toEqualTypeOf<string>();
+    expectTypeOf<TablesInsert<"departments">["short_code"]>().toEqualTypeOf<string>();
+    expectTypeOf<Tables<"department_aliases">["department_code"]>().toEqualTypeOf<string>();
+    expectTypeOf<Tables<"department_aliases">["normalized_alias"]>().toEqualTypeOf<string>();
+    expectTypeOf<TablesInsert<"department_aliases">["alias"]>().toEqualTypeOf<string>();
+    expectTypeOf<TablesUpdate<"department_aliases">["is_active"]>().toEqualTypeOf<
+      boolean | undefined
+    >();
+    expectTypeOf<Tables<"members">["joined_on"]>().toEqualTypeOf<string | null>();
+  });
 });
