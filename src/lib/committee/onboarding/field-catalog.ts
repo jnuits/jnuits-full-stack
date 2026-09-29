@@ -234,7 +234,7 @@ function comparableHeader(value: string) {
 const aliasesByField = new Map(
   ONBOARDING_FIELD_CATALOG.map((definition) => [
     definition.field,
-    new Set(definition.aliases.map(comparableHeader)),
+    new Set([definition.label, ...definition.aliases].map(comparableHeader)),
   ])
 );
 

@@ -4,9 +4,11 @@ import { z } from "zod";
 import { requireAdminApiPermission } from "@/lib/admin/api-auth";
 import type { AdminPermission } from "@/lib/admin/access";
 import { createOnboardingTemplate } from "@/lib/committee/onboarding/templates";
+import { getActiveDepartmentCatalog } from "@/lib/membership/department-catalog";
 
 const querySchema = z.object({
   format: z.enum(["csv", "xlsx"]),
+  kind: z.enum(["blank", "sample", "department-codes"]).default("blank"),
   operationType: z.enum(["committee_roster_import", "member_profile_import"]),
 });
 
@@ -18,6 +20,7 @@ const permissionByOperation = {
 export async function GET(request: NextRequest) {
   const parsed = querySchema.safeParse({
     format: request.nextUrl.searchParams.get("format"),
+    kind: request.nextUrl.searchParams.get("kind") ?? undefined,
     operationType: request.nextUrl.searchParams.get("operationType"),
   });
 
@@ -38,10 +41,14 @@ export async function GET(request: NextRequest) {
 
   if (permission.response) return permission.response;
 
-  const template = createOnboardingTemplate(
-    parsed.data.operationType,
-    parsed.data.format
-  );
+  const departments =
+    parsed.data.kind === "blank" ? [] : await getActiveDepartmentCatalog();
+  const template = createOnboardingTemplate({
+    departments,
+    format: parsed.data.format,
+    kind: parsed.data.kind,
+    operationType: parsed.data.operationType,
+  });
   const body =
     typeof template.body === "string"
       ? template.body

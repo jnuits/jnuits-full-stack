@@ -8,6 +8,11 @@ type ZipEntry = {
   name: string;
 };
 
+export type XlsxWorksheet = {
+  name: string;
+  table: ExportTable;
+};
+
 const CRC32_TABLE = (() => {
   const values = new Uint32Array(256);
 
@@ -131,17 +136,64 @@ export function createWorksheetXml(table: ExportTable) {
 }
 
 function normalizeSheetName(value: string) {
-  const normalized = value.replace(/[\\/*?:\[\]]/g, " ").trim().slice(0, 31);
+  const normalized = value
+    .replace(/[\\/*?:\[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^'+|'+$/g, "")
+    .slice(0, 31)
+    .trim();
 
   return normalized || "Export";
 }
 
-export function createXlsxWorkbook(table: ExportTable, sheetName = "Export") {
-  const safeSheetName = escapeXml(normalizeSheetName(sheetName));
+function uniqueSheetNames(sheets: readonly XlsxWorksheet[]) {
+  const used = new Set<string>();
+
+  return sheets.map(({ name }) => {
+    const base = normalizeSheetName(name);
+    let candidate = base;
+    let copy = 2;
+
+    while (used.has(candidate.toLocaleLowerCase("en-US"))) {
+      const suffix = ` (${copy})`;
+      candidate = `${base.slice(0, 31 - suffix.length).trimEnd()}${suffix}`;
+      copy += 1;
+    }
+
+    used.add(candidate.toLocaleLowerCase("en-US"));
+    return candidate;
+  });
+}
+
+export function createXlsxWorkbookFromSheets(sheets: readonly XlsxWorksheet[]) {
+  if (sheets.length === 0) {
+    throw new RangeError("An XLSX workbook requires at least one worksheet.");
+  }
+
+  const sheetNames = uniqueSheetNames(sheets);
+  const worksheetOverrides = sheets
+    .map(
+      (_, index) =>
+        `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+    )
+    .join("");
+  const workbookSheets = sheetNames
+    .map(
+      (name, index) =>
+        `<sheet name="${escapeXml(name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`
+    )
+    .join("");
+  const workbookRelationships = sheets
+    .map(
+      (_, index) =>
+        `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`
+    )
+    .join("");
   const entries: ZipEntry[] = [
     {
       data: Buffer.from(
-        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${worksheetOverrides}</Types>`,
         "utf8"
       ),
       name: "[Content_Types].xml",
@@ -155,23 +207,27 @@ export function createXlsxWorkbook(table: ExportTable, sheetName = "Export") {
     },
     {
       data: Buffer.from(
-        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${safeSheetName}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${workbookSheets}</sheets></workbook>`,
         "utf8"
       ),
       name: "xl/workbook.xml",
     },
     {
       data: Buffer.from(
-        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${workbookRelationships}</Relationships>`,
         "utf8"
       ),
       name: "xl/_rels/workbook.xml.rels",
     },
-    {
-      data: Buffer.from(createWorksheetXml(table), "utf8"),
-      name: "xl/worksheets/sheet1.xml",
-    },
+    ...sheets.map((sheet, index) => ({
+      data: Buffer.from(createWorksheetXml(sheet.table), "utf8"),
+      name: `xl/worksheets/sheet${index + 1}.xml`,
+    })),
   ];
 
   return createZip(entries);
+}
+
+export function createXlsxWorkbook(table: ExportTable, sheetName = "Export") {
+  return createXlsxWorkbookFromSheets([{ name: sheetName, table }]);
 }

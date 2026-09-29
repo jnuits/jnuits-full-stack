@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createOnboardingTemplate: vi.fn(),
+  getActiveDepartmentCatalog: vi.fn(),
   requireAdminApiPermission: vi.fn(),
 }));
 
@@ -11,6 +12,9 @@ vi.mock("@/lib/admin/api-auth", () => ({
 }));
 vi.mock("@/lib/committee/onboarding/templates", () => ({
   createOnboardingTemplate: mocks.createOnboardingTemplate,
+}));
+vi.mock("@/lib/membership/department-catalog", () => ({
+  getActiveDepartmentCatalog: mocks.getActiveDepartmentCatalog,
 }));
 
 import { GET } from "./route";
@@ -25,10 +29,13 @@ describe("admin onboarding template route", () => {
     mocks.requireAdminApiPermission.mockResolvedValue({
       auth: { user: { id: "11111111-1111-4111-8111-111111111111" } },
     });
+    mocks.getActiveDepartmentCatalog.mockResolvedValue([
+      { name: "Computer Science & Engineering", shortCode: "CSE" },
+    ]);
     mocks.createOnboardingTemplate.mockReturnValue({
       body: "Full name,JnUITS ID\r\n",
       contentType: "text/csv; charset=utf-8",
-      filename: "jnuits-committee-roster-import-template.csv",
+      filename: "jnuits-committee-roster-import-blank.csv",
     });
   });
 
@@ -43,12 +50,16 @@ describe("admin onboarding template route", () => {
       expect.objectContaining({ forbiddenMessage: expect.any(String) })
     );
     expect(mocks.createOnboardingTemplate).toHaveBeenCalledWith(
-      "committee_roster_import",
-      "csv"
+      {
+        departments: [],
+        format: "csv",
+        kind: "blank",
+        operationType: "committee_roster_import",
+      }
     );
     expect(response.headers.get("Cache-Control")).toBe("private, no-store, max-age=0");
     expect(response.headers.get("Content-Disposition")).toBe(
-      'attachment; filename="jnuits-committee-roster-import-template.csv"'
+      'attachment; filename="jnuits-committee-roster-import-blank.csv"'
     );
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(await response.text()).toBe("Full name,JnUITS ID\r\n");
@@ -61,14 +72,43 @@ describe("admin onboarding template route", () => {
       "admin.membership.manage",
       expect.any(Object)
     );
-    expect(mocks.createOnboardingTemplate).toHaveBeenCalledWith(
-      "member_profile_import",
-      "xlsx"
+    expect(mocks.createOnboardingTemplate).toHaveBeenCalledWith({
+      departments: [],
+      format: "xlsx",
+      kind: "blank",
+      operationType: "member_profile_import",
+    });
+  });
+
+  it.each(["sample", "department-codes"])(
+    "loads the active catalog for %s downloads",
+    async (kind) => {
+      await GET(
+        request(`operationType=member_profile_import&format=xlsx&kind=${kind}`)
+      );
+
+      expect(mocks.getActiveDepartmentCatalog).toHaveBeenCalledTimes(1);
+      expect(mocks.createOnboardingTemplate).toHaveBeenCalledWith({
+        departments: [
+          { name: "Computer Science & Engineering", shortCode: "CSE" },
+        ],
+        format: "xlsx",
+        kind,
+        operationType: "member_profile_import",
+      });
+    }
+  );
+
+  it("does not query the department catalog for a blank template", async () => {
+    await GET(
+      request("operationType=member_profile_import&format=csv&kind=blank")
     );
+
+    expect(mocks.getActiveDepartmentCatalog).not.toHaveBeenCalled();
   });
 
   it("rejects invalid query values without generating a template", async () => {
-    const response = await GET(request("operationType=unknown&format=pdf"));
+    const response = await GET(request("operationType=unknown&format=pdf&kind=unsafe"));
 
     expect(response.status).toBe(400);
     expect(mocks.createOnboardingTemplate).not.toHaveBeenCalled();
@@ -82,6 +122,7 @@ describe("admin onboarding template route", () => {
     const response = await GET(request("operationType=committee_roster_import&format=csv"));
 
     expect(response.status).toBe(403);
+    expect(mocks.getActiveDepartmentCatalog).not.toHaveBeenCalled();
     expect(mocks.createOnboardingTemplate).not.toHaveBeenCalled();
   });
 });
