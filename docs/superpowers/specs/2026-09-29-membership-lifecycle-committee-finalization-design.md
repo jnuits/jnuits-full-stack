@@ -134,11 +134,33 @@ The official Jagannath University catalog is the naming reference. For example, 
 
 ### Batch
 
-Admin forms and imports accept exactly two decimal digits, `10` through `99`. Free-text ordinals such as `12th`, `12 th`, or `Batch 12` are rejected with a correction message rather than silently normalized.
+Admin forms and imports accept exactly two decimal digits, `01` through `99`, so historical and alumni batches such as `07` and `08` remain valid. Free-text ordinals such as `7th`, `12 th`, or `Batch 12` are rejected with a correction message rather than silently normalized.
 
-The database stores the numeric value with a check constraint of `10 <= batch_no <= 99`. Presentation derives the English ordinal correctly, including the `11th`, `12th`, and `13th` exceptions, and displays values such as `12th Batch`.
+The database stores the numeric value with a check constraint of `1 <= batch_no <= 99`. Import and export boundaries preserve a canonical two-character representation by left-padding values below 10, so a stored value of `7` exports as `07`. Human-readable presentation derives the English ordinal correctly, including the `11th`, `12th`, and `13th` exceptions, and displays values such as `7th Batch` or `12th Batch`.
 
 The same validation applies to manual entry, member editing, CSV, XLSX, pasted cells, Google Sheets, and public application intake where batch is collected.
+
+### Actionable validation errors
+
+Every rejected value must identify the real issue and the accepted correction format. Generic messages such as "Invalid data" or "Import failed" are insufficient.
+
+The UI and downloadable error report include:
+
+- source row number and mapped field/column;
+- a stable machine-readable error code;
+- the sanitized value that was received, when safe to display;
+- a plain-language explanation of why it failed;
+- the exact accepted format or allowed values; and
+- at least one valid example when formatting is not self-evident.
+
+Examples include:
+
+- `Row 12 - Batch: "7th" is invalid. Use exactly two digits from 01 to 99, for example 07, 08, or 12.`
+- `Row 18 - Department code: "Computer" is not recognized. Use a code from the Department codes download, for example CSE.`
+- `Row 24 - Joining date: "2024/15/01" is not a valid date. Use YYYY-MM-DD, for example 2024-01-15.`
+- `Row 31 - JnUITS ID conflicts with an existing member whose email is different. Verify both the JnUITS ID and email; records are never merged by name.`
+
+Errors are accumulated per row where safe so administrators can fix all visible problems in one pass. Parser-level failures that prevent reliable row boundaries still report the source, parser reason, and expected file or delimiter format. Error messages never expose another member's private values.
 
 ### Joining date and derived intake year
 
@@ -387,7 +409,8 @@ No migration hardcodes generated UUIDs, invents historical dates, reactivates se
 - Prove blank and fictional sample downloads for every browser-based bulk-import surface.
 - Prove XLSX instructions and department-code sheets match live validation rules.
 - Accept CSE, its approved full name, and its legacy slug as the same department without ambiguous matching.
-- Reject unknown/ambiguous department values and batch values outside the exact two-digit contract.
+- Accept alumni batches such as `07` and `08`, preserve `01`-`09` in imports/exports, and reject batch values outside the exact `01`-`99` two-digit contract.
+- Prove every validation failure identifies the row, field, actual problem, accepted format, and a corrective example without exposing another member's private data.
 - Verify file, paste, and Google Sheet sources create equivalent normalized drafts.
 - Verify Google Sheet host validation, redirect limits, timeouts, byte/row limits, digest provenance, and private/unavailable-sheet errors.
 - Preserve identity conflict detection and idempotent draft commit.
