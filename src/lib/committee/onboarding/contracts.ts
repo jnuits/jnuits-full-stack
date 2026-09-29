@@ -24,6 +24,7 @@ export const COMMITTEE_ONBOARDING_CANONICAL_FIELDS = [
   "classification",
   "departmentCode",
   "batchNo",
+  "joinedOn",
   "phone",
   "studentId",
   "facebookUrl",
