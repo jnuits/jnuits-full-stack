@@ -9,8 +9,8 @@ begin
   from public.members
   where upper(jnuits_id::text) = upper('JnUITS-2023001');
 
-  if target_member_count <> 1 then
-    raise exception 'Expected exactly one member with JnUITS ID JnUITS-2023001; found %.', target_member_count;
+  if target_member_count > 1 then
+    raise exception 'Expected at most one member with JnUITS ID JnUITS-2023001; found %.', target_member_count;
   end if;
 
   if exists (
@@ -343,7 +343,11 @@ begin
     raise exception 'The 7th Executive Committee position structure must target 21 seats.';
   end if;
 
-  if (
+  if exists (
+    select 1
+    from public.members
+    where upper(jnuits_id::text) = upper('JnUITS-2023001')
+  ) and (
     select count(*)
     from public.committee_assignments as assignments
     join public.committee_terms as terms on terms.id = assignments.term_id
