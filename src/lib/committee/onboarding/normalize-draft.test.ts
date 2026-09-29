@@ -3,6 +3,7 @@ import type { IntakeHeader, IntakeRow } from "./intake-contracts";
 import { inferColumnMapping, resolveColumnMapping } from "./field-catalog";
 import {
   normalizeOnboardingRow,
+  type ExistingDepartmentSnapshot,
   type ExistingMemberSnapshot,
   type NormalizeOnboardingRowOptions,
 } from "./normalize-draft";
@@ -16,11 +17,12 @@ const headers = (labels: string[]): IntakeHeader[] =>
 
 const existingMember: ExistingMemberSnapshot = {
   batchNo: "18",
-  departmentCode: "CSE",
+  departmentCode: "computer-science-engineering",
   email: "member@example.com",
   fullName: "Existing Member",
   id: "member-1",
   jnuitsId: "JNUITS-2026001",
+  joinedOn: "2024-01-15",
   lifecycleStatus: "current",
   memberType: "current",
   phone: "+8801700000000",
@@ -28,13 +30,25 @@ const existingMember: ExistingMemberSnapshot = {
   updatedAt: "2026-09-20T00:00:00.000Z",
 };
 
+const departments: ExistingDepartmentSnapshot[] = [
+  {
+    aliases: ["Computer Science and Engineering", "Department of CSE"],
+    internalCode: "computer-science-engineering",
+    name: "Computer Science & Engineering",
+    shortCode: "CSE",
+  },
+];
+
 const baseRow: IntakeRow = {
   sourceRowNumber: 2,
   values: {
+    batch_no: "18",
     classification: "current",
+    department_code: "CSE",
     email: "new@example.com",
     full_name: "New Member",
     jnuits_id: "JNUITS-2026002",
+    joined_on: "2024-01-15",
   },
 };
 
@@ -42,13 +56,17 @@ const baseOptions = (
   overrides: Partial<NormalizeOnboardingRowOptions> = {}
 ): NormalizeOnboardingRowOptions => ({
   approvedMedia: [],
+  departments,
   existingAssignments: [],
   existingMembers: [],
   mapping: {
+    batchNo: "batch_no",
     classification: "classification",
+    departmentCode: "department_code",
     email: "email",
     fullName: "full_name",
     jnuitsId: "jnuits_id",
+    joinedOn: "joined_on",
   },
   operationType: "member_profile_import",
   positions: [],
@@ -99,7 +117,86 @@ describe("normalizeOnboardingRow", () => {
       "jnuits_id_invalid",
       "email_invalid",
       "classification_required",
+      "department_required",
+      "batch_required",
+      "joining_date_required",
     ]);
+  });
+
+  it.each([
+    "CSE",
+    " cse ",
+    "Computer Science & Engineering",
+    "computer-science-engineering",
+    "Computer Science and Engineering",
+  ])("resolves department input %j to its internal code", (departmentInput) => {
+    const result = normalizeOnboardingRow(
+      baseOptions({
+        row: {
+          ...baseRow,
+          values: { ...baseRow.values, department_code: departmentInput },
+        },
+      })
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.normalized.departmentCode).toBe("computer-science-engineering");
+    expect(result.memberPatch.department_code).toBe("computer-science-engineering");
+  });
+
+  it.each([
+    ["07", 7],
+    ["08", 8],
+  ] as const)("preserves batch code %s while storing numeric batch %i", (batchCode, batchNo) => {
+    const result = normalizeOnboardingRow(
+      baseOptions({
+        row: { ...baseRow, values: { ...baseRow.values, batch_no: batchCode } },
+      })
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.normalized.batchNo).toBe(batchCode);
+    expect(result.memberPatch.batch_no).toBe(batchNo);
+  });
+
+  it("returns every actionable format issue with its source row", () => {
+    const result = normalizeOnboardingRow(
+      baseOptions({
+        row: {
+          sourceRowNumber: 12,
+          values: {
+            ...baseRow.values,
+            batch_no: "7th",
+            classification: "member",
+            department_code: "Computing",
+            joined_on: "2024/15/01",
+          },
+        },
+      })
+    );
+
+    expect(result.errors.map(({ code }) => code)).toEqual([
+      "classification_invalid",
+      "department_not_recognized",
+      "batch_format_invalid",
+      "joining_date_format_invalid",
+    ]);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          acceptedFormat: expect.any(String),
+          example: expect.any(String),
+          explanation: expect.any(String),
+          receivedValue: expect.any(String),
+          sourceRow: 12,
+        }),
+      ])
+    );
+    for (const issue of result.errors) {
+      expect(issue.acceptedFormat.length).toBeGreaterThan(0);
+      expect(issue.example.length).toBeGreaterThan(0);
+      expect(issue.explanation.length).toBeGreaterThan(0);
+    }
   });
 
   it("normalizes identifiers and reuses only a mutually consistent identity", () => {
@@ -170,6 +267,8 @@ describe("normalizeOnboardingRow", () => {
 
     expect(result.identity.kind).toBe("conflict");
     expect(result.errors.map(({ code }) => code)).toContain("split_identity");
+    expect(JSON.stringify(result.errors)).not.toContain("member@example.com");
+    expect(JSON.stringify(result.errors)).not.toContain("JNUITS-2026002");
   });
 
   it("blocks a one-sided match whose other identifier disagrees", () => {
@@ -203,6 +302,55 @@ describe("normalizeOnboardingRow", () => {
     );
 
     expect(result.identity).toEqual({ kind: "create", memberId: null });
+  });
+
+  it("treats blank optional intake cells as no change for an existing member", () => {
+    const result = normalizeOnboardingRow(
+      baseOptions({
+        existingMembers: [existingMember],
+        row: {
+          sourceRowNumber: 8,
+          values: {
+            batch_no: "",
+            classification: "current",
+            department_code: "",
+            email: existingMember.email!,
+            full_name: existingMember.fullName,
+            jnuits_id: existingMember.jnuitsId,
+            joined_on: "",
+          },
+        },
+      })
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.identity).toEqual({ kind: "update", memberId: existingMember.id });
+    expect(result.memberPatch).toEqual({});
+    expect(result.status).toBe("noop");
+  });
+
+  it("treats an identical member import row as a no-op", () => {
+    const result = normalizeOnboardingRow(
+      baseOptions({
+        existingMembers: [existingMember],
+        row: {
+          sourceRowNumber: 9,
+          values: {
+            batch_no: "18",
+            classification: "current",
+            department_code: "Computer Science and Engineering",
+            email: existingMember.email!,
+            full_name: existingMember.fullName,
+            jnuits_id: existingMember.jnuitsId,
+            joined_on: existingMember.joinedOn!,
+          },
+        },
+      })
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.memberPatch).toEqual({});
+    expect(result.status).toBe("noop");
   });
 
   it.each([

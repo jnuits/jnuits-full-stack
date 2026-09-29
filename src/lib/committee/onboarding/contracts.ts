@@ -46,6 +46,18 @@ export type CommitteeOnboardingColumnMapping = Partial<
   Record<CommitteeOnboardingCanonicalField, string>
 >;
 
+export const onboardingRowIssueSchema = z.object({
+  acceptedFormat: z.string().min(1).max(500),
+  code: z.string().min(1).max(100),
+  example: z.string().min(1).max(500),
+  explanation: z.string().min(1).max(1_000),
+  field: z.enum(COMMITTEE_ONBOARDING_CANONICAL_FIELDS).nullable(),
+  receivedValue: z.string().max(160),
+  sourceRow: z.number().int().positive(),
+});
+
+export type OnboardingRowIssue = z.infer<typeof onboardingRowIssueSchema>;
+
 const sourceDigestSchema = z
   .string()
   .regex(/^[a-f0-9]{64}$/, "Source digest must be a lowercase SHA-256 value.");

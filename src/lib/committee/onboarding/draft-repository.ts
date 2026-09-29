@@ -8,6 +8,7 @@ import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import {
   COMMITTEE_ONBOARDING_CANONICAL_FIELDS,
+  onboardingRowIssueSchema,
   parseCommitteeDraftMetadata,
   type CommitteeDraftMetadata,
   type CommitteeOnboardingColumnMapping,
@@ -26,6 +27,7 @@ import {
   normalizeOnboardingRow,
   type ApprovedMediaSnapshot,
   type ExistingAssignmentSnapshot,
+  type ExistingDepartmentSnapshot,
   type ExistingMemberSnapshot,
   type OnboardingRowIssue,
   type PositionSnapshot,
@@ -37,6 +39,7 @@ type JsonObject = Record<string, unknown>;
 
 export type OnboardingNormalizationContext = {
   approvedMedia: ApprovedMediaSnapshot[];
+  departments: ExistingDepartmentSnapshot[];
   existingAssignments: ExistingAssignmentSnapshot[];
   existingMembers: ExistingMemberSnapshot[];
   positions: PositionSnapshot[];
@@ -220,12 +223,12 @@ function normalizedText(value: unknown) {
 function addIssue(
   rows: PersistedOnboardingDraftRow[],
   indexes: readonly number[],
-  issue: OnboardingRowIssue
+  issue: Omit<OnboardingRowIssue, "sourceRow">
 ) {
   for (const index of indexes) {
     const row = rows[index];
     if (!row || row.errors.some((candidate) => candidate.code === issue.code)) continue;
-    row.errors.push(issue);
+    row.errors.push({ ...issue, sourceRow: row.rowNumber });
     row.status = "error";
   }
 }
@@ -282,9 +285,12 @@ export function buildOnboardingDraftRows(input: {
     const emails = new Set(indexes.map((index) => normalizedText(rows[index].normalizedData.normalized.email)));
     if (emails.size > 1) {
       addIssue(rows, indexes, {
+        acceptedFormat: "Pair each JnUITS ID with one email throughout the draft.",
         code: "draft_identity_conflict",
+        example: "JNUITS-2099001 with sample.member@example.com",
+        explanation: "The same JnUITS ID is paired with different emails in this draft.",
         field: null,
-        message: "The same JnUITS ID is paired with different emails in this draft.",
+        receivedValue: "",
       });
     }
   }
@@ -292,9 +298,12 @@ export function buildOnboardingDraftRows(input: {
     const ids = new Set(indexes.map((index) => normalizedText(rows[index].normalizedData.normalized.jnuitsId)));
     if (ids.size > 1) {
       addIssue(rows, indexes, {
+        acceptedFormat: "Pair each email with one JnUITS ID throughout the draft.",
         code: "draft_identity_conflict",
+        example: "sample.member@example.com with JNUITS-2099001",
+        explanation: "The same email is paired with different JnUITS IDs in this draft.",
         field: null,
-        message: "The same email is paired with different JnUITS IDs in this draft.",
+        receivedValue: "",
       });
     }
   }
@@ -307,9 +316,12 @@ export function buildOnboardingDraftRows(input: {
     for (const [identity, indexes] of exactIdentity) {
       if (!identity.startsWith("|") && !identity.endsWith("|") && indexes.length > 1) {
         addIssue(rows, indexes, {
+          acceptedFormat: "Include each member identity once per profile import.",
           code: "duplicate_member_identity",
+          example: "One row for JNUITS-2099001",
+          explanation: "This member appears more than once in the profile import.",
           field: null,
-          message: "This member appears more than once in the profile import.",
+          receivedValue: "",
         });
       }
     }
@@ -322,9 +334,12 @@ export function buildOnboardingDraftRows(input: {
     for (const indexes of appointments.values()) {
       if (indexes.length > 1) {
         addIssue(rows, indexes, {
+          acceptedFormat: "Include each member and position pairing once per committee term.",
           code: "duplicate_committee_appointment",
+          example: "One President row for JNUITS-2099001",
+          explanation: "This committee appointment appears more than once in the draft.",
           field: "position",
-          message: "This committee appointment appears more than once in the draft.",
+          receivedValue: "",
         });
       }
     }
@@ -508,13 +523,38 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function asIssueArray(value: unknown): OnboardingRowIssue[] {
-  return Array.isArray(value)
-    ? value.filter(
-        (issue): issue is OnboardingRowIssue =>
-          Boolean(issue) && typeof issue === "object" && typeof issue.code === "string"
+function asIssueArray(value: unknown, sourceRow: number): OnboardingRowIssue[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((issue) => {
+    const parsed = onboardingRowIssueSchema.safeParse(issue);
+    if (parsed.success) return [parsed.data];
+
+    const legacy = asRecord(issue);
+    if (typeof legacy.code !== "string" || typeof legacy.message !== "string") return [];
+    const field =
+      typeof legacy.field === "string" &&
+      COMMITTEE_ONBOARDING_CANONICAL_FIELDS.includes(
+        legacy.field as (typeof COMMITTEE_ONBOARDING_CANONICAL_FIELDS)[number]
       )
-    : [];
+        ? (legacy.field as (typeof COMMITTEE_ONBOARDING_CANONICAL_FIELDS)[number])
+        : null;
+    const definition = field
+      ? ONBOARDING_FIELD_CATALOG.find((candidate) => candidate.field === field)
+      : null;
+    return [
+      {
+        acceptedFormat:
+          definition?.acceptedFormat ?? "Correct the row so its identity is internally consistent.",
+        code: legacy.code.slice(0, 100),
+        example: definition?.example ?? "One member per row",
+        explanation: legacy.message.slice(0, 1_000),
+        field,
+        receivedValue: "",
+        sourceRow,
+      },
+    ];
+  });
 }
 
 export async function loadOnboardingDraft(
@@ -549,7 +589,7 @@ export async function loadOnboardingDraft(
     originalFilename:
       typeof operation.original_filename === "string" ? operation.original_filename : null,
     rows: (rowData ?? []).map((row: Record<string, unknown>) => ({
-      errors: asIssueArray(row.errors),
+      errors: asIssueArray(row.errors, Number(row.row_number)),
       id: String(row.id),
       isExcluded: Boolean(row.is_excluded),
       normalizedData: asRecord(row.normalized_data),
@@ -611,6 +651,40 @@ export async function loadOnboardingNormalizationContext(
   }
 ): Promise<OnboardingNormalizationContext> {
   const flexible = asFlexibleClient(client);
+  const [departmentResult, aliasResult] = await Promise.all([
+    flexible
+      .from("departments")
+      .select("code, name, short_code")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true }),
+    flexible
+      .from("department_aliases")
+      .select("department_code, alias")
+      .eq("is_active", true)
+      .order("normalized_alias", { ascending: true }),
+  ]);
+  if (departmentResult.error || aliasResult.error) {
+    databaseFailure(
+      departmentResult.error ?? aliasResult.error,
+      "Unable to load the active department catalog."
+    );
+  }
+  const aliasesByDepartment = new Map<string, string[]>();
+  for (const alias of (aliasResult.data ?? []) as Record<string, unknown>[]) {
+    const departmentCode = String(alias.department_code);
+    aliasesByDepartment.set(departmentCode, [
+      ...(aliasesByDepartment.get(departmentCode) ?? []),
+      String(alias.alias),
+    ]);
+  }
+  const departments: ExistingDepartmentSnapshot[] = (
+    (departmentResult.data ?? []) as Record<string, unknown>[]
+  ).map((department) => ({
+    aliases: aliasesByDepartment.get(String(department.code)) ?? [],
+    internalCode: String(department.code),
+    name: String(department.name),
+    shortCode: String(department.short_code),
+  }));
   const jnuitsIds = input.table.rows
     .map((row) => normalizeJnuitsIdForCreation(valueFromRow(row, input.mapping, "jnuitsId")))
     .filter(Boolean);
@@ -618,7 +692,7 @@ export async function loadOnboardingNormalizationContext(
     .map((row) => valueFromRow(row, input.mapping, "email").toLocaleLowerCase("en-US"))
     .filter(Boolean);
   const memberSelect =
-    "id, jnuits_id, email, full_name, lifecycle_status, member_type, department_code, batch_no, phone, student_id, facebook_url, linkedin_url, website_url, updated_at";
+    "id, jnuits_id, email, full_name, lifecycle_status, member_type, department_code, batch_no, joined_on, phone, student_id, facebook_url, linkedin_url, website_url, updated_at";
   const [membersById, membersByEmail] = await Promise.all([
     selectInChunks(flexible, "members", memberSelect, "jnuits_id", jnuitsIds),
     selectInChunks(flexible, "members", memberSelect, "email", emails),
@@ -633,6 +707,7 @@ export async function loadOnboardingNormalizationContext(
     fullName: String(member.full_name),
     id: String(member.id),
     jnuitsId: String(member.jnuits_id),
+    joinedOn: member.joined_on as string | null,
     lifecycleStatus: String(member.lifecycle_status),
     linkedinUrl: member.linkedin_url as string | null,
     memberType: String(member.member_type),
@@ -739,6 +814,7 @@ export async function loadOnboardingNormalizationContext(
 
   return {
     approvedMedia,
+    departments,
     existingAssignments,
     existingMembers,
     positions,

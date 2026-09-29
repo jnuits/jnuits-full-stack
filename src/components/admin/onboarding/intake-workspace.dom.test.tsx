@@ -264,7 +264,17 @@ describe("shared onboarding intake workspace", () => {
       rows: [
         {
           ...draft().rows[0],
-          errors: [{ code: "required", field: "fullName", message: "Full name is required." }],
+          errors: [
+            {
+              acceptedFormat: "Plain text",
+              code: "required",
+              example: "Sample Member",
+              explanation: "Full name is required.",
+              field: "fullName",
+              receivedValue: "",
+              sourceRow: 2,
+            },
+          ],
           status: "error",
         },
       ],

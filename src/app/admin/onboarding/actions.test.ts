@@ -57,6 +57,7 @@ import {
   inspectOnboardingSourceAction,
   publishOnboardingDraftAction,
 } from "@/app/admin/onboarding/actions";
+import { IntakeParseError } from "@/lib/committee/onboarding/intake-contracts";
 
 const operationId = "11111111-1111-4111-8111-111111111111";
 
@@ -80,6 +81,7 @@ describe("committee onboarding Server Actions", () => {
     mocks.buildOnboardingDraftRows.mockReturnValue([]);
     mocks.loadOnboardingNormalizationContext.mockResolvedValue({
       approvedMedia: [],
+      departments: [],
       existingAssignments: [],
       existingMembers: [],
       positions: [],
@@ -141,6 +143,27 @@ describe("committee onboarding Server Actions", () => {
       })
     );
     expect(JSON.stringify(result)).not.toContain("sourceBytes");
+  });
+
+  it("explains parser failures with the source and accepted format", async () => {
+    mocks.inspectOnboardingSource.mockRejectedValue(
+      new IntakeParseError(
+        "row_width_mismatch",
+        "Source row 3 has 2 cells; expected 4.",
+        { actualColumns: 2, expectedColumns: 4, sourceRowNumber: 3 }
+      )
+    );
+
+    const result = await inspectOnboardingSourceAction(
+      sourceForm("member_profile_import")
+    );
+
+    expect(result).toEqual(expect.objectContaining({ ok: false }));
+    if (result.ok) throw new Error("Expected source inspection to fail.");
+    expect(result.message).toMatch(/pasted TSV/i);
+    expect(result.message).toContain("Source row 3 has 2 cells; expected 4.");
+    expect(result.message).toMatch(/tab-separated/i);
+    expect(result.message).toMatch(/example/i);
   });
 
   it("persists the target term concurrency token on committee drafts", async () => {

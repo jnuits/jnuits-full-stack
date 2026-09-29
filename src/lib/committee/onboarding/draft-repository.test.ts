@@ -71,6 +71,7 @@ describe("committee onboarding draft repository", () => {
     const rows = buildOnboardingDraftRows({
       context: {
         approvedMedia: [],
+        departments: [],
         existingAssignments: [],
         existingMembers: [],
         positions: [],
@@ -92,6 +93,24 @@ describe("committee onboarding draft repository", () => {
     expect(
       rows.every((row) => row.errors.some((issue) => issue.code === "draft_identity_conflict"))
     ).toBe(true);
+    expect(
+      rows.map((row) => row.errors.find((issue) => issue.code === "draft_identity_conflict"))
+    ).toEqual([
+      expect.objectContaining({
+        acceptedFormat: expect.any(String),
+        example: expect.any(String),
+        explanation: expect.any(String),
+        receivedValue: "",
+        sourceRow: 2,
+      }),
+      expect.objectContaining({
+        acceptedFormat: expect.any(String),
+        example: expect.any(String),
+        explanation: expect.any(String),
+        receivedValue: "",
+        sourceRow: 3,
+      }),
+    ]);
   });
 
   it("persists only metadata, normalized decisions, and rows, never source bytes", async () => {
@@ -207,6 +226,37 @@ describe("committee onboarding draft repository", () => {
   });
 
   it("loads the authoritative target term revision for committee drafts", async () => {
+    const departmentQuery = {
+      eq: vi.fn(),
+      order: vi.fn().mockResolvedValue({
+        data: [
+          {
+            code: "computer-science-engineering",
+            name: "Computer Science & Engineering",
+            short_code: "CSE",
+          },
+        ],
+        error: null,
+      }),
+      select: vi.fn(),
+    };
+    departmentQuery.select.mockReturnValue(departmentQuery);
+    departmentQuery.eq.mockReturnValue(departmentQuery);
+    const aliasQuery = {
+      eq: vi.fn(),
+      order: vi.fn().mockResolvedValue({
+        data: [
+          {
+            alias: "Computer Science and Engineering",
+            department_code: "computer-science-engineering",
+          },
+        ],
+        error: null,
+      }),
+      select: vi.fn(),
+    };
+    aliasQuery.select.mockReturnValue(aliasQuery);
+    aliasQuery.eq.mockReturnValue(aliasQuery);
     const termQuery = {
       eq: vi.fn(),
       maybeSingle: vi.fn().mockResolvedValue({
@@ -230,6 +280,8 @@ describe("committee onboarding draft repository", () => {
     positionQuery.eq.mockReturnValue(positionQuery);
     const client = {
       from: vi.fn((table: string) => {
+        if (table === "departments") return departmentQuery;
+        if (table === "department_aliases") return aliasQuery;
         if (table === "committee_terms") return termQuery;
         if (table === "committee_term_positions") return positionQuery;
         throw new Error(`Unexpected table: ${table}`);
@@ -248,6 +300,18 @@ describe("committee onboarding draft repository", () => {
     });
 
     expect(context.targetTermUpdatedAt).toBe("2026-09-26T05:49:27.123456+00:00");
+    expect(context.departments).toEqual([
+      {
+        aliases: ["Computer Science and Engineering"],
+        internalCode: "computer-science-engineering",
+        name: "Computer Science & Engineering",
+        shortCode: "CSE",
+      },
+    ]);
+    expect(client.from.mock.calls.filter(([table]) => table === "departments")).toHaveLength(1);
+    expect(
+      client.from.mock.calls.filter(([table]) => table === "department_aliases")
+    ).toHaveLength(1);
   });
 
   it("passes optimistic revisions to edit, exclusion, validation, and publish RPCs", async () => {

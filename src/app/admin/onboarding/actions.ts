@@ -233,9 +233,54 @@ function parseColumnMapping(formData: FormData, availableKeys: readonly string[]
   return overrides as CommitteeOnboardingColumnMapping;
 }
 
-function actionError(error: unknown, fallback: string): { message: string; ok: false } {
+function intakeSourceGuidance(formData: FormData) {
+  const sourceKind = formText(formData, "sourceKind");
+  if (sourceKind === "pasted_tsv") {
+    return {
+      acceptedFormat:
+        "Paste tab-separated text with one header row and the same number of cells on every row.",
+      example: "Full Name<TAB>JnUITS ID<TAB>Email<TAB>Classification",
+      label: "Pasted TSV",
+    };
+  }
+  if (sourceKind === "csv") {
+    const filename = uploadFromForm(formData)?.name.trim().slice(0, 180);
+    return {
+      acceptedFormat:
+        "Upload a UTF-8 CSV with one header row and the same number of cells on every row.",
+      example: "Full Name,JnUITS ID,Email,Classification",
+      label: filename ? `CSV file ${JSON.stringify(filename)}` : "CSV file",
+    };
+  }
+  if (sourceKind === "xlsx") {
+    const filename = uploadFromForm(formData)?.name.trim().slice(0, 180);
+    return {
+      acceptedFormat: "Upload an XLSX workbook with one heading row followed by data rows.",
+      example: "Sheet columns: Full Name, JnUITS ID, Email, Classification",
+      label: filename ? `XLSX file ${JSON.stringify(filename)}` : "XLSX file",
+    };
+  }
+  return {
+    acceptedFormat: "Provide at least one manual member row using supported intake fields.",
+    example: "Full name, JnUITS ID, email, and classification",
+    label: "Manual entry",
+  };
+}
+
+function actionError(
+  error: unknown,
+  fallback: string,
+  formData?: FormData
+): { message: string; ok: false } {
   if (error instanceof z.ZodError) {
     return { message: error.issues[0]?.message || fallback, ok: false };
+  }
+  if (error instanceof IntakeParseError && formData) {
+    const source = intakeSourceGuidance(formData);
+    return {
+      message: `${source.label}: ${error.message} Accepted format: ${source.acceptedFormat} Example: ${source.example}.`,
+      ok: false,
+    };
   }
   if (error instanceof IntakeParseError || error instanceof OnboardingDraftRepositoryError) {
     return { message: error.message, ok: false };
@@ -287,7 +332,7 @@ export async function inspectOnboardingSourceAction(
       ok: true,
     };
   } catch (error) {
-    return actionError(error, "Unable to inspect the onboarding source.");
+    return actionError(error, "Unable to inspect the onboarding source.", formData);
   }
 }
 
@@ -347,7 +392,7 @@ export async function createOnboardingDraftAction(
       ok: true,
     };
   } catch (error) {
-    return actionError(error, "Unable to create the onboarding draft.");
+    return actionError(error, "Unable to create the onboarding draft.", formData);
   }
 }
 

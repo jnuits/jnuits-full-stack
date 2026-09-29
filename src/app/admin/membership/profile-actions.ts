@@ -5,7 +5,10 @@ import { z } from "zod";
 
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { requireAdminPermission } from "@/lib/auth/session";
-import type { ExistingMemberSnapshot } from "@/lib/committee/onboarding/normalize-draft";
+import {
+  formatOnboardingRowIssue,
+  type ExistingMemberSnapshot,
+} from "@/lib/committee/onboarding/normalize-draft";
 import {
   buildMemberProfileEditDecision,
   memberClassification,
@@ -173,7 +176,12 @@ export async function updateMemberProfileAction(
     },
   });
   if (decision.errors.length > 0) {
-    return { message: decision.errors[0]?.message || "Profile validation failed.", ok: false };
+    return {
+      message: decision.errors[0]
+        ? formatOnboardingRowIssue(decision.errors[0])
+        : "Profile validation failed.",
+      ok: false,
+    };
   }
 
   const changedFields = Object.keys(decision.patch).sort();

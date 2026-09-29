@@ -1,10 +1,22 @@
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
+import {
+  parseBatchCode,
+  parseJoiningDate,
+  resolveDepartmentInput,
+  type DepartmentCatalogEntry,
+} from "@/lib/membership/intake-fields";
 import type {
   CommitteeOnboardingCanonicalField,
   CommitteeOnboardingColumnMapping,
   CommitteeOnboardingOperationType,
+  OnboardingRowIssue,
 } from "./contracts";
+import { ONBOARDING_FIELD_CATALOG } from "./field-catalog";
 import type { IntakeRow } from "./intake-contracts";
+
+export type { OnboardingRowIssue } from "./contracts";
+
+export type ExistingDepartmentSnapshot = DepartmentCatalogEntry;
 
 export type ExistingMemberSnapshot = {
   batchNo?: number | string | null;
@@ -14,6 +26,7 @@ export type ExistingMemberSnapshot = {
   fullName: string;
   id: string;
   jnuitsId: string;
+  joinedOn?: string | null;
   lifecycleStatus: string;
   linkedinUrl?: string | null;
   memberType: string;
@@ -60,12 +73,6 @@ export type ApprovedMediaSnapshot = {
   width?: number | null;
 };
 
-export type OnboardingRowIssue = {
-  code: string;
-  field: CommitteeOnboardingCanonicalField | null;
-  message: string;
-};
-
 export type OnboardingIdentityDecision =
   | { kind: "create"; memberId: null }
   | { kind: "update"; memberId: string }
@@ -74,6 +81,7 @@ export type OnboardingIdentityDecision =
 
 export type NormalizeOnboardingRowOptions = {
   approvedMedia: readonly ApprovedMediaSnapshot[];
+  departments?: readonly ExistingDepartmentSnapshot[];
   existingAssignments: readonly ExistingAssignmentSnapshot[];
   existingMembers: readonly ExistingMemberSnapshot[];
   mapping: CommitteeOnboardingColumnMapping;
@@ -181,6 +189,52 @@ function sameValue(left: unknown, right: unknown) {
   return (left ?? null) === (right ?? null);
 }
 
+const fieldDefinitionByName = new Map(
+  ONBOARDING_FIELD_CATALOG.map((definition) => [definition.field, definition])
+);
+
+function safeReceivedValue(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .trim()
+    .slice(0, 160);
+}
+
+export function createOnboardingRowIssue(input: {
+  acceptedFormat?: string;
+  code: string;
+  example?: string;
+  explanation: string;
+  field: CommitteeOnboardingCanonicalField | null;
+  receivedValue?: unknown;
+  sourceRow: number;
+}): OnboardingRowIssue {
+  const definition = input.field ? fieldDefinitionByName.get(input.field) : null;
+  return {
+    acceptedFormat:
+      input.acceptedFormat ??
+      definition?.acceptedFormat ??
+      "Use one internally consistent member identity per row.",
+    code: input.code,
+    example: input.example ?? definition?.example ?? "One member per row",
+    explanation: input.explanation,
+    field: input.field,
+    receivedValue: safeReceivedValue(input.receivedValue),
+    sourceRow: input.sourceRow,
+  };
+}
+
+export function formatOnboardingRowIssue(issue: OnboardingRowIssue) {
+  const label = issue.field
+    ? fieldDefinitionByName.get(issue.field)?.label ?? issue.field
+    : "Row";
+  const received = issue.receivedValue
+    ? ` Received: ${JSON.stringify(issue.receivedValue)}.`
+    : "";
+  return `${label}: ${issue.explanation}${received} Expected: ${issue.acceptedFormat} Example: ${issue.example}.`;
+}
+
 export function normalizeOnboardingRow(
   options: NormalizeOnboardingRowOptions
 ): NormalizedOnboardingRow {
@@ -191,8 +245,20 @@ export function normalizeOnboardingRow(
   const issue = (
     code: string,
     field: CommitteeOnboardingCanonicalField | null,
-    message: string
-  ) => errors.push({ code, field, message });
+    explanation: string,
+    receivedValue: unknown = "",
+    format?: { acceptedFormat?: string; example?: string }
+  ) =>
+    errors.push(
+      createOnboardingRowIssue({
+        ...format,
+        code,
+        explanation,
+        field,
+        receivedValue,
+        sourceRow: options.row.sourceRowNumber,
+      })
+    );
 
   const fullName = readField(options.row, options.mapping, "fullName").replace(/\s+/g, " ");
   const rawJnuitsId = readField(options.row, options.mapping, "jnuitsId");
@@ -202,14 +268,17 @@ export function normalizeOnboardingRow(
   const email = normalizeEmail(rawEmail);
   const classification = normalizeClassification(rawClassification);
 
-  if (!fullName) issue("full_name_required", "fullName", "Full name is required.");
-  if (!jnuitsId) issue("jnuits_id_invalid", "jnuitsId", "A valid JnUITS ID is required.");
-  if (!email) issue("email_invalid", "email", "A valid email is required.");
+  if (!fullName) issue("full_name_required", "fullName", "Full name is required.", fullName);
+  if (!jnuitsId) {
+    issue("jnuits_id_invalid", "jnuitsId", "A valid JnUITS ID is required.", rawJnuitsId);
+  }
+  if (!email) issue("email_invalid", "email", "A valid email is required.", rawEmail);
   if (!classification) {
     issue(
       rawClassification ? "classification_invalid" : "classification_required",
       "classification",
-      "Classification must be current, former, or alumni."
+      "Classification must be current, former, or alumni.",
+      rawClassification
     );
   }
 
@@ -231,11 +300,7 @@ export function normalizeOnboardingRow(
 
     if (byId && byEmail && byId.id !== byEmail.id) {
       identity = { kind: "conflict", memberId: null };
-      issue(
-        "split_identity",
-        null,
-        "The JnUITS ID and email resolve to different member profiles."
-      );
+      issue("split_identity", null, "The supplied identifiers do not belong to one profile.");
     } else if (byId || byEmail) {
       const candidate = byId ?? byEmail ?? null;
       const candidateId = candidate ? normalizeJnuitsIdForCreation(candidate.jnuitsId) : "";
@@ -246,11 +311,11 @@ export function normalizeOnboardingRow(
         issue(
           "identity_mismatch",
           null,
-          "One identifier matches a member but the other identifier disagrees."
+          "The supplied identifiers do not belong to one profile."
         );
       } else if (candidate.lifecycleStatus === "deleted") {
         identity = { kind: "conflict", memberId: null };
-        issue("identity_deleted", null, "The matching member identity is deleted.");
+        issue("identity_deleted", null, "The supplied identity cannot be used for onboarding.");
       } else {
         member = candidate;
         identity = { kind: "update", memberId: candidate.id };
@@ -268,7 +333,7 @@ export function normalizeOnboardingRow(
       ...classificationPatch(classification),
     });
   } else if (identity.kind === "update" && member && classification) {
-    if (member.fullName !== fullName) memberPatch.full_name = fullName;
+    if (fullName && member.fullName !== fullName) memberPatch.full_name = fullName;
     const classificationValues = classificationPatch(classification);
     if (member.lifecycleStatus !== classificationValues.lifecycle_status) {
       memberPatch.lifecycle_status = classificationValues.lifecycle_status;
@@ -278,30 +343,79 @@ export function normalizeOnboardingRow(
     }
   }
 
+  const requireMemberIntakeFields =
+    options.operationType === "member_profile_import" &&
+    (identity.kind === "create" || identity.kind === "unresolved");
+  const departmentInput = readField(options.row, options.mapping, "departmentCode");
+  if (!departmentInput) {
+    if (requireMemberIntakeFields) {
+      issue("department_required", "departmentCode", "Department is required.");
+    }
+  } else if (options.departments === undefined) {
+    // Compatibility for non-import callers. Draft validation always supplies the
+    // authoritative active catalog and therefore never uses this fallback.
+    const departmentCode = departmentInput.toLocaleUpperCase("en-US");
+    normalized.departmentCode = departmentCode;
+    if (identity.kind === "create" || !sameValue(member?.departmentCode, departmentCode)) {
+      memberPatch.department_code = departmentCode;
+    }
+  } else {
+    const resolution = resolveDepartmentInput(departmentInput, options.departments);
+    if (!resolution.ok) {
+      errors.push({ ...resolution.issue, sourceRow: options.row.sourceRowNumber });
+    } else {
+      const departmentCode = resolution.value.departmentCode;
+      normalized.departmentCode = departmentCode;
+      normalized.departmentShortCode = resolution.value.shortCode;
+      if (identity.kind === "create" || !sameValue(member?.departmentCode, departmentCode)) {
+        memberPatch.department_code = departmentCode;
+      }
+    }
+  }
+
   const optionalTextFields = [
-    ["departmentCode", "department_code", "departmentCode"],
     ["phone", "phone", "phone"],
     ["studentId", "student_id", "studentId"],
   ] as const;
   for (const [field, patchKey, existingKey] of optionalTextFields) {
-    let value = readField(options.row, options.mapping, field);
+    const value = readField(options.row, options.mapping, field);
     if (!value) continue;
-    if (field === "departmentCode") value = value.toLocaleUpperCase("en-US");
     normalized[field] = value;
     if (identity.kind === "create" || !sameValue(member?.[existingKey], value)) {
       memberPatch[patchKey] = value;
     }
   }
 
-  const batch = readField(options.row, options.mapping, "batchNo");
-  if (batch) {
-    const batchNo = Number.parseInt(batch, 10);
-    if (!/^\d+$/.test(batch) || batchNo <= 0) {
-      issue("batch_invalid", "batchNo", "Batch must be a positive whole number.");
+  const batchInput = readField(options.row, options.mapping, "batchNo");
+  if (!batchInput) {
+    if (requireMemberIntakeFields) {
+      issue("batch_required", "batchNo", "Batch is required.");
+    }
+  } else {
+    const resolution = parseBatchCode(batchInput);
+    if (!resolution.ok) {
+      errors.push({ ...resolution.issue, sourceRow: options.row.sourceRowNumber });
     } else {
-      normalized.batchNo = batchNo;
-      if (identity.kind === "create" || Number(member?.batchNo) !== batchNo) {
-        memberPatch.batch_no = batchNo;
+      normalized.batchNo = resolution.code;
+      if (identity.kind === "create" || Number(member?.batchNo) !== resolution.batchNo) {
+        memberPatch.batch_no = resolution.batchNo;
+      }
+    }
+  }
+
+  const joinedOnInput = readField(options.row, options.mapping, "joinedOn");
+  if (!joinedOnInput) {
+    if (requireMemberIntakeFields) {
+      issue("joining_date_required", "joinedOn", "Joining date is required.");
+    }
+  } else {
+    const resolution = parseJoiningDate(joinedOnInput);
+    if (!resolution.ok) {
+      errors.push({ ...resolution.issue, sourceRow: options.row.sourceRowNumber });
+    } else {
+      normalized.joinedOn = resolution.value;
+      if (identity.kind === "create" || !sameValue(member?.joinedOn, resolution.value)) {
+        memberPatch.joined_on = resolution.value;
       }
     }
   }
@@ -315,7 +429,7 @@ export function normalizeOnboardingRow(
     const value = readField(options.row, options.mapping, field);
     if (!value) continue;
     if (!validHttpUrl(value)) {
-      issue("url_invalid", field, `${field} must use an http or https URL.`);
+      issue("url_invalid", field, `${field} must use an http or https URL.`, value);
       continue;
     }
     normalized[field] = value;
@@ -339,7 +453,8 @@ export function normalizeOnboardingRow(
       issue(
         "media_not_approved",
         "avatarMediaId",
-        "The photo must reference an approved public image in the media library."
+        "The photo must reference an approved public image in the media library.",
+        avatarMediaId
       );
     } else {
       Object.assign(memberPatch, {
@@ -378,7 +493,12 @@ export function normalizeOnboardingRow(
     );
 
     if (positionValue && !position) {
-      issue("position_unknown", "position", "The position is not configured for this committee.");
+      issue(
+        "position_unknown",
+        "position",
+        "The position is not configured for this committee.",
+        positionValue
+      );
     }
 
     if (position && options.targetTermId) {
@@ -406,10 +526,10 @@ export function normalizeOnboardingRow(
       const startsOn = startsInput || existing?.startsOn || null;
       const endsOn = endsInput || existing?.endsOn || null;
       if (startsInput && !isValidDate(startsInput)) {
-        issue("start_date_invalid", "startsOn", "Start date must be YYYY-MM-DD.");
+        issue("start_date_invalid", "startsOn", "Start date must be YYYY-MM-DD.", startsInput);
       }
       if (endsInput && !isValidDate(endsInput)) {
-        issue("end_date_invalid", "endsOn", "End date must be YYYY-MM-DD.");
+        issue("end_date_invalid", "endsOn", "End date must be YYYY-MM-DD.", endsInput);
       }
       if (startsOn && endsOn && endsOn < startsOn) {
         issue("date_range_invalid", "endsOn", "End date cannot be before start date.");
@@ -419,7 +539,12 @@ export function normalizeOnboardingRow(
       if (orderInput) {
         const parsedOrder = Number.parseInt(orderInput, 10);
         if (!/^\d+$/.test(orderInput) || parsedOrder < 0) {
-          issue("sort_order_invalid", "sortOrder", "Order must be a non-negative whole number.");
+          issue(
+            "sort_order_invalid",
+            "sortOrder",
+            "Order must be a non-negative whole number.",
+            orderInput
+          );
         } else {
           sortOrder = parsedOrder;
         }
@@ -429,7 +554,7 @@ export function normalizeOnboardingRow(
       if (publicInput) {
         const parsedPublic = parseBoolean(publicInput);
         if (parsedPublic === null) {
-          issue("public_invalid", "isPublic", "Public must be yes or no.");
+          issue("public_invalid", "isPublic", "Public must be yes or no.", publicInput);
         } else {
           isPublic = parsedPublic;
         }
@@ -443,7 +568,8 @@ export function normalizeOnboardingRow(
           issue(
             "assignment_status_invalid",
             "assignmentStatus",
-            "Appointment status must be planned, active, or completed."
+            "Appointment status must be planned, active, or completed.",
+            statusInput
           );
         }
       }

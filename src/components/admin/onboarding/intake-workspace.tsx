@@ -32,7 +32,10 @@ import type {
 } from "@/lib/committee/onboarding/contracts";
 import { ONBOARDING_FIELD_CATALOG } from "@/lib/committee/onboarding/field-catalog";
 import type { IntakeHeader, IntakeRow } from "@/lib/committee/onboarding/intake-contracts";
-import type { OnboardingRowIssue } from "@/lib/committee/onboarding/normalize-draft";
+import {
+  formatOnboardingRowIssue,
+  type OnboardingRowIssue,
+} from "@/lib/committee/onboarding/normalize-draft";
 
 type ActionSuccess<T> = { data: T; message: string; ok: true };
 type ActionFailure = { message: string; ok: false };
@@ -238,7 +241,11 @@ function DraftRowEditor({
       </div>
       {row.errors.length > 0 ? (
         <ul className="grid gap-1 text-sm text-[var(--brand-rust)]" role="alert">
-          {row.errors.map((issue) => <li key={`${issue.code}-${issue.field ?? "row"}`}>{issue.message}</li>)}
+          {row.errors.map((issue) => (
+            <li key={`${issue.code}-${issue.field ?? "row"}`}>
+              {formatOnboardingRowIssue(issue)}
+            </li>
+          ))}
         </ul>
       ) : null}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
