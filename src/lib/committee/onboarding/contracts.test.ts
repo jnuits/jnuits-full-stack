@@ -22,7 +22,7 @@ describe("committee onboarding draft metadata", () => {
   });
 
   it("rejects a file or pasted source without a SHA-256 digest", () => {
-    for (const sourceKind of ["csv", "xlsx", "pasted_tsv"] as const) {
+    for (const sourceKind of ["csv", "xlsx", "pasted_tsv", "google_sheet"] as const) {
       expect(
         committeeDraftMetadataSchema.safeParse({
           columnMapping: {},
@@ -33,6 +33,57 @@ describe("committee onboarding draft metadata", () => {
         }).success,
       ).toBe(false);
     }
+  });
+
+  it("accepts only sanitized provenance for Google Sheet snapshots", () => {
+    const metadata = parseCommitteeDraftMetadata({
+      columnMapping: {},
+      googleSheet: {
+        documentId: "test-sheet-document-123",
+        fetchedAt: "2026-09-30T04:00:00.000Z",
+        sheetId: "42",
+      },
+      operationType: "member_profile_import",
+      schemaVersion: 1,
+      sourceKind: "google_sheet",
+      sourceSha256: digest,
+      targetTermId: null,
+    });
+
+    expect(metadata.googleSheet).toEqual({
+      documentId: "test-sheet-document-123",
+      fetchedAt: "2026-09-30T04:00:00.000Z",
+      sheetId: "42",
+    });
+    expect(JSON.stringify(metadata)).not.toContain("docs.google.com");
+  });
+
+  it("requires Google provenance only for Google Sheet sources", () => {
+    const base = {
+      columnMapping: {},
+      operationType: "member_profile_import",
+      schemaVersion: 1,
+      sourceSha256: digest,
+      targetTermId: null,
+    };
+
+    expect(
+      committeeDraftMetadataSchema.safeParse({
+        ...base,
+        sourceKind: "google_sheet",
+      }).success
+    ).toBe(false);
+    expect(
+      committeeDraftMetadataSchema.safeParse({
+        ...base,
+        googleSheet: {
+          documentId: "test-sheet-document-123",
+          fetchedAt: "2026-09-30T04:00:00.000Z",
+          sheetId: "42",
+        },
+        sourceKind: "csv",
+      }).success
+    ).toBe(false);
   });
 
   it("requires a target term only for committee roster imports", () => {

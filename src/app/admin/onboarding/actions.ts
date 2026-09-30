@@ -31,6 +31,11 @@ import {
 } from "@/lib/committee/onboarding/draft-repository";
 import { resolveColumnMapping } from "@/lib/committee/onboarding/field-catalog";
 import {
+  fetchPublicGoogleSheetSnapshot,
+  GoogleSheetSnapshotError,
+  parsePublicGoogleSheetUrl,
+} from "@/lib/committee/onboarding/google-sheet";
+import {
   assertIntakeSourceSize,
   IntakeParseError,
 } from "@/lib/committee/onboarding/intake-contracts";
@@ -176,7 +181,11 @@ async function inspectFormSource(
 ) {
   const upload = uploadFromForm(formData);
   let bytes: Buffer | undefined;
+  let googleSheet:
+    | { documentId: string; fetchedAt: string; sheetId: string }
+    | undefined;
   let manualRows: Record<string, string>[] | undefined;
+  let snapshotSha256: string | undefined;
   let text: string | undefined;
 
   if (request.sourceKind === "manual") {
@@ -190,6 +199,16 @@ async function inspectFormSource(
     );
   } else if (request.sourceKind === "pasted_tsv") {
     text = formText(formData, "sourceText");
+  } else if (request.sourceKind === "google_sheet") {
+    const source = parsePublicGoogleSheetUrl(formText(formData, "sourceUrl"));
+    const snapshot = await fetchPublicGoogleSheetSnapshot(source);
+    bytes = snapshot.bytes;
+    googleSheet = {
+      documentId: snapshot.documentId,
+      fetchedAt: snapshot.fetchedAt,
+      sheetId: snapshot.sheetId,
+    };
+    snapshotSha256 = snapshot.sha256;
   } else {
     if (!upload) {
       throw new IntakeParseError("empty_source", "Choose a source file to continue.");
@@ -198,14 +217,22 @@ async function inspectFormSource(
     bytes = Buffer.from(await upload.arrayBuffer());
   }
 
-  return inspectOnboardingSource({
+  const inspected = await inspectOnboardingSource({
     bytes,
+    googleSheet,
     manualRows,
     originalFilename: upload?.name ?? null,
     sheetName: request.sheetName,
     sourceKind: request.sourceKind,
     text,
   });
+  if (snapshotSha256 && inspected.sourceSha256 !== snapshotSha256) {
+    throw new GoogleSheetSnapshotError(
+      "sheet_unavailable",
+      "The Google Sheet snapshot could not be verified. Try again."
+    );
+  }
+  return inspected;
 }
 
 function parseSourceRequest(formData: FormData) {
@@ -260,6 +287,15 @@ function intakeSourceGuidance(formData: FormData) {
       label: filename ? `XLSX file ${JSON.stringify(filename)}` : "XLSX file",
     };
   }
+  if (sourceKind === "google_sheet") {
+    return {
+      acceptedFormat:
+        "Paste a public docs.google.com spreadsheet link shared with anyone who has the link.",
+      example:
+        "https://docs.google.com/spreadsheets/d/your-document-id/edit#gid=0",
+      label: "Google Sheet",
+    };
+  }
   return {
     acceptedFormat: "Provide at least one manual member row using supported intake fields.",
     example: "Full name, JnUITS ID, email, and classification",
@@ -283,6 +319,9 @@ function actionError(
     };
   }
   if (error instanceof IntakeParseError || error instanceof OnboardingDraftRepositoryError) {
+    return { message: error.message, ok: false };
+  }
+  if (error instanceof GoogleSheetSnapshotError) {
     return { message: error.message, ok: false };
   }
   return {
@@ -321,6 +360,7 @@ export async function inspectOnboardingSourceAction(
       data: {
         availableSheets: inspected.table.availableSheets,
         headers: inspected.table.headers,
+        googleSheet: inspected.googleSheet,
         inferredMapping: resolveColumnMapping(inspected.table.headers),
         originalFilename: inspected.originalFilename,
         previewRows: inspected.table.rows.slice(0, 25),
@@ -361,6 +401,7 @@ export async function createOnboardingDraftAction(
     });
     const metadata = parseCommitteeDraftMetadata({
       columnMapping: mapping,
+      googleSheet: inspected.googleSheet ?? undefined,
       operationType: request.operationType,
       originalFilename: inspected.originalFilename ?? undefined,
       schemaVersion: 1,

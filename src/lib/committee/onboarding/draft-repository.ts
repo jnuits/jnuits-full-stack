@@ -11,6 +11,7 @@ import {
   onboardingRowIssueSchema,
   parseCommitteeDraftMetadata,
   type CommitteeDraftMetadata,
+  type CommitteeGoogleSheetProvenance,
   type CommitteeOnboardingColumnMapping,
   type CommitteeOnboardingOperationType,
   type CommitteeIntakeSourceKind,
@@ -86,6 +87,7 @@ export type OnboardingDraftGateway = {
 };
 
 export type OnboardingSourceInspection = {
+  googleSheet: CommitteeGoogleSheetProvenance | null;
   originalFilename: string | null;
   sourceSha256: string;
   table: IntakeTable;
@@ -173,6 +175,7 @@ function manualTable(rows: readonly Record<string, string>[]) {
 
 export async function inspectOnboardingSource(input: {
   bytes?: Buffer;
+  googleSheet?: CommitteeGoogleSheetProvenance | null;
   manualRows?: readonly Record<string, string>[];
   originalFilename?: string | null;
   sheetName?: string;
@@ -191,9 +194,20 @@ export async function inspectOnboardingSource(input: {
     const text = input.text ?? "";
     table = parseDelimitedIntake(text, { delimiter: "\t" });
     digestInput = text;
-  } else if (input.sourceKind === "csv") {
+  } else if (input.sourceKind === "csv" || input.sourceKind === "google_sheet") {
     if (!input.bytes) {
-      throw new IntakeParseError("empty_source", "Choose a CSV file to continue.");
+      throw new IntakeParseError(
+        "empty_source",
+        input.sourceKind === "google_sheet"
+          ? "Fetch a Google Sheet snapshot to continue."
+          : "Choose a CSV file to continue."
+      );
+    }
+    if (input.sourceKind === "google_sheet" && !input.googleSheet) {
+      throw new IntakeParseError(
+        "invalid_delimited_source",
+        "Google Sheet snapshot provenance is missing."
+      );
     }
     table = parseDelimitedIntake(input.bytes);
     digestInput = input.bytes;
@@ -210,6 +224,7 @@ export async function inspectOnboardingSource(input: {
   }
 
   return {
+    googleSheet: input.sourceKind === "google_sheet" ? input.googleSheet ?? null : null,
     originalFilename: input.originalFilename?.trim() || null,
     sourceSha256: sha256IntakeSource(digestInput),
     table,
@@ -364,6 +379,7 @@ export async function persistOnboardingDraft(
     errorRows,
     metadata: {
       columnMapping: metadata.columnMapping,
+      ...(metadata.googleSheet ? { googleSheet: metadata.googleSheet } : {}),
       schemaVersion: metadata.schemaVersion,
       ...(metadata.sheetName ? { sheetName: metadata.sheetName } : {}),
       ...(metadata.targetTermUpdatedAt

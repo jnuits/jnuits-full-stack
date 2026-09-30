@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   buildOnboardingDraftRows: vi.fn(),
   createAdminClient: vi.fn(),
   createClient: vi.fn(),
+  fetchPublicGoogleSheetSnapshot: vi.fn(),
   inspectOnboardingSource: vi.fn(),
   loadOnboardingNormalizationContext: vi.fn(),
   loadOnboardingDraft: vi.fn(),
@@ -35,6 +36,17 @@ vi.mock("@/utils/supabase/server", () => ({
   createClient: () => mocks.createClient(),
 }));
 
+vi.mock("@/lib/committee/onboarding/google-sheet", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/lib/committee/onboarding/google-sheet")
+  >();
+  return {
+    ...actual,
+    fetchPublicGoogleSheetSnapshot: (...args: unknown[]) =>
+      mocks.fetchPublicGoogleSheetSnapshot(...args),
+  };
+});
+
 vi.mock("@/lib/committee/onboarding/draft-repository", async (importOriginal) => {
   const actual = await importOriginal<
     typeof import("@/lib/committee/onboarding/draft-repository")
@@ -57,6 +69,7 @@ import {
   inspectOnboardingSourceAction,
   publishOnboardingDraftAction,
 } from "@/app/admin/onboarding/actions";
+import { GoogleSheetSnapshotError } from "@/lib/committee/onboarding/google-sheet";
 import { IntakeParseError } from "@/lib/committee/onboarding/intake-contracts";
 
 const operationId = "11111111-1111-4111-8111-111111111111";
@@ -68,6 +81,17 @@ function sourceForm(operationType: string) {
   formData.set(
     "sourceText",
     "Full name\tJnUITS ID\tEmail\tClassification\nMember One\tJNUITS-2026001\tone@example.com\tcurrent"
+  );
+  return formData;
+}
+
+function googleSheetForm(operationType: string) {
+  const formData = new FormData();
+  formData.set("operationType", operationType);
+  formData.set("sourceKind", "google_sheet");
+  formData.set(
+    "sourceUrl",
+    "https://docs.google.com/spreadsheets/d/test-sheet-document-123/edit?usp=sharing#gid=42"
   );
   return formData;
 }
@@ -94,7 +118,16 @@ describe("committee onboarding Server Actions", () => {
       totalRows: 0,
       validRows: 0,
     });
+    mocks.fetchPublicGoogleSheetSnapshot.mockResolvedValue({
+      bytes: Buffer.from("Full name\nMember One\n"),
+      contentType: "text/csv",
+      documentId: "test-sheet-document-123",
+      fetchedAt: "2026-09-30T04:00:00.000Z",
+      sha256: "a".repeat(64),
+      sheetId: "42",
+    });
     mocks.inspectOnboardingSource.mockResolvedValue({
+      googleSheet: null,
       originalFilename: null,
       sourceSha256: "a".repeat(64),
       table: {
@@ -143,6 +176,108 @@ describe("committee onboarding Server Actions", () => {
       })
     );
     expect(JSON.stringify(result)).not.toContain("sourceBytes");
+  });
+
+  it("fetches a public Google Sheet snapshot only after permission and never returns its URL or bytes", async () => {
+    const formData = googleSheetForm("member_profile_import");
+    const provenance = {
+      documentId: "test-sheet-document-123",
+      fetchedAt: "2026-09-30T04:00:00.000Z",
+      sheetId: "42",
+    };
+    mocks.inspectOnboardingSource.mockResolvedValueOnce({
+      googleSheet: provenance,
+      originalFilename: null,
+      sourceSha256: "a".repeat(64),
+      table: {
+        availableSheets: [],
+        headers: [{ columnIndex: 0, key: "full_name", label: "Full name" }],
+        rows: [{ sourceRowNumber: 2, values: { full_name: "Member One" } }],
+        selectedSheet: null,
+      },
+    });
+
+    const result = await inspectOnboardingSourceAction(formData);
+
+    expect(result.ok).toBe(true);
+    expect(mocks.requireAdminPermission.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.fetchPublicGoogleSheetSnapshot.mock.invocationCallOrder[0]
+    );
+    expect(mocks.fetchPublicGoogleSheetSnapshot).toHaveBeenCalledWith({
+      documentId: "test-sheet-document-123",
+      gid: "42",
+    });
+    expect(mocks.inspectOnboardingSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bytes: Buffer.from("Full name\nMember One\n"),
+        googleSheet: provenance,
+        originalFilename: null,
+        sourceKind: "google_sheet",
+      })
+    );
+    expect(JSON.stringify(result)).not.toMatch(/docs\.google\.com|sourceUrl|bytes/i);
+  });
+
+  it("persists only sanitized Google Sheet provenance when creating a draft", async () => {
+    const provenance = {
+      documentId: "test-sheet-document-123",
+      fetchedAt: "2026-09-30T04:00:00.000Z",
+      sheetId: "42",
+    };
+    mocks.inspectOnboardingSource.mockResolvedValueOnce({
+      googleSheet: provenance,
+      originalFilename: null,
+      sourceSha256: "a".repeat(64),
+      table: {
+        availableSheets: [],
+        headers: [{ columnIndex: 0, key: "full_name", label: "Full name" }],
+        rows: [{ sourceRowNumber: 2, values: { full_name: "Member One" } }],
+        selectedSheet: null,
+      },
+    });
+    mocks.loadOnboardingNormalizationContext.mockResolvedValueOnce({
+      approvedMedia: [],
+      departments: [],
+      existingAssignments: [],
+      existingMembers: [],
+      positions: [],
+      targetTermUpdatedAt: null,
+    });
+
+    const result = await createOnboardingDraftAction(
+      googleSheetForm("member_profile_import")
+    );
+
+    expect(result.ok).toBe(true);
+    expect(mocks.persistOnboardingDraft).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        metadata: expect.objectContaining({ googleSheet: provenance }),
+      })
+    );
+    expect(JSON.stringify(mocks.persistOnboardingDraft.mock.calls)).not.toContain(
+      "docs.google.com"
+    );
+  });
+
+  it("returns safe guidance when a public sheet is private or unavailable", async () => {
+    mocks.fetchPublicGoogleSheetSnapshot.mockRejectedValueOnce(
+      new GoogleSheetSnapshotError(
+        "sheet_unavailable",
+        "The Google Sheet could not be downloaded. Make it available to anyone with the link and try again."
+      )
+    );
+
+    const result = await inspectOnboardingSourceAction(
+      googleSheetForm("member_profile_import")
+    );
+
+    expect(result).toEqual({
+      message:
+        "The Google Sheet could not be downloaded. Make it available to anyone with the link and try again.",
+      ok: false,
+    });
+    expect(JSON.stringify(result)).not.toMatch(/response body|network stack|sourceUrl/i);
   });
 
   it("explains parser failures with the source and accepted format", async () => {

@@ -6,6 +6,7 @@ import {
   createSupabaseOnboardingDraftGateway,
   editOnboardingDraftRow,
   getMemberSearchWindow,
+  inspectOnboardingSource,
   loadOnboardingNormalizationContext,
   persistOnboardingDraft,
   publishOnboardingDraft,
@@ -34,6 +35,56 @@ describe("committee onboarding draft repository", () => {
     expect(sha256IntakeSource("hello")).toBe(
       "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
     );
+  });
+
+  it("creates equivalent normalized decisions from uploaded CSV, pasted rows, and fetched sheet bytes", async () => {
+    const csv = Buffer.from(
+      "Full name,JnUITS ID,Email,Classification\nMember One,JNUITS-2026001,one@example.com,current\n"
+    );
+    const pasted =
+      "Full name\tJnUITS ID\tEmail\tClassification\nMember One\tJNUITS-2026001\tone@example.com\tcurrent\n";
+    const provenance = {
+      documentId: "test-sheet-document-123",
+      fetchedAt: "2026-09-30T04:00:00.000Z",
+      sheetId: "42",
+    };
+    const [uploaded, pastedRows, sheet] = await Promise.all([
+      inspectOnboardingSource({ bytes: csv, sourceKind: "csv" }),
+      inspectOnboardingSource({ sourceKind: "pasted_tsv", text: pasted }),
+      inspectOnboardingSource({
+        bytes: csv,
+        googleSheet: provenance,
+        sourceKind: "google_sheet",
+      }),
+    ]);
+    const context = {
+      approvedMedia: [],
+      departments: [],
+      existingAssignments: [],
+      existingMembers: [],
+      positions: [],
+      targetTermUpdatedAt: null,
+    };
+    const mapping = {
+      classification: "classification",
+      email: "email",
+      fullName: "full_name",
+      jnuitsId: "jnuits_id",
+    } as const;
+    const decisions = [uploaded, pastedRows, sheet].map(({ table }) =>
+      buildOnboardingDraftRows({
+        context,
+        mapping,
+        operationType: "member_profile_import",
+        table,
+        targetTermId: null,
+      })
+    );
+
+    expect(decisions[1]).toEqual(decisions[0]);
+    expect(decisions[2]).toEqual(decisions[0]);
+    expect(sheet.sourceSha256).toBe(uploaded.sourceSha256);
+    expect(sheet.googleSheet).toEqual(provenance);
   });
 
   it("marks every side of a cross-row identity conflict as an error", () => {
@@ -175,6 +226,40 @@ describe("committee onboarding draft repository", () => {
       "sourceBytes"
     );
     expect(gateway.createRows).toHaveBeenCalledWith(operationId, rows);
+  });
+
+  it("persists sanitized Google Sheet provenance without the source URL or bytes", async () => {
+    const gateway = createGateway();
+    const provenance = {
+      documentId: "test-sheet-document-123",
+      fetchedAt: "2026-09-30T04:00:00.000Z",
+      sheetId: "42",
+    };
+
+    await persistOnboardingDraft(gateway, {
+      actorUserId,
+      metadata: {
+        columnMapping: {},
+        googleSheet: provenance,
+        operationType: "member_profile_import",
+        schemaVersion: 1,
+        sourceKind: "google_sheet",
+        sourceSha256: "a".repeat(64),
+        targetTermId: null,
+        targetTermUpdatedAt: null,
+      },
+      rows: [],
+    });
+
+    expect(gateway.createOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ googleSheet: provenance }),
+        sourceKind: "google_sheet",
+      })
+    );
+    expect(JSON.stringify(vi.mocked(gateway.createOperation).mock.calls)).not.toMatch(
+      /docs\.google\.com|sourceUrl|sourceBytes/
+    );
   });
 
   it("removes the parent draft when row persistence fails", async () => {

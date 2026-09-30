@@ -10,6 +10,7 @@ export const COMMITTEE_INTAKE_SOURCE_KINDS = [
   "csv",
   "xlsx",
   "pasted_tsv",
+  "google_sheet",
 ] as const;
 
 export type CommitteeOnboardingOperationType =
@@ -62,9 +63,29 @@ const sourceDigestSchema = z
   .string()
   .regex(/^[a-f0-9]{64}$/, "Source digest must be a lowercase SHA-256 value.");
 
+export const committeeGoogleSheetProvenanceSchema = z
+  .object({
+    documentId: z
+      .string()
+      .regex(
+        /^[A-Za-z0-9_-]{10,200}$/,
+        "Google Sheet document ID is not valid."
+      ),
+    fetchedAt: z.string().datetime({ offset: true }),
+    sheetId: z
+      .string()
+      .regex(/^\d{1,20}$/, "Google Sheet tab ID must contain only digits."),
+  })
+  .strict();
+
+export type CommitteeGoogleSheetProvenance = z.infer<
+  typeof committeeGoogleSheetProvenanceSchema
+>;
+
 export const committeeDraftMetadataSchema = z
   .object({
     columnMapping: z.record(z.string(), z.string()),
+    googleSheet: committeeGoogleSheetProvenanceSchema.optional(),
     operationType: z.enum(COMMITTEE_ONBOARDING_OPERATION_TYPES),
     originalFilename: z.string().trim().min(1).max(180).optional(),
     schemaVersion: z.literal(1),
@@ -80,6 +101,22 @@ export const committeeDraftMetadataSchema = z
         code: "custom",
         message: "File and pasted sources require a SHA-256 digest.",
         path: ["sourceSha256"],
+      });
+    }
+
+    if (value.sourceKind === "google_sheet" && !value.googleSheet) {
+      context.addIssue({
+        code: "custom",
+        message: "Google Sheet snapshots require sanitized fetch provenance.",
+        path: ["googleSheet"],
+      });
+    }
+
+    if (value.sourceKind !== "google_sheet" && value.googleSheet) {
+      context.addIssue({
+        code: "custom",
+        message: "Google Sheet provenance is only valid for Google Sheet snapshots.",
+        path: ["googleSheet"],
       });
     }
 
