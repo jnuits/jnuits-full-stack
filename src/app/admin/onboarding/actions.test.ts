@@ -260,6 +260,18 @@ describe("committee onboarding Server Actions", () => {
     );
   });
 
+  it("rejects a source that changed after inspection before persisting its draft", async () => {
+    const formData = googleSheetForm("member_profile_import");
+    formData.set("expectedSourceSha256", "b".repeat(64));
+
+    const result = await createOnboardingDraftAction(formData);
+
+    expect(result).toEqual(expect.objectContaining({ ok: false }));
+    if (result.ok) throw new Error("Expected changed snapshot rejection.");
+    expect(result.message).toMatch(/changed after inspection/i);
+    expect(mocks.persistOnboardingDraft).not.toHaveBeenCalled();
+  });
+
   it("returns safe guidance when a public sheet is private or unavailable", async () => {
     mocks.fetchPublicGoogleSheetSnapshot.mockRejectedValueOnce(
       new GoogleSheetSnapshotError(

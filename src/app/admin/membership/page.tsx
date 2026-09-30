@@ -4,6 +4,7 @@ import {
   MembershipDbClient,
   type AccountRequestClientRecord,
   type CycleMemberClientRecord,
+  type DepartmentOptionClientRecord,
   type InvitationBatchClientRecord,
   type ManagedMemberClientRecord,
   type MembershipCycleClientRecord,
@@ -128,6 +129,7 @@ export default async function AdminMembershipPage({
     batchesResult,
     accountRequestsResult,
     portalRolesResult,
+    departmentsResult,
   ] = await Promise.all([
     admin
       .from("membership_cycles")
@@ -166,6 +168,12 @@ export default async function AdminMembershipPage({
       .eq("scope", "portal")
       .eq("is_assignable", true)
       .order("rank", { ascending: true }),
+    flexibleAdmin
+      .from("departments" as string)
+      .select("code, name, short_code")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
   ]);
 
   const portalRoleOptions = (portalRolesResult.data || []) as PortalRoleOptionClientRecord[];
@@ -205,7 +213,7 @@ export default async function AdminMembershipPage({
     let managedMembersQuery = flexibleAdmin
       .from("members" as string)
       .select(
-        "id, user_id, jnuits_id, full_name, email, member_type, is_profile_claimed, lifecycle_status, portal_access_status, avatar_secure_url, department_code, batch_no, phone, student_id, facebook_url, linkedin_url, website_url, updated_at",
+        "id, user_id, jnuits_id, full_name, email, member_type, is_profile_claimed, lifecycle_status, portal_access_status, avatar_secure_url, department_code, batch_no, joined_on, phone, student_id, facebook_url, linkedin_url, website_url, updated_at",
         { count: "exact" }
       )
       .not("jnuits_id", "ilike", "JNUITS-ADMIN-%");
@@ -233,6 +241,17 @@ export default async function AdminMembershipPage({
     "currentPortalRole" | "displayJnuitsId"
   >[];
   const rawAccountRequests = (accountRequestsResult.data || []) as AccountRequestRecord[];
+  const departmentOptions: DepartmentOptionClientRecord[] = (
+    (departmentsResult.data || []) as Array<{
+      code: string;
+      name: string;
+      short_code: string;
+    }>
+  ).map((department) => ({
+    internalCode: department.code,
+    name: department.name,
+    shortCode: department.short_code,
+  }));
   const memberUserIds = rawManagedMembers
     .map((member) => member.user_id)
     .filter((value): value is string => Boolean(value));
@@ -328,6 +347,7 @@ export default async function AdminMembershipPage({
       batches={batches}
       cycles={cycles}
       cycleMembers={cycleMembers}
+      departmentOptions={departmentOptions}
       flash={flash}
       managedMemberTotal={managedMembersResult.count || managedMembers.length}
       managedMembers={managedMembers}

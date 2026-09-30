@@ -81,6 +81,7 @@ export type ManagedMemberClientRecord = {
   id: string;
   is_profile_claimed: boolean | null;
   jnuits_id: string;
+  joined_on: null | string;
   lifecycle_status: null | string;
   linkedin_url: null | string;
   member_type: null | string;
@@ -90,6 +91,12 @@ export type ManagedMemberClientRecord = {
   updated_at: string;
   user_id: null | string;
   website_url: null | string;
+};
+
+export type DepartmentOptionClientRecord = {
+  internalCode: string;
+  name: string;
+  shortCode: string;
 };
 
 export type PortalRoleOptionClientRecord = {
@@ -121,6 +128,7 @@ type MembershipDbClientProps = {
   batches: InvitationBatchClientRecord[];
   cycles: MembershipCycleClientRecord[];
   cycleMembers: CycleMemberClientRecord[];
+  departmentOptions: DepartmentOptionClientRecord[];
   flash: AdminFlash;
   managedMemberTotal: number;
   managedMembers: ManagedMemberClientRecord[];
@@ -568,6 +576,7 @@ function MemberTableAvatar({ member }: { member: ManagedMemberClientRecord }) {
 function MemberOperationsSection({
   cycles,
   cycleMembers,
+  departmentOptions,
   memberLifecycleFilter,
   memberPage,
   memberPageSize,
@@ -578,6 +587,7 @@ function MemberOperationsSection({
 }: {
   cycles: MembershipCycleClientRecord[];
   cycleMembers: CycleMemberClientRecord[];
+  departmentOptions: DepartmentOptionClientRecord[];
   memberLifecycleFilter: string;
   memberPage: number;
   memberPageSize: number;
@@ -1025,6 +1035,7 @@ function MemberOperationsSection({
 
       {editingMember ? (
         <ManagedMemberCard
+          departmentOptions={departmentOptions}
           key={`${editingMember.id}:${editingMember.updated_at}`}
           member={editingMember}
           onClose={() => setEditingMemberId(null)}
@@ -1108,11 +1119,13 @@ function MemberOperationsSection({
 }
 
 function ManagedMemberCard({
+  departmentOptions,
   member,
   onClose,
   onSaved,
   portalRoleOptions,
 }: {
+  departmentOptions: DepartmentOptionClientRecord[];
   member: ManagedMemberClientRecord;
   onClose: () => void;
   onSaved: (member: ManagedMemberClientRecord) => void;
@@ -1225,6 +1238,7 @@ function ManagedMemberCard({
         </button>
       </div>
       <MemberProfileEditor
+        departmentOptions={departmentOptions}
         member={{
           batchNo: member.batch_no,
           departmentCode: member.department_code,
@@ -1234,6 +1248,7 @@ function ManagedMemberCard({
           fullName: member.full_name,
           id: member.id,
           jnuitsId: member.jnuits_id,
+          joinedOn: member.joined_on,
           lifecycleStatus: getMemberLifecycle(member),
           linkedinUrl: member.linkedin_url,
           phone: member.phone,
@@ -1249,6 +1264,7 @@ function ManagedMemberCard({
             facebook_url: profile.facebookUrl,
             full_name: profile.fullName,
             jnuits_id: profile.jnuitsId,
+            joined_on: profile.joinedOn,
             linkedin_url: profile.linkedinUrl,
             phone: profile.phone,
             student_id: profile.studentId,
@@ -2308,6 +2324,7 @@ export function MembershipDbClient({
   batches,
   cycles,
   cycleMembers,
+  departmentOptions,
   flash,
   managedMemberTotal,
   managedMembers,
@@ -2367,6 +2384,7 @@ export function MembershipDbClient({
         key={`${memberPage}:${memberPageSize}:${memberLifecycleFilter}:${memberRoleFilter}`}
         cycles={cycles}
         cycleMembers={cycleMembers}
+        departmentOptions={departmentOptions}
         managedMemberTotal={managedMemberTotal}
         managedMembers={managedMembers}
         memberLifecycleFilter={memberLifecycleFilter}
@@ -2387,7 +2405,10 @@ export function MembershipDbClient({
           <p>Draft, validate, correct, and commit without changing privacy, access, or roles.</p>
         </div>
         <div className="mt-6">
-          <IntakeWorkspace operationType="member_profile_import" />
+          <IntakeWorkspace
+            departmentOptions={departmentOptions}
+            operationType="member_profile_import"
+          />
         </div>
       </section>
 

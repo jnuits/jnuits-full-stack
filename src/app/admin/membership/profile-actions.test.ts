@@ -35,12 +35,13 @@ describe("updateMemberProfileAction", () => {
 
     const existing = {
       batch_no: 18,
-      department_code: "CSE",
+      department_code: "computer-science-engineering",
       email: "member@example.test",
       facebook_url: null,
       full_name: "Member One",
       id: memberId,
       jnuits_id: "JNUITS-2026001",
+      joined_on: "2023-07-01",
       lifecycle_status: "current",
       linkedin_url: null,
       member_type: "current",
@@ -69,10 +70,28 @@ describe("updateMemberProfileAction", () => {
       update: (...args: unknown[]) => mocks.memberUpdate(...args),
     };
     const auditTable = { insert: (...args: unknown[]) => mocks.auditInsert(...args) };
+    const departmentsTable = {
+      eq: vi.fn(),
+      order: vi.fn(),
+      select: vi.fn(),
+    };
+    departmentsTable.select.mockReturnValue(departmentsTable);
+    departmentsTable.eq.mockReturnValue(departmentsTable);
+    departmentsTable.order.mockResolvedValue({
+      data: [
+        {
+          code: "computer-science-engineering",
+          name: "Computer Science & Engineering",
+          short_code: "CSE",
+        },
+      ],
+      error: null,
+    });
     mocks.createAdminClient.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === "members") return membersTable;
         if (table === "audit_events") return auditTable;
+        if (table === "departments") return departmentsTable;
         throw new Error(`Unexpected table: ${table}`);
       }),
     });
@@ -86,6 +105,7 @@ describe("updateMemberProfileAction", () => {
       expectedUpdatedAt: previousUpdatedAt,
       facebookUrl: "",
       fullName: "Member One Updated",
+      joinedOn: "2023-07-01",
       linkedinUrl: "",
       memberId,
       phone: "",
@@ -127,6 +147,7 @@ describe("updateMemberProfileAction", () => {
       expectedUpdatedAt: previousUpdatedAt,
       facebookUrl: "",
       fullName: "Member One",
+      joinedOn: "2023-07-01",
       linkedinUrl: "",
       memberId,
       phone: "",
@@ -139,5 +160,64 @@ describe("updateMemberProfileAction", () => {
     );
     expect(mocks.memberUpdate).not.toHaveBeenCalled();
     expect(mocks.auditInsert).not.toHaveBeenCalled();
+  });
+
+  it("uses the import normalizer for short-code department, exact two-digit batch, and joining date", async () => {
+    const result = await updateMemberProfileAction({
+      auditNote: "Verified against the official member register.",
+      batchNo: "08",
+      departmentCode: "CSE",
+      expectedUpdatedAt: previousUpdatedAt,
+      facebookUrl: "",
+      fullName: "Member One",
+      joinedOn: "2024-07-01",
+      linkedinUrl: "",
+      memberId,
+      phone: "",
+      studentId: "",
+      websiteUrl: "",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mocks.memberUpdate).toHaveBeenCalledWith({
+      batch_no: 8,
+      joined_on: "2024-07-01",
+    });
+  });
+
+  it.each([
+    [
+      "unknown department",
+      { batchNo: "18", departmentCode: "UNKNOWN", joinedOn: "2023-07-01" },
+      /department code.*not recognized/i,
+    ],
+    [
+      "one-digit batch",
+      { batchNo: "8", departmentCode: "CSE", joinedOn: "2023-07-01" },
+      /exactly two digits/i,
+    ],
+    [
+      "invalid joining date",
+      { batchNo: "18", departmentCode: "CSE", joinedOn: "2024\/15\/01" },
+      /YYYY-MM-DD/i,
+    ],
+  ])("rejects %s with corrective import-parity guidance", async (_label, fields, message) => {
+    const result = await updateMemberProfileAction({
+      auditNote: "",
+      expectedUpdatedAt: previousUpdatedAt,
+      facebookUrl: "",
+      fullName: "Member One",
+      linkedinUrl: "",
+      memberId,
+      phone: "",
+      studentId: "",
+      websiteUrl: "",
+      ...fields,
+    });
+
+    expect(result).toEqual(expect.objectContaining({ ok: false }));
+    if (result.ok) throw new Error("Expected profile validation to fail.");
+    expect(result.message).toMatch(message);
+    expect(mocks.memberUpdate).not.toHaveBeenCalled();
   });
 });

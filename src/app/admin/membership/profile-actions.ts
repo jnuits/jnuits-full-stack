@@ -7,6 +7,7 @@ import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { requireAdminPermission } from "@/lib/auth/session";
 import {
   formatOnboardingRowIssue,
+  type ExistingDepartmentSnapshot,
   type ExistingMemberSnapshot,
 } from "@/lib/committee/onboarding/normalize-draft";
 import {
@@ -24,6 +25,7 @@ const memberProfileRequestSchema = z.object({
   expectedUpdatedAt: z.string().trim().min(1).max(80),
   facebookUrl: boundedText(500).optional().default(""),
   fullName: z.string().trim().min(1, "Full name is required.").max(180),
+  joinedOn: z.string().trim().min(1, "Joining date is required.").max(10),
   linkedinUrl: boundedText(500).optional().default(""),
   memberId: z.string().uuid(),
   phone: boundedText(60).optional().default(""),
@@ -39,6 +41,7 @@ type MemberRow = {
   full_name: string;
   id: string;
   jnuits_id: string;
+  joined_on: null | string;
   lifecycle_status: null | string;
   linkedin_url: null | string;
   member_type: null | string;
@@ -57,6 +60,7 @@ export type MemberProfileActionMember = {
   fullName: string;
   id: string;
   jnuitsId: string;
+  joinedOn: null | string;
   lifecycleStatus: string;
   linkedinUrl: null | string;
   phone: null | string;
@@ -74,7 +78,7 @@ export type MemberProfileActionResult =
   | { message: string; ok: false };
 
 const memberSelect =
-  "id, jnuits_id, full_name, email, member_type, lifecycle_status, department_code, batch_no, phone, student_id, facebook_url, linkedin_url, website_url, updated_at";
+  "id, jnuits_id, full_name, email, member_type, lifecycle_status, department_code, batch_no, joined_on, phone, student_id, facebook_url, linkedin_url, website_url, updated_at";
 
 function safeProfileError(error: unknown, context: string, fallback: string) {
   return getSafeAdminActionErrorMessage(error, {
@@ -92,6 +96,7 @@ function asSnapshot(member: MemberRow): ExistingMemberSnapshot {
     fullName: member.full_name,
     id: member.id,
     jnuitsId: member.jnuits_id,
+    joinedOn: member.joined_on,
     lifecycleStatus: member.lifecycle_status || "current",
     linkedinUrl: member.linkedin_url,
     memberType: member.member_type || "current",
@@ -113,6 +118,7 @@ function toActionMember(member: MemberRow): MemberProfileActionMember {
     fullName: member.full_name,
     id: member.id,
     jnuitsId: member.jnuits_id,
+    joinedOn: member.joined_on,
     lifecycleStatus: memberClassification(snapshot),
     linkedinUrl: member.linkedin_url,
     phone: member.phone,
@@ -162,13 +168,43 @@ export async function updateMemberProfileAction(
     };
   }
 
+  const { data: departmentData, error: departmentError } = await flexibleAdmin
+    .from("departments" as string)
+    .select("code, name, short_code")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  if (departmentError) {
+    return {
+      message: safeProfileError(
+        departmentError,
+        "departments",
+        "Unable to load the active department codes."
+      ),
+      ok: false,
+    };
+  }
+  const departments: ExistingDepartmentSnapshot[] = (
+    (departmentData ?? []) as Array<{
+      code: string;
+      name: string;
+      short_code: string;
+    }>
+  ).map((department) => ({
+    aliases: [],
+    internalCode: department.code,
+    name: department.name,
+    shortCode: department.short_code,
+  }));
+
   const decision = buildMemberProfileEditDecision({
+    departments,
     existing: asSnapshot(member),
     values: {
       batchNo: parsed.data.batchNo,
       departmentCode: parsed.data.departmentCode,
       facebookUrl: parsed.data.facebookUrl,
       fullName: parsed.data.fullName,
+      joinedOn: parsed.data.joinedOn,
       linkedinUrl: parsed.data.linkedinUrl,
       phone: parsed.data.phone,
       studentId: parsed.data.studentId,

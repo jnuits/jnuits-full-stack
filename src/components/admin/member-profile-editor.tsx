@@ -5,19 +5,35 @@ import { useState, useTransition } from "react";
 
 import { updateMemberProfileAction } from "@/app/admin/membership/profile-actions";
 import type { MemberProfileActionMember } from "@/app/admin/membership/profile-actions";
+import { formatBatchCode } from "@/lib/membership/intake-fields";
 
 export type MemberProfileEditorRecord = MemberProfileActionMember;
+export type MemberDepartmentOption = {
+  internalCode: string;
+  name: string;
+  shortCode: string;
+};
+
+function editableBatchCode(batchNo: number | null) {
+  if (batchNo === null || !Number.isInteger(batchNo) || batchNo < 1 || batchNo > 99) {
+    return "";
+  }
+  return formatBatchCode(batchNo);
+}
 
 export function MemberProfileEditor({
+  departmentOptions,
   member,
   onSaved,
 }: {
+  departmentOptions: readonly MemberDepartmentOption[];
   member: MemberProfileEditorRecord;
   onSaved?: (member: MemberProfileActionMember) => void;
 }) {
   const [fullName, setFullName] = useState(member.fullName);
   const [departmentCode, setDepartmentCode] = useState(member.departmentCode || "");
-  const [batchNo, setBatchNo] = useState(member.batchNo?.toString() || "");
+  const [batchNo, setBatchNo] = useState(() => editableBatchCode(member.batchNo));
+  const [joinedOn, setJoinedOn] = useState(member.joinedOn || "");
   const [phone, setPhone] = useState(member.phone || "");
   const [studentId, setStudentId] = useState(member.studentId || "");
   const [facebookUrl, setFacebookUrl] = useState(member.facebookUrl || "");
@@ -42,6 +58,7 @@ export function MemberProfileEditor({
           expectedUpdatedAt: member.expectedUpdatedAt,
           facebookUrl,
           fullName,
+          joinedOn,
           linkedinUrl,
           memberId: member.id,
           phone,
@@ -100,11 +117,46 @@ export function MemberProfileEditor({
           </label>
           <label className="input-label">
             Department code
-            <input maxLength={40} onChange={(event) => setDepartmentCode(event.currentTarget.value)} value={departmentCode} />
+            <select
+              onChange={(event) => setDepartmentCode(event.currentTarget.value)}
+              value={departmentCode}
+            >
+              <option value="">Not recorded — keep unchanged</option>
+              {departmentOptions.map((department) => (
+                <option key={department.internalCode} value={department.internalCode}>
+                  {department.shortCode} — {department.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="input-label">
             Batch
-            <input inputMode="numeric" maxLength={20} onChange={(event) => setBatchNo(event.currentTarget.value)} value={batchNo} />
+            <input
+              aria-describedby={`member-batch-help-${member.id}`}
+              aria-label="Batch"
+              id={`member-batch-${member.id}`}
+              inputMode="numeric"
+              maxLength={2}
+              onChange={(event) => setBatchNo(event.currentTarget.value)}
+              pattern="[0-9]{2}"
+              placeholder="08"
+              value={batchNo}
+            />
+            <span
+              className="text-xs font-normal text-muted-foreground"
+              id={`member-batch-help-${member.id}`}
+            >
+              Use exactly two digits from 01 to 99, including 07 and 08.
+            </span>
+          </label>
+          <label className="input-label">
+            Joining date
+            <input
+              onChange={(event) => setJoinedOn(event.currentTarget.value)}
+              required
+              type="date"
+              value={joinedOn}
+            />
           </label>
           <label className="input-label">
             Phone

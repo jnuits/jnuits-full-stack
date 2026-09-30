@@ -1,6 +1,7 @@
 import type { CommitteeOnboardingColumnMapping } from "@/lib/committee/onboarding/contracts";
 import {
   normalizeOnboardingRow,
+  type ExistingDepartmentSnapshot,
   type ExistingMemberSnapshot,
   type OnboardingRowIssue,
 } from "@/lib/committee/onboarding/normalize-draft";
@@ -10,6 +11,7 @@ export type MemberProfileEditValues = {
   departmentCode: string;
   facebookUrl: string;
   fullName: string;
+  joinedOn: string;
   linkedinUrl: string;
   phone: string;
   studentId: string;
@@ -21,6 +23,7 @@ export type EditableMemberProfilePatch = Partial<{
   department_code: string;
   facebook_url: string;
   full_name: string;
+  joined_on: string;
   linkedin_url: string;
   phone: string;
   student_id: string;
@@ -41,6 +44,7 @@ const profileMapping = {
   facebookUrl: "facebook_url",
   fullName: "full_name",
   jnuitsId: "jnuits_id",
+  joinedOn: "joined_on",
   linkedinUrl: "linkedin_url",
   phone: "phone",
   studentId: "student_id",
@@ -52,6 +56,7 @@ const editablePatchKeys = [
   "department_code",
   "facebook_url",
   "full_name",
+  "joined_on",
   "linkedin_url",
   "phone",
   "student_id",
@@ -68,14 +73,17 @@ export function memberClassification(
 }
 
 export function buildMemberProfileEditDecision({
+  departments,
   existing,
   values,
 }: {
+  departments?: readonly ExistingDepartmentSnapshot[];
   existing: ExistingMemberSnapshot;
   values: MemberProfileEditValues;
 }): MemberProfileEditDecision {
   const result = normalizeOnboardingRow({
     approvedMedia: [],
+    departments,
     existingAssignments: [],
     existingMembers: [existing],
     mapping: profileMapping,
@@ -91,6 +99,7 @@ export function buildMemberProfileEditDecision({
         facebook_url: values.facebookUrl,
         full_name: values.fullName,
         jnuits_id: existing.jnuitsId,
+        joined_on: values.joinedOn,
         linkedin_url: values.linkedinUrl,
         phone: values.phone,
         student_id: values.studentId,

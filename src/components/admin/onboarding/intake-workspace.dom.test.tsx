@@ -31,6 +31,18 @@ import {
 
 const operationId = "11111111-1111-4111-8111-111111111111";
 const rowId = "22222222-2222-4222-8222-222222222222";
+const departmentOptions = [
+  {
+    internalCode: "computer-science-engineering",
+    name: "Computer Science & Engineering",
+    shortCode: "CSE",
+  },
+  {
+    internalCode: "accounting-information-systems",
+    name: "Accounting & Information Systems",
+    shortCode: "AIS",
+  },
+];
 
 const inspected = {
   data: {
@@ -111,6 +123,7 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof IntakeWorksp
   const user = userEvent.setup();
   const rendered = render(
     <IntakeWorkspace
+      departmentOptions={departmentOptions}
       operationType="committee_roster_import"
       targetTermId="33333333-3333-4333-8333-333333333333"
       targetTermLabel="6th Executive Committee"
@@ -158,7 +171,7 @@ describe("shared onboarding intake workspace", () => {
     });
   });
 
-  it("offers manual, CSV, XLSX, and pasted TSV inputs and maps inspected headings", async () => {
+  it("offers manual, CSV, XLSX, pasted TSV, and public Google Sheet inputs", async () => {
     const { user } = renderWorkspace();
 
     expect(screen.getByRole("radio", { name: "Manual entry" })).toBeChecked();
@@ -191,6 +204,91 @@ describe("shared onboarding intake workspace", () => {
     expect(screen.getByText("1 row ready for draft validation")).toBeInTheDocument();
     expect(mocks.inspectSource).toHaveBeenCalledWith(expect.any(FormData));
     expect(mocks.inspectSource.mock.calls[0][0].get("sourceKind")).toBe("pasted_tsv");
+
+    await user.click(screen.getByRole("radio", { name: "Google Sheet" }));
+    expect(screen.getByLabelText("Public Google Sheet link")).toHaveAttribute(
+      "type",
+      "url"
+    );
+    expect(screen.getByText(/Anyone with the link/i)).toBeInTheDocument();
+    await user.type(
+      screen.getByLabelText("Public Google Sheet link"),
+      "https://docs.google.com/spreadsheets/d/test-sheet-document-123/edit#gid=42"
+    );
+    await user.click(screen.getByRole("button", { name: "Inspect source" }));
+
+    await waitFor(() => expect(mocks.inspectSource).toHaveBeenCalledTimes(2));
+    const sheetForm = mocks.inspectSource.mock.calls[1][0] as FormData;
+    expect(sheetForm.get("sourceKind")).toBe("google_sheet");
+    expect(sheetForm.get("sourceUrl")).toBe(
+      "https://docs.google.com/spreadsheets/d/test-sheet-document-123/edit#gid=42"
+    );
+  });
+
+  it("shows blank, sample, department-reference, and concise field guidance without committee wording for member intake", () => {
+    renderWorkspace({
+      operationType: "member_profile_import",
+      targetTermId: null,
+      targetTermLabel: null,
+    });
+
+    expect(screen.getByRole("link", { name: "Blank CSV" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/kind=blank.*format=csv|format=csv.*kind=blank/)
+    );
+    expect(screen.getByRole("link", { name: "Blank XLSX" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/kind=blank.*format=xlsx|format=xlsx.*kind=blank/)
+    );
+    expect(
+      screen.getByRole("link", { name: "Fictional sample workbook" })
+    ).toHaveAttribute(
+      "href",
+      expect.stringMatching(/kind=sample.*format=xlsx|format=xlsx.*kind=sample/)
+    );
+    expect(screen.getByRole("link", { name: "Department codes" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/kind=department-codes/)
+    );
+    expect(screen.getByText("Field requirements")).toBeInTheDocument();
+    expect(screen.getAllByText(/Exactly two digits from 01 to 99/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Joining date/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/public committee/i)).not.toBeInTheDocument();
+  });
+
+  it("uses a short-code department selector, required joining date, and exact two-digit batch for manual intake", async () => {
+    const { user } = renderWorkspace({
+      operationType: "member_profile_import",
+      targetTermId: null,
+      targetTermLabel: null,
+    });
+
+    expect(screen.getByRole("option", { name: "CSE — Computer Science & Engineering" })).toHaveValue(
+      "computer-science-engineering"
+    );
+    expect(screen.getByLabelText("Joining date")).toBeRequired();
+    expect(screen.getByLabelText("Batch")).toHaveAttribute("maxlength", "2");
+    expect(screen.getByLabelText("Batch")).toHaveAttribute("pattern", "[0-9]{2}");
+
+    await user.type(screen.getByLabelText("Full name"), "Member One");
+    await user.type(screen.getByLabelText("JnUITS ID"), "JNUITS-2026001");
+    await user.type(screen.getByLabelText("Email"), "member@example.com");
+    await user.selectOptions(
+      screen.getByLabelText("Department code"),
+      "computer-science-engineering"
+    );
+    await user.type(screen.getByLabelText("Batch"), "08");
+    await user.type(screen.getByLabelText("Joining date"), "2024-07-01");
+    await user.click(screen.getByRole("button", { name: "Inspect source" }));
+
+    const form = mocks.inspectSource.mock.calls[0][0] as FormData;
+    expect(JSON.parse(String(form.get("manualRows")))).toEqual([
+      expect.objectContaining({
+        batchNo: "08",
+        departmentCode: "computer-science-engineering",
+        joinedOn: "2024-07-01",
+      }),
+    ]);
   });
 
   it("re-inspects a workbook using the selected sheet", async () => {
@@ -241,6 +339,9 @@ describe("shared onboarding intake workspace", () => {
     expect(await screen.findByText("1 valid")).toBeInTheDocument();
     expect(screen.getByText("0 need correction")).toBeInTheDocument();
     expect(mocks.createDraft).toHaveBeenCalledWith(expect.any(FormData));
+    expect(mocks.createDraft.mock.calls[0][0].get("expectedSourceSha256")).toBe(
+      "a".repeat(64)
+    );
     expect(mocks.createDraft.mock.calls[0][0].get("targetTermId")).toBe(
       "33333333-3333-4333-8333-333333333333"
     );
@@ -306,6 +407,72 @@ describe("shared onboarding intake workspace", () => {
         expect.objectContaining({ excluded: false, reason: null })
       )
     );
+  });
+
+  it("renders actionable structured row issues and downloads a spreadsheet-safe error report", async () => {
+    const createObjectURL = vi.fn(() => "blob:jnuits-onboarding-errors");
+    const revokeObjectURL = vi.fn();
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectURL,
+    });
+    const issueDraft = draft({
+      rows: [
+        {
+          ...draft().rows[0],
+          errors: [
+            {
+              acceptedFormat: "Use exactly two digits from 01 to 99.",
+              code: "batch_format_invalid",
+              example: "08",
+              explanation: "Batch must contain exactly two decimal digits.",
+              field: "batchNo",
+              receivedValue: "=7th",
+              sourceRow: 2,
+            },
+          ],
+          status: "error",
+        },
+      ],
+    });
+
+    try {
+      const { user } = renderWorkspace({ initialDraft: issueDraft });
+
+      expect(screen.getByText("Row 2 · Batch")).toBeInTheDocument();
+      expect(screen.getByText('Received: "=7th"')).toBeInTheDocument();
+      expect(
+        screen.getByText("Batch must contain exactly two decimal digits.")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Accepted: Use exactly two digits from 01 to 99.")
+      ).toBeInTheDocument();
+      expect(screen.getByText("Example: 08")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Download error report" }));
+      expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+      expect(click).toHaveBeenCalled();
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:jnuits-onboarding-errors");
+    } finally {
+      click.mockRestore();
+      Object.defineProperty(URL, "createObjectURL", {
+        configurable: true,
+        value: originalCreateObjectURL,
+      });
+      Object.defineProperty(URL, "revokeObjectURL", {
+        configurable: true,
+        value: originalRevokeObjectURL,
+      });
+    }
   });
 
   it("requires a current validation and explicit confirmation before publish", async () => {

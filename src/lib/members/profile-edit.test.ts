@@ -10,6 +10,7 @@ const existing = {
   fullName: "Member One",
   id: "11111111-1111-4111-8111-111111111111",
   jnuitsId: "JNUITS-2026001",
+  joinedOn: "2023-07-01",
   lifecycleStatus: "current",
   linkedinUrl: null,
   memberType: "current",
@@ -28,6 +29,7 @@ describe("manual member profile edit decisions", () => {
         departmentCode: "",
         facebookUrl: "",
         fullName: "Member One Updated",
+        joinedOn: "",
         linkedinUrl: "",
         phone: "",
         studentId: "",
@@ -50,6 +52,7 @@ describe("manual member profile edit decisions", () => {
         departmentCode: "ict",
         facebookUrl: "https://facebook.com/member-updated",
         fullName: existing.fullName,
+        joinedOn: "2024-07-01",
         linkedinUrl: "https://linkedin.com/in/member",
         phone: "",
         studentId: "",
@@ -63,6 +66,7 @@ describe("manual member profile edit decisions", () => {
       department_code: "ICT",
       facebook_url: "https://facebook.com/member-updated",
       linkedin_url: "https://linkedin.com/in/member",
+      joined_on: "2024-07-01",
     });
   });
 
@@ -74,6 +78,7 @@ describe("manual member profile edit decisions", () => {
         departmentCode: "",
         facebookUrl: "javascript:alert(1)",
         fullName: existing.fullName,
+        joinedOn: "",
         linkedinUrl: "",
         phone: "",
         studentId: "",

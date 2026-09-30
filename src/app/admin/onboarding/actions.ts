@@ -56,6 +56,9 @@ const operationTypeSchema = z.enum(COMMITTEE_ONBOARDING_OPERATION_TYPES);
 const sourceKindSchema = z.enum(COMMITTEE_INTAKE_SOURCE_KINDS);
 const uuidSchema = z.string().uuid();
 const revisionSchema = z.number().int().positive();
+const sourceDigestSchema = z
+  .string()
+  .regex(/^[a-f0-9]{64}$/, "Source digest must be a lowercase SHA-256 value.");
 const sourceRequestSchema = z.object({
   operationType: operationTypeSchema,
   sheetName: z.string().trim().min(1).max(120).optional(),
@@ -386,6 +389,16 @@ export async function createOnboardingDraftAction(
     if (!actorUserId) return { message: "Admin session is missing.", ok: false };
 
     const inspected = await inspectFormSource(formData, request);
+    const expectedSourceSha256 = optionalFormText(formData, "expectedSourceSha256");
+    if (
+      expectedSourceSha256 &&
+      sourceDigestSchema.parse(expectedSourceSha256) !== inspected.sourceSha256
+    ) {
+      throw new IntakeParseError(
+        "invalid_delimited_source",
+        "The source changed after inspection. Inspect it again before saving the draft."
+      );
+    }
     const overrides = parseColumnMapping(
       formData,
       inspected.table.headers.map(({ key }) => key)

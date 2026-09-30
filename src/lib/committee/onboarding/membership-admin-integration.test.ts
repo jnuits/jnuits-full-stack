@@ -24,8 +24,10 @@ describe("membership admin onboarding integration", () => {
   });
 
   it("loads profile fields and embeds the canonical profile editor", () => {
-    expect(page).toContain("department_code, batch_no, phone, student_id");
+    expect(page).toContain("department_code, batch_no, joined_on, phone, student_id");
+    expect(page).toContain('select("code, name, short_code")');
     expect(client).toContain("<MemberProfileEditor");
+    expect(client).toContain("departmentOptions={departmentOptions}");
   });
 
   it("keeps profile edits and member imports away from privacy, access, auth, and RBAC", () => {

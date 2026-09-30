@@ -32,10 +32,8 @@ import type {
 } from "@/lib/committee/onboarding/contracts";
 import { ONBOARDING_FIELD_CATALOG } from "@/lib/committee/onboarding/field-catalog";
 import type { IntakeHeader, IntakeRow } from "@/lib/committee/onboarding/intake-contracts";
-import {
-  formatOnboardingRowIssue,
-  type OnboardingRowIssue,
-} from "@/lib/committee/onboarding/normalize-draft";
+import type { OnboardingRowIssue } from "@/lib/committee/onboarding/normalize-draft";
+import type { MemberDepartmentOption } from "@/components/admin/member-profile-editor";
 
 type ActionSuccess<T> = { data: T; message: string; ok: true };
 type ActionFailure = { message: string; ok: false };
@@ -74,6 +72,7 @@ export type IntakeWorkspaceDraft = {
 };
 
 type IntakeWorkspaceProps = {
+  departmentOptions?: readonly MemberDepartmentOption[];
   initialDraft?: IntakeWorkspaceDraft | null;
   operationType: CommitteeOnboardingOperationType;
   targetTermId?: string | null;
@@ -87,6 +86,7 @@ type ManualRow = {
   email: string;
   fullName: string;
   jnuitsId: string;
+  joinedOn: string;
   position: string;
 };
 
@@ -99,6 +99,11 @@ const SOURCE_OPTIONS: ReadonlyArray<{
   { label: "CSV file", value: "csv", description: "Upload a UTF-8 CSV file." },
   { label: "Excel workbook", value: "xlsx", description: "Choose an XLSX worksheet." },
   { label: "Paste TSV", value: "pasted_tsv", description: "Paste rows copied from a sheet." },
+  {
+    label: "Google Sheet",
+    value: "google_sheet",
+    description: "Capture one public Sheet snapshot.",
+  },
 ];
 
 const EMPTY_MANUAL_ROW: ManualRow = {
@@ -108,8 +113,60 @@ const EMPTY_MANUAL_ROW: ManualRow = {
   email: "",
   fullName: "",
   jnuitsId: "",
+  joinedOn: "",
   position: "",
 };
+
+const FIELD_LABEL_BY_NAME = new Map(
+  ONBOARDING_FIELD_CATALOG.map((definition) => [definition.field, definition.label])
+);
+
+const ERROR_REPORT_COLUMNS = [
+  ["sourceRow", "Source row"],
+  ["field", "Field"],
+  ["code", "Code"],
+  ["receivedValue", "Received value"],
+  ["explanation", "Explanation"],
+  ["acceptedFormat", "Accepted format"],
+  ["example", "Example"],
+] as const;
+
+function protectSpreadsheetCell(value: unknown) {
+  const text = String(value ?? "");
+  return /^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text;
+}
+
+function csvCell(value: unknown) {
+  return `"${protectSpreadsheetCell(value).replaceAll('"', '""')}"`;
+}
+
+function createDraftErrorReport(rows: readonly IntakeWorkspaceDraft["rows"][number][]) {
+  const headings = ERROR_REPORT_COLUMNS.map(([, label]) => csvCell(label)).join(",");
+  const data = rows.flatMap((row) =>
+    row.errors.map((issue) =>
+      ERROR_REPORT_COLUMNS.map(([key]) =>
+        csvCell(
+          key === "field"
+            ? issue.field ?? "row"
+            : issue[key as Exclude<(typeof ERROR_REPORT_COLUMNS)[number][0], "field">]
+        )
+      ).join(",")
+    )
+  );
+  return `\uFEFF${[headings, ...data].join("\r\n")}\r\n`;
+}
+
+function downloadDraftErrorReport(draft: IntakeWorkspaceDraft) {
+  const report = createDraftErrorReport(draft.rows);
+  const url = URL.createObjectURL(
+    new Blob([report], { type: "text/csv;charset=utf-8" })
+  );
+  const link = document.createElement("a");
+  link.download = `jnuits-onboarding-errors-${draft.id}.csv`;
+  link.href = url;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 function isSuccess<T>(result: unknown): result is ActionSuccess<T> {
   return Boolean(
@@ -154,10 +211,12 @@ function Feedback({ feedback }: { feedback: { message: string; tone: "error" | "
 
 function ManualRowsEditor({
   committee,
+  departmentOptions,
   onChange,
   rows,
 }: {
   committee: boolean;
+  departmentOptions: readonly MemberDepartmentOption[];
   onChange: (rows: ManualRow[]) => void;
   rows: ManualRow[];
 }) {
@@ -182,8 +241,60 @@ function ManualRowsEditor({
               <option value="current">Current</option><option value="former">Former</option><option value="alumni">Alumni</option>
             </select>
           </label>
-          <label className="input-label">Department code<input onChange={(event) => updateRow(index, "departmentCode", event.currentTarget.value)} value={row.departmentCode} /></label>
-          <label className="input-label">Batch<input inputMode="numeric" onChange={(event) => updateRow(index, "batchNo", event.currentTarget.value)} value={row.batchNo} /></label>
+          <label className="input-label">
+            Department code
+            {departmentOptions.length > 0 ? (
+              <select
+                onChange={(event) => updateRow(index, "departmentCode", event.currentTarget.value)}
+                required
+                value={row.departmentCode}
+              >
+                <option value="">Choose a department</option>
+                {departmentOptions.map((department) => (
+                  <option key={department.internalCode} value={department.internalCode}>
+                    {department.shortCode} — {department.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                onChange={(event) => updateRow(index, "departmentCode", event.currentTarget.value)}
+                placeholder="CSE"
+                required
+                value={row.departmentCode}
+              />
+            )}
+          </label>
+          <label className="input-label">
+            Batch
+            <input
+              aria-describedby={`manual-batch-help-${index}`}
+              aria-label="Batch"
+              id={`manual-batch-${index}`}
+              inputMode="numeric"
+              maxLength={2}
+              onChange={(event) => updateRow(index, "batchNo", event.currentTarget.value)}
+              pattern="[0-9]{2}"
+              placeholder="08"
+              required
+              value={row.batchNo}
+            />
+            <span
+              className="text-xs font-normal text-[var(--muted-foreground)]"
+              id={`manual-batch-help-${index}`}
+            >
+              Exactly two digits from 01 to 99.
+            </span>
+          </label>
+          <label className="input-label">
+            Joining date
+            <input
+              onChange={(event) => updateRow(index, "joinedOn", event.currentTarget.value)}
+              required
+              type="date"
+              value={row.joinedOn}
+            />
+          </label>
           {committee ? <label className="input-label">Position<input onChange={(event) => updateRow(index, "position", event.currentTarget.value)} required value={row.position} /></label> : null}
           {rows.length > 1 ? (
             <button aria-label={`Remove manual member ${index + 1}`} className="admin-btn admin-btn--ghost self-end" onClick={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))} type="button">
@@ -240,10 +351,19 @@ function DraftRowEditor({
         ))}
       </div>
       {row.errors.length > 0 ? (
-        <ul className="grid gap-1 text-sm text-[var(--brand-rust)]" role="alert">
+        <ul className="grid gap-2 text-sm text-[var(--brand-rust)]" role="alert">
           {row.errors.map((issue) => (
-            <li key={`${issue.code}-${issue.field ?? "row"}`}>
-              {formatOnboardingRowIssue(issue)}
+            <li
+              className="grid gap-1 rounded-lg border border-current/20 bg-[var(--card)] p-3"
+              key={`${issue.code}-${issue.field ?? "row"}`}
+            >
+              <strong>
+                Row {issue.sourceRow} · {issue.field ? FIELD_LABEL_BY_NAME.get(issue.field) ?? humanizeKey(issue.field) : "Whole row"}
+              </strong>
+              {issue.receivedValue ? <span>{`Received: "${issue.receivedValue}"`}</span> : null}
+              <span>{issue.explanation}</span>
+              <span>Accepted: {issue.acceptedFormat}</span>
+              <span>Example: {issue.example}</span>
             </li>
           ))}
         </ul>
@@ -279,6 +399,7 @@ function DraftRowEditor({
 }
 
 export function IntakeWorkspace({
+  departmentOptions = [],
   initialDraft = null,
   operationType,
   targetTermId = null,
@@ -290,6 +411,7 @@ export function IntakeWorkspace({
   const [manualRows, setManualRows] = useState<ManualRow[]>([{ ...EMPTY_MANUAL_ROW }]);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [sourceText, setSourceText] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [mapping, setMapping] = useState<CommitteeOnboardingColumnMapping>({});
   const [sheetName, setSheetName] = useState("");
@@ -310,6 +432,7 @@ export function IntakeWorkspace({
     formData.set("sourceKind", sourceKind);
     if (sourceKind === "manual") formData.set("manualRows", JSON.stringify(manualRows));
     if (sourceKind === "pasted_tsv") formData.set("sourceText", sourceText);
+    if (sourceKind === "google_sheet") formData.set("sourceUrl", sourceUrl);
     if ((sourceKind === "csv" || sourceKind === "xlsx") && sourceFile) formData.set("sourceFile", sourceFile);
     if (sourceKind === "xlsx" && selectedSheet) formData.set("sheetName", selectedSheet);
     return formData;
@@ -325,6 +448,7 @@ export function IntakeWorkspace({
   function changeSource(next: CommitteeIntakeSourceKind) {
     setSourceKind(next);
     setSourceFile(null);
+    setSourceUrl("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setInspection(null);
     setMapping({});
@@ -376,6 +500,7 @@ export function IntakeWorkspace({
     if (!inspection) return;
     const formData = buildSourceFormData(inspection.selectedSheet ?? sheetName);
     formData.set("columnMapping", JSON.stringify(mapping));
+    formData.set("expectedSourceSha256", inspection.sourceSha256);
     if (targetTermId) formData.set("targetTermId", targetTermId);
     const result = await createOnboardingDraftAction(formData);
     if (!isSuccess<{ operationId: string }>(result)) {
@@ -454,19 +579,42 @@ export function IntakeWorkspace({
               {committee ? "Build an executive roster draft" : "Build a member profile draft"}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted-foreground)]">
-              Inspect and map the source first. Nothing changes in the member registry or public committee until a validated draft is explicitly published.
+              {committee
+                ? "Inspect and map the source first. Nothing changes in the member registry or public committee until a validated draft is explicitly published."
+                : "Inspect and map the source first. Nothing changes in the member registry until a validated draft is explicitly published."}
               {targetTermLabel ? ` Target: ${targetTermLabel}.` : ""}
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&format=csv`}><Download aria-hidden="true" size={15} /> CSV template</a>
-            <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&format=xlsx`}><FileSpreadsheet aria-hidden="true" size={15} /> XLSX template</a>
+          <div className="flex flex-wrap gap-2">
+            <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=blank&format=csv`}><Download aria-hidden="true" size={15} /> Blank CSV</a>
+            <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=blank&format=xlsx`}><FileSpreadsheet aria-hidden="true" size={15} /> Blank XLSX</a>
+            <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=sample&format=xlsx`}><FileSpreadsheet aria-hidden="true" size={15} /> Fictional sample workbook</a>
+            <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=department-codes&format=csv`}><Download aria-hidden="true" size={15} /> Department codes</a>
           </div>
         </div>
 
+        <details className="rounded-xl border border-[var(--line)] bg-[var(--card)] p-4">
+          <summary className="cursor-pointer text-sm font-bold">Field requirements</summary>
+          <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
+            Use the exact formats below. The sample workbook includes these instructions and fictional data.
+          </p>
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {relevantFields.map((definition) => (
+              <div className="rounded-lg border border-[var(--line)] p-3" key={definition.field}>
+                <dt className="text-sm font-bold">
+                  {definition.label} · {definition.requirements[operationType] === "required" ? "Required" : "Optional"}
+                </dt>
+                <dd className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+                  {definition.acceptedFormat} Example: {definition.example}.
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+
         <fieldset className="grid gap-3">
           <legend className="text-sm font-bold">Choose a source</legend>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {SOURCE_OPTIONS.map((option) => (
               <label
                 className={`grid cursor-pointer gap-1 rounded-xl border p-3 transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--brand-blue)] ${sourceKind === option.value ? "border-[var(--brand-blue)] bg-[var(--card)]" : "border-[var(--line)] bg-[var(--card)] hover:border-[var(--brand-blue)]"}`}
@@ -481,7 +629,14 @@ export function IntakeWorkspace({
           </div>
         </fieldset>
 
-        {sourceKind === "manual" ? <ManualRowsEditor committee={committee} onChange={setManualRows} rows={manualRows} /> : null}
+        {sourceKind === "manual" ? (
+          <ManualRowsEditor
+            committee={committee}
+            departmentOptions={departmentOptions}
+            onChange={setManualRows}
+            rows={manualRows}
+          />
+        ) : null}
         {sourceKind === "csv" || sourceKind === "xlsx" ? (
           <label className="input-label">
             {sourceKind === "csv" ? "CSV file" : "Excel workbook"}
@@ -501,13 +656,38 @@ export function IntakeWorkspace({
             <textarea onChange={(event) => setSourceText(event.currentTarget.value)} placeholder="Copy cells from Excel or Google Sheets, including the heading row." rows={9} value={sourceText} />
           </label>
         ) : null}
+        {sourceKind === "google_sheet" ? (
+          <label className="input-label">
+            Public Google Sheet link
+            <input
+              aria-describedby="google-sheet-privacy-guidance"
+              aria-label="Public Google Sheet link"
+              id="google-sheet-source-url"
+              onChange={(event) => setSourceUrl(event.currentTarget.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0"
+              required
+              type="url"
+              value={sourceUrl}
+            />
+            <span
+              className="text-xs font-normal leading-5 text-[var(--muted-foreground)]"
+              id="google-sheet-privacy-guidance"
+            >
+              Set General access to “Anyone with the link” as Viewer. JnUITS captures one bounded snapshot; it never receives edit access or keeps the Sheet synchronized.
+            </span>
+          </label>
+        ) : null}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button className="admin-btn admin-btn--primary" disabled={isPending} onClick={() => run("Inspecting source", () => inspectSource())} type="button">
             {isPending && pendingLabel === "Inspecting source" ? <Loader2 aria-hidden="true" className="animate-spin" size={15} /> : <Upload aria-hidden="true" size={15} />} Inspect source
           </button>
           <span aria-live="polite" className="text-sm text-[var(--muted-foreground)]">
-            {sourceFile ? `${sourceFile.name} selected.` : "Source files are inspected in memory and are not stored."}
+            {sourceFile
+              ? `${sourceFile.name} selected.`
+              : sourceKind === "google_sheet"
+                ? "The public link is fetched server-side; the raw link and response bytes are not stored."
+                : "Source files are inspected in memory and are not stored."}
           </span>
         </div>
         <Feedback feedback={feedback} />
@@ -593,7 +773,18 @@ export function IntakeWorkspace({
               <h3 className="mt-2 text-xl font-extrabold">Correct, exclude, and validate rows</h3>
               <p className="mt-2 text-sm text-[var(--muted-foreground)]">Revision {draft.draftRevision} · {draft.originalFilename || "Manual entry"}</p>
             </div>
-            <span className={`abadge ${statusClass(draft.status)}`}>{draft.status}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {errorRows > 0 ? (
+                <button
+                  className="admin-btn admin-btn--ghost"
+                  onClick={() => downloadDraftErrorReport(draft)}
+                  type="button"
+                >
+                  <Download aria-hidden="true" size={15} /> Download error report
+                </button>
+              ) : null}
+              <span className={`abadge ${statusClass(draft.status)}`}>{draft.status}</span>
+            </div>
           </div>
 
           <div aria-label="Draft validation summary" className="admin-metric-grid">
