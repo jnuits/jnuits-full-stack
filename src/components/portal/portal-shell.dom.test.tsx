@@ -37,6 +37,14 @@ vi.mock("@/components/theme/theme-toggle", () => ({
 import { PortalShell } from "@/components/portal/portal-shell";
 
 describe("PortalShell", () => {
+  it("limits restricted former navigation to membership resolution and account security", () => {
+    render(<PortalShell accessMode="restricted" memberName="Fictional Former Member" portalRole="member"><p>Membership choices</p></PortalShell>);
+    expect(screen.getByRole("link", { name: "Membership" })).toHaveAttribute("href", "/portal/membership");
+    expect(screen.getByRole("link", { name: "Password" })).toBeInTheDocument();
+    for (const name of ["Edit Profile", "Draft Blogs", "My Projects", "Mentorship", "Tickets"]) {
+      expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+    }
+  });
   it("renders an accessible skip link targeting the main portal content", () => {
     render(
       <PortalShell memberName="Jane Doe" jnuitsId="JN-001">

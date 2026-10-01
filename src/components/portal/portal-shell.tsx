@@ -25,6 +25,7 @@ import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { portalNavigation } from "@/lib/site";
+import type { PortalAccessMode } from "@/lib/auth/session";
 
 type NavItem = {
   href: string;
@@ -88,12 +89,22 @@ const ADVISOR_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+const RESTRICTED_NAV_GROUPS: NavGroup[] = [{
+  label: "Membership and account",
+  items: [
+    createNavItem("/portal/membership", "Membership", GraduationCap),
+    createNavItem("/portal/profile/change-password", "Password", KeyRound),
+  ],
+}];
+const BLOCKED_NAV_GROUPS: NavGroup[] = [];
+
 function isActive(pathname: string, href: string): boolean {
   if (href === "/portal") return pathname === "/portal";
   return pathname.startsWith(href);
 }
 
 interface PortalShellProps {
+  accessMode?: PortalAccessMode;
   avatarUrl?: null | string;
   children: React.ReactNode;
   memberName?: string | null;
@@ -114,6 +125,7 @@ function getDefaultExpandedGroups(groups: NavGroup[]) {
 }
 
 export function PortalShell({
+  accessMode = "mutable",
   avatarUrl = null,
   children,
   memberName,
@@ -126,7 +138,7 @@ export function PortalShell({
   const sidebarRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const wasSidebarOpenRef = useRef(false);
-  const navGroups = portalRole === "advisor" ? ADVISOR_NAV_GROUPS : NAV_GROUPS;
+  const navGroups = accessMode === "blocked" ? BLOCKED_NAV_GROUPS : accessMode === "restricted" ? RESTRICTED_NAV_GROUPS : portalRole === "advisor" ? ADVISOR_NAV_GROUPS : NAV_GROUPS;
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() =>
     getDefaultExpandedGroups(navGroups)
   );

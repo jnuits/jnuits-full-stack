@@ -11,6 +11,7 @@ import { withApiGuard } from "@/lib/security/with-api-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { apiError } from "@/lib/errors/api-error";
+import { reconcileMembershipLifecycle } from "@/lib/membership/reconciliation";
 
 const workplacePayloadSchema = z
   .object({
@@ -52,6 +53,7 @@ type LinkedMember = {
   lifecycle_status?: null | string;
   member_type?: null | string;
   portal_access_status?: null | string;
+  current_membership_path_status?: null | string;
 };
 
 function asLifecycle(value: unknown): MemberLifecycleStatus | null {
@@ -75,11 +77,21 @@ function asPortalAccess(value: unknown): PortalAccessStatus | null {
 
 async function loadLinkedMember(userId: string) {
   const admin = createAdminClient();
-  const { data, error } = await asFlexibleClient(admin)
+  const readMember = () => asFlexibleClient(admin)
     .from("members" as string)
-    .select("id, email, jnuits_id, full_name, member_type, lifecycle_status, portal_access_status")
+    .select("id, email, jnuits_id, full_name, member_type, lifecycle_status, portal_access_status, current_membership_path_status")
     .eq("user_id", userId)
     .maybeSingle();
+  let { data, error } = await readMember();
+  if (!error && data?.portal_access_status === "active"
+    && (data.lifecycle_status === "current" || data.lifecycle_status === "former")) {
+    try {
+      await reconcileMembershipLifecycle({ memberId: data.id });
+      ({ data, error } = await readMember());
+    } catch {
+      return { admin, member: null, error: NextResponse.json({ message: "Membership status could not be verified. Please try again later." }, { status: 503 }) };
+    }
+  }
 
   if (error || !data) {
     return {
@@ -94,9 +106,10 @@ async function loadLinkedMember(userId: string) {
 
   const member = data as LinkedMember;
   const access = {
-    lifecycleStatus: asLifecycle(member.lifecycle_status) || "current",
+    lifecycleStatus: asLifecycle(member.lifecycle_status),
     memberId: member.id,
-    portalAccessStatus: asPortalAccess(member.portal_access_status) || "active",
+    portalAccessStatus: asPortalAccess(member.portal_access_status),
+    currentMembershipPathStatus: member.current_membership_path_status ?? null,
   };
 
   if (!isMutablePortalAccess(access)) {
@@ -252,6 +265,9 @@ async function handlePatch(request: NextRequest, context: { userId?: string }) {
   if (!userId) {
     return NextResponse.json({ message: "Authentication required." }, { status: 401 });
   }
+
+  const viewer = await loadLinkedMember(userId);
+  if (viewer.error) return viewer.error;
 
   const body = await request.json().catch(() => null);
   const parsed = cancelSchema.safeParse(body);

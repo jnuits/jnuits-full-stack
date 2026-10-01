@@ -1,16 +1,19 @@
+import "server-only";
 import { cookies } from "next/headers";
+import { z } from "zod";
 import { isDirectoryVerifiedForUser } from "@/lib/auth/directory-verification";
 import type {
   MemberLifecycleStatus,
   PortalAccessStatus,
   PortalAccessState,
 } from "@/lib/auth/session";
-import { isMutablePortalAccess } from "@/lib/auth/session";
+import { requirePortalIdentity } from "@/lib/auth/session";
+import { resolveMembershipAccessMode } from "@/lib/membership/lifecycle";
 import type { Tables } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
-type MemberRecord = Tables<"members"> & {
+type MemberRecord = Omit<Tables<"members">, "verification_code_hash"> & {
   avatar_public_id?: string | null;
   avatar_secure_url?: string | null;
   graduation_year?: number | null;
@@ -30,6 +33,22 @@ type PortalUserSettingsRecord = {
   user_id: string;
 };
 
+const membershipStateSchema = z.object({
+  memberId: z.string().uuid(), fullName: z.string(), jnuitsId: z.string().nullable(), avatarSecureUrl: z.string().nullable(),
+  joinedOn: z.string().nullable(), renewalDueOn: z.string().nullable(), graceEndsOn: z.string().nullable(),
+  renewalState: z.enum(["paid", "grace", "former", "unknown", "not_applicable"]),
+  lifecycleStatus: z.enum(["current", "former", "alumni", "deleted"]).nullable(),
+  memberType: z.enum(["current", "alumni"]).nullable(),
+  portalAccessStatus: z.enum(["active", "frozen", "suspended", "deactivated", "deletion_requested"]).nullable(),
+  currentMembershipPathStatus: z.string().nullable(), revision: z.number().int().nonnegative(),
+  currentCaseId: z.string().uuid().nullable(), appealId: z.string().uuid().nullable(), closedOn: z.string().nullable(),
+  closureReason: z.enum(["voluntary_departure", "departure_appeal_rejected", "alumni_conversion"]).nullable(),
+});
+export type PortalMembershipState = z.infer<typeof membershipStateSchema>;
+export type PortalMembershipRequest = {
+  id: string; request_type: string; status: string; requested_at: string;
+};
+
 function resolveDepartmentName(member: MemberRecord | null) {
   if (!member?.departments) {
     return null;
@@ -46,93 +65,85 @@ async function loadPortalMemberRecord(
   admin: ReturnType<typeof createAdminClient>,
   userId: string
 ) {
-  const extendedSelect =
-    "id, jnuits_id, full_name, member_type, email, phone, batch_no, department_code, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility, is_profile_claimed, verification_code_hash, student_id, graduation_year, lifecycle_status, portal_access_status, avatar_public_id, avatar_secure_url, departments(name)";
-  const baseSelect =
-    "id, jnuits_id, full_name, member_type, email, phone, batch_no, department_code, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility, is_profile_claimed, verification_code_hash, departments(name)";
-
-  const extendedResult = await admin
+  const result = await admin
     .from("members")
-    .select(extendedSelect)
+    .select("id, jnuits_id, full_name, member_type, email, phone, batch_no, department_code, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility, is_profile_claimed, student_id, graduation_year, lifecycle_status, portal_access_status, avatar_public_id, avatar_secure_url, departments(name)")
     .eq("user_id", userId)
     .maybeSingle();
-
-  if (!extendedResult.error) {
-    return (extendedResult.data as MemberRecord | null) ?? null;
-  }
-
-  const columnMissing =
-    extendedResult.error.message.includes("student_id") ||
-    extendedResult.error.message.includes("graduation_year") ||
-    extendedResult.error.message.includes("lifecycle_status") ||
-    extendedResult.error.message.includes("portal_access_status") ||
-    extendedResult.error.message.includes("avatar_public_id") ||
-    extendedResult.error.message.includes("avatar_secure_url");
-
-  if (!columnMissing) {
-    throw extendedResult.error;
-  }
-
-  const baseResult = await admin
-    .from("members")
-    .select(baseSelect)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (baseResult.error) {
-    throw baseResult.error;
-  }
-
-  return (baseResult.data as MemberRecord | null) ?? null;
+  if (result.error) throw new Error("Member profile could not be loaded.");
+  if (!result.data) return null;
+  // Even an unexpected database response must never serialize a credential hash.
+  const { verification_code_hash: omitted, ...member } = result.data as unknown as Tables<"members">;
+  void omitted;
+  return member as MemberRecord;
 }
 
-function resolvePortalAccess(member: MemberRecord | null): PortalAccessState {
+function resolvePortalAccess(member: PortalMembershipState | null): PortalAccessState {
   if (!member) {
     return {
       lifecycleStatus: null,
       memberId: null,
       memberType: null,
+      currentMembershipPathStatus: null,
       portalAccessStatus: null,
     };
   }
 
   return {
-    lifecycleStatus:
-      member.lifecycle_status ??
-      (member.member_type as "alumni" | "current") ??
-      "current",
-    memberId: member.id,
-    memberType: (member.member_type as "alumni" | "current") ?? null,
-    portalAccessStatus: member.portal_access_status ?? "active",
+    lifecycleStatus: member.lifecycleStatus,
+    memberId: member.memberId,
+    memberType: member.memberType,
+    currentMembershipPathStatus: member.currentMembershipPathStatus,
+    portalAccessStatus: member.portalAccessStatus,
   };
 }
 
 export async function getPortalMemberSnapshot(userId: string) {
+  const auth = await requirePortalIdentity();
+  if (auth.user?.id !== userId) throw new Error("You can only load your own member profile.");
   const admin = createAdminClient();
   const flexibleAdmin = asFlexibleClient(admin);
-  const cookieStore = await cookies();
-
-  const typedMember = await loadPortalMemberRecord(admin, userId);
-
-  if (!typedMember) {
-    const access = resolvePortalAccess(null);
-
-    return {
-      access: {
-        ...access,
-        canMutate: false,
-        isRestricted: true,
-      },
+  const identity = await admin.from("members").select("id").eq("user_id", userId).maybeSingle();
+  if (identity.error) throw new Error("Member profile could not be loaded.");
+  let membership: PortalMembershipState | null = null;
+  if (identity.data) {
+    // requirePortalIdentity reconciles this owned member before resolving access.
+    // PostgreSQL also owns the grace-end date and display state; TS only projects them.
+    const result = await flexibleAdmin.rpc("get_member_membership_state", { p_member_id: identity.data.id });
+    const parsed = membershipStateSchema.safeParse(result.data);
+    if (result.error || !parsed.success || parsed.data.memberId !== identity.data.id) {
+      throw new Error("Membership status could not be verified. Please try again later.");
+    }
+    membership = parsed.data;
+  }
+  const access = resolvePortalAccess(membership);
+  const mode = resolveMembershipAccessMode({ ...access, currentMembershipPathStatus: access.currentMembershipPathStatus ?? null });
+  const base = {
+      access: { ...access, mode, canMutate: mode === "mutable", isRestricted: mode !== "mutable" },
       accountRequests: [] as WorkplaceRequestRecord[],
-      member: null,
+      member: null as MemberRecord | null,
+      membership,
+      membershipRequests: [] as PortalMembershipRequest[],
       departmentName: null,
       directoryVerified: false,
       profileChangeRequests: [] as WorkplaceRequestRecord[],
       settings: null as PortalUserSettingsRecord | null,
       timeline: [] as TimelineRecord[],
       workplaceRequests: [] as WorkplaceRequestRecord[],
-    };
+  };
+  if (mode === "blocked" || !membership) return { ...base, membership: null };
+  if (mode === "restricted") {
+    const result = await admin.from("profile_update_requests")
+      .select("id, request_type, status, requested_at")
+      .eq("member_id", membership.memberId)
+      .in("request_type", ["membership_renewal", "membership_departure", "membership_departure_appeal", "alumni_conversion"])
+      .order("requested_at", { ascending: false }).limit(20);
+    if (result.error) throw new Error("Membership requests could not be loaded.");
+    return { ...base, membershipRequests: (result.data || []) as PortalMembershipRequest[] };
   }
+  const cookieStore = await cookies();
+  const typedMember = await loadPortalMemberRecord(admin, userId);
+  if (!typedMember) throw new Error("Member profile could not be loaded.");
 
   const [timelineResult, workplaceRequestResult, settingsResult] = await Promise.all([
     admin
@@ -156,14 +167,9 @@ export async function getPortalMemberSnapshot(userId: string) {
       .maybeSingle(),
   ]);
   const requests = (workplaceRequestResult.data || []) as WorkplaceRequestRecord[];
-  const access = resolvePortalAccess(typedMember);
 
   return {
-    access: {
-      ...access,
-      canMutate: isMutablePortalAccess(access),
-      isRestricted: !isMutablePortalAccess(access),
-    },
+    ...base,
     accountRequests: requests.filter(
       (request) =>
         request.request_type === "alumni_conversion" ||

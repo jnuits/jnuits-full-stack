@@ -4427,6 +4427,10 @@ export type Database = {
           item_count: number
         }[]
       }
+      get_member_membership_state: {
+        Args: { p_member_id: string }
+        Returns: Json
+      }
       has_permission: {
         Args: { requested_permission: string }
         Returns: boolean

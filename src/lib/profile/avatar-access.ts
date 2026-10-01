@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { reconcileMembershipLifecycle } from "@/lib/membership/reconciliation";
 
 export const PROFILE_AVATAR_UPLOAD_PRESET = "jnuits_profile_avatars";
 export const PROFILE_AVATAR_MAX_BYTES = 1_048_576;
@@ -55,23 +56,23 @@ function asOptionalString(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-function asLifecycleStatus(value: unknown): MemberLifecycleStatus {
+function asLifecycleStatus(value: unknown): MemberLifecycleStatus | null {
   return value === "alumni" ||
     value === "current" ||
     value === "deleted" ||
     value === "former"
     ? value
-    : "current";
+    : null;
 }
 
-function asPortalAccessStatus(value: unknown): PortalAccessStatus {
+function asPortalAccessStatus(value: unknown): PortalAccessStatus | null {
   return value === "active" ||
     value === "deactivated" ||
     value === "deletion_requested" ||
     value === "frozen" ||
     value === "suspended"
     ? value
-    : "active";
+    : null;
 }
 
 export function buildAvatarPublicId(targetType: AvatarTargetType, targetId: string) {
@@ -111,11 +112,22 @@ export async function authorizeAvatarTarget(
   const actorUserId = auth.user.id;
 
   if (targetType === "member") {
-    const { data, error } = await flexibleAdmin
+    const readMember = () => flexibleAdmin
       .from("members" as string)
-      .select("id, user_id, lifecycle_status, portal_access_status")
+      .select("id, user_id, lifecycle_status, portal_access_status, current_membership_path_status")
       .eq("id", targetId)
       .maybeSingle();
+    let { data, error } = await readMember();
+    const initial = asRecord(data);
+    if (!error && initial.user_id === actorUserId && initial.portal_access_status === "active"
+      && (initial.lifecycle_status === "current" || initial.lifecycle_status === "former")) {
+      try {
+        await reconcileMembershipLifecycle({ memberId: targetId });
+        ({ data, error } = await readMember());
+      } catch {
+        return { ok: false, status: 500, message: "Membership status could not be verified. Please try again later." };
+      }
+    }
     const member = asRecord(data);
     const memberId = asOptionalString(member.id);
     const memberUserId = asOptionalString(member.user_id);
@@ -142,6 +154,7 @@ export async function authorizeAvatarTarget(
       isMutablePortalAccess({
         lifecycleStatus: asLifecycleStatus(member.lifecycle_status),
         memberId,
+        currentMembershipPathStatus: asOptionalString(member.current_membership_path_status),
         portalAccessStatus: asPortalAccessStatus(member.portal_access_status),
       });
     const canManageMembers =

@@ -4,6 +4,9 @@ import { checkAdminMFA } from "@/lib/auth/mfa";
 import { loadAdminLifecycleAccessState } from "@/lib/auth/admin-lifecycle";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
+import { cache } from "react";
+import { resolveMembershipAccessMode, type MembershipAccessMode } from "@/lib/membership/lifecycle";
+import { reconcileMembershipLifecycle } from "@/lib/membership/reconciliation";
 
 export type AuthContext = {
   user: null | {
@@ -29,11 +32,13 @@ export type PortalAccessStatus =
 
 export type MemberLifecycleStatus = "alumni" | "current" | "deleted" | "former";
 export type MemberType = "alumni" | "current";
+export type PortalAccessMode = MembershipAccessMode;
 
 export type PortalAccessState = {
   lifecycleStatus: MemberLifecycleStatus | null;
   memberId: string | null;
   memberType?: MemberType | null;
+  currentMembershipPathStatus?: string | null;
   portalAccessStatus: PortalAccessStatus | null;
 };
 
@@ -315,42 +320,36 @@ async function resolveDatabaseAdvisorProfileId(
 }
 
 export function isMutablePortalAccess(access: PortalAccessState) {
-  const effectiveLifecycleStatus =
-    access.lifecycleStatus === "current" || access.lifecycleStatus === "alumni"
-      ? access.lifecycleStatus
-      : access.lifecycleStatus === "former" || access.lifecycleStatus === null
-        ? access.memberType
-        : access.lifecycleStatus;
-
-  return (
-    access.portalAccessStatus === "active" &&
-    (effectiveLifecycleStatus === "current" ||
-      effectiveLifecycleStatus === "alumni")
-  );
+  return resolveMembershipAccessMode({ ...access, currentMembershipPathStatus: access.currentMembershipPathStatus ?? null }) === "mutable";
 }
 
 async function resolvePortalAccessState(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string
 ): Promise<PortalAccessState> {
-  const { data } = await asFlexibleClient(supabase)
+  const { data, error } = await asFlexibleClient(supabase)
     .from("members" as string)
-    .select("id, lifecycle_status, member_type, portal_access_status")
+    .select("id, lifecycle_status, member_type, portal_access_status, current_membership_path_status")
     .eq("user_id", userId)
     .maybeSingle();
+  if (error) throw new Error("Membership status could not be verified. Please try again later.");
   const record = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
 
   return {
     lifecycleStatus: asMemberLifecycleStatus(record.lifecycle_status),
     memberId: asClaimString(record.id),
     memberType: asMemberType(record.member_type),
+    currentMembershipPathStatus: asClaimString(record.current_membership_path_status),
     portalAccessStatus: asPortalAccessStatus(record.portal_access_status),
   };
 }
 
 export function portalAccessRedirectPath(access: PortalAccessState) {
+  if (resolveMembershipAccessMode({ ...access, currentMembershipPathStatus: access.currentMembershipPathStatus ?? null }) === "restricted") {
+    return "/portal/membership";
+  }
   const status =
-    access.portalAccessStatus ||
+    (access.portalAccessStatus !== "active" ? access.portalAccessStatus : null) ||
     access.lifecycleStatus ||
     (access.memberId ? "restricted" : "unlinked");
 
@@ -423,10 +422,18 @@ export async function requireAdminUser(options?: {
   return auth;
 }
 
-export async function requirePortalUser(options?: {
-  fallbackPath?: string;
-  requireActiveAccess?: boolean;
-}) {
+const loadReconciledPortalAccess = cache(async (userId: string) => {
+  const supabase = await createClient();
+  const initial = await resolvePortalAccessState(supabase, userId);
+  if (initial.memberId && initial.portalAccessStatus === "active"
+    && (initial.lifecycleStatus === "current" || initial.lifecycleStatus === "former")) {
+    await reconcileMembershipLifecycle({ memberId: initial.memberId });
+    return resolvePortalAccessState(supabase, userId);
+  }
+  return initial;
+});
+
+async function portalIdentityContext(options?: { fallbackPath?: string }) {
   const auth = await requireAuthenticatedUser({
     fallbackPath: options?.fallbackPath || "/portal",
   });
@@ -435,18 +442,27 @@ export async function requirePortalUser(options?: {
     redirect(hasAdminRole(auth.roles) ? "/admin/dashboard" : "/portal/login");
   }
 
-  if (
-    options?.requireActiveAccess !== false &&
-    hasMemberPortalAccessRole(auth.roles)
-  ) {
-    const supabase = await createClient();
-    const access = await resolvePortalAccessState(supabase, auth.user?.id || "");
-
-    if (!isMutablePortalAccess(access)) {
+  const access = hasMemberPortalAccessRole(auth.roles)
+    ? await loadReconciledPortalAccess(auth.user?.id || "") : null;
+  if (access) {
+    if (resolveMembershipAccessMode({ ...access, currentMembershipPathStatus: access.currentMembershipPathStatus ?? null }) === "blocked") {
       redirect(portalAccessRedirectPath(access));
     }
   }
 
+  return { auth, access };
+}
+
+export async function requirePortalIdentity(options?: { fallbackPath?: string }) {
+  return (await portalIdentityContext(options)).auth;
+}
+
+/** Mutation screens/actions must not accept a restricted former identity. */
+export async function requirePortalUser(options?: { fallbackPath?: string }) {
+  const { auth, access } = await portalIdentityContext(options);
+  if (access) {
+    if (!isMutablePortalAccess(access)) redirect(portalAccessRedirectPath(access));
+  }
   return auth;
 }
 
@@ -490,7 +506,6 @@ export async function requirePortalPermission(
 ) {
   const auth = await requirePortalUser({
     fallbackPath: options?.fallbackPath || "/portal/dashboard",
-    requireActiveAccess: true,
   });
   const authorized = await hasPermissionInternal(requestedPermission);
 

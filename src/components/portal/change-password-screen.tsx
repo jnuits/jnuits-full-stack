@@ -1,12 +1,12 @@
 import { ChangePasswordForm } from "@/components/portal/change-password-form";
 import { PortalShell } from "@/components/portal/portal-shell";
-import { requirePortalUser } from "@/lib/auth/session";
+import { requirePortalIdentity } from "@/lib/auth/session";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
 import { KeyRound } from "lucide-react";
 
 export async function ChangePasswordScreen() {
-  const auth = await requirePortalUser({
+  const auth = await requirePortalIdentity({
     fallbackPath: "/portal/profile/change-password",
   });
   const user = auth.user;
@@ -15,9 +15,10 @@ export async function ChangePasswordScreen() {
 
   return (
     <PortalShell
-      avatarUrl={member?.avatar_secure_url ?? null}
-      jnuitsId={member?.jnuits_id ?? null}
-      memberName={member?.full_name ?? null}
+      accessMode={user?.portalRole === "advisor" && !snapshot?.membership ? "mutable" : snapshot?.access.mode ?? "blocked"}
+      avatarUrl={member?.avatar_secure_url ?? snapshot?.membership?.avatarSecureUrl ?? null}
+      jnuitsId={member?.jnuits_id ?? snapshot?.membership?.jnuitsId ?? null}
+      memberName={member?.full_name ?? snapshot?.membership?.fullName ?? null}
       portalRole={user?.portalRole ?? null}
     >
       <div className="portal-page-header">

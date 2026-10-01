@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import {
   requirePortalPermission,
+  requirePortalIdentity,
   requirePortalUser,
 } from "@/lib/auth/session";
 
@@ -50,12 +51,9 @@ export default async function MemberPortalLayout({
   const requestHeaders = await headers();
   const requestedPath =
     requestHeaders.get("x-jnuits-return-to")?.split("?")[0] || "/portal";
-  const allowAccessExplanation = requestedPath === "/portal/access-pending";
-
-  await requirePortalUser({
-    fallbackPath: "/portal",
-    requireActiveAccess: !allowAccessExplanation,
-  });
+  const identityOnly = ["/portal", "/portal/dashboard", "/portal/membership", "/portal/profile/change-password"].includes(requestedPath);
+  if (identityOnly) await requirePortalIdentity({ fallbackPath: "/portal" });
+  else await requirePortalUser({ fallbackPath: "/portal" });
 
   const requiredPermission = getPortalPermissionForPath(requestedPath);
 

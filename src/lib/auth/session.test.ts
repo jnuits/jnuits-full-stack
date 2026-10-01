@@ -22,6 +22,7 @@ describe("portal access helpers", () => {
   it("treats only active current or alumni members as mutable portal users", () => {
     const activeCurrent = {
       lifecycleStatus: "current",
+      currentMembershipPathStatus: "open",
       memberId: "member-1",
       portalAccessStatus: "active",
     } satisfies PortalAccessState;
@@ -40,7 +41,7 @@ describe("portal access helpers", () => {
     } satisfies PortalAccessState;
 
     expect(isMutablePortalAccess(activeCurrent)).toBe(true);
-    expect(isMutablePortalAccess(legacyFormerCurrent)).toBe(true);
+    expect(isMutablePortalAccess(legacyFormerCurrent)).toBe(false);
     expect(isMutablePortalAccess(suspended)).toBe(false);
     expect(isMutablePortalAccess(deleted)).toBe(false);
   });
@@ -58,6 +59,16 @@ describe("portal access helpers", () => {
   it("does not treat advisor-only accounts as member access-status scoped", () => {
     expect(hasMemberPortalAccessRole(["advisor"])).toBe(false);
     expect(hasMemberPortalAccessRole(["advisor", "member"])).toBe(true);
+  });
+
+  it("routes active former members to membership resolution, never to login", () => {
+    expect(portalAccessRedirectPath({ lifecycleStatus: "former", memberId: "member-1", memberType: "current", portalAccessStatus: "active", currentMembershipPathStatus: "open" })).toBe("/portal/membership");
+  });
+  it.each(["departure_requested", "closed_appealable", "closed_final"])("does not restore current-path mutability from %s", (path) => {
+    expect(isMutablePortalAccess({ lifecycleStatus: "current", memberId: "member-1", portalAccessStatus: "active", currentMembershipPathStatus: path })).toBe(false);
+  });
+  it("does not restore mutability from member_type when lifecycle is missing", () => {
+    expect(isMutablePortalAccess({ lifecycleStatus: null, memberType: "current", memberId: "member-1", portalAccessStatus: "active", currentMembershipPathStatus: "open" })).toBe(false);
   });
 
   it("keeps query parameters on explicitly allowlisted handoff routes", () => {

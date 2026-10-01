@@ -1,11 +1,13 @@
-import { requirePortalUser } from "@/lib/auth/session";
+import { requirePortalIdentity } from "@/lib/auth/session";
 
 export default async function MemberProfileLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requirePortalUser({ fallbackPath: "/profile" });
+  // Legacy routes only redirect; their destination leaf enforces mutation access.
+  // Identity-only access lets former members reach the password-change redirect.
+  await requirePortalIdentity({ fallbackPath: "/profile" });
 
   return <>{children}</>;
 }
