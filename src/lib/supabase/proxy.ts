@@ -297,13 +297,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (hasSession && pathname === "/portal/access-pending") {
-    if (portalRole) {
-      return redirectWithCookies(request, supabaseResponse, "/portal/dashboard");
-    }
-
-    return adminRole
-      ? redirectWithCookies(request, supabaseResponse, "/admin/dashboard")
-      : supabaseResponse;
+    // A role is not lifecycle/security eligibility. The DAL may have sent a
+    // frozen/deleted/unlinked identity here while its role still exists.
+    // Sending it back to the dashboard creates an endless redirect loop.
+    return supabaseResponse;
   }
 
   if (hasSession && pathname === "/admin/login") {

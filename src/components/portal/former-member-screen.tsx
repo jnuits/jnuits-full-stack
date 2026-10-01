@@ -76,7 +76,7 @@ export function FormerMemberScreen({ membership, requests }: { membership: Membe
     {former ? <ChoiceForm action="alumni" revision={membership.revision} title="Stay connected as Alumni" label="Apply for Alumni" disabled={hasPending("alumni_conversion")}
       description="Ask an administrator to review your Alumni application. Your JnUITS ID and committee service history remain yours." /> : null}
     {former && path === "open" ? <ChoiceForm action="departure" revision={membership.revision} title="Leave JnUITS" label="Leave JnUITS"
-      description="This sends a departure request, not a deletion. You can withdraw while it is pending. Approval closes current membership, with one appeal; if rejected, the current-membership path is permanently closed. Future Alumni eligibility remains." /> : null}
+      description="This sends a departure request, not a deletion. You can withdraw while it is pending. Approval closes current membership, with one appeal; if that appeal is rejected, the current-membership path is permanently closed. Future Alumni eligibility remains." /> : null}
     {path === "departure_requested" ? <ChoiceForm action="withdraw_departure" revision={membership.revision} title="Changed your mind?" label="Withdraw departure request"
       description="Withdraw before administrator review to reopen your renewal options. You remain a former member until outstanding renewals are confirmed." /> : null}
     {former && path === "closed_appealable" && membership.hasDepartureCase && !membership.hasAppeal ? <ChoiceForm action="appeal" revision={membership.revision} title="Appeal your departure" label="Submit appeal"

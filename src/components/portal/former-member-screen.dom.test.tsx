@@ -23,6 +23,7 @@ describe("membership resolution screen", () => {
     const button = screen.getByRole("button", { name: "Leave JnUITS" });
     expect(button).toBeDisabled();
     expect(screen.getByText(/one appeal.*permanently/i)).toBeInTheDocument();
+    expect(screen.getByText(/if that appeal is rejected/i)).toBeInTheDocument();
     const input = screen.getByLabelText("Type LEAVE JNUITS to confirm");
     await user.click(input);
     await user.keyboard("LEAVE JNUITS");

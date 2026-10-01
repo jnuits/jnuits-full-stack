@@ -11,6 +11,7 @@ Authority: the approved [finalization design](../specs/2026-09-29-membership-lif
 5. Membership choices for overdue/former members: renewal requests, alumni requests, typed-confirmation departure, pending withdrawal and one appeal. Actions derive ownership from the authenticated identity, reject stale revisions, and use the guarded database transactions. The grace dashboard links to renewal guidance; old alumni forms hand off to the same workflow. No online payment is implied.
 6. Paginated administrative queues for missing joining dates, upcoming/overdue anniversaries, renewal requests, departures, appeals and alumni requests. Reviewed confirmations/waivers require membership permission and MFA, advance one expected anniversary only, and preserve security restrictions. The old account reviewer is restricted to deletion so it cannot bypass the new alumni transaction.
 7. Admin reads reconcile a bounded batch after permission checks; portal access reconciles only its owned member. Both use the same PostgreSQL function as the daily Cron job and fail safely on database/transport errors. Replay proves fixed-date retries produce a single former-transition event.
+8. Authenticated integration verification covers eight lifecycle/security states. It exposed and fixed a frozen-member redirect loop: middleware now permits the restricted-access explanation rather than treating a retained role as mutable eligibility. The explanation does not ask an existing frozen member to claim again. Departure copy explicitly distinguishes rejection of the one appeal from rejection of the departure request.
 
 New approvals accept a reviewed earlier joining date; blank dates for **new** members default to the Dhaka approval date. Existing unknown dates are not invented. Known joining dates, membership identity and security restrictions are preserved. ID allocation follows the joining year. Conflicting identities and already-claimed profiles are not merged or reclaimed.
 
@@ -20,17 +21,20 @@ The real replay exposed an old ID-allocator parameter/column ambiguity; the forw
 
 ## Verification at this checkpoint
 
-- Full suite: **255 files, 1,650 tests passed**.
+- Full suite: **257 files, 1,657 tests passed**.
 - Type checking and lint passed.
 - Strict migration order: **108 migrations, no findings**.
 - Disposable clean replay: all 108 migrations plus the verification-only bootstrap helper passed; member intake, anniversary lifecycle, cycle-free approval, identity conflicts, retries, known/unknown dates, security preservation, minimal lifecycle projection, bounded admin queues and privilege checks passed. Synthetic fixtures roll back.
 - Database types generated from the disposable stack only.
 - Admin access map: 39 routes / 20 permissions; responsive pattern audit passed.
-- Component browser QA: 56 member-state and 56 admin-queue theme/viewport combinations passed with no horizontal overflow or browser errors. Departure, withdrawal, single-appeal, confirmation guards and modal/mobile keyboard interactions passed. This is not yet authenticated Next.js/Supabase end-to-end verification.
+- Component browser QA: 56 member-state and 56 admin-queue theme/viewport combinations passed with no horizontal overflow or browser errors. Departure, withdrawal, single-appeal, confirmation guards and modal/mobile keyboard interactions passed.
+- Authenticated local browser QA: eight states × two themes × four widths = **64 combinations passed** using real Next.js and disposable Supabase Auth/Postgres. Direct former-member editing redirects, workplace mutation restrictions, CSRF denial, ordinary-member renewal-confirmation denial, and real departure/withdrawal server actions passed. CAPTCHA stayed enabled; login was preauthenticated with synthetic accounts. This is not production or admin-MFA browser verification. See [reproduction and safety instructions](../../operations/membership-browser-verification.md).
+- Production build passed with the existing CI placeholder environment; the isolated worktree has no production `.env.local`. No production secret configuration was changed.
+- Read-only Supabase-plugin inspection: hosted project `fsirdkjgrcocowxqjhjg` is healthy but has **102** migration entries versus **108** locally. The six pending versions are `20260929110000`, `20261001090000`, and `20261001090001`–`20261001090004`. No hosted migration was applied during this execution.
 
 ## Still required — not 100% complete
 
-- Renewal task 8: full browser/integration verification and final independent review.
+- Final independent whole-branch review of renewal tasks 1–8.
 - Subsequent committee-roster finalization and member/advisor photo plans.
 - The existing positive live public-Google-Sheet verification gate remains open.
 - Release review, GitHub checks, approved hosted migrations, production data verification and deployment verification.
