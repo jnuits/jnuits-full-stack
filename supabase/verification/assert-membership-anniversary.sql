@@ -20,6 +20,7 @@ declare
   type_value text;
   next_request_id uuid;
   definition record;
+  today date := (now() at time zone 'Asia/Dhaka')::date;
 begin
   select id into actor_id from auth.users where email = 'replay-harness@local.invalid';
   if current_database() <> 'postgres' or actor_id is null then
@@ -113,7 +114,13 @@ begin
   result := public.confirm_membership_renewal(person_id, '2025-07-01', 'paid', 'REPLAY-1', 'Synthetic confirmation', '2026-10-01');
   if result ->> 'status' <> 'already_confirmed' or (select count(*) from public.membership_renewals where member_id = person_id) <> 1 then raise exception 'Confirmation retry duplicates ledger.'; end if;
   result := public.confirm_membership_renewal(person_id, '2026-07-01', 'waived', null, 'Synthetic waiver', '2026-10-01');
-  if result ->> 'nextDueOn' <> '2027-07-01' or result ->> 'lifecycleStatus' <> 'current'
+  if result ->> 'nextDueOn' <> '2027-07-01' then raise exception 'Waiver advanced more than one anniversary.'; end if;
+  -- Access is evaluated against real Dhaka today, not the historical receipt.
+  -- Keep this fixture valid when CI runs after the original 2026 release year.
+  while (result ->> 'nextDueOn')::date <= today loop
+    result := public.confirm_membership_renewal(person_id, (result ->> 'nextDueOn')::date, 'waived', null, 'Synthetic catch-up', today);
+  end loop;
+  if result ->> 'lifecycleStatus' <> 'current'
      or (select portal_access_status from public.members where id = person_id) <> 'frozen' then raise exception 'Paid-through reactivation changes security or fails.'; end if;
   begin
     perform public.confirm_membership_renewal(unknown_id, '2025-07-01', 'paid', null, null, '2026-10-01');
@@ -176,8 +183,9 @@ begin
   insert into public.rbac_user_platform_roles (user_id, role_id, scope, note) values (actor_id, role_id, 'admin', 'anniversary replay fixture');
   perform public.review_membership_request(request_id, request_version, 'approved', 'Synthetic approval');
   if (select current_membership_path_status from public.members where id = person_id) <> 'closed_appealable' then raise exception 'Approval did not allow one appeal.'; end if;
+  select renewal_due_on into old_due from public.members where id = person_id;
   begin
-    perform public.confirm_membership_renewal(person_id, '2027-07-01', 'paid', null, null, '2026-10-01');
+    perform public.confirm_membership_renewal(person_id, old_due, 'paid', null, null, '2026-10-01');
     raise exception 'Closed path accepted renewal.';
   exception when sqlstate '22023' then null; end;
   select membership_revision into revision from public.members where id = person_id;

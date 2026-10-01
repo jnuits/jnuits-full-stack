@@ -8,6 +8,8 @@ import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
+import { reconcileMembershipLifecycle } from "@/lib/membership/reconciliation";
+import { resolveMembershipAccessMode } from "@/lib/membership/lifecycle";
 
 const profileChangePayloadSchema = z
   .object({
@@ -86,11 +88,22 @@ async function requireLinkedMemberUser() {
   }
 
   const admin = createAdminClient();
-  const { data: member, error } = await asFlexibleClient(admin)
+  const readMember = () => asFlexibleClient(admin)
     .from("members" as string)
-    .select("id, email, jnuits_id, full_name, member_type, lifecycle_status, portal_access_status")
+    .select("id, email, jnuits_id, full_name, member_type, lifecycle_status, portal_access_status, current_membership_path_status")
     .eq("user_id", userId)
     .maybeSingle();
+  let { data: member, error } = await readMember();
+  if (!error && member?.portal_access_status === "active"
+    && (member.lifecycle_status === "current" || member.lifecycle_status === "former")) {
+    try {
+      await reconcileMembershipLifecycle({ memberId: member.id });
+      ({ data: member, error } = await readMember());
+    } catch {
+      return { admin: null, member: null, userId: null,
+        error: NextResponse.json({ message: "Membership status could not be verified. Please try again later." }, { status: 503 }) };
+    }
+  }
 
   if (error || !member) {
     return {
@@ -104,15 +117,11 @@ async function requireLinkedMemberUser() {
     };
   }
 
-  const lifecycleStatus =
-    typeof member.lifecycle_status === "string" ? member.lifecycle_status : "current";
-  const portalAccessStatus =
-    typeof member.portal_access_status === "string" ? member.portal_access_status : "active";
-
-  if (
-    portalAccessStatus !== "active" ||
-    (lifecycleStatus !== "current" && lifecycleStatus !== "alumni")
-  ) {
+  if (resolveMembershipAccessMode({
+    lifecycleStatus: member.lifecycle_status ?? null,
+    portalAccessStatus: member.portal_access_status ?? null,
+    currentMembershipPathStatus: member.current_membership_path_status ?? null,
+  }) !== "mutable") {
     return {
       admin: null,
       error: NextResponse.json(

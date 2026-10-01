@@ -10,6 +10,8 @@ import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { apiError } from "@/lib/errors/api-error";
+import { reconcileMembershipLifecycle } from "@/lib/membership/reconciliation";
+import { resolveMembershipAccessMode } from "@/lib/membership/lifecycle";
 
 const directProfileSchema = z
   .object({
@@ -58,12 +60,21 @@ async function handleDirectEdit(
   }
 
   const admin = createAdminClient();
-  const { data: member, error: memberError } = await asFlexibleClient(admin)
+  const readMember = () => asFlexibleClient(admin)
     .from("members" as string)
-    .select("id, full_name, jnuits_id, department_code, facebook_url, linkedin_url, phone, website_url, lifecycle_status, portal_access_status")
-    .select("id, full_name, jnuits_id, linkedin_url, phone, website_url, lifecycle_status, portal_access_status")
+    .select("id, full_name, jnuits_id, department_code, facebook_url, linkedin_url, phone, website_url, lifecycle_status, portal_access_status, current_membership_path_status")
     .eq("user_id", userId)
     .maybeSingle();
+  let { data: member, error: memberError } = await readMember();
+  if (!memberError && member?.portal_access_status === "active"
+    && (member.lifecycle_status === "current" || member.lifecycle_status === "former")) {
+    try {
+      await reconcileMembershipLifecycle({ memberId: member.id });
+      ({ data: member, error: memberError } = await readMember());
+    } catch {
+      return NextResponse.json({ message: "Membership status could not be verified. Please try again later." }, { status: 503 });
+    }
+  }
 
   if (memberError || !member) {
     return NextResponse.json(
@@ -72,15 +83,11 @@ async function handleDirectEdit(
     );
   }
 
-  const lifecycleStatus =
-    typeof member.lifecycle_status === "string" ? member.lifecycle_status : "current";
-  const portalAccessStatus =
-    typeof member.portal_access_status === "string" ? member.portal_access_status : "active";
-
-  if (
-    portalAccessStatus !== "active" ||
-    (lifecycleStatus !== "current" && lifecycleStatus !== "alumni")
-  ) {
+  if (resolveMembershipAccessMode({
+    lifecycleStatus: member.lifecycle_status ?? null,
+    portalAccessStatus: member.portal_access_status ?? null,
+    currentMembershipPathStatus: member.current_membership_path_status ?? null,
+  }) !== "mutable") {
     return NextResponse.json(
       { message: "This profile is frozen or restricted pending admin review." },
       { status: 423 }

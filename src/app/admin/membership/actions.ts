@@ -198,6 +198,11 @@ export async function updateMemberLifecycle(
   );
 
   if (error) {
+    if (error.code === "22023" && parsed.data.nextLifecycleStatus === "current") {
+      throw new SafeAdminActionError(
+        "Current membership cannot be reactivated here. Use the renewal and membership decisions queue to confirm outstanding anniversaries or review a closed path."
+      );
+    }
     throw new Error(
       safeMembershipError(
         error,

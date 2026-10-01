@@ -306,6 +306,12 @@ docker_run exec "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
   -f /tmp/jnuits-replay/assert-cycle-free-approval.sql
 
+docker_run cp \
+  "$(to_native "$repo_root/supabase/verification/assert-membership-review-regressions.sql")" \
+  "$db_container:/tmp/jnuits-replay/assert-membership-review-regressions.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
+  -f /tmp/jnuits-replay/assert-membership-review-regressions.sql
+
 docker_run exec "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c \
   "drop table if exists public._jnuits_replay_expectations;"
@@ -319,5 +325,11 @@ if [[ "$generate_types" -eq 1 ]]; then
   ) >"$generated_types"
   bash "$types_writer" "$generated_types" "$types_output"
 fi
+
+printf 'Checking public/private database functions for compile-time errors.\n'
+(
+  cd "$project_dir"
+  "${supabase_cli[@]}" db lint --local --schema public,private --level error --fail-on error
+)
 
 printf 'BOOTSTRAP REPLAY COMPLETE\n'

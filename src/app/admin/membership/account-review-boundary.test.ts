@@ -7,7 +7,7 @@ vi.mock("@/lib/security/security-events", () => ({ recordSecurityEvent: vi.fn() 
 vi.mock("@/lib/notifications/send-email", () => ({ sendEmail: vi.fn() }));
 vi.mock("@/lib/committee/revalidation", () => ({ revalidatePublicCommitteeProjection: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-import { bulkReviewMemberAccountRequestsAction } from "./actions";
+import { bulkReviewMemberAccountRequestsAction, updateMemberLifecycle } from "./actions";
 beforeEach(() => {
   vi.clearAllMocks();
   const chain = { select: vi.fn(), eq: vi.fn(), update: vi.fn(), maybeSingle: vi.fn() };
@@ -18,4 +18,9 @@ beforeEach(() => {
 it("refuses alumni requests in the legacy service-role account reviewer", async () => {
   await expect(bulkReviewMemberAccountRequestsAction({ requestIds: ["request"], decision: "approved", reviewNote: "Verified." })).rejects.toThrow(/renewal.*membership.*queue/i);
   expect(mocks.rpc).not.toHaveBeenCalled();
+});
+it("directs refused legacy reactivation to the renewal decisions queue", async () => {
+  mocks.rpc.mockResolvedValue({ error: { code: "22023", message: "Internal eligibility detail" } });
+  await expect(updateMemberLifecycle("member", "current", "active", "Reviewed status"))
+    .rejects.toThrow(/renewal and membership decisions queue/i);
 });
