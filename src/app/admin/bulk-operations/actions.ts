@@ -8,6 +8,17 @@ import { z } from "zod";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { issueInvitationForMember } from "@/lib/admin/invitations";
+import {
+  BULK_LIFECYCLE_STATUSES,
+  BULK_MEMBER_TYPES,
+  BULK_PORTAL_ACCESS_STATUSES,
+  BULK_PORTAL_ROLES,
+  BULK_REVIEW_DECISIONS,
+  BULK_OPERATION_TYPES,
+  createBulkOperationIssue,
+  type BulkOperationRowIssue,
+  type BulkOperationType,
+} from "@/lib/admin/bulk-operation-templates";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { DEFAULT_INVITATION_EXPIRY_DAYS } from "@/lib/members/invitation-code";
 import { normalizeJnuitsIdForCreation } from "@/lib/members/jnuits-id";
@@ -22,15 +33,6 @@ import { recordSecurityEvent } from "@/lib/security/security-events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
-type BulkOperationType =
-  | "account_deletion_review"
-  | "alumni_conversion"
-  | "alumni_invite"
-  | "legacy_member_import"
-  | "lifecycle_update"
-  | "member_invite"
-  | "role_update";
-
 type CsvRow = Record<string, string | undefined>;
 
 type BulkRowRecord = {
@@ -39,16 +41,6 @@ type BulkRowRecord = {
   row_number: number;
   status: string;
 };
-
-const BULK_OPERATION_TYPES = [
-  "legacy_member_import",
-  "member_invite",
-  "alumni_invite",
-  "lifecycle_update",
-  "role_update",
-  "alumni_conversion",
-  "account_deletion_review",
-] as const;
 
 const previewSchema = z.object({
   csvContent: z.string().trim().min(1, "CSV content is required."),
@@ -87,21 +79,21 @@ function normalizeEmail(value: unknown) {
 
 function normalizeLifecycleStatus(value: unknown) {
   const status = clean(value).toLowerCase();
-  return ["current", "former", "alumni", "deleted"].includes(status)
+  return (BULK_LIFECYCLE_STATUSES as readonly string[]).includes(status)
     ? status
     : "";
 }
 
 function normalizePortalAccessStatus(value: unknown) {
   const status = clean(value).toLowerCase();
-  return ["active", "frozen", "suspended", "deletion_requested", "deactivated"].includes(status)
+  return (BULK_PORTAL_ACCESS_STATUSES as readonly string[]).includes(status)
     ? status
     : "";
 }
 
 function normalizePortalRole(value: unknown) {
   const role = clean(value).toLowerCase();
-  return ["member", "alumni", "executive", "alumni_ambassador"].includes(role)
+  return (BULK_PORTAL_ROLES as readonly string[]).includes(role)
     ? role
     : "";
 }
@@ -281,27 +273,52 @@ function normalizePreviewRow(options: {
   sequenceStart: number;
   yearBlock: string;
 }) {
-  const errors: string[] = [];
+  const errors: BulkOperationRowIssue[] = [];
   const normalized: Record<string, unknown> = {};
   const idInput = clean(options.row.jnuits_id || options.row.jnuitsId);
   const email = normalizeEmail(options.row.email);
   let jnuitsId = idInput ? normalizeJnuitsIdForCreation(idInput) : "";
 
+  function addIssue(
+    field: string,
+    code: string,
+    explanation: string,
+    receivedValue: unknown
+  ) {
+    errors.push(
+      createBulkOperationIssue({
+        code,
+        explanation,
+        field,
+        operationType: options.operationType,
+        receivedValue,
+        sourceRow: options.rowIndex + 2,
+      })
+    );
+  }
+
   if (email) {
     normalized.email = email;
-    if (options.duplicateEmails.has(email)) errors.push("Duplicate email in CSV.");
+    if (options.duplicateEmails.has(email)) {
+      addIssue("email", "duplicate_email", "Email is duplicated in this CSV.", options.row.email);
+    }
   } else if (
     ["legacy_member_import", "alumni_invite", "member_invite"].includes(
       options.operationType
     )
   ) {
-    errors.push("A valid email is required.");
+    addIssue("email", "email_invalid", "A valid email is required.", options.row.email);
   }
 
   if (!jnuitsId && ["legacy_member_import", "alumni_invite"].includes(options.operationType)) {
     const serial = options.sequenceStart + options.rowIndex + 1;
     if (serial > 999) {
-      errors.push(`${options.yearBlock} block has no remaining serials.`);
+      addIssue(
+        "jnuits_id",
+        "year_block_exhausted",
+        `${options.yearBlock} block has no remaining serials.`,
+        idInput
+      );
     } else {
       jnuitsId = `JNUITS-${options.yearBlock}${String(serial).padStart(3, "0")}`;
     }
@@ -309,30 +326,48 @@ function normalizePreviewRow(options: {
 
   if (jnuitsId) {
     normalized.jnuitsId = jnuitsId;
-    if (options.duplicateIds.has(jnuitsId)) errors.push("Duplicate JnUITS ID in CSV.");
+    if (options.duplicateIds.has(jnuitsId)) {
+      addIssue(
+        "jnuits_id",
+        "duplicate_jnuits_id",
+        "JnUITS ID is duplicated in this CSV.",
+        idInput
+      );
+    }
   } else if (options.operationType !== "legacy_member_import") {
-    errors.push("A valid JnUITS ID is required.");
+    addIssue(
+      "jnuits_id",
+      "jnuits_id_invalid",
+      "A valid JnUITS ID is required.",
+      idInput
+    );
   }
 
   if (["legacy_member_import", "alumni_invite"].includes(options.operationType)) {
     const fullName = clean(options.row.full_name || options.row.fullName || options.row.name);
     const memberType = clean(options.row.member_type || options.row.memberType).toLowerCase();
     const normalizedMemberType =
-      options.operationType === "alumni_invite" || memberType === "alumni"
+      options.operationType === "alumni_invite" || memberType === BULK_MEMBER_TYPES[2]
         ? "alumni"
         : "current";
     const lifecycleStatus =
       options.operationType === "alumni_invite"
         ? "alumni"
-        : memberType === "former"
+        : memberType === BULK_MEMBER_TYPES[1]
         ? "former"
         : normalizedMemberType === "alumni"
           ? "alumni"
           : "current";
 
-    if (!fullName) errors.push("full_name is required.");
-    if (jnuitsId && options.existingById.has(jnuitsId)) errors.push("JnUITS ID already exists.");
-    if (email && options.existingByEmail.has(email)) errors.push("Email already exists.");
+    if (!fullName) {
+      addIssue("full_name", "full_name_required", "Full name is required.", fullName);
+    }
+    if (jnuitsId && options.existingById.has(jnuitsId)) {
+      addIssue("jnuits_id", "jnuits_id_exists", "JnUITS ID already exists.", jnuitsId);
+    }
+    if (email && options.existingByEmail.has(email)) {
+      addIssue("email", "email_exists", "Email already exists.", email);
+    }
 
     normalized.fullName = fullName;
     normalized.memberType = normalizedMemberType;
@@ -345,8 +380,17 @@ function normalizePreviewRow(options: {
 
   if (options.operationType === "member_invite") {
     const member = jnuitsId ? options.existingById.get(jnuitsId) : null;
-    if (!member) errors.push("Member does not exist.");
-    if (member?.is_profile_claimed) errors.push("Member profile is already claimed.");
+    if (!member) {
+      addIssue("jnuits_id", "member_not_found", "Member does not exist.", jnuitsId);
+    }
+    if (member?.is_profile_claimed) {
+      addIssue(
+        "jnuits_id",
+        "member_already_claimed",
+        "Member profile is already claimed.",
+        jnuitsId
+      );
+    }
     normalized.fullName = member?.full_name || null;
     normalized.memberId = member?.id || null;
   }
@@ -355,9 +399,25 @@ function normalizePreviewRow(options: {
     const lifecycleStatus = normalizeLifecycleStatus(options.row.lifecycle_status);
     const portalAccessStatus = normalizePortalAccessStatus(options.row.portal_access_status);
     const member = jnuitsId ? options.existingById.get(jnuitsId) : null;
-    if (!member) errors.push("Member does not exist.");
-    if (!lifecycleStatus) errors.push("Invalid lifecycle_status.");
-    if (!portalAccessStatus) errors.push("Invalid portal_access_status.");
+    if (!member) {
+      addIssue("jnuits_id", "member_not_found", "Member does not exist.", jnuitsId);
+    }
+    if (!lifecycleStatus) {
+      addIssue(
+        "lifecycle_status",
+        "invalid_lifecycle_status",
+        "Lifecycle status is not recognized.",
+        options.row.lifecycle_status
+      );
+    }
+    if (!portalAccessStatus) {
+      addIssue(
+        "portal_access_status",
+        "invalid_portal_access_status",
+        "Portal access status is not recognized.",
+        options.row.portal_access_status
+      );
+    }
     normalized.memberId = member?.id || null;
     normalized.lifecycleStatus = lifecycleStatus;
     normalized.portalAccessStatus = portalAccessStatus;
@@ -366,9 +426,25 @@ function normalizePreviewRow(options: {
   if (options.operationType === "role_update") {
     const portalRole = normalizePortalRole(options.row.portal_role || options.row.role);
     const member = jnuitsId ? options.existingById.get(jnuitsId) : null;
-    if (!member) errors.push("Member does not exist.");
-    if (!member?.user_id) errors.push("Member has no linked portal account.");
-    if (!portalRole) errors.push("Invalid portal_role.");
+    if (!member) {
+      addIssue("jnuits_id", "member_not_found", "Member does not exist.", jnuitsId);
+    }
+    if (member && !member.user_id) {
+      addIssue(
+        "jnuits_id",
+        "portal_account_missing",
+        "Member has no linked portal account.",
+        jnuitsId
+      );
+    }
+    if (!portalRole) {
+      addIssue(
+        "portal_role",
+        "invalid_portal_role",
+        "Portal role is not recognized.",
+        options.row.portal_role || options.row.role
+      );
+    }
     normalized.memberId = member?.id || null;
     normalized.portalRole = portalRole;
     normalized.targetUserId = member?.user_id || null;
@@ -376,7 +452,9 @@ function normalizePreviewRow(options: {
 
   if (options.operationType === "alumni_conversion") {
     const member = jnuitsId ? options.existingById.get(jnuitsId) : null;
-    if (!member) errors.push("Member does not exist.");
+    if (!member) {
+      addIssue("jnuits_id", "member_not_found", "Member does not exist.", jnuitsId);
+    }
     normalized.email = member?.email || null;
     normalized.fullName = member?.full_name || null;
     normalized.memberId = member?.id || null;
@@ -386,8 +464,17 @@ function normalizePreviewRow(options: {
   if (options.operationType === "account_deletion_review") {
     const decision = clean(options.row.decision).toLowerCase();
     const member = jnuitsId ? options.existingById.get(jnuitsId) : null;
-    if (!member) errors.push("Member does not exist.");
-    if (!["approved", "rejected"].includes(decision)) errors.push("decision must be approved or rejected.");
+    if (!member) {
+      addIssue("jnuits_id", "member_not_found", "Member does not exist.", jnuitsId);
+    }
+    if (!(BULK_REVIEW_DECISIONS as readonly string[]).includes(decision)) {
+      addIssue(
+        "decision",
+        "invalid_decision",
+        "Decision must be approved or rejected.",
+        options.row.decision
+      );
+    }
     normalized.decision = decision;
     normalized.email = member?.email || null;
     normalized.fullName = member?.full_name || null;

@@ -5,6 +5,12 @@ import {
   previewBulkOperationAction,
 } from "@/app/admin/bulk-operations/actions";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
+import {
+  BULK_OPERATION_TYPES,
+  formatBulkOperationIssue,
+  getBulkOperationDefinition,
+  type BulkOperationRowIssue,
+} from "@/lib/admin/bulk-operation-templates";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
@@ -27,11 +33,20 @@ type BulkRowRecord = {
   raw_data: Record<string, unknown>;
   normalized_data: Record<string, unknown>;
   status: string;
-  errors: string[];
+  errors: Array<BulkOperationRowIssue | string>;
   result: Record<string, unknown>;
 };
 
 export const metadata = { title: "Bulk Operations | JnUITS Admin" };
+
+const bulkOperationDefinitions = BULK_OPERATION_TYPES.map((operationType) => ({
+  ...getBulkOperationDefinition(operationType),
+  operationType,
+}));
+
+function bulkRowErrorText(error: BulkOperationRowIssue | string) {
+  return typeof error === "string" ? error : formatBulkOperationIssue(error);
+}
 
 export default async function AdminBulkOperationsPage({
   searchParams,
@@ -101,13 +116,11 @@ export default async function AdminBulkOperationsPage({
             <label className="input-label">
               Operation type
               <select name="operationType" required>
-                <option value="legacy_member_import">Legacy member import</option>
-                <option value="member_invite">Member invite</option>
-                <option value="alumni_invite">Alumni invite</option>
-                <option value="lifecycle_update">Lifecycle update</option>
-                <option value="role_update">Portal role update</option>
-                <option value="alumni_conversion">Alumni conversion</option>
-                <option value="account_deletion_review">Account deletion review</option>
+                {bulkOperationDefinitions.map((operation) => (
+                  <option key={operation.operationType} value={operation.operationType}>
+                    {operation.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="input-label">
@@ -132,6 +145,52 @@ export default async function AdminBulkOperationsPage({
             Preview CSV
           </button>
         </form>
+      </section>
+
+      <section className="section-band">
+        <span className="eyebrow">Templates and instructions</span>
+        <h2 className="mt-3 font-[family-name:var(--font-heading)] text-[clamp(1.6rem,3vw,2.2rem)] font-extrabold leading-[1.05] tracking-[-0.03em]">
+          Start with the exact columns for your operation
+        </h2>
+        <p className="section-copy mt-3 max-w-3xl">
+          Blank files contain headings only. Fictional samples show a completed row and XLSX samples also include instruction and accepted-code sheets. Export the Import data worksheet as CSV before pasting into the preview. The preview remains the authority before commit.
+        </p>
+        <div className="mt-5 grid gap-4 xl:grid-cols-2">
+          {bulkOperationDefinitions.map((operation) => {
+            const downloadBase = `/api/admin/bulk-operations/template?operationType=${operation.operationType}`;
+            return (
+              <details
+                className="rounded-xl border border-[var(--line)] bg-[var(--card)] p-4"
+                key={operation.operationType}
+              >
+                <summary className="cursor-pointer text-base font-bold">
+                  {operation.label}
+                </summary>
+                <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                  {operation.description}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=blank&format=csv`}>Blank CSV</a>
+                  <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=blank&format=xlsx`}>Blank XLSX</a>
+                  <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=sample&format=csv`}>Fictional sample CSV</a>
+                  <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=sample&format=xlsx`}>Fictional sample XLSX</a>
+                </div>
+                <dl className="mt-4 grid gap-2">
+                  {operation.fields.map((field) => (
+                    <div className="rounded-lg border border-[var(--line)] p-3" key={field.key}>
+                      <dt className="text-sm font-bold">
+                        {field.label} ({field.key}) · {field.required ? "Required" : "Optional"}
+                      </dt>
+                      <dd className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+                        {field.acceptedFormat}. {field.limits}. Example: {field.example}.
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            );
+          })}
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
@@ -239,7 +298,7 @@ export default async function AdminBulkOperationsPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <h3 className="font-[family-name:var(--font-heading)] text-[1.25rem]">
-                          Row {row.row_number}
+                          Data row {row.row_number}
                         </h3>
                         <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                           {JSON.stringify(row.normalized_data)}
@@ -250,7 +309,9 @@ export default async function AdminBulkOperationsPage({
                     {row.errors.length > 0 ? (
                       <ul className="mt-3 grid gap-1 text-sm text-[var(--brand-rust)]">
                         {row.errors.map((error) => (
-                          <li key={error}>{error}</li>
+                          <li key={typeof error === "string" ? error : `${error.code}-${error.field}`}>
+                            {bulkRowErrorText(error)}
+                          </li>
                         ))}
                       </ul>
                     ) : null}
@@ -267,7 +328,7 @@ export default async function AdminBulkOperationsPage({
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
                               <h3 className="font-[family-name:var(--font-heading)] text-[1.25rem]">
-                                Row {row.row_number}
+                                Data row {row.row_number}
                               </h3>
                               <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                                 {JSON.stringify(row.normalized_data)}
@@ -278,7 +339,9 @@ export default async function AdminBulkOperationsPage({
                           {row.errors.length > 0 ? (
                             <ul className="mt-3 grid gap-1 text-sm text-[var(--brand-rust)]">
                               {row.errors.map((error) => (
-                                <li key={error}>{error}</li>
+                                <li key={typeof error === "string" ? error : `${error.code}-${error.field}`}>
+                                  {bulkRowErrorText(error)}
+                                </li>
                               ))}
                             </ul>
                           ) : null}

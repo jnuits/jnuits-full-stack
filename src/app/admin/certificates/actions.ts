@@ -17,6 +17,10 @@ import {
   type CertificateImportRecord,
 } from "@/lib/certificates/admin-import";
 import { normalizeCertificateIssueDate } from "@/lib/certificates/date";
+import {
+  formatCertificateImportIssue,
+  type CertificateImportInspection,
+} from "@/lib/certificates/import-catalog";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -268,6 +272,34 @@ export async function fixCertTypeAction(formData: FormData) {
 
 // ── Bulk CSV import ───────────────────────────────────────────────────────────
 
+export async function inspectCertificateImportAction(
+  formData: FormData
+): Promise<CertificateImportInspection> {
+  const auth = await requireAdminPermission("admin.certificates.manage", {
+    fallbackPath: "/admin/certificates",
+  });
+  if (!auth.user) redirect("/admin");
+
+  try {
+    const source = await readCertificateImportSource(formData);
+    const csv = parseCertificateImportCsv(source.csvText);
+    const issues = csv.rows.flatMap((row) => row.errors);
+    return {
+      issues,
+      message: `${csv.validRows.length} valid rows, ${issues.length} validation issues, and ${csv.ignoredRowCount} template rows ignored. No records have been saved.`,
+      ok: issues.length === 0,
+    };
+  } catch (error) {
+    return {
+      issues: error instanceof CertificateImportInputError ? [...error.issues] : [],
+      message: error instanceof CertificateImportInputError
+        ? error.message
+        : "The CSV could not be checked. Try again or download the template.",
+      ok: false,
+    };
+  }
+}
+
 export async function bulkImportCertificatesAction(formData: FormData) {
   const auth = await requireAdminPermission("admin.certificates.manage", {
     fallbackPath: "/admin/certificates",
@@ -340,7 +372,9 @@ export async function bulkImportCertificatesAction(formData: FormData) {
   ).length;
   let skipped = csv.ignoredRowCount;
   const errors = csv.rows.flatMap((row) =>
-    row.errors.map((message) => "Row " + row.rowNumber + ": " + message + ".")
+    row.errors.map(
+      (issue) => "Row " + row.rowNumber + ": " + formatCertificateImportIssue(issue)
+    )
   );
 
   if (csv.ignoredRowCount > 0) {

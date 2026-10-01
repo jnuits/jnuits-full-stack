@@ -190,8 +190,8 @@ describe("shared onboarding intake workspace", () => {
     );
 
     await user.click(screen.getByRole("radio", { name: "Paste TSV" }));
-    await user.type(
-      screen.getByLabelText("Paste tab-separated rows"),
+    await user.click(screen.getByLabelText("Paste tab-separated rows"));
+    await user.paste(
       "Full name\tJnUITS ID\tEmail\tClassification\nMember One\tJNUITS-2026001\tmember@example.com\tcurrent"
     );
     await user.click(screen.getByRole("button", { name: "Inspect source" }));
@@ -211,8 +211,8 @@ describe("shared onboarding intake workspace", () => {
       "url"
     );
     expect(screen.getByText(/Anyone with the link/i)).toBeInTheDocument();
-    await user.type(
-      screen.getByLabelText("Public Google Sheet link"),
+    await user.click(screen.getByLabelText("Public Google Sheet link"));
+    await user.paste(
       "https://docs.google.com/spreadsheets/d/test-sheet-document-123/edit#gid=42"
     );
     await user.click(screen.getByRole("button", { name: "Inspect source" }));

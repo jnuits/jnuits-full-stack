@@ -3,6 +3,19 @@ import "server-only";
 import { parse } from "csv-parse/sync";
 
 import { normalizeCertificateIssueDate } from "@/lib/certificates/date";
+import {
+  CERTIFICATE_IMPORT_FIELDS,
+  createCertificateImportIssue,
+  type CertificateImportIssue,
+} from "@/lib/certificates/import-catalog";
+import type { ExportTable } from "@/lib/exports/tabular";
+import { createCsv } from "@/lib/exports/tabular";
+import {
+  createXlsxWorkbook,
+  createXlsxWorkbookFromSheets,
+} from "@/lib/exports/xlsx";
+
+export { CERTIFICATE_IMPORT_FIELDS } from "@/lib/certificates/import-catalog";
 
 export const CERTIFICATE_IMPORT_CHUNK_SIZE = 200;
 export const MAX_CERTIFICATE_IMPORT_BYTES = 2 * 1024 * 1024;
@@ -76,7 +89,7 @@ export type CertificateImportRecord = {
 
 export type CertificateImportRow = {
   certificate: CertificateImportRecord | null;
-  errors: string[];
+  errors: CertificateImportIssue[];
   ignored: boolean;
   rowNumber: number;
 };
@@ -93,7 +106,103 @@ export type CertificateImportSource = {
   fileName: null | string;
 };
 
-export class CertificateImportInputError extends Error {}
+export class CertificateImportInputError extends Error {
+  readonly issues: readonly CertificateImportIssue[];
+
+  constructor(message: string, issues: readonly CertificateImportIssue[] = []) {
+    super(message);
+    this.name = "CertificateImportInputError";
+    this.issues = issues;
+  }
+}
+
+export type CertificateImportTemplateFormat = "csv" | "xlsx";
+export type CertificateImportTemplateKind = "blank" | "sample";
+
+function certificateImportTable(kind: CertificateImportTemplateKind): ExportTable {
+  return {
+    columns: CERTIFICATE_IMPORT_FIELDS.map(({ key, label }) => ({ key, label })),
+    rows:
+      kind === "sample"
+        ? [
+            {
+              assetUrl: "https://example.com/sample-certificate.pdf",
+              certificateId: "EXAMPLE-CERT-2099-001",
+              details: "Fictional certificate sample",
+              eventName: "Sample Technology Workshop",
+              fullName: "Sample Recipient",
+              issueDate: "2099-01-15",
+              type: "Event",
+            },
+          ]
+        : [],
+  };
+}
+
+function certificateInstructionTable(): ExportTable {
+  return {
+    columns: [
+      { key: "field", label: "Field" },
+      { key: "required", label: "Required" },
+      { key: "acceptedFormat", label: "Accepted format" },
+      { key: "limits", label: "Limits" },
+      { key: "example", label: "Example" },
+    ],
+    rows: CERTIFICATE_IMPORT_FIELDS.map((definition) => ({
+      acceptedFormat: definition.acceptedFormat,
+      example: definition.example,
+      field: definition.label,
+      limits: definition.limits,
+      required: definition.required ? "Required" : "Optional",
+    })),
+  };
+}
+
+function certificateReferenceTable(): ExportTable {
+  return {
+    columns: [
+      { key: "field", label: "Field" },
+      { key: "acceptedValue", label: "Accepted value" },
+    ],
+    rows: CERTIFICATE_IMPORT_FIELDS.flatMap((definition) =>
+      (definition.acceptedValues ?? []).map((acceptedValue) => ({
+        acceptedValue,
+        field: definition.label,
+      }))
+    ),
+  };
+}
+
+export function createCertificateImportTemplate(input: {
+  format: CertificateImportTemplateFormat;
+  kind: CertificateImportTemplateKind;
+}) {
+  const table = certificateImportTable(input.kind);
+  const filename = `jnuits-certificate-import-${input.kind}.${input.format}`;
+
+  if (input.format === "xlsx") {
+    const body =
+      input.kind === "sample"
+        ? createXlsxWorkbookFromSheets([
+            { name: "Certificates", table },
+            { name: "Instructions", table: certificateInstructionTable() },
+            { name: "Reference codes", table: certificateReferenceTable() },
+          ])
+        : createXlsxWorkbook(table, "Certificates");
+
+    return {
+      body,
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      filename,
+    };
+  }
+
+  return {
+    body: createCsv(table),
+    contentType: "text/csv; charset=utf-8",
+    filename,
+  };
+}
 
 function byteLength(value: string) {
   return new TextEncoder().encode(value).byteLength;
@@ -247,7 +356,7 @@ function validateRecord(
     };
   }
 
-  const errors: string[] = [];
+  const errors: CertificateImportIssue[] = [];
   const fullName = normalizeFullName(raw.fullName);
   const type = canonicalType(raw.type);
   const eventName = cleanCsvValue(raw.eventName);
@@ -255,16 +364,58 @@ function validateRecord(
   const details = cleanCsvValue(raw.details);
   const asset = normalizeHttpUrl(raw.assetUrl);
 
-  if (!certificateId) errors.push("certificate ID is required");
-  if (certificateId.length > 80) errors.push("certificate ID is too long");
-  if (!fullName) errors.push("full name is required");
-  if (fullName.length > 180) errors.push("full name is too long");
-  if (!type) errors.push("type must be Event, Exam, or Course");
-  if (!eventName) errors.push("event, exam, or course name is required");
-  if (eventName.length > 180) errors.push("event, exam, or course name is too long");
-  if (!issueDate) errors.push("issue date must be a valid date");
-  if (details.length > 3_000) errors.push("details are too long");
-  if (asset.error) errors.push(asset.error);
+  function addIssue(
+    field: Parameters<typeof createCertificateImportIssue>[0]["field"],
+    code: string,
+    explanation: string,
+    receivedValue: unknown
+  ) {
+    errors.push(
+      createCertificateImportIssue({
+        code,
+        explanation,
+        field,
+        receivedValue,
+        sourceRow: rowNumber,
+      })
+    );
+  }
+
+  if (!certificateId) {
+    addIssue("certificateId", "certificate_id_required", "Certificate ID is required.", raw.certificateId);
+  }
+  if (certificateId.length > 80) {
+    addIssue("certificateId", "certificate_id_too_long", "Certificate ID is too long.", raw.certificateId);
+  }
+  if (!fullName) {
+    addIssue("fullName", "full_name_required", "Full name is required.", raw.fullName);
+  }
+  if (fullName.length > 180) {
+    addIssue("fullName", "full_name_too_long", "Full name is too long.", raw.fullName);
+  }
+  if (!type) {
+    addIssue("type", "type_invalid", "Type must be Event, Exam, or Course.", raw.type);
+  }
+  if (!eventName) {
+    addIssue("eventName", "event_name_required", "Event, exam, or course name is required.", raw.eventName);
+  }
+  if (eventName.length > 180) {
+    addIssue("eventName", "event_name_too_long", "Event, exam, or course name is too long.", raw.eventName);
+  }
+  if (!issueDate) {
+    addIssue("issueDate", "issue_date_invalid", "Issue date must be a valid date.", raw.issueDate);
+  }
+  if (details.length > 3_000) {
+    addIssue("details", "details_too_long", "Details are too long.", raw.details);
+  }
+  if (asset.error) {
+    addIssue(
+      "assetUrl",
+      asset.error === "asset URL is too long" ? "asset_url_too_long" : "asset_url_invalid",
+      `${asset.error.charAt(0).toUpperCase()}${asset.error.slice(1)}.`,
+      raw.assetUrl
+    );
+  }
 
   return {
     certificate:
@@ -406,10 +557,22 @@ export function parseCertificateImportCsv(rawCsv: string): CertificateImportPars
       );
     }
 
-    const firstError = rows.find((row) => row.errors.length > 0)?.errors[0];
+    const issues = rows.flatMap((row) => row.errors);
+    // Flash messages are cookie-backed. Keep the summary short while retaining
+    // every issue separately for the validation report.
+    const firstIssueByRow = new Map<number, CertificateImportIssue>();
+    for (const issue of issues) {
+      if (!firstIssueByRow.has(issue.sourceRow)) firstIssueByRow.set(issue.sourceRow, issue);
+    }
+    const diagnostics = Array.from(firstIssueByRow.values())
+      .slice(0, 2)
+      .map((issue) => `Row ${issue.sourceRow}: ${issue.explanation} Accepted: ${issue.acceptedFormat}.`)
+      .join(" ");
     throw new CertificateImportInputError(
-      "No valid certificate rows were found. First issue: " +
-        (firstError || "check the required fields and try again.")
+      `No valid certificate rows were found. ${issues.length} validation issues. ` +
+        (diagnostics || "Check the required fields and try again.") +
+        " Use Check data to review the full report.",
+      issues
     );
   }
 

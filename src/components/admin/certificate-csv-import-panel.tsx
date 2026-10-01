@@ -1,10 +1,25 @@
 "use client";
 
-import { bulkImportCertificatesAction } from "@/app/admin/certificates/actions";
+import {
+  bulkImportCertificatesAction,
+  inspectCertificateImportAction,
+} from "@/app/admin/certificates/actions";
+import {
+  CERTIFICATE_IMPORT_FIELDS,
+  createCertificateIssueReport,
+  formatCertificateImportIssue,
+  type CertificateImportInspection,
+} from "@/lib/certificates/import-catalog";
 import { Download, FileSpreadsheet, RotateCcw, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 
 const MAX_CLIENT_BYTES = 2 * 1024 * 1024;
+const CERTIFICATE_TEMPLATE_DOWNLOADS = [
+  { format: "csv", kind: "blank", label: "Blank CSV" },
+  { format: "xlsx", kind: "blank", label: "Blank XLSX" },
+  { format: "csv", kind: "sample", label: "Fictional sample CSV" },
+  { format: "xlsx", kind: "sample", label: "Fictional sample XLSX" },
+] as const;
 
 function defaultSourceName(fileName: string) {
   const cleaned = fileName
@@ -17,11 +32,48 @@ function defaultSourceName(fileName: string) {
 }
 
 export function CertificateCsvImportPanel() {
+  const formRef = useRef<HTMLFormElement>(null);
+  const checkRevisionRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [csvText, setCsvText] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState("");
+  const [inspection, setInspection] = useState<CertificateImportInspection | null>(null);
+  const [checking, startChecking] = useTransition();
+
+  function invalidateInspection() {
+    checkRevisionRef.current += 1;
+    setInspection(null);
+  }
+
+  function checkData() {
+    if (!formRef.current) return;
+    const data = new FormData(formRef.current);
+    const revision = checkRevisionRef.current;
+    startChecking(async () => {
+      try {
+        const result = await inspectCertificateImportAction(data);
+        if (revision === checkRevisionRef.current) setInspection(result);
+      } catch {
+        if (revision === checkRevisionRef.current) {
+          setInspection({ issues: [], message: "Data could not be checked. Please try again.", ok: false });
+        }
+      }
+    });
+  }
+
+  function downloadReport() {
+    if (!inspection?.issues.length) return;
+    const url = URL.createObjectURL(new Blob([createCertificateIssueReport(inspection.issues)], {
+      type: "text/csv;charset=utf-8",
+    }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "jnuits-certificate-validation-errors.csv";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  }
 
   function selectFile(file: File | null) {
     setFileError(null);
@@ -53,6 +105,7 @@ export function CertificateCsvImportPanel() {
   }
 
   function clearFile() {
+    invalidateInspection();
     if (fileInputRef.current) fileInputRef.current.value = "";
     setCsvText("");
     setFileError(null);
@@ -63,6 +116,8 @@ export function CertificateCsvImportPanel() {
     <form
       action={bulkImportCertificatesAction}
       className="section-band grid gap-4"
+      onChange={invalidateInspection}
+      ref={formRef}
     >
       <div className="grid gap-3">
         <div>
@@ -71,8 +126,9 @@ export function CertificateCsvImportPanel() {
             CSV certificate import
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-            Download the template, replace or add to the three sample rows, then choose the file.
-            Template rows are ignored automatically. Common headers, spaces, type labels, and ISO, day-first, or Excel-style dates are normalized before import.
+            Start with a blank file or use the completed fictional sample as a guide, then choose your CSV.
+            If using XLSX, export the Certificates worksheet as CSV before uploading.
+            Rows whose certificate IDs begin with EXAMPLE-CERT- are ignored automatically. Common headers, spaces, type labels, and ISO, day-first, or Excel-style dates are normalized before import.
             You can still paste CSV rows instead.
           </p>
         </div>
@@ -83,17 +139,38 @@ export function CertificateCsvImportPanel() {
             certId, fullName, type, eventName, issueDate, assetUrl?, details?
           </code>
         </div>
+
+        <details className="rounded-xl border border-[var(--line)] bg-[var(--card)] p-4">
+          <summary className="cursor-pointer text-sm font-bold">Field requirements</summary>
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {CERTIFICATE_IMPORT_FIELDS.map((field) => (
+              <div className="rounded-lg border border-[var(--line)] p-3" key={field.key}>
+                <dt className="text-sm font-bold">
+                  {field.label} · {field.required ? "Required" : "Optional"}
+                </dt>
+                <dd className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+                  {field.acceptedFormat}. {field.limits}. Example: {field.example}.
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {CERTIFICATE_TEMPLATE_DOWNLOADS.map((download) => (
+          <a
+            className="secondary-button min-h-11 w-full justify-center"
+            download
+            href={`/api/admin/certificates/import-template?kind=${download.kind}&format=${download.format}`}
+            key={`${download.kind}-${download.format}`}
+          >
+            <Download aria-hidden="true" size={15} /> {download.label}
+          </a>
+        ))}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <a
-          className="secondary-button min-h-11 w-full justify-center sm:w-auto"
-          download
-          href="/templates/jnuits-certificate-import-template.csv"
-        >
-          <Download size={15} /> Download CSV template
-        </a>
-
         <label
           className="secondary-button min-h-11 w-full cursor-pointer justify-center sm:w-auto"
           htmlFor="certificate-csv-file"
@@ -166,7 +243,10 @@ export function CertificateCsvImportPanel() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <button className="primary-button min-h-11 w-full sm:w-auto" type="submit">
+        <button className="secondary-button min-h-11 w-full sm:w-auto" disabled={checking || Boolean(fileError)} onClick={checkData} type="button">
+          {checking ? "Checking data…" : "Check data"}
+        </button>
+        <button className="primary-button min-h-11 w-full sm:w-auto" disabled={checking || Boolean(fileError)} type="submit">
           <Upload size={15} /> Import certificates
         </button>
         {csvText ? (
@@ -175,6 +255,28 @@ export function CertificateCsvImportPanel() {
           </button>
         ) : null}
       </div>
+      {inspection ? (
+        <section aria-label="Certificate validation report" className="grid min-w-0 gap-3">
+          <p className={`portal-message ${inspection.ok ? "portal-message--success" : "portal-message--error"}`} role="status">
+            {inspection.message}
+          </p>
+          {inspection.issues.length ? (
+            <>
+              <button className="secondary-button min-h-11 w-full sm:w-auto sm:justify-self-start" onClick={downloadReport} type="button">
+                <Download aria-hidden="true" size={15} /> Download error report
+              </button>
+              <ul className="grid gap-2 text-sm">
+                {inspection.issues.slice(0, 20).map((issue, index) => (
+                  <li className="break-words rounded-lg border border-[var(--line)] p-3" key={`${issue.sourceRow}-${issue.field}-${index}`}>
+                    Row {issue.sourceRow}: {formatCertificateImportIssue(issue)}
+                  </li>
+                ))}
+              </ul>
+              {inspection.issues.length > 20 ? <p className="text-sm">Showing the first 20 issues. Download the report for all {inspection.issues.length} issues.</p> : null}
+            </>
+          ) : null}
+        </section>
+      ) : null}
     </form>
   );
 }

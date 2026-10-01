@@ -1,11 +1,42 @@
 import { describe, expect, it } from "vitest";
 import {
+  CERTIFICATE_IMPORT_FIELDS,
   CertificateImportInputError,
+  createCertificateImportTemplate,
   parseCertificateImportCsv,
   readCertificateImportSource,
 } from "@/lib/certificates/admin-import";
 
 describe("certificate admin CSV import parser", () => {
+  it("generates separate blank and fictional sample CSV/XLSX artifacts from field guidance", () => {
+    const blankCsv = createCertificateImportTemplate({ format: "csv", kind: "blank" });
+    const sampleCsv = createCertificateImportTemplate({ format: "csv", kind: "sample" });
+    const blankXlsx = createCertificateImportTemplate({ format: "xlsx", kind: "blank" });
+    const sampleXlsx = createCertificateImportTemplate({ format: "xlsx", kind: "sample" });
+
+    expect(blankCsv.filename).toBe("jnuits-certificate-import-blank.csv");
+    expect(String(blankCsv.body).split("\r\n").filter(Boolean)).toHaveLength(1);
+    expect(sampleCsv.filename).toBe("jnuits-certificate-import-sample.csv");
+    expect(String(sampleCsv.body).split("\r\n").filter(Boolean)).toHaveLength(2);
+    expect(String(sampleCsv.body)).toContain("EXAMPLE-CERT-2099-001");
+    expect(String(sampleCsv.body)).toContain("Sample Recipient");
+    expect(String(sampleCsv.body)).not.toMatch(/@(gmail|yahoo|outlook)\./i);
+    expect((blankXlsx.body as Buffer).subarray(0, 2).toString("utf8")).toBe("PK");
+    expect((sampleXlsx.body as Buffer).subarray(0, 2).toString("utf8")).toBe("PK");
+    expect(CERTIFICATE_IMPORT_FIELDS).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          acceptedFormat: expect.any(String),
+          example: expect.any(String),
+          key: "certificateId",
+          limits: expect.any(String),
+          required: true,
+        }),
+        expect.objectContaining({ key: "assetUrl", required: false }),
+      ])
+    );
+  });
+
   it("parses the current full-name format with quoted commas and optional details", () => {
     const result = parseCertificateImportCsv(
       [
@@ -94,6 +125,70 @@ describe("certificate admin CSV import parser", () => {
         "certId,fullName,type,eventName,issueDate\nCERT-2026-006,Ayesha Khan,Exam,Basic Computer Course,not-a-date"
       )
     ).toThrow(/No valid certificate rows were found.*issue date must be a valid date/i);
+  });
+
+  it("preserves actionable diagnostics for every invalid source row", () => {
+    let caught: unknown;
+
+    try {
+      parseCertificateImportCsv(
+        [
+          "certId,fullName,type,eventName,issueDate,assetUrl",
+          "CERT-INVALID-1,Ayesha Khan,Exam,Basic Computer Course,not-a-date,ftp://bad.test/file.pdf",
+          "CERT-INVALID-2,,Unknown,,2026-02-20,",
+        ].join("\n")
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(CertificateImportInputError);
+    expect((caught as CertificateImportInputError).issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          acceptedFormat: expect.any(String),
+          example: expect.any(String),
+          explanation: "Issue date must be a valid date.",
+          field: "issueDate",
+          receivedValue: "not-a-date",
+          sourceRow: 2,
+        }),
+        expect.objectContaining({
+          explanation: "Asset URL must use http or https.",
+          field: "assetUrl",
+          receivedValue: "ftp://bad.test/file.pdf",
+          sourceRow: 2,
+        }),
+        expect.objectContaining({
+          explanation: "Full name is required.",
+          field: "fullName",
+          receivedValue: "",
+          sourceRow: 3,
+        }),
+        expect.objectContaining({
+          explanation: "Type must be Event, Exam, or Course.",
+          field: "type",
+          receivedValue: "Unknown",
+          sourceRow: 3,
+        }),
+      ])
+    );
+    expect((caught as Error).message).toMatch(/Row 2[\s\S]*Row 3/);
+  });
+
+  it("keeps status feedback bounded while preserving all diagnostics for a large invalid file", () => {
+    let caught: unknown;
+    try {
+      parseCertificateImportCsv([
+        "certId,fullName,type,eventName,issueDate",
+        ...Array.from({ length: 30 }, (_, i) => `CERT-${i},Sample Recipient,Event,Sample Event,bad-date`),
+      ].join("\n"));
+    } catch (error) { caught = error; }
+
+    expect(caught).toBeInstanceOf(CertificateImportInputError);
+    expect((caught as CertificateImportInputError).issues).toHaveLength(30);
+    expect((caught as Error).message.length).toBeLessThan(1_000);
+    expect((caught as Error).message).toMatch(/30.*issue/i);
   });
   it("rejects a malformed required header before a batch is created", () => {
     expect(() =>
