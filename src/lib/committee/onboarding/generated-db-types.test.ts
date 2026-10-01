@@ -29,4 +29,15 @@ describe("generated committee onboarding database types", () => {
     >();
     expectTypeOf<Tables<"members">["joined_on"]>().toEqualTypeOf<string | null>();
   });
+
+  it("exposes authoritative anniversary, path, and append-only renewal history", () => {
+    expectTypeOf<Tables<"members">["renewal_due_on"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<Tables<"members">["current_membership_path_status"]>().toEqualTypeOf<string>();
+    expectTypeOf<Tables<"members">["membership_revision"]>().toEqualTypeOf<number>();
+    expectTypeOf<Tables<"members">["current_membership_case_id"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<Tables<"members">["current_membership_appeal_id"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<Tables<"membership_renewals">["due_on"]>().toEqualTypeOf<string>();
+    expectTypeOf<Tables<"membership_renewals">["confirmed_by_user_id"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<TablesInsert<"membership_renewals">["resolution"]>().toEqualTypeOf<string>();
+  });
 });

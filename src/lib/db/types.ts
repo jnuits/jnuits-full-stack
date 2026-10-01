@@ -2870,6 +2870,12 @@ export type Database = {
           avatar_width: number | null
           batch_no: number | null
           created_at: string
+          current_membership_appeal_id: string | null
+          current_membership_case_id: string | null
+          current_membership_closed_by_user_id: string | null
+          current_membership_closed_on: string | null
+          current_membership_closure_reason: string | null
+          current_membership_path_status: string
           current_organization: string | null
           department_code: string | null
           designation: string | null
@@ -2889,10 +2895,12 @@ export type Database = {
           lifecycle_status: string
           linkedin_url: string | null
           member_type: string
+          membership_revision: number
           phone: string | null
           portal_access_status: string
           professional_visibility: string
           profile_claimed_at: string | null
+          renewal_due_on: string | null
           student_id: string | null
           updated_at: string
           user_id: string | null
@@ -2912,6 +2920,12 @@ export type Database = {
           avatar_width?: number | null
           batch_no?: number | null
           created_at?: string
+          current_membership_appeal_id?: string | null
+          current_membership_case_id?: string | null
+          current_membership_closed_by_user_id?: string | null
+          current_membership_closed_on?: string | null
+          current_membership_closure_reason?: string | null
+          current_membership_path_status?: string
           current_organization?: string | null
           department_code?: string | null
           designation?: string | null
@@ -2931,10 +2945,12 @@ export type Database = {
           lifecycle_status?: string
           linkedin_url?: string | null
           member_type?: string
+          membership_revision?: number
           phone?: string | null
           portal_access_status?: string
           professional_visibility?: string
           profile_claimed_at?: string | null
+          renewal_due_on?: string | null
           student_id?: string | null
           updated_at?: string
           user_id?: string | null
@@ -2954,6 +2970,12 @@ export type Database = {
           avatar_width?: number | null
           batch_no?: number | null
           created_at?: string
+          current_membership_appeal_id?: string | null
+          current_membership_case_id?: string | null
+          current_membership_closed_by_user_id?: string | null
+          current_membership_closed_on?: string | null
+          current_membership_closure_reason?: string | null
+          current_membership_path_status?: string
           current_organization?: string | null
           department_code?: string | null
           designation?: string | null
@@ -2973,10 +2995,12 @@ export type Database = {
           lifecycle_status?: string
           linkedin_url?: string | null
           member_type?: string
+          membership_revision?: number
           phone?: string | null
           portal_access_status?: string
           professional_visibility?: string
           profile_claimed_at?: string | null
+          renewal_due_on?: string | null
           student_id?: string | null
           updated_at?: string
           user_id?: string | null
@@ -2985,6 +3009,20 @@ export type Database = {
           work_location?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "members_current_membership_appeal_id_fkey"
+            columns: ["current_membership_appeal_id"]
+            isOneToOne: false
+            referencedRelation: "profile_update_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "members_current_membership_case_id_fkey"
+            columns: ["current_membership_case_id"]
+            isOneToOne: false
+            referencedRelation: "profile_update_requests"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "members_department_code_fkey"
             columns: ["department_code"]
@@ -3253,6 +3291,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "membership_lifecycle_events_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_renewals: {
+        Row: {
+          confirmed_by_user_id: string | null
+          confirmed_on: string
+          created_at: string
+          due_on: string
+          id: string
+          member_id: string
+          next_due_on: string
+          note: string | null
+          reference: string | null
+          resolution: string
+        }
+        Insert: {
+          confirmed_by_user_id?: string | null
+          confirmed_on: string
+          created_at?: string
+          due_on: string
+          id?: string
+          member_id: string
+          next_due_on: string
+          note?: string | null
+          reference?: string | null
+          resolution: string
+        }
+        Update: {
+          confirmed_by_user_id?: string | null
+          confirmed_on?: string
+          created_at?: string
+          due_on?: string
+          id?: string
+          member_id?: string
+          next_due_on?: string
+          note?: string | null
+          reference?: string | null
+          resolution?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_renewals_member_id_fkey"
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "members"
@@ -4242,6 +4327,17 @@ export type Database = {
           review_case_id: string
         }[]
       }
+      confirm_membership_renewal: {
+        Args: {
+          p_effective_date?: string
+          p_expected_due_on: string
+          p_member_id: string
+          p_note?: string
+          p_reference?: string
+          p_resolution: string
+        }
+        Returns: Json
+      }
       consume_form_upload_session: {
         Args: {
           p_form_definition_id: string
@@ -4351,6 +4447,18 @@ export type Database = {
         Returns: boolean
       }
       jnuits_custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      membership_anniversary: {
+        Args: { p_joined_on: string; p_year: number }
+        Returns: string
+      }
+      membership_renewal_state: {
+        Args: {
+          p_due_on: string
+          p_effective_date: string
+          p_lifecycle_status: string
+        }
+        Returns: string
+      }
       normalize_jnuits_id: { Args: { raw_id: string }; Returns: string }
       preview_bulk_membership_operation: {
         Args: { target_operation_id: string }
@@ -4380,6 +4488,14 @@ export type Database = {
       }
       purge_retention_job: {
         Args: { p_actor_user_id: string; p_job_id: string; p_scope: string }
+        Returns: Json
+      }
+      reconcile_membership_lifecycle: {
+        Args: {
+          p_batch_size?: number
+          p_effective_date?: string
+          p_member_id?: string
+        }
         Returns: Json
       }
       record_event_registration_delivery_webhook_event: {
@@ -4496,6 +4612,15 @@ export type Database = {
           result_status: string
         }[]
       }
+      request_membership_transition: {
+        Args: {
+          p_action: string
+          p_confirmation?: string
+          p_expected_revision: number
+          p_note?: string
+        }
+        Returns: Json
+      }
       review_membership_application: {
         Args: {
           p_actor_user_id: string
@@ -4507,6 +4632,15 @@ export type Database = {
           application_status: string
           result_status: string
         }[]
+      }
+      review_membership_request: {
+        Args: {
+          p_decision: string
+          p_expected_updated_at: string
+          p_note: string
+          p_request_id: string
+        }
+        Returns: Json
       }
       set_member_lifecycle_status: {
         Args: {
