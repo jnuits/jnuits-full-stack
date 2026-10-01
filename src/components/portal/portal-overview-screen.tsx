@@ -8,6 +8,7 @@ import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
 import { getPortalAdvisorSnapshot } from "@/lib/portal/advisor";
 import { getMemberProjects } from "@/lib/content/projects";
+import { formatRenewalState } from "@/lib/membership/anniversary";
 import { PortalShell } from "@/components/portal/portal-shell";
 import {
   BookOpen,
@@ -197,6 +198,8 @@ export async function PortalOverviewScreen({
   const accessStatus = snapshot.access.portalAccessStatus || access;
   const isRestricted = Boolean(member && snapshot.access.isRestricted);
   const displayJnuitsId = formatMembershipIdForDisplay(member?.jnuits_id);
+  const renewalWarning = snapshot.membership?.renewalState === "grace"
+    ? formatRenewalState({ state: "grace", dueOn: snapshot.membership.renewalDueOn, graceEndsOn: snapshot.membership.graceEndsOn }) : null;
 
   return (
     <PortalShell
@@ -226,6 +229,11 @@ export async function PortalOverviewScreen({
           <p style={{ fontSize: "0.84rem", lineHeight: 1.6 }}>{feedbackMessage}</p>
         </div>
       ) : null}
+      {renewalWarning ? <section className="flash-panel" data-tone="warning" role="status">
+        <h2 className="font-semibold">{renewalWarning.label}</h2>
+        <p className="mt-2 text-sm leading-7">{renewalWarning.description}</p>
+        <Link href="/portal/membership" className="queue-link">Manage renewal</Link>
+      </section> : null}
       {feedbackError ? (
         <div className="flash-panel" data-tone="error">
           <p style={{ fontSize: "0.84rem", lineHeight: 1.6 }}>{feedbackError}</p>

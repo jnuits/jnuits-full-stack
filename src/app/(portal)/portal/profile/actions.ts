@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requirePortalPermission, requirePortalUser } from "@/lib/auth/session";
+import { requirePortalIdentity, requirePortalPermission, requirePortalUser } from "@/lib/auth/session";
 import { recordSecurityEvent } from "@/lib/security/security-events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -107,62 +107,12 @@ export async function savePortalProfilePreferences(formData: FormData) {
   redirect("/portal/profile?message=preferences-saved");
 }
 
-export async function requestAlumniConversionAction(formData: FormData) {
-  const auth = await requirePortalUser({ fallbackPath: "/portal" });
-
-  if (!auth.user) {
-    redirect("/portal/login?next=%2Fportal");
-  }
-
-  const { admin, member } = await loadLifecycleActionMember(auth.user.id);
-  const memberId = typeof member?.id === "string" ? member.id : null;
-  const lifecycleStatus =
-    typeof member?.lifecycle_status === "string"
-      ? member.lifecycle_status
-      : "current";
-
-  if (!memberId) {
-    redirect("/portal?error=member-not-linked");
-  }
-
-  if (lifecycleStatus === "alumni") {
-    redirect("/portal?message=already-alumni");
-  }
-
-  if (
-    await hasPendingAccountRequest(admin, memberId, "alumni_conversion")
-  ) {
-    redirect("/portal?message=alumni-conversion-pending");
-  }
-
-  const note = readOptionalNote(formData);
-  const { error } = await asFlexibleClient(admin)
-    .from("profile_update_requests" as string)
-    .insert({
-      member_id: memberId,
-      payload: {
-        note,
-        requestedBy: "member",
-      },
-      request_type: "alumni_conversion",
-      status: "pending",
-    });
-
-  if (error) {
-    logServerError("alumni conversion request insert", error);
-    redirect("/portal?error=account-request-failed");
-  }
-
-  await recordSecurityEvent(admin, {
-    actorUserId: auth.user.id,
-    eventType: "member.alumni_conversion_requested",
-    payload: { memberId },
-    targetUserId: auth.user.id,
-  });
-
-  revalidatePath("/portal");
-  revalidatePath("/portal/profile");
-  redirect("/portal?message=alumni-conversion-requested");
+export async function requestAlumniConversionAction(_formData: FormData) {
+  void _formData;
+  await requirePortalIdentity({ fallbackPath: "/portal/membership" });
+  // Compatibility handoff only: the membership action owns the transactional
+  // eligibility, revision, audit and single request creation contract.
+  redirect("/portal/membership");
 }
 
 export async function requestProfileDeletionAction(formData: FormData) {

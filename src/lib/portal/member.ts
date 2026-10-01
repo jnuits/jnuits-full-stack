@@ -170,6 +170,8 @@ export async function getPortalMemberSnapshot(userId: string) {
 
   return {
     ...base,
+    membershipRequests: requests.filter((request) => ["membership_renewal", "membership_departure", "membership_departure_appeal", "alumni_conversion"].includes(request.request_type))
+      .map(({ id, request_type, status, requested_at }) => ({ id, request_type, status, requested_at })),
     accountRequests: requests.filter(
       (request) =>
         request.request_type === "alumni_conversion" ||
