@@ -10,7 +10,9 @@ const migration = fs.readFileSync(
   "utf8"
 );
 
-describe("annual membership application decisions", () => {
+// This migration remains immutable; the new forward migration's effective
+// behavior is checked by the disposable replay fixture, not source strings.
+describe("historical annual membership application decision migration", () => {
   it("locks the application and makes approval idempotent", () => {
     expect(migration).toContain("approve_membership_application");
     expect(migration).toContain("for update");

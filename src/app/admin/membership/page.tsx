@@ -1,13 +1,12 @@
 import { cookies } from "next/headers";
+import { requireAdminPermission } from "@/lib/auth/session";
 
 import {
   MembershipDbClient,
   type AccountRequestClientRecord,
-  type CycleMemberClientRecord,
   type DepartmentOptionClientRecord,
   type InvitationBatchClientRecord,
   type ManagedMemberClientRecord,
-  type MembershipCycleClientRecord,
   type PortalRoleOptionClientRecord,
 } from "@/components/admin/membership-db-client";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
@@ -15,28 +14,6 @@ import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
-type CycleMemberRecord = {
-  cycle_id: string;
-  expires_on: string | null;
-  id: string;
-  member_id: string;
-  note: string | null;
-  state: string;
-  members?:
-    | {
-        full_name?: string | null;
-        id?: string;
-        is_profile_claimed?: boolean | null;
-        jnuits_id?: string | null;
-      }
-    | {
-        full_name?: string | null;
-        id?: string;
-        is_profile_claimed?: boolean | null;
-        jnuits_id?: string | null;
-      }[]
-    | null;
-};
 
 type PortalRoleGrantRecord = {
   rbac_platform_roles:
@@ -111,6 +88,7 @@ export default async function AdminMembershipPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireAdminPermission("admin.membership.manage", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const flexibleAdmin = asFlexibleClient(admin);
   const cookieStore = await cookies();
@@ -124,28 +102,11 @@ export default async function AdminMembershipPage({
   const memberRangeTo = memberRangeFrom + memberPageSize - 1;
 
   const [
-    cyclesResult,
-    cycleMembersResult,
     batchesResult,
     accountRequestsResult,
     portalRolesResult,
     departmentsResult,
   ] = await Promise.all([
-    admin
-      .from("membership_cycles")
-      .select(
-        "id, code, title, starts_on, ends_on, renewal_open_on, renewal_close_on, status, created_at"
-      )
-      .order("starts_on", { ascending: false })
-      .limit(20),
-    admin
-      .from("membership_cycle_memberships")
-      .select(
-        "id, cycle_id, member_id, state, enrolled_at, renewed_at, expires_on, note, members(id, full_name, jnuits_id, is_profile_claimed)"
-      )
-      .in("state", ["pending_renewal", "active"])
-      .order("updated_at", { ascending: true })
-      .limit(60),
     admin
       .from("invitation_batches")
       .select(
@@ -233,8 +194,6 @@ export default async function AdminMembershipPage({
       .range(memberRangeFrom, memberRangeTo);
   }
 
-  const cycles = (cyclesResult.data || []) as MembershipCycleClientRecord[];
-  const rawCycleMembers = (cycleMembersResult.data || []) as CycleMemberRecord[];
   const batches = (batchesResult.data || []) as InvitationBatchClientRecord[];
   const rawManagedMembers = (managedMembersResult.data || []) as Omit<
     ManagedMemberClientRecord,
@@ -293,19 +252,6 @@ export default async function AdminMembershipPage({
     displayJnuitsId: displayMembershipId(member.jnuits_id),
   }));
 
-  const cycleMembers: CycleMemberClientRecord[] = rawCycleMembers.map((row) => {
-    const member = resolveOne(row.members);
-    return {
-      cycle_id: row.cycle_id,
-      displayJnuitsId: displayMembershipId(member?.jnuits_id),
-      expires_on: row.expires_on,
-      id: row.id,
-      isProfileClaimed: Boolean(member?.is_profile_claimed),
-      memberName: member?.full_name || "Member record",
-      note: row.note,
-      state: row.state,
-    };
-  });
 
   const accountRequests: AccountRequestClientRecord[] = rawAccountRequests.map((request) => {
     const member = resolveOne(request.members);
@@ -323,13 +269,6 @@ export default async function AdminMembershipPage({
     };
   });
 
-  const activeCycle = cycles.find((cycle) => cycle.status === "active") || null;
-  const pendingRenewals = cycleMembers.filter(
-    (row) => row.state === "pending_renewal"
-  ).length;
-  const activeMembersInCycles = cycleMembers.filter(
-    (row) => row.state === "active"
-  ).length;
   const totalIssuedInvitations = batches.reduce(
     (sum, batch) => sum + (batch.issued_count || 0),
     0
@@ -342,11 +281,7 @@ export default async function AdminMembershipPage({
   return (
     <MembershipDbClient
       accountRequests={accountRequests}
-      activeCycle={activeCycle}
-      activeMembersInCycles={activeMembersInCycles}
       batches={batches}
-      cycles={cycles}
-      cycleMembers={cycleMembers}
       departmentOptions={departmentOptions}
       flash={flash}
       managedMemberTotal={managedMembersResult.count || managedMembers.length}
@@ -355,7 +290,6 @@ export default async function AdminMembershipPage({
       memberPage={memberPage}
       memberPageSize={memberPageSize}
       memberRoleFilter={normalizedRoleFilter}
-      pendingRenewals={pendingRenewals}
       portalRoleOptions={portalRoleOptions}
       totalClaimedInvitations={totalClaimedInvitations}
       totalIssuedInvitations={totalIssuedInvitations}

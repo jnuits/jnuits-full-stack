@@ -4,6 +4,7 @@ import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import { EmptyState } from "@/components/ui/empty-state";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { requireAdminPermission } from "@/lib/auth/session";
 import {
   approveMembershipApplication,
   rejectMembershipApplication,
@@ -20,7 +21,6 @@ type MembershipApplication = {
   department_code: null | string;
   email: string;
   id: string;
-  membership_cycle_id: null | string;
   name: string;
   phone: null | string;
   review_note: null | string;
@@ -61,13 +61,14 @@ function relativeTime(value: string) {
 export const metadata = { title: "Applications — Admin | JnUITS" };
 
 export default async function ApplicationsPage() {
+  await requireAdminPermission("admin.membership.manage", { fallbackPath: "/admin/dashboard" });
   const admin = asFlexibleClient(createAdminClient());
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
   const [membershipResult, membershipCountResult, recentResult, alumniResult, alumniCountResult] = await Promise.all([
     admin
       .from("membership_applications" as string)
-      .select("id, membership_cycle_id, name, email, department_code, batch_label, student_id, phone, status, created_at, review_note")
+      .select("id, name, email, department_code, batch_label, student_id, phone, status, created_at, review_note")
       .in("status", ["pending", "needs_review"])
       .order("created_at", { ascending: true })
       .limit(50),
@@ -131,7 +132,7 @@ export default async function ApplicationsPage() {
           <h2 className="admin-card-row__title" id="membership-queue-heading">Confirmed applications, oldest first</h2>
         </div>
         {!membership.length ? (
-          <EmptyState title="No membership applications awaiting review" description="Only email-confirmed submissions from an open annual cycle appear here." />
+          <EmptyState title="No membership applications awaiting review" description="Email-confirmed membership submissions appear here. No cycle window is required." />
         ) : membership.map((application) => (
           <article className="admin-review-card admin-review-card--pending" key={application.id}>
             <div className="admin-review-card__header">
@@ -147,11 +148,15 @@ export default async function ApplicationsPage() {
               <div className="text-right text-xs text-[var(--muted-foreground)]">
                 <p>{application.department_code || "Department not supplied"}</p>
                 <p>{application.student_id || "Student ID not supplied"}</p>
-                <p>{application.membership_cycle_id ? "Annual cycle bound" : "Cycle binding missing"}</p>
               </div>
             </div>
             <form className="admin-review-card__actions">
               <input name="applicationId" type="hidden" value={application.id} />
+              <label className="input-label">
+                Official joining date (optional)
+                <input name="joinedOn" type="date" />
+                <span className="text-xs text-[var(--muted-foreground)]">Leave blank to use the approval date in Bangladesh. Enter an earlier date only after checking the official member register. Renewal follows this date each year.</span>
+              </label>
               <label className="input-label">
                 Review note
                 <textarea defaultValue={application.review_note || ""} name="reviewNote" placeholder="Decision rationale or follow-up needed" rows={3} />

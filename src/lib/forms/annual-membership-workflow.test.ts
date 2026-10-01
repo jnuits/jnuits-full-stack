@@ -25,7 +25,9 @@ const actions = fs.readFileSync(
 );
 
 
-describe("annual membership workflow", () => {
+// Historical migration compatibility only. Effective joining-date/approval
+// behavior is executed in assert-cycle-free-approval.sql and action tests.
+describe("historical annual membership workflow artifacts", () => {
   it("requires CAPTCHA and email confirmation before creating a typed case", () => {
     expect(submitRoute).toContain('captchaValidation: "turnstile"');
     expect(submitRoute).toContain("createPendingFormSubmission");
@@ -34,13 +36,13 @@ describe("annual membership workflow", () => {
     expect(confirmMigration).toContain("insert into public.membership_applications");
   });
 
-  it("binds confirmed applications to one open annual cycle", () => {
+  it("preserves the superseded cycle-binding migration for rollback compatibility", () => {
     expect(cycleMigration).toContain("membership_applications_bind_cycle");
     expect(cycleMigration).toContain("membership_cycles_one_active_idx");
     expect(cycleMigration).toContain("Membership intake is closed");
   });
 
-  it("deduplicates by normalized email, student identity, and cycle membership", () => {
+  it("preserves historical cycle identity indexes and enrollment SQL", () => {
     expect(cycleMigration).toContain("membership_applications_cycle_email_active_idx");
     expect(cycleMigration).toContain("membership_applications_cycle_student_active_idx");
     expect(decisionMigration).toContain("lower(trim(email::text))");

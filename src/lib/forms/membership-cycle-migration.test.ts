@@ -10,7 +10,7 @@ const migration = fs.readFileSync(
   "utf8"
 );
 
-describe("annual membership application cycles", () => {
+describe("historical annual membership cycle migration (retired workflow)", () => {
   it("binds every typed application to one open annual cycle", () => {
     expect(migration).toContain("membership_cycle_id uuid");
     expect(migration).toContain("bind_membership_application_cycle");

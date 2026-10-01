@@ -57,7 +57,6 @@ const directInviteSchema = z.object({
 });
 
 const createBatchSchema = z.object({
-  cycleId: z.string().trim().max(80).optional().default(""),
   expiresAt: z.string().trim().max(80).optional().default(""),
   label: z.string().trim().min(1, "Batch label is required.").max(180),
   source: z.enum(BATCH_SOURCES).default("manual"),
@@ -68,7 +67,7 @@ const issueBatchSchema = z.object({
   batchId: z.string().trim().min(1, "Batch is required.").max(80),
   expiresInDays: optionalPositiveInt(14, 365),
   maxUses: optionalPositiveInt(1, 1000),
-  onlyPendingRenewal: z.boolean().optional().default(true),
+  memberIds: z.array(z.string().trim().max(80).transform(normalizeJnuitsIdForCreation).refine(Boolean, "Use JnUITS-2024001 or 2024001.")).min(1, "Provide at least one member ID.").max(500),
 });
 
 const batchIdSchema = z.object({
@@ -445,7 +444,7 @@ export async function createInvitationBatchAction(input: unknown): Promise<Actio
       .from("invitation_batches" as string)
       .insert({
         created_by_user_id: actorUserId,
-        cycle_id: parsed.cycleId || null,
+        cycle_id: null,
         expires_at: parsed.expiresAt || null,
         label: parsed.label,
         source: parsed.source,
@@ -495,7 +494,7 @@ export async function issueInvitationsFromBatchAction(input: unknown): Promise<A
     const flexibleAdmin = asFlexibleClient(admin);
     const { data: batch, error: batchError } = await flexibleAdmin
       .from("invitation_batches" as string)
-      .select("id, cycle_id, label")
+      .select("id, label, status")
       .eq("id", parsed.batchId)
       .maybeSingle();
 
@@ -507,35 +506,29 @@ export async function issueInvitationsFromBatchAction(input: unknown): Promise<A
       throw new SafeAdminActionError("Invitation batch could not be loaded.");
     }
 
-    if (!batch.cycle_id) {
-      return { ok: false, message: "This batch is not linked to a membership cycle." };
+    if (["closed", "archived"].includes(batch.status)) {
+      return { ok: false, message: "This batch is closed or archived. Create an active outreach batch." };
     }
 
-    let queue = flexibleAdmin
-      .from("membership_cycle_memberships" as string)
-      .select("id, member_id, state, members(id, full_name, email, jnuits_id, member_type, lifecycle_status, is_profile_claimed)")
-      .eq("cycle_id", batch.cycle_id);
-
-    if (parsed.onlyPendingRenewal) {
-      queue = queue.eq("state", "pending_renewal");
-    } else {
-      queue = queue.in("state", ["active", "pending_renewal", "renewed"]);
-    }
-
-    const { data: rows, error: queueError } = await queue.limit(500);
+    const memberIds = [...new Set(parsed.memberIds)];
+    const { data: rows, error: queueError } = await flexibleAdmin
+      .from("members" as string)
+      .select(MEMBER_INVITATION_SELECT)
+      .in("jnuits_id", memberIds);
 
     if (queueError) {
       throw queueError;
+    }
+    if ((rows || []).length !== memberIds.length) {
+      return { ok: false, message: "Some member IDs were not found. Correct the list before issuing invitations." };
     }
 
     let failed = 0;
     let issued = 0;
     let skipped = 0;
 
-    for (const row of (rows || []) as { members?: InvitationMember | InvitationMember[] | null }[]) {
-      const member = Array.isArray(row.members) ? row.members[0] : row.members;
-
-      if (!member || member.is_profile_claimed || (await hasActiveInvitation(member.id, batch.id))) {
+    for (const member of (rows || []) as InvitationMember[]) {
+      if (member.is_profile_claimed || member.lifecycle_status === "deleted" || member.portal_access_status !== "active" || (await hasActiveInvitation(member.id))) {
         skipped += 1;
         continue;
       }
@@ -545,7 +538,7 @@ export async function issueInvitationsFromBatchAction(input: unknown): Promise<A
         admin,
         batchId: batch.id,
         expiresInDays: parsed.expiresInDays,
-        invitationType: "renewal",
+        invitationType: "member_claim",
         maxUses: parsed.maxUses,
         member,
         note: `[batch:${batch.id}] ${batch.label}`,
@@ -565,7 +558,6 @@ export async function issueInvitationsFromBatchAction(input: unknown): Promise<A
           failedCount: metrics.failedCount,
           issuedThisRun: issued,
           lastIssuedAt: new Date().toISOString(),
-          onlyPendingRenewal: parsed.onlyPendingRenewal,
           skippedThisRun: skipped,
         },
         status: metrics.issuedCount > 0 ? "active" : "draft",

@@ -7,6 +7,7 @@ import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { getAppBaseUrl } from "@/lib/env";
 import { buildClaimProfileUrl } from "@/lib/members/claim-url";
+import { parseJoiningDate } from "@/lib/membership/intake-fields";
 import {
   generateInvitationCode,
   getInvitationExpiryIso,
@@ -69,6 +70,21 @@ export async function approveMembershipApplication(formData: FormData) {
   const parsed = parse(formData);
   if (!parsed.success) return finish("Approval failed", "Invalid application request.", "error");
 
+  const rawJoiningDate = formData.get("joinedOn");
+  if (rawJoiningDate !== null && typeof rawJoiningDate !== "string") {
+    return finish("Approval failed", "Joining date must use YYYY-MM-DD, for example 2024-07-01.", "error");
+  }
+  const joinedOn = rawJoiningDate?.trim() || null;
+  if (joinedOn) {
+    const validated = parseJoiningDate(joinedOn);
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date());
+    if (!validated.ok || joinedOn > today) {
+      return finish("Approval failed", "Joining date must be a real date in YYYY-MM-DD format (for example 2024-07-01), today or earlier.", "error");
+    }
+  }
+
   const identity = await applicationIdentity(parsed.data.applicationId);
   if (!identity) return finish("Approval failed", "Application not found.", "error");
 
@@ -80,12 +96,20 @@ export async function approveMembershipApplication(formData: FormData) {
     p_application_id: parsed.data.applicationId,
     p_invitation_code_hash: hashInvitationCode(invitationCode),
     p_invitation_expires_at: expiresAt,
+    p_joined_on: joinedOn,
     p_review_note: parsed.data.reviewNote || null,
   });
   const result = (Array.isArray(data) ? data[0] : data) as ApprovalResult | null;
 
   if (error || !result || !["approved", "already_approved"].includes(result.result_status)) {
-    return finish("Approval failed", "The membership workflow could not be completed.", "error");
+    const message = result?.result_status === "identity_conflict"
+      ? "The application conflicts with an existing member identity. Correct the email or student ID before approval."
+      : result?.result_status === "already_member"
+        ? "This person already has a claimed member profile. Use their existing profile and renewal workflow."
+        : result?.result_status === "joining_date_conflict"
+          ? "The joining date differs from the existing member record. Verify and correct that profile before approval."
+        : "The membership workflow could not be completed. Refresh the application and try again.";
+    return finish("Approval failed", message, "error");
   }
 
   if (result.result_status === "approved" && result.jnuits_id) {

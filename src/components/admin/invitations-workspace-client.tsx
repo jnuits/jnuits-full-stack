@@ -94,13 +94,6 @@ export type InvitationWorkspaceBatch = {
   status: string;
 };
 
-export type InvitationWorkspaceCycle = {
-  code: string;
-  endsOn: null | string;
-  id: string;
-  title: string;
-};
-
 export type InvitationWorkspaceDelivery = {
   createdAt: string;
   errorMessage: null | string;
@@ -132,7 +125,6 @@ export type InvitationWorkspaceMetrics = {
 
 type InvitationsWorkspaceClientProps = {
   batches: InvitationWorkspaceBatch[];
-  cycles: InvitationWorkspaceCycle[];
   deliveries: InvitationWorkspaceDelivery[];
   flash: AdminFlash;
   invitations: InvitationWorkspaceInvitation[];
@@ -373,7 +365,6 @@ function Pagination({
 export function InvitationsWorkspaceClient({
   auditEvents,
   batches,
-  cycles,
   deliveries,
   flash,
   invitations,
@@ -412,11 +403,10 @@ export function InvitationsWorkspaceClient({
   const [directType, setDirectType] = useState<"alumni_direct" | "member_claim">("member_claim");
   const [directNote, setDirectNote] = useState("");
   const [batchLabel, setBatchLabel] = useState("");
-  const [batchCycleId, setBatchCycleId] = useState("");
   const [batchSource, setBatchSource] = useState("renewal");
   const [batchStatus, setBatchStatus] = useState("draft");
   const [issueBatchId, setIssueBatchId] = useState("");
-  const [onlyPendingRenewal, setOnlyPendingRenewal] = useState(true);
+  const [batchMemberIds, setBatchMemberIds] = useState("");
   const [csvContent, setCsvContent] = useState("");
   const [csvType, setCsvType] = useState<"alumni_direct" | "member_claim">("member_claim");
   const [csvPreview, setCsvPreview] = useState<Record<string, unknown> | null>(null);
@@ -1106,7 +1096,6 @@ export function InvitationsWorkspaceClient({
             event.preventDefault();
             runAction("create-batch", () =>
               createInvitationBatchAction({
-                cycleId: batchCycleId,
                 label: batchLabel,
                 source: batchSource,
                 status: batchStatus,
@@ -1131,17 +1120,6 @@ export function InvitationsWorkspaceClient({
             />
           </label>
           <div className="portal-form-grid">
-            <label className="input-label" htmlFor="batch-cycle">
-              Linked cycle
-              <select id="batch-cycle" onChange={(event) => setBatchCycleId(event.target.value)} value={batchCycleId}>
-                <option value="">No cycle link</option>
-                {cycles.map((cycle) => (
-                  <option key={cycle.id} value={cycle.id}>
-                    {cycle.code} · {cycle.title}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label className="input-label" htmlFor="batch-source">
               Source
               <select id="batch-source" onChange={(event) => setBatchSource(event.target.value)} value={batchSource}>
@@ -1176,15 +1154,15 @@ export function InvitationsWorkspaceClient({
                 batchId: issueBatchId,
                 expiresInDays: 14,
                 maxUses: 1,
-                onlyPendingRenewal,
+                memberIds: batchMemberIds.trim().split(/[\s,]+/).filter(Boolean),
               })
             );
           }}
         >
           <div>
-            <span className="eyebrow">Renewal queue issue</span>
+            <span className="eyebrow">Profile claim outreach</span>
             <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-              Issue invitations from cycle queue
+              Invite selected existing members
             </h2>
           </div>
           <label className="input-label" htmlFor="issue-batch">
@@ -1203,20 +1181,13 @@ export function InvitationsWorkspaceClient({
               ))}
             </select>
           </label>
-          <label className="toggle-label" htmlFor="only-pending-renewal">
-            <input
-              checked={onlyPendingRenewal}
-              className="toggle-input"
-              id="only-pending-renewal"
-              onChange={(event) => setOnlyPendingRenewal(event.target.checked)}
-              type="checkbox"
-            />
-            <span className="toggle-track" aria-hidden="true">
-              <span className="toggle-thumb" />
-            </span>
-            <span className="toggle-text">Pending renewal members only</span>
+          <label className="input-label" htmlFor="batch-member-ids">
+            JnUITS membership IDs
+            <textarea id="batch-member-ids" onChange={(event) => setBatchMemberIds(event.target.value)}
+              placeholder="JnUITS-2024001, JnUITS-2024002" required rows={4} value={batchMemberIds} />
+            <span className="text-xs text-[var(--muted-foreground)]">Separate up to 500 existing IDs with commas or new lines. Claimed profiles and blocked accounts are skipped. Claim invitations do not confirm renewal fees.</span>
           </label>
-          <button className="primary-button" disabled={busyKey === "issue-batch" || !issueBatchId} type="submit">
+          <button className="primary-button" disabled={busyKey === "issue-batch" || !issueBatchId || !batchMemberIds.trim()} type="submit">
             {busyKey === "issue-batch" ? <span className="membership-spinner" /> : "Issue invitations"}
           </button>
         </form>
@@ -1245,7 +1216,7 @@ export function InvitationsWorkspaceClient({
                     <div>
                       <h3>{batch.label}</h3>
                       <p>
-                        {batch.source} · {batch.status} · {batch.cycleLabel || "No cycle link"}
+                        {batch.source} · {batch.status}{batch.cycleLabel ? ` · Historical cycle: ${batch.cycleLabel}` : ""}
                       </p>
                     </div>
                     <div className="invitation-batch-row__progress">

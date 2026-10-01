@@ -4265,6 +4265,7 @@ export type Database = {
           p_application_id: string
           p_invitation_code_hash: string
           p_invitation_expires_at: string
+          p_joined_on?: string
           p_review_note: string
         }
         Returns: {

@@ -1,7 +1,13 @@
 import { describe, expectTypeOf, it } from "vitest";
-import type { Tables, TablesInsert, TablesUpdate } from "@/lib/db/types";
+import type { Database, Tables, TablesInsert, TablesUpdate } from "@/lib/db/types";
 
 describe("generated committee onboarding database types", () => {
+  it("keeps nullable historical cycles while exposing reviewed joining-date approval", () => {
+    expectTypeOf<Tables<"membership_applications">["membership_cycle_id"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<Tables<"membership_cycles">["id"]>().toEqualTypeOf<string>();
+    expectTypeOf<Tables<"membership_cycle_memberships">["member_id"]>().toEqualTypeOf<string>();
+    expectTypeOf<Database["public"]["Functions"]["approve_membership_application"]["Args"]["p_joined_on"]>().toEqualTypeOf<string | undefined>();
+  });
   it("exposes per-term positions", () => {
     expectTypeOf<Tables<"committee_term_positions">["public_label"]>().toEqualTypeOf<string>();
     expectTypeOf<Tables<"committee_term_positions">["target_slots"]>().toEqualTypeOf<number>();

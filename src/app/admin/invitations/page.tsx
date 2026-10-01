@@ -4,7 +4,6 @@ import {
   InvitationsWorkspaceClient,
   type InvitationWorkspaceAuditEvent,
   type InvitationWorkspaceBatch,
-  type InvitationWorkspaceCycle,
   type InvitationWorkspaceDelivery,
   type InvitationWorkspaceInvitation,
   type InvitationWorkspaceMetrics,
@@ -248,7 +247,6 @@ export default async function InvitationsPage({
   const [
     invitationsResult,
     batchesResult,
-    cyclesResult,
     deliveriesResult,
     auditResult,
     activeCountResult,
@@ -265,11 +263,6 @@ export default async function InvitationsPage({
         "id, cycle_id, label, source, status, issued_count, claimed_count, expires_at, metadata, created_at, membership_cycles(code, title)"
       )
       .order("created_at", { ascending: false })
-      .limit(50),
-    flexibleAdmin
-      .from("membership_cycles" as string)
-      .select("id, code, title, ends_on")
-      .order("starts_on", { ascending: false })
       .limit(50),
     flexibleAdmin
       .from("invitation_email_deliveries" as string)
@@ -326,18 +319,6 @@ export default async function InvitationsPage({
     revokedOrExpired: (revokedCountResult.count || 0) + (expiredCountResult.count || 0),
   };
 
-  const cycles: InvitationWorkspaceCycle[] = ((cyclesResult.data || []) as {
-    code: string;
-    ends_on: null | string;
-    id: string;
-    title: string;
-  }[]).map((cycle) => ({
-    code: cycle.code,
-    endsOn: cycle.ends_on,
-    id: cycle.id,
-    title: cycle.title,
-  }));
-
   const deliveries: InvitationWorkspaceDelivery[] = ((deliveriesResult.data || []) as DeliveryRow[]).map(
     (delivery) => ({
       createdAt: delivery.created_at,
@@ -365,7 +346,6 @@ export default async function InvitationsPage({
     <InvitationsWorkspaceClient
       auditEvents={auditEvents}
       batches={batches}
-      cycles={cycles}
       deliveries={deliveries}
       flash={flash}
       invitations={invitationRows.map(mapInvitation)}

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import type { Database } from "@/lib/db/types";
+import { approveMembershipApplication as approveTransactionalMembershipApplication } from "@/app/admin/applications/membership-actions";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
@@ -12,7 +13,6 @@ import { revalidatePublicCommitteeProjection } from "@/lib/committee/revalidatio
 import { isActiveDepartmentCode } from "@/lib/departments.server";
 import { getAppBaseUrl } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { asFlexibleClient } from "@/lib/supabase/flexible";
 import {
   DEFAULT_INVITATION_EXPIRY_DAYS,
   generateInvitationCode,
@@ -21,7 +21,6 @@ import {
   hashInvitationCodeCandidates,
 } from "@/lib/members/invitation-code";
 import {
-  extractBatchNumber,
   normalizeJnuitsIdForCreation,
 } from "@/lib/members/jnuits-id";
 import { buildClaimProfileUrl } from "@/lib/members/claim-url";
@@ -32,15 +31,12 @@ import {
 import { sendEmail } from "@/lib/notifications/send-email";
 import {
   buildMemberInvitationEmail,
-  buildMembershipApprovedEmail,
   buildMembershipRejectedEmail,
   buildEmailChangeVerificationEmail,
   buildProfileChangeApprovedEmail,
   buildProfileChangeRejectedEmail,
 } from "@/lib/notifications/email-builders";
 
-type MembershipApplicationRow =
-  Database["public"]["Tables"]["membership_applications"]["Row"];
 type MemberInvitationRow =
   Database["public"]["Tables"]["member_invitations"]["Row"];
 type ProfileUpdateRequestRow =
@@ -65,13 +61,6 @@ const optionalPositiveInt = (fallback: number, max: number) =>
 
 const noteField = z.string().trim().max(1500).optional().default("");
 
-const approveApplicationSchema = z.object({
-  applicationId: z.string().trim().min(1, "The application identifier is missing.").max(80),
-  invitationExpiresInDays: optionalPositiveInt(DEFAULT_INVITATION_EXPIRY_DAYS, 365),
-  jnuitsIdOverride: z.string().trim().max(80).optional().default(""),
-  maxUses: optionalPositiveInt(1, 20),
-  reviewNote: noteField,
-});
 
 const applicationModerationSchema = z.object({
   applicationId: z.string().trim().min(1, "The application identifier is missing.").max(80),
@@ -163,96 +152,6 @@ async function getNextInvitationCode(admin: ReturnType<typeof createAdminClient>
   throw new Error("Unable to generate a unique invitation code.");
 }
 
-async function allocateCurrentYearMembershipId(
-  admin: ReturnType<typeof createAdminClient>
-) {
-  const yearBlock = String(new Date().getUTCFullYear());
-  const { data, error } = await asFlexibleClient(admin).rpc("allocate_membership_id" as string, {
-    year_block: yearBlock,
-  });
-
-  if (error || typeof data !== "string") {
-    throw new Error(error?.message || "Unable to allocate the next JnUITS ID.");
-  }
-
-  return data;
-}
-
-async function resolveApprovedMemberId(
-  admin: ReturnType<typeof createAdminClient>,
-  application: MembershipApplicationRow,
-  overrideId: string
-) {
-  if (application.processed_member_id) {
-    const { data: existingMember } = await admin
-      .from("members")
-      .select("id, jnuits_id")
-      .eq("id", application.processed_member_id)
-      .maybeSingle();
-
-    if (existingMember) {
-      return existingMember;
-    }
-  }
-
-  const { data: memberForEmail } = await admin
-    .from("members")
-    .select("id, jnuits_id")
-    .eq("email", application.email)
-    .maybeSingle();
-
-  if (memberForEmail) {
-    return memberForEmail;
-  }
-
-  const normalizedOverride = normalizeJnuitsIdForCreation(overrideId);
-
-  if (overrideId && !normalizedOverride) {
-    throw new Error(
-      "Manual JnUITS ID overrides must use the JNUITS-YYYYSSS format."
-    );
-  }
-
-  if (normalizedOverride) {
-    const { data: memberForId } = await admin
-      .from("members")
-      .select("id, jnuits_id")
-      .eq("jnuits_id", normalizedOverride)
-      .maybeSingle();
-
-    if (memberForId) {
-      throw new Error(`JnUITS ID ${normalizedOverride} is already assigned.`);
-    }
-  }
-
-  const generatedId =
-    normalizedOverride || (await allocateCurrentYearMembershipId(admin));
-
-  const { data: createdMember, error: memberError } = await asFlexibleClient(admin)
-    .from("members" as string)
-    .insert({
-      jnuits_id: generatedId,
-      full_name: application.name,
-      email: application.email,
-      phone: application.phone,
-      department_code: application.department_code,
-      batch_no: extractBatchNumber(application.batch_label),
-      lifecycle_status: "current",
-      member_type: "current",
-      portal_access_status: "active",
-      facebook_url: application.facebook_url,
-      linkedin_url: application.linkedin_url,
-      professional_visibility: "members-only",
-    })
-    .select("id, jnuits_id")
-    .single();
-
-  if (memberError || !createdMember) {
-    throw new Error(memberError?.message || "Unable to create the member record.");
-  }
-
-  return createdMember;
-}
 
 async function issueFreshInvitation(
   admin: ReturnType<typeof createAdminClient>,
@@ -292,171 +191,7 @@ async function issueFreshInvitation(
 }
 
 export async function approveMembershipApplication(formData: FormData) {
-  const auth = await requireAdminPermission("admin.membership.manage", {
-    fallbackPath: "/admin/dashboard",
-  });
-  const actorUserId = auth.user?.id;
-
-  if (!actorUserId) {
-    redirect("/login");
-  }
-  const parsed = approveApplicationSchema.safeParse(
-    pickFormFields(formData, [
-      "applicationId",
-      "reviewNote",
-      "jnuitsIdOverride",
-      "maxUses",
-      "invitationExpiresInDays",
-    ])
-  );
-
-  if (!parsed.success) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Application approval failed",
-      message:
-        parsed.error.issues[0]?.message ||
-        "The application identifier is missing.",
-    });
-    redirect("/admin");
-  }
-
-  const {
-    applicationId,
-    invitationExpiresInDays: expiryDays,
-    jnuitsIdOverride,
-    maxUses,
-    reviewNote,
-  } = parsed.data;
-
-  const admin = createAdminClient();
-  const applicationResult = await loadPendingApplication(applicationId);
-  const application = applicationResult.data;
-
-  if (applicationResult.error || !application) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Application approval failed",
-      message: "The selected application could not be loaded.",
-    });
-    redirect("/admin");
-  }
-
-  if (application.status !== "pending") {
-    await setAdminFlash({
-      tone: "error",
-      title: "Application already processed",
-      message: `${application.name}'s application is already marked as ${application.status}.`,
-    });
-    redirect("/admin");
-  }
-
-  try {
-    const member = await resolveApprovedMemberId(admin, application, jnuitsIdOverride);
-    const nowIso = new Date().toISOString();
-    const invitation = await issueFreshInvitation(admin, {
-      actorUserId,
-      expiryDays,
-      maxUses,
-      memberId: member.id,
-      notes: reviewNote || "Generated from membership application approval.",
-    });
-
-    const { error: applicationUpdateError } = await admin
-      .from("membership_applications")
-      .update({
-        status: "approved",
-        review_note: reviewNote || null,
-        reviewed_at: nowIso,
-        reviewed_by_user_id: actorUserId,
-        processed_member_id: member.id,
-        invitation_id: invitation.invitationId,
-      })
-      .eq("id", application.id);
-
-    if (applicationUpdateError) {
-      throw new Error(applicationUpdateError.message);
-    }
-
-    await admin.from("membership_lifecycle_events").insert({
-      member_id: member.id,
-      event_type: "application_approved",
-      summary: "Membership application approved and invitation generated.",
-      created_by_user_id: actorUserId,
-      metadata: {
-        applicationId: application.id,
-        invitationId: invitation.invitationId,
-        jnuitsId: member.jnuits_id,
-        batchLabel: application.batch_label,
-        studentId: application.student_id,
-      },
-    });
-
-    await admin.from("audit_events").insert([
-      {
-        actor_user_id: actorUserId,
-        action: "membership.application_approved",
-        entity_type: "membership_application",
-        entity_id: application.id,
-        metadata: {
-          memberId: member.id,
-          invitationId: invitation.invitationId,
-          jnuitsId: member.jnuits_id,
-        },
-      },
-      {
-        actor_user_id: actorUserId,
-        action: "member.invitation_generated",
-        entity_type: "member_invitation",
-        entity_id: invitation.invitationId,
-        metadata: {
-          applicationId: application.id,
-          memberId: member.id,
-          expiresAt: invitation.expiresAt,
-          maxUses,
-        },
-      },
-    ]);
-
-    revalidatePath("/admin");
-    await setAdminFlash({
-      tone: "success",
-      title: "Application approved",
-      message: `${application.name} is now ready to claim a member profile.`,
-      invitationCode: invitation.code,
-      jnuitsId: member.jnuits_id,
-    });
-
-    // Non-blocking notification — failure must never crash this action
-    void sendEmail({
-      to: application.email,
-      subject: "Your JnUITS membership application has been approved",
-      html: buildMembershipApprovedEmail({
-        applicantName: application.name,
-        applicantEmail: application.email,
-        claimUrl: buildClaimProfileUrl({
-          email: application.email,
-          invitationCode: invitation.code,
-          jnuitsId: member.jnuits_id,
-        }),
-        jnuitsId: member.jnuits_id,
-        invitationCode: invitation.code,
-        invitationExpiresAt: invitation.expiresAt,
-      }),
-    });
-  } catch (error) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Application approval failed",
-      message: safeLegacyAdminError(
-        error,
-        "applications.approve",
-        "The invitation workflow could not be completed."
-      ),
-    });
-  }
-
-  redirect("/admin");
+  return approveTransactionalMembershipApplication(formData);
 }
 
 export async function rejectMembershipApplication(formData: FormData) {

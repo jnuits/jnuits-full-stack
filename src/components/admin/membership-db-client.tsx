@@ -1,20 +1,13 @@
 "use client";
 
 import {
-  CalendarDays,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Clock3,
   Copy,
   Ellipsis,
-  Info,
-  Lock,
   Pencil,
-  RefreshCw,
   Search,
   X,
-  Unlock,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -22,40 +15,14 @@ import { useFormStatus } from "react-dom";
 
 import {
   bulkReviewMemberAccountRequestsAction,
-  createMembershipCycleAction,
-  enrollMemberInCycleAction,
-  lookupMemberForCycleAction,
   reviewMemberAccountRequestAction,
   saveMemberOperationsAction,
-  updateCycleMemberStateAction,
-  updateMembershipCycleStatusAction,
 } from "@/app/admin/membership/actions";
 import { MemberProfileEditor } from "@/components/admin/member-profile-editor";
 import { IntakeWorkspace } from "@/components/admin/onboarding/intake-workspace";
 import { runBoundedTasks } from "@/lib/async/bounded-concurrency";
+import { formatDhakaDate } from "@/lib/membership/anniversary";
 
-export type MembershipCycleClientRecord = {
-  code: string;
-  created_at: string;
-  ends_on: null | string;
-  id: string;
-  renewal_close_on: null | string;
-  renewal_open_on: null | string;
-  starts_on: string;
-  status: string;
-  title: string;
-};
-
-export type CycleMemberClientRecord = {
-  cycle_id: string;
-  displayJnuitsId: string;
-  expires_on: null | string;
-  id: string;
-  isProfileClaimed: boolean;
-  memberName: string;
-  note: null | string;
-  state: string;
-};
 
 export type InvitationBatchClientRecord = {
   claimed_count: number;
@@ -123,11 +90,7 @@ type AdminFlash = {
 
 type MembershipDbClientProps = {
   accountRequests: AccountRequestClientRecord[];
-  activeCycle: MembershipCycleClientRecord | null;
-  activeMembersInCycles: number;
   batches: InvitationBatchClientRecord[];
-  cycles: MembershipCycleClientRecord[];
-  cycleMembers: CycleMemberClientRecord[];
   departmentOptions: DepartmentOptionClientRecord[];
   flash: AdminFlash;
   managedMemberTotal: number;
@@ -136,7 +99,6 @@ type MembershipDbClientProps = {
   memberPage: number;
   memberPageSize: number;
   memberRoleFilter: string;
-  pendingRenewals: number;
   portalRoleOptions: PortalRoleOptionClientRecord[];
   totalClaimedInvitations: number;
   totalIssuedInvitations: number;
@@ -151,30 +113,15 @@ const portalAccessOptions = [
   "deletion_requested",
   "deactivated",
 ] as const;
-const cycleStatuses = ["draft", "active", "closed", "archived"] as const;
-const cycleMemberStates = [
-  "active",
-  "pending_renewal",
-  "renewed",
-  "expired",
-  "lapsed",
-] as const;
 const stickyNavItems = [
   { label: "Members", tabId: "tab-members", targetId: "member-operations" },
   { label: "Profile Intake", tabId: "tab-intake", targetId: "member-profile-intake" },
-  { label: "Cycles", tabId: "tab-cycles", targetId: "cycle-management" },
-  { label: "Enrollment", tabId: "tab-enrollment", targetId: "member-enrollment" },
-  { label: "Registry", tabId: "tab-registry", targetId: "cycle-registry" },
 ] as const;
 
 const stickySectionToTab: Record<string, (typeof stickyNavItems)[number]["tabId"]> = {
   "alumni-queue": "tab-members",
-  "cycle-management": "tab-cycles",
-  "cycle-registry": "tab-registry",
-  "member-enrollment": "tab-enrollment",
   "member-profile-intake": "tab-intake",
   "member-operations": "tab-members",
-  "renewal-queue": "tab-registry",
 };
 
 function scrollToSection(id: string) {
@@ -190,60 +137,6 @@ function humanize(value: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function formatDateDisplay(value: string) {
-  if (!value) {
-    return "";
-  }
-
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(year, month - 1, day));
-}
-
-function toIsoDate(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function parseIsoDate(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) {
-    return null;
-  }
-  return new Date(year, month - 1, day);
-}
-
-function compareIsoDates(a: string, b: string) {
-  return a.localeCompare(b);
-}
-
-function InfoTooltip({
-  ariaLabel,
-  children,
-}: {
-  ariaLabel: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <span className="membership-info">
-      <button aria-label={ariaLabel} className="membership-info__trigger" type="button">
-        <Info aria-hidden="true" size={14} />
-      </button>
-      <span className="membership-info__panel" role="tooltip">
-        {children}
-      </span>
-    </span>
-  );
-}
 
 function PendingSubmitButton({
   children,
@@ -283,110 +176,37 @@ function MetricCard({
   );
 }
 
-function StatsBar({
-  activeCycle,
-  activeMembersInCycles,
-  cyclesCount,
-  pendingRenewals,
-  totalClaimedInvitations,
-  totalIssuedInvitations,
-}: {
-  activeCycle: MembershipCycleClientRecord | null;
-  activeMembersInCycles: number;
-  cyclesCount: number;
-  pendingRenewals: number;
+function StatsBar({ managedMemberTotal, missingJoiningDates, totalClaimedInvitations, totalIssuedInvitations }: {
+  managedMemberTotal: number;
+  missingJoiningDates: number;
   totalClaimedInvitations: number;
   totalIssuedInvitations: number;
 }) {
-  const claimPercent =
-    totalIssuedInvitations > 0
-      ? Math.round(
-          Math.min(100, Math.max(0, (totalClaimedInvitations / totalIssuedInvitations) * 100))
-        )
-      : 0;
-
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-      <MetricCard label="Cycles" value={cyclesCount}>
-        <p className="membership-metric-description mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-          Draft, active, closed, and archived membership windows.
-        </p>
+    <section className="grid gap-4 md:grid-cols-3">
+      <MetricCard label="Matching member profiles" value={managedMemberTotal} />
+      <MetricCard label="Loaded profiles missing joining date" value={missingJoiningDates}>
+        <p className="mt-3 text-sm text-[var(--muted-foreground)]">Verify the official joining date before confirming renewal.</p>
       </MetricCard>
-
-      <MetricCard important label="Active cycle" value={activeCycle ? activeCycle.code : "None"}>
-        <div className="membership-metric-description mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-          {activeCycle ? (
-            <p>
-              <strong className="text-[var(--foreground)]">{activeCycle.title}</strong>{" "}
-              <button
-                className="membership-inline-action"
-                onClick={() => scrollToSection("cycle-management")}
-                type="button"
-              >
-                Change
-              </button>
-            </p>
-          ) : (
-            <button
-              className="ghost-button membership-card-action"
-              onClick={() => scrollToSection("cycle-management")}
-              type="button"
-            >
-              Set active cycle
-            </button>
-          )}
-        </div>
+      <MetricCard label="Batch claims" value={totalClaimedInvitations + " / " + totalIssuedInvitations}>
+        <p className="mt-3 text-sm text-[var(--muted-foreground)]">Claimed / issued invitations.</p>
       </MetricCard>
-
-      <MetricCard important label="Pending renewals" value={pendingRenewals}>
-        <p className="membership-metric-description mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-          Members waiting for renewal decision or invitation outreach.
-        </p>
-      </MetricCard>
-
-      <MetricCard label="Active cycle members" value={activeMembersInCycles}>
-        <p className="membership-metric-description mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-          Members currently active across loaded cycle rows.
-        </p>
-      </MetricCard>
-
-      <article className="metric-card membership-metric-card">
-        <p className="metric-card__label">Batch claims</p>
-        <div className="membership-claims-grid">
-          <div>
-            <p className="membership-claims-number">{totalClaimedInvitations}</p>
-            <p className="membership-sub-label">Claimed</p>
-          </div>
-          <div className="membership-claims-divider" aria-hidden="true" />
-          <div>
-            <p className="membership-claims-number">{totalIssuedInvitations}</p>
-            <p className="membership-sub-label">Issued</p>
-          </div>
-        </div>
-        {totalIssuedInvitations > 0 ? (
-          <div className="membership-progress" aria-hidden="true">
-            <span data-complete={claimPercent === 100} style={{ width: `${claimPercent}%` }} />
-          </div>
-        ) : null}
-      </article>
     </section>
   );
 }
 
 function WorkflowProgress({
-  activeMembersInCycles,
+  membersCount,
   batchesCount,
-  cyclesCount,
   issuedCount,
 }: {
-  activeMembersInCycles: number;
+  membersCount: number;
   batchesCount: number;
-  cyclesCount: number;
   issuedCount: number;
 }) {
   const rawSteps = [
-    { complete: cyclesCount > 0, id: "cycle-management", label: "Create cycle" },
-    { complete: activeMembersInCycles > 0, id: "member-enrollment", label: "Enroll members" },
+    { complete: membersCount > 0, id: "member-profile-intake", label: "Add member profiles" },
+    { complete: membersCount > 0, id: "member-operations", label: "Review member profiles" },
     {
       complete: batchesCount > 0,
       href: "/admin/invitations#batches",
@@ -574,8 +394,6 @@ function MemberTableAvatar({ member }: { member: ManagedMemberClientRecord }) {
 }
 
 function MemberOperationsSection({
-  cycles,
-  cycleMembers,
   departmentOptions,
   memberLifecycleFilter,
   memberPage,
@@ -585,8 +403,6 @@ function MemberOperationsSection({
   managedMembers,
   portalRoleOptions,
 }: {
-  cycles: MembershipCycleClientRecord[];
-  cycleMembers: CycleMemberClientRecord[];
   departmentOptions: DepartmentOptionClientRecord[];
   memberLifecycleFilter: string;
   memberPage: number;
@@ -660,18 +476,6 @@ function MemberOperationsSection({
     [members, portalRoleOptions]
   );
 
-  const cycleLabelByJnuitsId = useMemo(() => {
-    const cycleById = new Map(cycles.map((cycle) => [cycle.id, cycle.code] as const));
-    const labelByMemberId = new Map<string, string>();
-
-    for (const row of cycleMembers) {
-      if (!labelByMemberId.has(row.displayJnuitsId)) {
-        labelByMemberId.set(row.displayJnuitsId, cycleById.get(row.cycle_id) || "Cycle");
-      }
-    }
-
-    return labelByMemberId;
-  }, [cycleMembers, cycles]);
 
   const filteredMembers = useMemo(() => {
     return members.filter((member) => {
@@ -880,7 +684,7 @@ function MemberOperationsSection({
               <th>Lifecycle</th>
               <th>Portal access</th>
               <th>Portal role</th>
-              <th>Cycle</th>
+              <th>Joined</th>
               <th className="membership-table__actions">Actions</th>
             </tr>
           </thead>
@@ -894,8 +698,6 @@ function MemberOperationsSection({
             ) : (
               filteredMembers.map((member) => {
                 const isSelected = selectedMemberIds.has(member.id);
-                const cycleLabel = cycleLabelByJnuitsId.get(member.displayJnuitsId) || "-";
-
                 return (
                   <tr
                     className="membership-table-row"
@@ -931,7 +733,7 @@ function MemberOperationsSection({
                       <TableBadge type="access" value={getMemberPortalAccess(member)} />
                     </td>
                     <td className="membership-table__role" data-label="Portal role">{humanize(member.currentPortalRole)}</td>
-                    <td className="membership-table__cycle" data-label="Cycle">{cycleLabel}</td>
+                    <td data-label="Joined">{formatDhakaDate(member.joined_on)}</td>
                     <td className="membership-table__actions" data-label="Actions">
                       <div className="membership-row-actions">
                         <button
@@ -1785,545 +1587,10 @@ function AccountRequestsSection({
   );
 }
 
-function DatePickerField({
-  error,
-  label,
-  name,
-  onChange,
-  required = false,
-  value,
-}: {
-  error?: null | string;
-  label: string;
-  name: string;
-  onChange: (value: string) => void;
-  required?: boolean;
-  value: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const initialDate = parseIsoDate(value) || new Date();
-  const [visibleMonth, setVisibleMonth] = useState(
-    new Date(initialDate.getFullYear(), initialDate.getMonth(), 1)
-  );
-  const year = visibleMonth.getFullYear();
-  const month = visibleMonth.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const offset = new Date(year, month, 1).getDay();
-  const monthLabel = new Intl.DateTimeFormat("en", {
-    month: "long",
-    year: "numeric",
-  }).format(visibleMonth);
-  const cells = [
-    ...Array.from({ length: offset }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
-  ];
-
-  return (
-    <label className="input-label membership-date-field">
-      <span>
-        {label}
-        {required ? <span className="membership-required">*</span> : null}
-      </span>
-      <input name={name} readOnly type="hidden" value={value} />
-      <div className="membership-date-control">
-        <button
-          aria-label={`Open ${label} calendar`}
-          data-empty={!value}
-          data-invalid={Boolean(error)}
-          onClick={() => setOpen((current) => !current)}
-          className="membership-date-button"
-          type="button"
-        >
-          <span>{value ? formatDateDisplay(value) : "Select date"}</span>
-          <CalendarDays aria-hidden="true" size={16} />
-        </button>
-        {open ? (
-          <div className="membership-calendar" role="dialog">
-            <div className="membership-calendar__header">
-              <button
-                aria-label="Previous month"
-                onClick={() => setVisibleMonth(new Date(year, month - 1, 1))}
-                type="button"
-              >
-                <ChevronLeft aria-hidden="true" size={15} />
-              </button>
-              <strong>{monthLabel}</strong>
-              <button
-                aria-label="Next month"
-                onClick={() => setVisibleMonth(new Date(year, month + 1, 1))}
-                type="button"
-              >
-                <ChevronRight aria-hidden="true" size={15} />
-              </button>
-            </div>
-            <div className="membership-calendar__grid">
-              {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-                <span key={`${day}-${index}`}>{day}</span>
-              ))}
-              {cells.map((day, index) =>
-                day ? (
-                  <button
-                    data-selected={value === toIsoDate(new Date(year, month, day))}
-                    key={`${year}-${month}-${day}`}
-                    onClick={() => {
-                      onChange(toIsoDate(new Date(year, month, day)));
-                      setOpen(false);
-                    }}
-                    type="button"
-                  >
-                    {day}
-                  </button>
-                ) : (
-                  <i key={`blank-${index}`} />
-                )
-              )}
-            </div>
-          </div>
-        ) : null}
-      </div>
-      {error ? <span className="membership-field-error">{error}</span> : null}
-    </label>
-  );
-}
-
-function CycleAndEnrollmentForms({
-  cycles,
-}: {
-  cycles: MembershipCycleClientRecord[];
-}) {
-  const currentYear = new Date().getFullYear();
-  const [codeLocked, setCodeLocked] = useState(true);
-  const [startsOn, setStartsOn] = useState("");
-  const [endsOn, setEndsOn] = useState("");
-  const [renewalOpenOn, setRenewalOpenOn] = useState("");
-  const [renewalCloseOn, setRenewalCloseOn] = useState("");
-  const [selectedCycleId, setSelectedCycleId] = useState("");
-  const [expiresOn, setExpiresOn] = useState("");
-  const [memberJnuitsId, setMemberJnuitsId] = useState("");
-  const [lookupPending, setLookupPending] = useState(false);
-  const [lookupResult, setLookupResult] = useState<null | {
-    displayJnuitsId: string;
-    fullName: string;
-    id: string;
-  }>(null);
-  const [lookupError, setLookupError] = useState<null | string>(null);
-
-  const cycleErrors = {
-    endsOn:
-      startsOn && endsOn && compareIsoDates(endsOn, startsOn) <= 0
-        ? "End date must be after start date."
-        : null,
-    renewalCloseOn:
-      renewalOpenOn && renewalCloseOn && compareIsoDates(renewalCloseOn, renewalOpenOn) <= 0
-        ? "Renewal close date must be after renewal open date."
-        : renewalCloseOn && endsOn && compareIsoDates(renewalCloseOn, endsOn) > 0
-          ? "Renewal close date must be within the cycle."
-          : null,
-    renewalOpenOn:
-      renewalOpenOn && startsOn && compareIsoDates(renewalOpenOn, startsOn) < 0
-        ? "Renewal open date must be on or after cycle start."
-        : renewalOpenOn && endsOn && compareIsoDates(renewalOpenOn, endsOn) > 0
-          ? "Renewal open date must be within the cycle."
-          : null,
-  };
-  const hasCycleDateError =
-    !startsOn || !endsOn || Object.values(cycleErrors).some(Boolean);
-  const selectedCycle = cycles.find((cycle) => cycle.id === selectedCycleId);
-
-  async function verifyMember() {
-    const value = memberJnuitsId.trim();
-    setLookupResult(null);
-    setLookupError(null);
-    if (!value) return;
-
-    setLookupPending(true);
-    try {
-      const result = await lookupMemberForCycleAction({ jnuitsId: value });
-      if (!result) {
-        setLookupError("Member not found.");
-      } else {
-        setLookupResult(result);
-      }
-    } catch {
-      setLookupError("Member lookup failed.");
-    } finally {
-      setLookupPending(false);
-    }
-  }
-
-  return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_minmax(0,0.96fr)]">
-      <form action={createMembershipCycleAction} className="section-band grid gap-4" id="cycle-management">
-        <div>
-          <span className="eyebrow">Cycle management</span>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-            Create membership cycle windows
-          </h2>
-          <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-            <span className="membership-required">*</span> Required field
-          </p>
-        </div>
-        <div className="portal-form-grid">
-          <label className="input-label membership-code-field" htmlFor="cycle-code">
-            <span>
-              Cycle code
-              <span className="membership-required">*</span>
-            </span>
-            <input
-              defaultValue={`cycle-${currentYear}`}
-              id="cycle-code"
-              name="code"
-              placeholder="cycle-2026"
-              readOnly={codeLocked}
-              required
-            />
-            <button
-              aria-label={codeLocked ? "Unlock cycle code" : "Lock cycle code"}
-              onClick={() => setCodeLocked((current) => !current)}
-              type="button"
-            >
-              {codeLocked ? <Lock aria-hidden="true" size={15} /> : <Unlock aria-hidden="true" size={15} />}
-            </button>
-            <span className="membership-code-tooltip">
-              {codeLocked
-                ? "Auto-generated. Click to unlock and edit manually."
-                : "Click to lock this code again."}
-            </span>
-            {!codeLocked ? (
-              <span className="membership-field-warning">
-                Changing the cycle code may break external references.
-              </span>
-            ) : null}
-          </label>
-
-          <label className="input-label" htmlFor="cycle-status">
-            <span>
-              Status
-              <span className="membership-required">*</span>
-              <InfoTooltip ariaLabel="Cycle status information">
-                <strong>Draft</strong> — Not yet active; visible only to admins
-                <br />
-                <strong>Active</strong> — Current renewal cycle accepting members
-                <br />
-                <strong>Closed</strong> — No new enrollments; historical record only
-                <br />
-                <strong>Archived</strong> — Hidden from normal views
-              </InfoTooltip>
-            </span>
-            <select defaultValue="draft" id="cycle-status" name="status" required>
-              {cycleStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {humanize(status)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="input-label sm:col-span-2" htmlFor="cycle-title">
-            <span>
-              Cycle title
-              <span className="membership-required">*</span>
-            </span>
-            <input id="cycle-title" name="title" placeholder="Membership Cycle 2026" required />
-          </label>
-
-          <DatePickerField
-            label="Starts on"
-            name="startsOn"
-            onChange={setStartsOn}
-            required
-            value={startsOn}
-          />
-          <DatePickerField
-            error={cycleErrors.endsOn}
-            label="Ends on"
-            name="endsOn"
-            onChange={setEndsOn}
-            required
-            value={endsOn}
-          />
-          <DatePickerField
-            error={cycleErrors.renewalOpenOn}
-            label="Renewal opens"
-            name="renewalOpenOn"
-            onChange={setRenewalOpenOn}
-            value={renewalOpenOn}
-          />
-          <DatePickerField
-            error={cycleErrors.renewalCloseOn}
-            label="Renewal closes"
-            name="renewalCloseOn"
-            onChange={setRenewalCloseOn}
-            value={renewalCloseOn}
-          />
-        </div>
-        <PendingSubmitButton disabled={hasCycleDateError}>Save cycle</PendingSubmitButton>
-      </form>
-
-      <form action={enrollMemberInCycleAction} className="section-band grid gap-4" id="member-enrollment">
-        <div>
-          <span className="eyebrow">Member-cycle state</span>
-          <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.6rem)] leading-[0.96] tracking-[-0.04em]">
-            Enroll member into cycle
-          </h2>
-        </div>
-        <div className="portal-form-grid">
-          <label className="input-label" htmlFor="enroll-cycle">
-            Cycle
-            <select
-              id="enroll-cycle"
-              name="cycleId"
-              onChange={(event) => {
-                const nextCycle = cycles.find((cycle) => cycle.id === event.target.value);
-                setSelectedCycleId(event.target.value);
-                if (nextCycle?.ends_on) setExpiresOn(nextCycle.ends_on);
-              }}
-              required
-              value={selectedCycleId}
-            >
-              <option value="">Select cycle</option>
-              {cycles.map((cycle) => (
-                <option key={cycle.id} value={cycle.id}>
-                  {cycle.code} • {cycle.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="input-label" htmlFor="enroll-state">
-            <span>
-              State
-              <InfoTooltip ariaLabel="Cycle member state information">
-                Controls this member&apos;s enrollment status within the selected cycle.
-              </InfoTooltip>
-            </span>
-            <select defaultValue="active" id="enroll-state" name="memberState">
-              {cycleMemberStates.map((state) => (
-                <option key={state} value={state}>
-                  {humanize(state)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="input-label sm:col-span-2 membership-lookup-field" htmlFor="member-jnuits-id">
-            Member JnUITS ID
-            <input
-              id="member-jnuits-id"
-              name="memberJnuitsId"
-              onBlur={verifyMember}
-              onChange={(event) => {
-                setMemberJnuitsId(event.target.value);
-                setLookupResult(null);
-                setLookupError(null);
-              }}
-              placeholder="JnUITS-2026001"
-              required
-              value={memberJnuitsId}
-            />
-            <span className="membership-lookup-indicator">
-              {lookupPending ? (
-                <span className="membership-spinner" aria-hidden="true" />
-              ) : lookupResult ? (
-                "✓"
-              ) : lookupError ? (
-                "✕"
-              ) : null}
-            </span>
-            {lookupResult ? (
-              <span className="portal-message portal-message--success">
-                {lookupResult.fullName} · {lookupResult.displayJnuitsId}
-              </span>
-            ) : null}
-            {lookupError ? <span className="portal-message portal-message--error">{lookupError}</span> : null}
-          </label>
-          <DatePickerField
-            label="Expires on"
-            name="expiresOn"
-            onChange={setExpiresOn}
-            value={expiresOn}
-          />
-          <label className="input-label" htmlFor="enroll-note">
-            Note
-            <input id="enroll-note" name="note" placeholder="Cycle enrollment note" />
-          </label>
-        </div>
-        {selectedCycle?.ends_on ? (
-          <p className="text-xs text-[var(--muted-foreground)]">
-            Defaulted to cycle end date — edit if needed.
-          </p>
-        ) : null}
-        <PendingSubmitButton disabled={Boolean(memberJnuitsId.trim()) && (!lookupResult || lookupPending)}>
-          Add / update member in cycle
-        </PendingSubmitButton>
-      </form>
-    </section>
-  );
-}
-
-function EmptyRegistryState({
-  body,
-  cta,
-  icon,
-  title,
-}: {
-  body: string;
-  cta?: { label: string; targetId: string };
-  icon: "calendar" | "refresh";
-  title: string;
-}) {
-  const Icon = icon === "calendar" ? CalendarDays : RefreshCw;
-  return (
-    <div className="membership-empty-state">
-      <Icon aria-hidden="true" size={48} />
-      <h3>{title}</h3>
-      <p>{body}</p>
-      {cta ? (
-        <button className="ghost-button" onClick={() => scrollToSection(cta.targetId)} type="button">
-          {cta.label}
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-function RegistrySections({
-  cycles,
-  cycleMembers,
-}: {
-  cycles: MembershipCycleClientRecord[];
-  cycleMembers: CycleMemberClientRecord[];
-}) {
-  return (
-    <>
-      <section className="section-band" id="cycle-registry">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <span className="eyebrow">Cycle registry</span>
-            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.7rem)] leading-[0.96] tracking-[-0.04em]">
-              Membership cycles and status transitions
-            </h2>
-          </div>
-        </div>
-        <div className="mt-6 grid gap-4">
-          {cycles.length === 0 ? (
-            <EmptyRegistryState
-              body="Create your first cycle using the form above."
-              cta={{ label: "Create cycle", targetId: "cycle-management" }}
-              icon="calendar"
-              title="No membership cycles created yet"
-            />
-          ) : (
-            cycles.map((cycle) => (
-              <article key={cycle.id} className="application-card">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-[family-name:var(--font-heading)] text-[1.8rem] leading-[0.98] tracking-[-0.04em]">
-                      {cycle.title}
-                    </h3>
-                    <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-                      {cycle.code} • {cycle.starts_on}
-                      {cycle.ends_on ? ` → ${cycle.ends_on}` : ""}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <MemberChip>Status: {humanize(cycle.status)}</MemberChip>
-                      {cycle.renewal_open_on ? (
-                        <MemberChip>Renewal opens {cycle.renewal_open_on}</MemberChip>
-                      ) : null}
-                      {cycle.renewal_close_on ? (
-                        <MemberChip>Renewal closes {cycle.renewal_close_on}</MemberChip>
-                      ) : null}
-                    </div>
-                  </div>
-                  <form action={updateMembershipCycleStatusAction} className="grid gap-2">
-                    <input name="cycleId" type="hidden" value={cycle.id} />
-                    <label className="input-label" htmlFor={`cycle-status-${cycle.id}`}>
-                      Update status
-                      <select
-                        defaultValue={cycle.status}
-                        id={`cycle-status-${cycle.id}`}
-                        name="nextStatus"
-                      >
-                        {cycleStatuses.map((status) => (
-                          <option key={status} value={status}>
-                            {humanize(status)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <PendingSubmitButton className="secondary-button">Apply status</PendingSubmitButton>
-                  </form>
-                </div>
-              </article>
-            ))
-          )}
-        </div>
-      </section>
-
-      <section className="section-band" id="renewal-queue">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <span className="eyebrow">Renewal queue</span>
-            <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.7rem)] leading-[0.96] tracking-[-0.04em]">
-              Cycle member state queue
-            </h2>
-          </div>
-        </div>
-        <div className="mt-6 grid gap-4">
-          {cycleMembers.length === 0 ? (
-            <EmptyRegistryState
-              body="Members will appear here when pending renewal."
-              icon="refresh"
-              title="Renewal queue is empty"
-            />
-          ) : (
-            cycleMembers.map((row) => (
-              <article key={row.id} className="route-tile">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3>{row.memberName}</h3>
-                    <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-                      {row.displayJnuitsId} • Cycle row {row.cycle_id}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <StatusBadge value={row.state} />
-                      {row.expires_on ? <MemberChip>Expires {row.expires_on}</MemberChip> : null}
-                      <MemberChip>{row.isProfileClaimed ? "Claimed" : "Not claimed"}</MemberChip>
-                    </div>
-                  </div>
-                  <form action={updateCycleMemberStateAction} className="grid gap-2 sm:min-w-72">
-                    <input name="rowId" type="hidden" value={row.id} />
-                    <label className="input-label" htmlFor={`cycle-member-state-${row.id}`}>
-                      Next state
-                      <select id={`cycle-member-state-${row.id}`} name="nextState" defaultValue={row.state}>
-                        {cycleMemberStates.map((state) => (
-                          <option key={state} value={state}>
-                            {humanize(state)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="input-label" htmlFor={`cycle-member-note-${row.id}`}>
-                      Note
-                      <input id={`cycle-member-note-${row.id}`} name="note" defaultValue={row.note || ""} />
-                    </label>
-                    <PendingSubmitButton className="secondary-button">Update member state</PendingSubmitButton>
-                  </form>
-                </div>
-              </article>
-            ))
-          )}
-        </div>
-      </section>
-    </>
-  );
-}
 
 export function MembershipDbClient({
   accountRequests,
-  activeCycle,
-  activeMembersInCycles,
   batches,
-  cycles,
-  cycleMembers,
   departmentOptions,
   flash,
   managedMemberTotal,
@@ -2332,7 +1599,6 @@ export function MembershipDbClient({
   memberPage,
   memberPageSize,
   memberRoleFilter,
-  pendingRenewals,
   portalRoleOptions,
   totalClaimedInvitations,
   totalIssuedInvitations,
@@ -2344,10 +1610,9 @@ export function MembershipDbClient({
           <p className="admin-page-header__breadcrumb">Admin / Membership</p>
           <h1 className="admin-page-header__title">Membership DB</h1>
           <p className="admin-page-header__desc">
-            Cycle lifecycle management, renewal queue, member-cycle state transitions, and member access controls.
+            Member profiles, joining dates, imports, and portal access controls. Renewal follows each member&apos;s joining-date anniversary.
           </p>
         </div>
-        {activeCycle ? <StatusBadge value={`${activeCycle.code} active`} /> : null}
       </div>
 
       {flash ? (
@@ -2363,18 +1628,15 @@ export function MembershipDbClient({
       ) : null}
 
       <StatsBar
-        activeCycle={activeCycle}
-        activeMembersInCycles={activeMembersInCycles}
-        cyclesCount={cycles.length}
-        pendingRenewals={pendingRenewals}
+        managedMemberTotal={managedMemberTotal}
+        missingJoiningDates={managedMembers.filter((member) => !member.joined_on).length}
         totalClaimedInvitations={totalClaimedInvitations}
         totalIssuedInvitations={totalIssuedInvitations}
       />
 
       <WorkflowProgress
-        activeMembersInCycles={activeMembersInCycles}
+        membersCount={managedMemberTotal}
         batchesCount={batches.length}
-        cyclesCount={cycles.length}
         issuedCount={totalIssuedInvitations}
       />
 
@@ -2382,8 +1644,6 @@ export function MembershipDbClient({
 
       <MemberOperationsSection
         key={`${memberPage}:${memberPageSize}:${memberLifecycleFilter}:${memberRoleFilter}`}
-        cycles={cycles}
-        cycleMembers={cycleMembers}
         departmentOptions={departmentOptions}
         managedMemberTotal={managedMemberTotal}
         managedMembers={managedMembers}
@@ -2414,8 +1674,6 @@ export function MembershipDbClient({
 
       <AccountRequestsSection accountRequests={accountRequests} />
 
-      <CycleAndEnrollmentForms cycles={cycles} />
-
       <section className="section-band" id="membership-invitation-handoff">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -2438,7 +1696,6 @@ export function MembershipDbClient({
         </div>
       </section>
 
-      <RegistrySections cycleMembers={cycleMembers} cycles={cycles} />
     </div>
   );
 }
