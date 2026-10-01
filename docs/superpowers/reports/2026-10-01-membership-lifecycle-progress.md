@@ -10,6 +10,7 @@ Authority: the approved [finalization design](../specs/2026-09-29-membership-lif
 4. Separate authenticated identity, mutable, restricted and blocked portal access. Former members retain sign-in and password changes but cannot access normal profile/workplace/photo mutations. The owned loader returns only a minimal membership DTO for restricted access and never selects a directory-code hash. Advisor navigation is preserved.
 5. Membership choices for overdue/former members: renewal requests, alumni requests, typed-confirmation departure, pending withdrawal and one appeal. Actions derive ownership from the authenticated identity, reject stale revisions, and use the guarded database transactions. The grace dashboard links to renewal guidance; old alumni forms hand off to the same workflow. No online payment is implied.
 6. Paginated administrative queues for missing joining dates, upcoming/overdue anniversaries, renewal requests, departures, appeals and alumni requests. Reviewed confirmations/waivers require membership permission and MFA, advance one expected anniversary only, and preserve security restrictions. The old account reviewer is restricted to deletion so it cannot bypass the new alumni transaction.
+7. Admin reads reconcile a bounded batch after permission checks; portal access reconciles only its owned member. Both use the same PostgreSQL function as the daily Cron job and fail safely on database/transport errors. Replay proves fixed-date retries produce a single former-transition event.
 
 New approvals accept a reviewed earlier joining date; blank dates for **new** members default to the Dhaka approval date. Existing unknown dates are not invented. Known joining dates, membership identity and security restrictions are preserved. ID allocation follows the joining year. Conflicting identities and already-claimed profiles are not merged or reclaimed.
 
@@ -19,7 +20,7 @@ The real replay exposed an old ID-allocator parameter/column ambiguity; the forw
 
 ## Verification at this checkpoint
 
-- Full suite: **255 files, 1,646 tests passed**.
+- Full suite: **255 files, 1,650 tests passed**.
 - Type checking and lint passed.
 - Strict migration order: **108 migrations, no findings**.
 - Disposable clean replay: all 108 migrations plus the verification-only bootstrap helper passed; member intake, anniversary lifecycle, cycle-free approval, identity conflicts, retries, known/unknown dates, security preservation, minimal lifecycle projection, bounded admin queues and privilege checks passed. Synthetic fixtures roll back.
@@ -29,7 +30,7 @@ The real replay exposed an old ID-allocator parameter/column ambiguity; the forw
 
 ## Still required — not 100% complete
 
-- Renewal tasks 7–8: loader reconciliation integration verification and full browser/integration verification.
+- Renewal task 8: full browser/integration verification and final independent review.
 - Subsequent committee-roster finalization and member/advisor photo plans.
 - The existing positive live public-Google-Sheet verification gate remains open.
 - Release review, GitHub checks, approved hosted migrations, production data verification and deployment verification.

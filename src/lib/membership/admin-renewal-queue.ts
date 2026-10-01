@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { renewalQueues, type RenewalQueue, type RenewalQueueData } from "./renewal-queue";
+import { reconcileMembershipLifecycle } from "./reconciliation";
 
 const row = z.object({
   memberId: z.uuid(), fullName: z.string(), jnuitsId: z.string(), joinedOn: z.iso.date().nullable(), dueOn: z.iso.date().nullable(),
@@ -20,6 +21,7 @@ export async function loadMembershipRenewalQueue(params: Record<string, string |
   const page = /^\d+$/.test(rawPage) ? Math.min(10000, Math.max(1, Number(rawPage))) : 1;
   const base = { queue, page, pageSize: 25, total: 0, rows: [] };
   try {
+    await reconcileMembershipLifecycle({ batchSize: 500 });
     const { data, error } = await createAdminClient().rpc("get_membership_admin_queue", { p_queue: queue, p_page: page, p_page_size: 25 });
     const parsed = result.safeParse(data);
     if (!error && parsed.success) return { ...base, ...parsed.data };

@@ -14,15 +14,19 @@ export async function reconcileMembershipLifecycle(options: {
   memberId?: string; batchSize?: number; effectiveDate?: string;
 } = {}): Promise<{ status: "reconciled"; transitioned: number }> {
   const parsed = schema.parse(options);
-  const { data, error } = await createAdminClient().rpc("reconcile_membership_lifecycle", {
-    p_batch_size: parsed.memberId ? 1 : parsed.batchSize ?? 500,
-    ...(parsed.memberId ? { p_member_id: parsed.memberId } : {}),
-    ...(parsed.effectiveDate ? { p_effective_date: parsed.effectiveDate } : {}),
-  });
-  const value = data && typeof data === "object" && !Array.isArray(data) ? data : null;
-  if (error || !value || value.status !== "reconciled" || typeof value.transitioned !== "number"
-    || !Number.isInteger(value.transitioned) || value.transitioned < 0) {
+  try {
+    const { data, error } = await createAdminClient().rpc("reconcile_membership_lifecycle", {
+      p_batch_size: parsed.memberId ? 1 : parsed.batchSize ?? 500,
+      ...(parsed.memberId ? { p_member_id: parsed.memberId } : {}),
+      ...(parsed.effectiveDate ? { p_effective_date: parsed.effectiveDate } : {}),
+    });
+    const value = data && typeof data === "object" && !Array.isArray(data) ? data : null;
+    if (error || !value || value.status !== "reconciled" || typeof value.transitioned !== "number"
+      || !Number.isInteger(value.transitioned) || value.transitioned < 0) {
+      throw new Error("Membership status could not be verified. Please try again later.");
+    }
+    return { status: "reconciled", transitioned: value.transitioned };
+  } catch {
     throw new Error("Membership status could not be verified. Please try again later.");
   }
-  return { status: "reconciled", transitioned: value.transitioned };
 }

@@ -20,4 +20,12 @@ describe("server-only lifecycle reconciliation wrapper", () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: "secret database detail" } });
     await expect(reconcileMembershipLifecycle()).rejects.toThrow("Membership status could not be verified");
   });
+  it("sanitizes rejected transport errors as well as returned database errors", async () => {
+    mocks.rpc.mockRejectedValue(new Error("private network token"));
+    await expect(reconcileMembershipLifecycle()).rejects.toThrow("Membership status could not be verified");
+  });
+  it("uses the SQL date default and a 500-row bound for a normal queue fallback", async () => {
+    await reconcileMembershipLifecycle();
+    expect(mocks.rpc).toHaveBeenCalledWith("reconcile_membership_lifecycle", { p_batch_size: 500 });
+  });
 });
