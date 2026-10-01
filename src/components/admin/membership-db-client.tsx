@@ -22,6 +22,8 @@ import { MemberProfileEditor } from "@/components/admin/member-profile-editor";
 import { IntakeWorkspace } from "@/components/admin/onboarding/intake-workspace";
 import { runBoundedTasks } from "@/lib/async/bounded-concurrency";
 import { formatDhakaDate } from "@/lib/membership/anniversary";
+import { MembershipRenewalPanel } from "@/components/admin/membership-renewal-panel";
+import type { RenewalQueueData } from "@/lib/membership/renewal-queue";
 
 
 export type InvitationBatchClientRecord = {
@@ -89,6 +91,7 @@ type AdminFlash = {
 } | null;
 
 type MembershipDbClientProps = {
+  renewalQueue?: RenewalQueueData;
   accountRequests: AccountRequestClientRecord[];
   batches: InvitationBatchClientRecord[];
   departmentOptions: DepartmentOptionClientRecord[];
@@ -1463,7 +1466,7 @@ function AccountRequestsSection({
         <div>
           <span className="eyebrow">Account request reviews</span>
           <h2 className="mt-4 font-[family-name:var(--font-heading)] text-[clamp(2rem,3vw,2.7rem)] leading-[0.96] tracking-[-0.04em]">
-            Alumni conversion and deletion queue
+            Profile deletion queue
           </h2>
         </div>
         <span className="status-pill membership-pending-count" data-pending={accountRequests.length > 0}>
@@ -1589,6 +1592,7 @@ function AccountRequestsSection({
 
 
 export function MembershipDbClient({
+  renewalQueue,
   accountRequests,
   batches,
   departmentOptions,
@@ -1641,6 +1645,8 @@ export function MembershipDbClient({
       />
 
       <StickySectionNav />
+
+      {renewalQueue ? <MembershipRenewalPanel key={`${renewalQueue.queue}:${renewalQueue.page}:${renewalQueue.rows.map((row) => row.requestUpdatedAt || row.dueOn).join(":")}`} data={renewalQueue} /> : null}
 
       <MemberOperationsSection
         key={`${memberPage}:${memberPageSize}:${memberLifecycleFilter}:${memberRoleFilter}`}

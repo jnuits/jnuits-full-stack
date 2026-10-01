@@ -13,6 +13,8 @@ import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { loadMembershipRenewalQueue } from "@/lib/membership/admin-renewal-queue";
+import { z } from "zod";
 
 
 type PortalRoleGrantRecord = {
@@ -94,6 +96,8 @@ export default async function AdminMembershipPage({
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
   const resolvedSearchParams = await searchParams;
+  const renewalQueue = await loadMembershipRenewalQueue(resolvedSearchParams);
+  const selectedMemberId = z.uuid().safeParse(parseFilter(resolvedSearchParams.memberId));
   const memberPage = parsePositiveInt(resolvedSearchParams.memberPage, 1, 10_000);
   const memberPageSize = parseMemberPageSize(resolvedSearchParams.memberPageSize);
   const memberLifecycleFilter = parseFilter(resolvedSearchParams.memberLifecycle);
@@ -119,7 +123,7 @@ export default async function AdminMembershipPage({
       .select(
         "id, member_id, request_type, status, requested_at, review_note, members(full_name, jnuits_id)"
       )
-      .in("request_type", ["alumni_conversion", "account_deletion"])
+      .eq("request_type", "account_deletion")
       .eq("status", "pending")
       .order("requested_at", { ascending: true })
       .limit(30),
@@ -188,6 +192,8 @@ export default async function AdminMembershipPage({
     if (roleFilteredUserIds) {
       managedMembersQuery = managedMembersQuery.in("user_id", roleFilteredUserIds);
     }
+
+    if (selectedMemberId.success) managedMembersQuery = managedMembersQuery.eq("id", selectedMemberId.data);
 
     managedMembersResult = await managedMembersQuery
       .order("updated_at", { ascending: false })
@@ -291,6 +297,7 @@ export default async function AdminMembershipPage({
       memberPageSize={memberPageSize}
       memberRoleFilter={normalizedRoleFilter}
       portalRoleOptions={portalRoleOptions}
+      renewalQueue={renewalQueue}
       totalClaimedInvitations={totalClaimedInvitations}
       totalIssuedInvitations={totalIssuedInvitations}
     />

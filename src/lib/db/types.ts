@@ -4431,6 +4431,15 @@ export type Database = {
         Args: { p_member_id: string }
         Returns: Json
       }
+      get_membership_admin_queue: {
+        Args: {
+          p_effective_date?: string
+          p_page?: number
+          p_page_size?: number
+          p_queue: string
+        }
+        Returns: Json
+      }
       has_permission: {
         Args: { requested_permission: string }
         Returns: boolean

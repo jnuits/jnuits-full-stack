@@ -1,4 +1,20 @@
 @import "tailwindcss";
+
+.membership-renewal-dialog {
+  width: min(38rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  overflow-y: auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background: var(--card);
+  color: var(--foreground);
+}
+.membership-renewal-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+.membership-renewal-dialog h3 { font-size: 1.25rem; font-weight: 700; }
+.membership-renewal-dialog input[type="checkbox"] { width: 1.125rem; flex: 0 0 1.125rem; padding: 0; margin-top: 0.2rem; }
+.admin-renewal-record { min-width: 0; padding: 1rem; border: 1px solid var(--border); border-radius: 1rem; }
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));

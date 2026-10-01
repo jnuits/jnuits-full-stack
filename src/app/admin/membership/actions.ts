@@ -12,10 +12,7 @@ import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { revalidatePublicCommitteeProjection } from "@/lib/committee/revalidation";
 import type { TablesInsert } from "@/lib/db/types";
-import {
-  buildAlumniConversionDecisionEmail,
-  buildDeletionRequestStatusEmail,
-} from "@/lib/notifications/email-builders";
+import { buildDeletionRequestStatusEmail } from "@/lib/notifications/email-builders";
 import { sendEmail } from "@/lib/notifications/send-email";
 import { recordSecurityEvent } from "@/lib/security/security-events";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -455,17 +452,21 @@ async function reviewMemberAccountRequest(options: {
     .eq("id", options.requestId)
     .maybeSingle();
 
+  if (request?.request_type !== "account_deletion" && !requestError) {
+    throw new SafeAdminActionError("Use the renewal and membership decisions queue for alumni, departure and appeal reviews.");
+  }
+
   if (
     requestError ||
     !request ||
     request.status !== "pending" ||
-    !["alumni_conversion", "account_deletion"].includes(request.request_type)
+    request.request_type !== "account_deletion"
   ) {
     if (requestError) {
       throw requestError;
     }
 
-    throw new SafeAdminActionError("Pending alumni/deletion request could not be loaded.");
+    throw new SafeAdminActionError("Pending deletion request could not be loaded.");
   }
 
   const { data: member, error: memberError } = await flexibleAdmin
@@ -487,31 +488,7 @@ async function reviewMemberAccountRequest(options: {
   const memberName = typeof member.full_name === "string" ? member.full_name : "JnUITS member";
 
   if (options.decision === "approved") {
-    if (request.request_type === "alumni_conversion") {
-      const { error: lifecycleError } = await flexibleAdmin.rpc(
-        "set_member_lifecycle_status" as string,
-        {
-          next_lifecycle_status: "alumni",
-          next_portal_access_status: "active",
-          reason: options.reviewNote || "Approved alumni conversion request.",
-          target_member_id: member.id,
-        }
-      );
-
-      if (lifecycleError) {
-        throw lifecycleError;
-      }
-
-      if (member.user_id) {
-        await assignPortalRole({
-          actorUserId: options.actorUserId,
-          admin: options.admin,
-          note: options.reviewNote,
-          roleCode: "alumni",
-          targetUserId: member.user_id,
-        });
-      }
-    } else {
+    {
       const targetUserId = typeof member.user_id === "string" ? member.user_id : null;
       const { error: lifecycleError } = await flexibleAdmin.rpc(
         "set_member_lifecycle_status" as string,
@@ -586,23 +563,13 @@ async function reviewMemberAccountRequest(options: {
 
   if (memberEmail) {
     const approved = options.decision === "approved";
-    const isAlumniConversion = request.request_type === "alumni_conversion";
-
     void sendEmail({
-      html: isAlumniConversion
-        ? buildAlumniConversionDecisionEmail({
-            approved,
-            memberName,
-            reviewNote: options.reviewNote || null,
-          })
-        : buildDeletionRequestStatusEmail({
+      html: buildDeletionRequestStatusEmail({
             approved,
             memberName,
             reviewNote: options.reviewNote || null,
           }),
-      subject: isAlumniConversion
-        ? `JnUITS alumni conversion ${options.decision}`
-        : `JnUITS profile deletion request ${options.decision}`,
+      subject: `JnUITS profile deletion request ${options.decision}`,
       to: memberEmail,
     });
   }
@@ -651,7 +618,7 @@ export async function reviewMemberAccountRequestAction(formData: FormData) {
       message: safeMembershipError(
         error,
         "reviewAccountRequest",
-        "Pending alumni/deletion request could not be reviewed."
+        "Pending deletion request could not be reviewed."
       ),
     });
     redirectMembership();

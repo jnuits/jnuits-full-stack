@@ -294,6 +294,12 @@ docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP
   -f /tmp/jnuits-replay/assert-membership-snapshot.sql
 
 docker_run cp \
+  "$(to_native "$repo_root/supabase/verification/assert-membership-admin-queue.sql")" \
+  "$db_container:/tmp/jnuits-replay/assert-membership-admin-queue.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
+  -f /tmp/jnuits-replay/assert-membership-admin-queue.sql
+
+docker_run cp \
   "$(to_native "$repo_root/supabase/verification/assert-cycle-free-approval.sql")" \
   "$db_container:/tmp/jnuits-replay/assert-cycle-free-approval.sql"
 docker_run exec "$db_container" \
