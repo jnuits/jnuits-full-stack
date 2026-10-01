@@ -197,7 +197,7 @@ export function parseJoiningDate(value: string): JoiningDateResolution {
   const day = Number(match[3]);
   const daysByMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
-  if (month < 1 || month > 12 || day < 1 || day > (daysByMonth[month - 1] ?? 0)) {
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > (daysByMonth[month - 1] ?? 0)) {
     return {
       issue: {
         acceptedFormat: "YYYY-MM-DD",

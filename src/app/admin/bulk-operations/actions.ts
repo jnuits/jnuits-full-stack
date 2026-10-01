@@ -374,7 +374,11 @@ function normalizePreviewRow(options: {
     normalized.lifecycleStatus = lifecycleStatus;
     normalized.portalAccessStatus = lifecycleStatus === "former" ? "frozen" : "active";
     normalized.departmentCode = clean(options.row.department_code || options.row.departmentCode) || null;
-    normalized.batchNo = clean(options.row.batch_no || options.row.batchNo) || null;
+    const batchNo = clean(options.row.batch_no || options.row.batchNo);
+    if (batchNo && (!/^[0-9]{1,2}$/.test(batchNo) || Number(batchNo) < 1 || Number(batchNo) > 99)) {
+      addIssue("batch_no", "batch_invalid", "Batch must be a whole number from 1 to 99, for example 08.", batchNo);
+    }
+    normalized.batchNo = batchNo || null;
     normalized.phone = clean(options.row.phone) || null;
   }
 

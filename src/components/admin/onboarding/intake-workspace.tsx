@@ -588,6 +588,7 @@ export function IntakeWorkspace({
           <div className="flex flex-wrap gap-2">
             <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=blank&format=csv`}><Download aria-hidden="true" size={15} /> Blank CSV</a>
             <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=blank&format=xlsx`}><FileSpreadsheet aria-hidden="true" size={15} /> Blank XLSX</a>
+            <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=sample&format=csv`}><Download aria-hidden="true" size={15} /> Fictional sample CSV</a>
             <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=sample&format=xlsx`}><FileSpreadsheet aria-hidden="true" size={15} /> Fictional sample workbook</a>
             <a className="admin-btn admin-btn--ghost" download href={`${downloadBase}&kind=department-codes&format=csv`}><Download aria-hidden="true" size={15} /> Department codes</a>
           </div>

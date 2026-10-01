@@ -25,7 +25,7 @@ const memberProfileRequestSchema = z.object({
   expectedUpdatedAt: z.string().trim().min(1).max(80),
   facebookUrl: boundedText(500).optional().default(""),
   fullName: z.string().trim().min(1, "Full name is required.").max(180),
-  joinedOn: z.string().trim().min(1, "Joining date is required.").max(10),
+  joinedOn: boundedText(10).optional().default(""),
   linkedinUrl: boundedText(500).optional().default(""),
   memberId: z.string().uuid(),
   phone: boundedText(60).optional().default(""),

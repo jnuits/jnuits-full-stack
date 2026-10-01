@@ -73,4 +73,16 @@ describe("legacy bulk-operation generated sample integration", () => {
       }),
     ]);
   });
+
+  it.each(["00", "100", "08th", "7.5"])("rejects invalid legacy batch %s before commit", async (batch) => {
+    const template = createBulkOperationTemplate({ format: "csv", kind: "sample", operationType: "legacy_member_import" });
+    const data = new FormData();
+    data.set("operationType", "legacy_member_import");
+    data.set("legacyYearBlock", "2099");
+    data.set("csvContent", String(template.body).replaceAll("JNUITS-2099001", "JNUITS-2099003").replace('"08"', `"${batch}"`));
+    await expect(previewBulkOperationAction(data)).rejects.toThrow("redirect:/admin/bulk-operations?operationId=preview-1");
+    expect(mocks.insertedRows).toHaveBeenCalledWith([expect.objectContaining({
+      status: "error", errors: expect.arrayContaining([expect.objectContaining({ field: "batch_no", sourceRow: 2, receivedValue: batch })]),
+    })]);
+  });
 });

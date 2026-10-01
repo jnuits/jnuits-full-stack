@@ -7,9 +7,9 @@ describe("certificate validation report", () => {
       code: "type_invalid", explanation: "Choose a supported type.", field: "type",
       receivedValue: "=HYPERLINK(unsafe)", sourceRow,
     })));
-    expect(report).toContain('"Source row","Field","Received value","Issue","Accepted format","Example"');
-    expect(report).toContain('"2","Type","\'=HYPERLINK(unsafe)"');
-    expect(report).toContain('"3","Type","\'=HYPERLINK(unsafe)"');
+    expect(report).toContain('"Source row","Field","Code","Received value","Issue","Accepted format","Example"');
+    expect(report).toContain('"2","Type","type_invalid","\'=HYPERLINK(unsafe)"');
+    expect(report).toContain('"3","Type","type_invalid","\'=HYPERLINK(unsafe)"');
     expect(report).toContain('"Event, Exam, or Course","Event"');
   });
 });

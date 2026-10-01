@@ -162,6 +162,14 @@ describe("updateMemberProfileAction", () => {
     expect(mocks.auditInsert).not.toHaveBeenCalled();
   });
 
+  it("allows unrelated existing-profile edits without fabricating a joining date", async () => {
+    const result = await updateMemberProfileAction({
+      expectedUpdatedAt: previousUpdatedAt, fullName: "Member One Updated", joinedOn: "", memberId,
+    });
+    expect(result.ok).toBe(true);
+    expect(mocks.memberUpdate).toHaveBeenCalledWith({ full_name: "Member One Updated" });
+  });
+
   it("uses the import normalizer for short-code department, exact two-digit batch, and joining date", async () => {
     const result = await updateMemberProfileAction({
       auditNote: "Verified against the official member register.",

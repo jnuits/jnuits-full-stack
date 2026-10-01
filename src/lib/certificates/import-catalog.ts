@@ -138,10 +138,10 @@ export function createCertificateIssueReport(issues: readonly CertificateImportI
     return `"${safe.replaceAll('"', '""')}"`;
   }
   const rows: unknown[][] = [
-    ["Source row", "Field", "Received value", "Issue", "Accepted format", "Example"],
+    ["Source row", "Field", "Code", "Received value", "Issue", "Accepted format", "Example"],
     ...issues.map((issue) => [
       issue.sourceRow, fieldByKey.get(issue.field)?.label ?? issue.field,
-      issue.receivedValue, issue.explanation, issue.acceptedFormat, issue.example,
+      issue.code, issue.receivedValue, issue.explanation, issue.acceptedFormat, issue.example,
     ]),
   ];
   return `\uFEFF${rows.map((row) => row.map(cell).join(",")).join("\r\n")}\r\n`;

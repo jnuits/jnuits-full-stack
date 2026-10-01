@@ -332,8 +332,17 @@ export async function fetchPublicGoogleSheetSnapshot(
     });
     return await Promise.race([operation, timeout]);
   } catch (error) {
-    if (error instanceof GoogleSheetSnapshotError || error instanceof IntakeParseError) {
+    if (error instanceof GoogleSheetSnapshotError) {
       throw error;
+    }
+    if (error instanceof IntakeParseError) {
+      const limitMessage = error.code === "too_many_rows"
+        ? "The Google Sheet CSV has too many rows. Split it into smaller imports."
+        : error.code === "source_too_large"
+          ? "The Google Sheet CSV is larger than 2 MB. Split it into smaller imports."
+          : "The Google Sheet CSV could not be parsed. Check for blank or duplicate headings, unmatched quotes, and inconsistent row widths.";
+      // Remote parser messages/details can contain private cells or headings.
+      throw new IntakeParseError(error.code, limitMessage);
     }
     if (controller.signal.aborted) {
       throw new GoogleSheetSnapshotError(

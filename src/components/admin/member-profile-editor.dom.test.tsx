@@ -69,7 +69,7 @@ describe("member profile editor", () => {
     expect(screen.getByLabelText("Batch")).toHaveValue("08");
     expect(screen.getByLabelText("Batch")).toHaveAttribute("maxlength", "2");
     expect(screen.getByLabelText("Joining date")).toHaveValue("2024-07-01");
-    expect(screen.getByLabelText("Joining date")).toBeRequired();
+    expect(screen.getByLabelText("Joining date")).not.toBeRequired();
     await user.click(screen.getByRole("button", { name: "Save profile" }));
 
     expect(mocks.updateMemberProfileAction).toHaveBeenCalledWith(
@@ -87,6 +87,19 @@ describe("member profile editor", () => {
     expect(onSaved).toHaveBeenCalledWith(
       expect.objectContaining({ fullName: "Member One Updated" })
     );
+  });
+
+  it("allows a historical profile with unknown joining date to be corrected", async () => {
+    const user = userEvent.setup();
+    mocks.updateMemberProfileAction.mockClear();
+    mocks.updateMemberProfileAction.mockResolvedValueOnce({
+      changedFields: ["full_name"], member: { ...member, joinedOn: null }, message: "Saved.", ok: true,
+    });
+    render(<MemberProfileEditor departmentOptions={departmentOptions} member={{ ...member, joinedOn: null }} />);
+    expect(screen.getByLabelText("Joining date")).toHaveValue("");
+    expect(screen.getByLabelText("Joining date")).not.toBeRequired();
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(mocks.updateMemberProfileAction).toHaveBeenCalledWith(expect.objectContaining({ joinedOn: "" }));
   });
 
   it("has no axe violations", async () => {

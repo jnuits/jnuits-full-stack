@@ -153,7 +153,6 @@ export function MemberProfileEditor({
             Joining date
             <input
               onChange={(event) => setJoinedOn(event.currentTarget.value)}
-              required
               type="date"
               value={joinedOn}
             />

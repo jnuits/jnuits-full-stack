@@ -137,7 +137,7 @@ describe("membership intake fields", () => {
     },
   );
 
-  it.each(["2023-02-29", "2024-02-30", "2024-13-01", "2024-00-10"])(
+  it.each(["2023-02-29", "2024-02-30", "2024-13-01", "2024-00-10", "0000-01-15"])(
     "rejects impossible joining date %s",
     (input) => {
       const result = parseJoiningDate(input);

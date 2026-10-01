@@ -858,6 +858,9 @@ begin
         'fullName', 'Replay Onboarding Member',
         'jnuitsId', 'JNUITS-2099001',
         'email', 'onboarding-replay@local.invalid',
+        'departmentCode', 'computer-science-engineering',
+        'batchNo', '08',
+        'joinedOn', '2024-07-01',
         'classification', 'current'
       ),
       'identity', jsonb_build_object('kind', 'create', 'memberId', null),
@@ -904,6 +907,9 @@ begin
        where jnuits_id = 'JNUITS-2099001'
          and email = 'onboarding-replay@local.invalid'
          and full_name = 'Replay Onboarding Member'
+         and department_code = 'computer-science-engineering'
+         and batch_no = 8
+         and joined_on = date '2024-07-01'
      )
      or not exists (
        select 1 from public.audit_events

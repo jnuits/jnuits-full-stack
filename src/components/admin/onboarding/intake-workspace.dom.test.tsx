@@ -241,6 +241,9 @@ describe("shared onboarding intake workspace", () => {
       expect.stringMatching(/kind=blank.*format=xlsx|format=xlsx.*kind=blank/)
     );
     expect(
+      screen.getByRole("link", { name: "Fictional sample CSV" })
+    ).toHaveAttribute("href", expect.stringMatching(/kind=sample.*format=csv/));
+    expect(
       screen.getByRole("link", { name: "Fictional sample workbook" })
     ).toHaveAttribute(
       "href",

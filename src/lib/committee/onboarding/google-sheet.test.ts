@@ -222,4 +222,17 @@ describe("public Google Sheet snapshots", () => {
       })
     ).rejects.toMatchObject({ code: "unsafe_redirect" });
   });
+
+  it.each([
+    'Full name,Email\n"private-marker"unexpected,sample@example.com',
+    'private-marker,private-marker\nSample,Value',
+  ])("does not echo remotely fetched cells or headings in parse failures", async (csv) => {
+    const mock = fetchMock(new Response(csv, { headers: { "content-type": "text/csv" } }));
+    const error = await fetchPublicGoogleSheetSnapshot(parsePublicGoogleSheetUrl(sourceUrl), {
+      fetchImpl: mock as unknown as typeof fetch,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).not.toContain("private-marker");
+    expect((error as Error).message).toMatch(/CSV.*(headings|quotes)/i);
+  });
 });
