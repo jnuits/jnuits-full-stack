@@ -6,6 +6,7 @@ grant select, insert, update on public.profile_update_requests to authenticated;
 do $review_contract$
 declare
   operator_id uuid; member_user uuid := extensions.gen_random_uuid(); person_id uuid;
+  fixture_session uuid:=extensions.gen_random_uuid(); fixture_factor uuid:=extensions.gen_random_uuid();
   role_id uuid; request_id uuid; request_version timestamptz; revision bigint;
   today date := (now() at time zone 'Asia/Dhaka')::date;
   joined date := date_trunc('month', (now() at time zone 'Asia/Dhaka') - interval '2 years 3 months')::date;
@@ -32,7 +33,9 @@ begin
   insert into public.rbac_user_platform_roles(user_id,role_id,scope,note)
     values(member_user,role_id,'admin','Separate scope fixture');
   perform set_config('request.jwt.claim.sub',operator_id::text,true);
-  perform set_config('request.jwt.claims',jsonb_build_object('sub',operator_id,'aal','aal2','role','authenticated')::text,true);
+  insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at) values(fixture_factor,operator_id,'totp','verified',now(),now());
+  insert into auth.sessions(id,user_id,aal,factor_id,created_at,updated_at) values(fixture_session,operator_id,'aal2',fixture_factor,now(),now());
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',operator_id,'aal','aal2','role','authenticated','session_id',fixture_session,'jnuits_role_version',(select version from public.rbac_user_claim_versions where user_id=operator_id))::text,true);
   result := public.confirm_membership_renewal(person_id,due,'paid',null,'Historical receipt',next_due-1);
   if result->>'lifecycleStatus' <> 'former' or (select renewal_due_on from public.members where id=person_id) <> next_due then
     failures := array_append(failures,'backdated confirmation reactivated an outstanding anniversary');
@@ -69,7 +72,7 @@ begin
   insert into public.members(jnuits_id,full_name,joined_on,user_id)
     values('JNUITS-2099972','Fictional expired member',today-interval '3 years',operator_id);
   perform set_config('request.jwt.claim.sub',operator_id::text,true);
-  perform set_config('request.jwt.claims',jsonb_build_object('sub',operator_id,'aal','aal2','role','authenticated')::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',operator_id,'aal','aal2','role','authenticated','session_id',fixture_session,'jnuits_role_version',(select version from public.rbac_user_claim_versions where user_id=operator_id))::text,true);
   execute 'set local role authenticated';
   begin
     insert into public.profile_update_requests(member_id,request_type,payload)
@@ -87,7 +90,7 @@ begin
   select updated_at into request_version from public.profile_update_requests where id=request_id;
   select version into old_version from public.rbac_user_claim_versions where user_id=member_user;
   perform set_config('request.jwt.claim.sub',operator_id::text,true);
-  perform set_config('request.jwt.claims',jsonb_build_object('sub',operator_id,'aal','aal2','role','authenticated')::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',operator_id,'aal','aal2','role','authenticated','session_id',fixture_session,'jnuits_role_version',(select version from public.rbac_user_claim_versions where user_id=operator_id))::text,true);
   -- Direct admin table UPDATE cannot fake the lifecycle decision either.
   execute 'set local role authenticated';
   begin

@@ -3,6 +3,8 @@ begin;
 do $membership_contract$
 declare
   actor_id uuid;
+  fixture_session uuid:=extensions.gen_random_uuid();
+  fixture_factor uuid:=extensions.gen_random_uuid();
   role_id uuid;
   person_id uuid;
   unknown_id uuid;
@@ -47,7 +49,7 @@ begin
      or has_table_privilege('anon', 'public.membership_renewals', 'SELECT')
      or not (select relrowsecurity from pg_class where oid = 'public.membership_renewals'::regclass)
      or has_function_privilege('authenticated', 'public.reconcile_membership_lifecycle(date,integer,uuid)', 'EXECUTE')
-     or has_function_privilege('anon', 'public.confirm_membership_renewal(uuid,date,text,text,text,date)', 'EXECUTE') then
+     or has_function_privilege('anon', 'public.confirm_membership_renewal(uuid,date,text,text,text,date,text)', 'EXECUTE') then
     raise exception 'Lifecycle ledger/RPC privileges are unsafe.';
   end if;
   for definition in
@@ -73,7 +75,9 @@ begin
   values (actor_id, 'JNUITS-ADMIN-REPLAY-RENEWAL', 'Fictional replay operator', true, 'active')
   on conflict (user_id) do update set is_active = true, status = 'active';
   perform set_config('request.jwt.claim.sub', actor_id::text, true);
-  perform set_config('request.jwt.claims', jsonb_build_object('sub', actor_id, 'aal', 'aal2', 'role', 'authenticated')::text, true);
+  insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at) values(fixture_factor,actor_id,'totp','verified',now(),now());
+  insert into auth.sessions(id,user_id,aal,factor_id,created_at,updated_at) values(fixture_session,actor_id,'aal2',fixture_factor,now(),now());
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', actor_id, 'aal', 'aal2', 'role', 'authenticated','session_id',fixture_session,'jnuits_role_version',(select version from public.rbac_user_claim_versions where user_id=actor_id))::text, true);
   insert into public.members (jnuits_id, full_name, user_id, joined_on, portal_access_status)
   values ('JNUITS-2099901', 'Fictional Anniversary Member', actor_id, '2024-07-01', 'frozen') returning id into person_id;
   insert into public.members (jnuits_id, full_name) values ('JNUITS-2099902', 'Unknown Joining Date') returning id into unknown_id;
@@ -88,12 +92,12 @@ begin
     perform public.reconcile_membership_lifecycle('2026-01-01', 1001, person_id);
     raise exception 'Unbounded reconciliation accepted.';
   exception when sqlstate '22023' then null; end;
-  perform set_config('request.jwt.claims', jsonb_build_object('sub', actor_id, 'aal', 'aal1', 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', actor_id, 'aal', 'aal1', 'role', 'authenticated','session_id',fixture_session,'jnuits_role_version',(select version from public.rbac_user_claim_versions where user_id=actor_id))::text, true);
   begin
     perform public.confirm_membership_renewal(person_id, '2025-07-01', 'paid', null, null, '2026-10-01');
     raise exception 'Operator without MFA confirmed renewal.';
   exception when insufficient_privilege then null; end;
-  perform set_config('request.jwt.claims', jsonb_build_object('sub', actor_id, 'aal', 'aal2', 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', actor_id, 'aal', 'aal2', 'role', 'authenticated','session_id',fixture_session,'jnuits_role_version',(select version from public.rbac_user_claim_versions where user_id=actor_id))::text, true);
   update public.admin_profiles set status = 'frozen' where user_id = actor_id;
   begin
     perform public.confirm_membership_renewal(person_id, '2025-07-01', 'paid', null, null, '2026-10-01');
@@ -181,6 +185,7 @@ begin
   request_id := (result ->> 'requestId')::uuid;
   select updated_at into request_version from public.profile_update_requests where id = request_id;
   insert into public.rbac_user_platform_roles (user_id, role_id, scope, note) values (actor_id, role_id, 'admin', 'anniversary replay fixture');
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', actor_id, 'aal', 'aal2', 'role', 'authenticated','session_id',fixture_session,'jnuits_role_version',(select version from public.rbac_user_claim_versions where user_id=actor_id))::text, true);
   perform public.review_membership_request(request_id, request_version, 'approved', 'Synthetic approval');
   if (select current_membership_path_status from public.members where id = person_id) <> 'closed_appealable' then raise exception 'Approval did not allow one appeal.'; end if;
   select renewal_due_on into old_due from public.members where id = person_id;
@@ -207,6 +212,7 @@ begin
   request_id := (result ->> 'requestId')::uuid;
   select updated_at into request_version from public.profile_update_requests where id = request_id;
   perform public.review_membership_request(request_id, request_version, 'approved', 'Synthetic alumni approval');
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', actor_id, 'aal', 'aal2', 'role', 'authenticated','session_id',fixture_session,'jnuits_role_version',(select version from public.rbac_user_claim_versions where user_id=actor_id))::text, true);
   if (select lifecycle_status from public.members where id = person_id) <> 'alumni'
      or (select current_membership_closure_reason from public.members where id = person_id) <> 'alumni_conversion'
      or (select portal_access_status from public.members where id = person_id) <> 'active' then raise exception 'Final closure removed alumni eligibility or altered security.'; end if;

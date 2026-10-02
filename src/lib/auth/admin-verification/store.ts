@@ -70,6 +70,11 @@ export class AdminVerificationStore {
     return parsed ? this.invoke("check_read", { actor, intent, ...parsed }, z.null()) : Promise.resolve({ ok: false as const, code: "verification_invalid" });
   }
 
+  checkWrite(actor: AdminVerificationActor, intent: AdminOperationIntent, token: string) {
+    const parsed = parseProofToken(token);
+    return parsed ? this.invoke("check_write", { actor, intent, ...parsed }, z.null()) : Promise.resolve({ ok: false as const, code: "verification_invalid" });
+  }
+
   async recordEnrollment(userId: string, evidence: "confirmed_factor" | "trusted_never_history"): Promise<void> {
     const result = await this.invoke("record_enrollment", { userId, evidence }, z.null());
     if (!result.ok) throw new Error("Enrollment history could not be recorded.");

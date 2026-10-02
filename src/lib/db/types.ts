@@ -4244,6 +4244,7 @@ export type Database = {
     Functions: {
       admin_verification_begin_email: { Args: { p_input: Json }; Returns: Json }
       admin_verification_check_read: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_check_write: { Args: { p_input: Json }; Returns: Json }
       admin_verification_context: { Args: { p_input: Json }; Returns: Json }
       admin_verification_issue_password: {
         Args: { p_input: Json }
@@ -4363,6 +4364,7 @@ export type Database = {
           p_expected_due_on: string
           p_member_id: string
           p_note?: string
+          p_proof?: string
           p_reference?: string
           p_resolution: string
         }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ guard: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
-vi.mock("@/lib/auth/session", () => ({ requireAdminPermission: mocks.guard }));
+vi.mock("@/lib/auth/admin-verification/guard", () => ({ authorizeAdminOperation: mocks.guard, adminVerificationFailureMessage: (code: string) => code }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 import { confirmRenewalAction, reviewMembershipRequestAction } from "./renewal-actions";
@@ -19,19 +19,29 @@ const review = (decision = "approved") => form({ requestId, expectedUpdatedAt: "
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.guard.mockResolvedValue({ user: { id: "operator", aal: "aal2" } });
+  mocks.guard.mockResolvedValue({ ok: true, value: { auth: { user: { id: "operator", aal: "aal1" } } } });
   mocks.rpc.mockResolvedValue({ data: { status: "confirmed", nextDueOn: "2026-09-01", lifecycleStatus: "former" }, error: null });
 });
 
 describe("administrative renewal confirmation", () => {
-  it("requires membership permission and MFA, and forwards exactly one expected anniversary", async () => {
+  it("requires exact-operation verification and forwards exactly one expected anniversary", async () => {
     const input = renewal(); input.set("actorUserId", "forged"); input.set("portalAccessStatus", "active"); input.set("cardNumber", "forbidden");
     const result = await confirmRenewalAction(initial, input);
-    expect(mocks.guard).toHaveBeenCalledWith("admin.membership.manage", { fallbackPath: "/admin/membership", requireAal2: true });
+    expect(mocks.guard).toHaveBeenCalledWith({ operation: "membership.renewal.confirm", payload: { memberId, expectedDueOn: "2025-09-01", resolution: "paid", reference: "OFFICE-42", note: "Fee verified at office.", confirmation: "CONFIRM" } }, undefined);
     expect(mocks.rpc).toHaveBeenCalledWith("confirm_membership_renewal", {
       p_member_id: memberId, p_expected_due_on: "2025-09-01", p_resolution: "paid", p_reference: "OFFICE-42", p_note: "Fee verified at office.",
     });
     expect(result).toMatchObject({ status: "success", message: expect.stringMatching(/one anniversary.*still former/i) });
+  });
+  it("fails before renewal side effects without verification", async () => {
+    mocks.guard.mockResolvedValue({ ok: false, code: "verification_required" });
+    expect(await confirmRenewalAction(initial, renewal())).toMatchObject({ status: "error", code: "verification_required" });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("forwards a bound proof for atomic renewal consumption", async () => {
+    const input = renewal(); input.set("verificationProof", "bound-proof");
+    await confirmRenewalAction(initial, input);
+    expect(mocks.rpc.mock.calls[0][1].p_proof).toBe("bound-proof");
   });
   it("cannot be used by an unauthorized operator / Content Admin", async () => {
     mocks.guard.mockRejectedValue(new Error("NEXT_REDIRECT"));
@@ -76,6 +86,16 @@ describe("administrative renewal confirmation", () => {
 });
 
 describe("departure, appeal and alumni review", () => {
+  it("permits an authorized routine AAL1 review without a payment/MFA proof", async () => {
+    mocks.rpc.mockResolvedValue({ data: { status: "approved", requestId }, error: null });
+    expect(await reviewMembershipRequestAction(initial, review())).toMatchObject({ status: "success" });
+    expect(mocks.guard).toHaveBeenCalledWith({ operation: "membership.request.review", payload: { requestId, expectedUpdatedAt: "2026-10-01T00:00:00.000Z", decision: "approved", note: "Verified with member.", confirmation: "CONFIRM" } });
+  });
+  it("does not review when current permission or mandatory verification fails", async () => {
+    mocks.guard.mockResolvedValue({ ok: false, code: "permission_denied" });
+    expect(await reviewMembershipRequestAction(initial, review())).toMatchObject({ status: "error", code: "permission_denied" });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   it.each(["approved", "rejected"])("uses the transactional %s review, not a security-status rewrite", async (decision) => {
     mocks.rpc.mockResolvedValue({ data: { status: decision, requestId, pathStatus: decision === "approved" ? "open" : "closed_final" }, error: null });
     const result = await reviewMembershipRequestAction(initial, review(decision));

@@ -23,7 +23,7 @@ function runFixture({ mode = "pull", failures = 1, lint = false } = {}) {
   }
   writeFileSync(join(verification, "baseline/20260608092959_restore_rls_auto_enable.sql"), "-- disposable fixture\n");
   writeFileSync(join(root, "supabase/migrations/20261001000000_fixture.sql"), "-- disposable fixture\n");
-  for (const name of ["assert-bootstrap-replay.sql", "assert-member-intake-publish.sql", "assert-membership-anniversary.sql", "assert-membership-snapshot.sql", "assert-membership-admin-queue.sql", "assert-cycle-free-approval.sql", "assert-membership-review-regressions.sql", "assert-admin-verification.sql"]) {
+  for (const name of ["assert-bootstrap-replay.sql", "assert-member-intake-publish.sql", "assert-membership-anniversary.sql", "assert-membership-snapshot.sql", "assert-membership-admin-queue.sql", "assert-cycle-free-approval.sql", "assert-membership-review-regressions.sql", "assert-admin-verification.sql", "assert-admin-operation-guards.sql"]) {
     writeFileSync(join(verification, name), "-- SQL itself is tested by real database replay\n");
   }
   writeFileSync(join(verification, "run-admin-verification-concurrency.mjs"), "// Real SQL/concurrency is tested by disposable database replay, not this CLI retry fixture.\n");

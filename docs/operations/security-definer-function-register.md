@@ -71,6 +71,25 @@ confirmed email, enrollment history and security policy. No secrets or OTPs are
 returned by the context/preparation RPCs or written to audit records. This is
 staged local verification evidence, not a claim of hosted deployment.
 
+## Admin Operation Guards (2026-10-02, staged)
+
+`20261002165457_admin_verification_operation_guards.sql` adds service-only
+`admin_verification_check_write(jsonb)` for non-consuming, exact-intent mutation
+preflight. The authenticated `confirm_membership_renewal` now has a seventh,
+optional proof argument; the previous six-argument implementation is private
+and denies browser/service execution. The wrapper derives its actor from the
+signed JWT, checks the live session/current grant version and consumes proof
+atomically with renewal state and audit writes. Genuinely verified TOTP sessions
+retain legacy-call compatibility. Historical receipt dates are not authorized
+by email proof for a different, current-day operation.
+
+`private.require_membership_operator()` now applies the routine-review policy:
+active membership permission and a live/current session, with actual TOTP MFA
+when mandatory enforcement is on. It does not relax the renewal wrapper.
+All new private helpers revoke PUBLIC, anon, authenticated and service execution.
+Remaining Task 4 operation integrations are still in progress; none of these
+changes has been applied to the hosted project.
+
 ## Review Procedure
 
 Before altering any entry:

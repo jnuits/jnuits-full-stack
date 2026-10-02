@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdminPermission } from "@/lib/auth/session";
+import { adminVerificationFailureMessage, authorizeAdminOperation } from "@/lib/auth/admin-verification/guard";
 import { createClient } from "@/lib/supabase/server";
 
 export type RenewalActionResult = { status: "idle" | "success" | "error"; code?: string; message: string };
@@ -20,7 +20,7 @@ const reviewResult = z.object({ status: z.enum(["approved", "rejected", "already
 function invalid(message: string): RenewalActionResult { return { status: "error", code: "invalid_input", message }; }
 function databaseFailure(code?: string): RenewalActionResult {
   if (code === "40001") return { status: "error", code: "stale", message: "This record changed. Refresh the queue before continuing." };
-  if (code === "42501") return { status: "error", code: "permission_denied", message: "Membership administration and verified MFA are required." };
+  if (code === "42501") return { status: "error", code: "permission_denied", message: "Membership administration and the required account verification are needed." };
   if (code === "22023" || code === "P0002") return { status: "error", code: "invalid_transition", message: "This record is not eligible for that decision. Refresh and check its current state." };
   return { status: "error", code: "database_error", message: "The decision could not be recorded. Retry after refreshing the queue." };
 }
@@ -30,16 +30,18 @@ function refreshMembershipViews() {
 }
 
 export async function confirmRenewalAction(_previous: RenewalActionResult, formData: FormData): Promise<RenewalActionResult> {
-  const auth = await requireAdminPermission("admin.membership.manage", { fallbackPath: "/admin/membership", requireAal2: true });
-  if (!auth.user) return databaseFailure("42501");
   const parsed = renewalSchema.safeParse(fields(formData, ["memberId", "expectedDueOn", "resolution", "reference", "note", "confirmation"]));
   if (!parsed.success) return invalid(parsed.error.issues[0]?.message || "Check the member, anniversary and confirmation fields.");
+  const proof = typeof formData.get("verificationProof") === "string" ? String(formData.get("verificationProof")) || undefined : undefined;
+  const authorized = await authorizeAdminOperation({ operation: "membership.renewal.confirm", payload: parsed.data }, proof);
+  if (!authorized.ok) return { status: "error", code: authorized.code, message: adminVerificationFailureMessage(authorized.code) };
   let response;
   try {
     const client = await createClient();
     response = await client.rpc("confirm_membership_renewal", {
       p_member_id: parsed.data.memberId, p_expected_due_on: parsed.data.expectedDueOn, p_resolution: parsed.data.resolution,
       ...(parsed.data.reference ? { p_reference: parsed.data.reference } : {}), p_note: parsed.data.note,
+      ...(proof ? { p_proof: proof } : {}),
     });
   } catch { return databaseFailure(); }
   if (response.error) return databaseFailure(response.error.code);
@@ -52,10 +54,10 @@ export async function confirmRenewalAction(_previous: RenewalActionResult, formD
 }
 
 export async function reviewMembershipRequestAction(_previous: RenewalActionResult, formData: FormData): Promise<RenewalActionResult> {
-  const auth = await requireAdminPermission("admin.membership.manage", { fallbackPath: "/admin/membership", requireAal2: true });
-  if (!auth.user) return databaseFailure("42501");
   const parsed = reviewSchema.safeParse(fields(formData, ["requestId", "expectedUpdatedAt", "decision", "note", "confirmation"]));
   if (!parsed.success) return invalid(parsed.error.issues[0]?.message || "Check the request, decision and review note.");
+  const authorized = await authorizeAdminOperation({ operation: "membership.request.review", payload: parsed.data });
+  if (!authorized.ok) return { status: "error", code: authorized.code, message: adminVerificationFailureMessage(authorized.code) };
   let response;
   try {
     const client = await createClient();
