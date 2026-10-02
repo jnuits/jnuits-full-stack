@@ -4361,6 +4361,10 @@ export type Database = {
         Args: { p_attempt_id: string; p_payload: Json }
         Returns: Json
       }
+      complete_admin_lifecycle_operation: {
+        Args: { p_attempt_id: string; p_payload: Json }
+        Returns: Json
+      }
       confirm_form_submission: {
         Args: { p_confirmation_token_hash: string; p_submission_id: string }
         Returns: {
@@ -4697,6 +4701,10 @@ export type Database = {
           p_note: string
           p_request_id: string
         }
+        Returns: Json
+      }
+      revoke_admin_invitation_verified: {
+        Args: { p_payload: Json; p_proof: string }
         Returns: Json
       }
       set_member_lifecycle_status: {

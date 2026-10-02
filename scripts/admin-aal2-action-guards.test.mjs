@@ -40,8 +40,20 @@ describe("Admin server actions enforce operation verification at the action boun
   it("keeps every privileged admin-profiles lifecycle action behind step-up", () => {
     const source = readSource("src/app/admin/admin-profiles/actions.ts");
 
-    const guards = source.match(/requireAal2:\s*true/g) ?? [];
-    expect(guards.length).toBeGreaterThanOrEqual(4);
+    for (const name of ["changeAdminRoleAction", "inviteAdminAction", "updateAdminLifecycleAction", "revokeAdminInvitationAction"]) {
+      const start = source.indexOf(`export async function ${name}`);
+      const end = source.indexOf("export async function", start + 1);
+      const body = source.slice(start, end === -1 ? source.length : end);
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(body).toContain("authorizeAdminOperation(");
+      if (name === "updateAdminLifecycleAction") {
+        expect(body).toContain(".reserve(");
+        expect(body).toContain('rpc("complete_admin_lifecycle_operation"');
+        expect(body).toContain('rpc("apply_admin_role_operation"');
+      } else {
+        expect(body).toContain(name === "revokeAdminInvitationAction" ? 'rpc("revoke_admin_invitation_verified"' : 'rpc("apply_admin_role_operation"');
+      }
+    }
   });
 
   it("keeps the retention API behind step-up", () => {

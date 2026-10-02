@@ -17,6 +17,24 @@ alter table private.admin_invitation_authorizations enable row level security;
 revoke all on private.admin_invitation_authorizations from public,anon,authenticated,service_role;
 
 -- JWT fields come from the verified request, never from the mutation payload.
+-- Preserve the proven resolver and close external-Auth/reserved-freeze races.
+alter function private.admin_verification_actor_context(jsonb) rename to admin_verification_actor_context_core;
+create function private.admin_verification_actor_context(p_actor jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $fn$
+declare result jsonb;
+begin
+  result:=private.admin_verification_actor_context_core(p_actor);
+  if not coalesce((result->>'ok')::boolean,false) then return result; end if;
+  if exists(select 1 from auth.users where id=(p_actor->>'userId')::uuid and banned_until>clock_timestamp())
+    or exists(select 1 from private.admin_verification_attempts a join private.admin_verification_intents i on i.id=a.intent_id
+      join public.admin_profiles p on lower(i.payload->>'adminProfileId')=p.id::text
+      where a.status='reserved' and i.operation='admin.lifecycle.freeze' and p.user_id=(p_actor->>'userId')::uuid) then
+    return jsonb_build_object('ok',false,'code','permission_denied');
+  end if;
+  return result;
+end;
+$fn$;
+
 create function private.admin_verification_jwt_actor() returns jsonb
 language plpgsql security definer set search_path='' as $fn$
 declare ctx jsonb;
@@ -156,7 +174,7 @@ language sql security definer set search_path='' as $fn$
     where g.user_id=p_user_id and g.scope='admin' and r.scope='admin' and g.revoked_at is null
 $fn$;
 
-create function private.require_admin_account_target(p_actor uuid,p_operation text,p_payload jsonb)
+create function private.require_admin_account_target(p_actor uuid,p_operation text,p_payload jsonb,p_ignore_attempt uuid default null)
 returns public.admin_profiles language plpgsql security definer set search_path='' as $fn$
 declare target public.admin_profiles%rowtype; actor_rank integer; target_rank integer; confirmation text;
 begin
@@ -164,6 +182,12 @@ begin
     or p_payload->>'confirmation' is null then raise exception 'Invalid account target.' using errcode='22023'; end if;
   select * into target from public.admin_profiles where id=(p_payload->>'adminProfileId')::uuid for update;
   if not found then raise exception 'Admin profile was not found.' using errcode='P0002'; end if;
+  if exists(select 1 from private.admin_verification_attempts a join private.admin_verification_intents i on i.id=a.intent_id
+    where a.status='reserved' and a.id is distinct from p_ignore_attempt
+      and i.operation in ('admin.lifecycle.freeze','admin.lifecycle.unfreeze')
+      and lower(i.payload->>'adminProfileId')=target.id::text) then
+    raise exception 'A previous account update needs reconciliation.' using errcode='42501';
+  end if;
   actor_rank:=private.admin_role_rank(p_actor); target_rank:=private.admin_role_rank(target.user_id);
   confirmation:=lower(btrim(p_payload->>'confirmation'));
   if p_actor=target.user_id or target_rank=0 or not (actor_rank=3 or (actor_rank=2 and target_rank=1))
@@ -194,7 +218,7 @@ begin
       and not exists(select 1 from private.admin_verification_attempts a
         join private.admin_verification_intents i on i.id=a.intent_id
         where a.status='reserved' and i.operation in ('admin.lifecycle.freeze','admin.role.remove')
-          and i.payload->>'adminProfileId'=p.id::text)) then
+          and lower(i.payload->>'adminProfileId')=p.id::text)) then
     raise exception 'The last active super admin cannot be changed, frozen, or removed.' using errcode='42501';
   end if;
 end;
@@ -267,6 +291,7 @@ begin
   if jsonb_typeof(p_payload) is distinct from 'object' or jsonb_typeof(p_payload->'adminTotpEnforced') is distinct from 'boolean'
     or (select count(*) from jsonb_object_keys(p_payload))<>1 then raise exception 'Invalid security setting.' using errcode='22023'; end if;
   -- Serialize policy changes before taking actor/settings SHARE locks.
+  perform pg_advisory_xact_lock(hashtextextended('jnuits:admin-role-management',0));
   perform pg_advisory_xact_lock(hashtextextended('jnuits:admin-security-policy',0));
   attempt_id:=private.reserve_admin_mutation('admin.security.update',p_payload,p_proof);
   enforced:=(p_payload->>'adminTotpEnforced')::boolean;
@@ -310,6 +335,98 @@ begin
   return intent;
 end;
 $fn$;
+
+-- A reservation must authorize the target BEFORE any external Auth side effect.
+create or replace function public.admin_verification_reserve(p_input jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $fn$
+declare operation text:=p_input#>>'{intent,operation}'; payload jsonb:=p_input#>'{intent,payload}';
+  target public.admin_profiles%rowtype; result jsonb; ctx jsonb;
+begin
+  if operation in ('admin.lifecycle.freeze','admin.lifecycle.unfreeze') then
+    perform pg_advisory_xact_lock(hashtextextended('jnuits:admin-role-management',0));
+    if jsonb_typeof(payload) is distinct from 'object' or (select count(*) from jsonb_object_keys(payload))<>2 then
+      return jsonb_build_object('ok',false,'code','invalid_input');
+    end if;
+    ctx:=private.admin_verification_actor_context(p_input->'actor');
+    if not coalesce((ctx->>'ok')::boolean,false) then return ctx; end if;
+    target:=private.require_admin_account_target((ctx#>>'{value,userId}')::uuid,operation,payload);
+    if operation='admin.lifecycle.freeze' then perform private.require_other_active_super_admin(target.user_id); end if;
+  end if;
+  result:=private.admin_verification_handle('reserve',p_input);
+  if coalesce((result->>'ok')::boolean,false) then
+    update private.admin_verification_attempts set reserved_actor=p_input->'actor' where id=(result#>>'{value,attemptId}')::uuid;
+  end if;
+  return result;
+exception when insufficient_privilege or no_data_found then return jsonb_build_object('ok',false,'code','permission_denied');
+  when invalid_text_representation then return jsonb_build_object('ok',false,'code','invalid_input');
+end;
+$fn$;
+revoke all on function public.admin_verification_reserve(jsonb) from public,anon,authenticated;
+grant execute on function public.admin_verification_reserve(jsonb) to service_role;
+
+create function public.complete_admin_lifecycle_operation(p_attempt_id uuid,p_payload jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $fn$
+declare intent private.admin_verification_intents%rowtype; target public.admin_profiles%rowtype; banned boolean;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('jnuits:admin-role-management',0));
+  intent:=private.load_reserved_admin_intent(p_attempt_id);
+  if intent.operation not in ('admin.lifecycle.freeze','admin.lifecycle.unfreeze') or intent.payload is distinct from p_payload then
+    raise exception 'Reserved account operation does not match.' using errcode='42501';
+  end if;
+  target:=private.require_admin_account_target(intent.user_id,intent.operation,p_payload,p_attempt_id);
+  select coalesce(banned_until>clock_timestamp(),false) into banned from auth.users where id=target.user_id for share;
+  if not found or (intent.operation='admin.lifecycle.freeze' and not banned)
+    or (intent.operation='admin.lifecycle.unfreeze' and banned) then
+    raise exception 'External account state has not been confirmed.' using errcode='42501';
+  end if;
+  if intent.operation='admin.lifecycle.freeze' then perform private.require_other_active_super_admin(target.user_id); end if;
+  update public.admin_profiles set status=case when intent.operation='admin.lifecycle.freeze' then 'frozen' else 'active' end,
+    is_active=intent.operation='admin.lifecycle.unfreeze',status_reason='Verified admin account lifecycle operation.',
+    status_updated_at=clock_timestamp(),status_updated_by_user_id=intent.user_id where id=target.id;
+  perform private.record_verified_admin_account_event(intent.user_id,target,
+    case when intent.operation='admin.lifecycle.freeze' then 'admin_account.frozen' else 'admin_account.unfrozen' end,'{}',
+    case when intent.operation='admin.lifecycle.freeze' then 'warning' else 'info' end);
+  perform private.complete_admin_mutation(p_attempt_id);
+  return jsonb_build_object('ok',true,'value',null);
+end;
+$fn$;
+revoke all on function public.complete_admin_lifecycle_operation(uuid,jsonb) from public,anon,authenticated;
+grant execute on function public.complete_admin_lifecycle_operation(uuid,jsonb) to service_role;
+
+create function public.revoke_admin_invitation_verified(p_payload jsonb,p_proof text) returns jsonb
+language plpgsql security definer set search_path='' as $fn$
+declare invitation public.admin_invitations%rowtype; profile public.admin_profiles%rowtype; actor_rank integer; attempt_id uuid;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('jnuits:admin-role-management',0));
+  if jsonb_typeof(p_payload) is distinct from 'object' or (select count(*) from jsonb_object_keys(p_payload))<>2 then
+    raise exception 'Invalid invitation cancellation.' using errcode='22023';
+  end if;
+  attempt_id:=private.reserve_admin_mutation('admin.invitation.revoke',p_payload,p_proof);
+  select * into invitation from public.admin_invitations where id=(p_payload->>'invitationId')::uuid for update;
+  actor_rank:=private.admin_role_rank(auth.uid());
+  if not found or invitation.status<>'pending' or invitation.target_user_id=auth.uid()
+    or lower(btrim(p_payload->>'confirmation')) is distinct from lower(invitation.email::text)
+    or not (actor_rank=3 or (actor_rank=2 and invitation.invited_role_code='content_admin')) then
+    raise exception 'This invitation cannot be cancelled.' using errcode='42501';
+  end if;
+  if invitation.target_admin_profile_id is not null then
+    select * into profile from public.admin_profiles where id=invitation.target_admin_profile_id for update;
+    if not found or profile.user_id is distinct from invitation.target_user_id or profile.status<>'pending_invite' or profile.is_active
+      or private.admin_role_rank(profile.user_id)>0 then
+      raise exception 'The pending account state changed.' using errcode='42501';
+    end if;
+    update public.admin_profiles set status='removed',is_active=false,status_reason='Pending admin invitation revoked.',
+      status_updated_at=clock_timestamp(),status_updated_by_user_id=auth.uid() where id=profile.id;
+  end if;
+  update public.admin_invitations set revoked_at=clock_timestamp(),revoked_by_user_id=auth.uid(),status='revoked' where id=invitation.id;
+  insert into public.audit_events(action,actor_user_id,entity_id,entity_type,metadata)
+    values('admin_invitation.revoked',auth.uid(),invitation.id,'admin_invitation',jsonb_build_object('roleCode',invitation.invited_role_code));
+  perform private.complete_admin_mutation(attempt_id);
+  return jsonb_build_object('ok',true,'value',null);
+end;
+$fn$;
+revoke all on function public.revoke_admin_invitation_verified(jsonb,text) from public,anon,service_role;
+grant execute on function public.revoke_admin_invitation_verified(jsonb,text) to authenticated;
 
 create function private.authorize_admin_invitation(p_attempt_id uuid,p_payload jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $fn$
