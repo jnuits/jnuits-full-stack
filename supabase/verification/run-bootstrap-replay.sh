@@ -37,7 +37,7 @@ fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 bootstrap_helper="$repo_root/supabase/verification/baseline/20260608092959_restore_rls_auto_enable.sql"
-port_helper="$repo_root/supabase/verification/configure-bootstrap-replay-port.mjs"
+config_helper="$repo_root/supabase/verification/configure-bootstrap-replay.mjs"
 types_writer="$repo_root/supabase/verification/write-generated-db-types.sh"
 bootstrap_version="20260608092959"
 pinned_cli_version="2.109.1"
@@ -72,8 +72,8 @@ if [[ ! -f "$bootstrap_helper" ]]; then
   exit 1
 fi
 
-if [[ -n "$replay_db_port" && ! -f "$port_helper" ]]; then
-  printf 'Database port helper is missing: %s\n' "$port_helper" >&2
+if [[ ! -f "$config_helper" ]]; then
+  printf 'Disposable configuration helper is missing: %s\n' "$config_helper" >&2
   exit 1
 fi
 
@@ -161,12 +161,15 @@ if [[ -z "$config_file" || ! -f "$config_file" ]]; then
   exit 1
 fi
 
+if ! command -v node >/dev/null 2>&1; then
+  printf 'Node.js is required for disposable replay configuration.\n' >&2
+  exit 1
+fi
+# Replay tests ordered migration files, not declarative schema diffs. Disable
+# the CLI's experimental catalog-cache export, which can hang after application.
+# This does not skip a migration, SQL assertion, type generation or database lint.
+node "$config_helper" "$(to_native "$config_file")" "$(to_native "$scratch_root")" "$replay_db_port"
 if [[ -n "$replay_db_port" ]]; then
-  if ! command -v node >/dev/null 2>&1; then
-    printf 'Node.js is required when SUPABASE_REPLAY_DB_PORT is set.\n' >&2
-    exit 1
-  fi
-  node "$port_helper" "$config_file" "$replay_db_port"
   printf 'Disposable database port override: %s\n' "$replay_db_port"
 fi
 
@@ -311,6 +314,14 @@ docker_run cp \
   "$db_container:/tmp/jnuits-replay/assert-membership-review-regressions.sql"
 docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
   -f /tmp/jnuits-replay/assert-membership-review-regressions.sql
+
+docker_run cp \
+  "$(to_native "$repo_root/supabase/verification/assert-admin-verification.sql")" \
+  "$db_container:/tmp/jnuits-replay/assert-admin-verification.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
+  -f /tmp/jnuits-replay/assert-admin-verification.sql
+
+SCRATCH_ACK=DISPOSABLE_SCRATCH node "$repo_root/supabase/verification/run-admin-verification-concurrency.mjs" "$db_container"
 
 docker_run exec "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c \

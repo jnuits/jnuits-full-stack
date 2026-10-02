@@ -55,6 +55,22 @@ access. A blind revoke would make valid profile-management policies fail.
 legacy bulk/lifecycle helpers and `has_platform_role(text)` to `service_role`.
 Those functions are not needed by current RLS policies or client code.
 
+## Admin Verification Foundation (2026-10-02, staged)
+
+`20261002154457_admin_verification_foundation.sql` adds service-only JSON RPCs:
+`admin_verification_context`, `prepare`, `begin_email`, `mark_email_delivery`,
+`load_email_challenge`, `redeem_email`, `reserve_password_attempt`,
+`issue_password`, `reserve`, `check_read`, and `record_enrollment` (all with
+the `admin_verification_` prefix and one `jsonb` argument).
+
+All use an empty search path. PUBLIC, anon and authenticated execute is revoked;
+only service_role can execute the public wrappers. All private implementation
+functions and tables deny browser and service-role direct access. The wrappers
+recheck live Auth session, active administrator, current role version, permission,
+confirmed email, enrollment history and security policy. No secrets or OTPs are
+returned by the context/preparation RPCs or written to audit records. This is
+staged local verification evidence, not a claim of hosted deployment.
+
 ## Review Procedure
 
 Before altering any entry:

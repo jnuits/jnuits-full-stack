@@ -4242,6 +4242,35 @@ export type Database = {
       }
     }
     Functions: {
+      admin_verification_begin_email: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_check_read: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_context: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_issue_password: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_load_email_challenge: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_mark_email_delivery: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_prepare: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_record_enrollment: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_redeem_email: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_reserve: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_reserve_password_attempt: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
       allocate_membership_id: { Args: { year_block: string }; Returns: string }
       approve_alumni_onboarding_case: {
         Args: {
