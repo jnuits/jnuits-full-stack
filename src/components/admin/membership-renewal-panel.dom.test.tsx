@@ -51,4 +51,21 @@ describe("membership renewal admin panel", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Record decision" }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/Request changed/));
   });
+  it("allows an Alumni request with an unknown joining date to use the guarded request review, not renewal confirmation", async () => {
+    mocks.review.mockResolvedValue({ status: "success", message: "Request approved. Security restrictions are unchanged." });
+    render(<MembershipRenewalPanel data={queue({ queue: "alumni", total: 1, rows: [{ ...row, joinedOn: null, dueOn: null, requestId: "22222222-2222-4222-8222-222222222222", requestType: "alumni_conversion", requestedAt: "2026-10-02T09:00:00+00:00", requestUpdatedAt: "2026-10-02T09:00:00+00:00" }] })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Review request" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/identity and committee history remain/i)).toBeTruthy();
+    expect(within(dialog).queryByLabelText("Safe office reference (optional)")).toBeNull();
+    const button = within(dialog).getByRole("button", { name: "Record decision" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText("Review note"), { target: { value: "Alumni eligibility reviewed." } });
+    fireEvent.click(within(dialog).getByLabelText(/understand this decision/i));
+    fireEvent.click(button);
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Request approved"));
+    expect(mocks.review.mock.calls[0][1].get("requestId")).toBe("22222222-2222-4222-8222-222222222222");
+    expect(mocks.review.mock.calls[0][1].get("expectedUpdatedAt")).toBe("2026-10-02T09:00:00+00:00");
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
 });
