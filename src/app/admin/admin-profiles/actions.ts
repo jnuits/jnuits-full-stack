@@ -37,6 +37,7 @@ import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";
 import { authorizeAdminOperation, adminVerificationFailureMessage } from "@/lib/auth/admin-verification/guard";
 import { AdminVerificationStore } from "@/lib/auth/admin-verification/store";
+import type { AdminOperationIntent } from "@/lib/auth/admin-verification/types";
 
 const adminProfileUpdateSchema = z.object({
   adminProfileId: z.string().trim().min(1, "Missing admin profile identifier."),
@@ -534,7 +535,7 @@ export async function updateAdminLifecycleAction(formData: FormData) {
   }
 
   const operation = parsed.data.intent === "remove" ? "admin.role.remove" : parsed.data.intent === "freeze" ? "admin.lifecycle.freeze" : "admin.lifecycle.unfreeze";
-  const intent = { operation, payload: { adminProfileId: parsed.data.adminProfileId, confirmation: parsed.data.confirmation } };
+  const intent: AdminOperationIntent = { operation, payload: { adminProfileId: parsed.data.adminProfileId, confirmation: parsed.data.confirmation } };
   const proof = asString(formData.get("verificationProof")) || undefined;
   const authorized = await authorizeAdminOperation(intent, proof);
   if (!authorized.ok) return setFlashAndRedirect("error", "Lifecycle action failed", adminVerificationFailureMessage(authorized.code));
