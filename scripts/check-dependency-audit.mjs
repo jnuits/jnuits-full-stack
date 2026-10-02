@@ -18,11 +18,10 @@ const ALLOWED_ADVISORY_URL =
  * GHSA-mh99-v99m-4gvg / CVE-2026-14257: brace-expansion <= 5.0.7 denial of
  * service via memory exhaustion.
  *
- * The production tree is clean; both 5.x copies were updated to 5.0.8. The one
- * remaining copy is brace-expansion 1.1.16, reached only through minimatch@3.1.5
- * which the ESLint plugins pin at ^3.1.2. It cannot currently be resolved:
+ * Historical exception: the 1.x linter copy originally had no patched release.
+ * The 2026-10 CI repair updates it to 1.1.21 and the 5.x copies to 5.0.12.
+ * The expired exception below remains fail-closed and is not renewed.
  *
- *   - There is no patched release in the brace-expansion 1.x line.
  *   - minimatch 3 calls the dependency as `expand(...)`, while 5.x exports
  *     `{ expand }`, so forcing 5.x breaks ESLint outright.
  *   - Upgrading ESLint core does not help: eslint-plugin-import,
