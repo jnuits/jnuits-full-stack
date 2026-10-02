@@ -18,14 +18,15 @@ function runFixture({ mode = "pull", failures = 1, lint = false } = {}) {
   mkdirSync(join(verification, "baseline"), { recursive: true });
   mkdirSync(join(root, "supabase/migrations"), { recursive: true });
   mkdirSync(join(root, "bin"));
-  for (const name of ["run-bootstrap-replay.sh", "write-generated-db-types.sh"]) {
+  for (const name of ["run-bootstrap-replay.sh", "write-generated-db-types.sh", "configure-bootstrap-replay.mjs", "configure-bootstrap-replay-port.mjs"]) {
     copyFileSync(join(repoRoot, "supabase/verification", name), join(verification, name));
   }
   writeFileSync(join(verification, "baseline/20260608092959_restore_rls_auto_enable.sql"), "-- disposable fixture\n");
   writeFileSync(join(root, "supabase/migrations/20261001000000_fixture.sql"), "-- disposable fixture\n");
-  for (const name of ["assert-bootstrap-replay.sql", "assert-member-intake-publish.sql", "assert-membership-anniversary.sql", "assert-membership-snapshot.sql", "assert-membership-admin-queue.sql", "assert-cycle-free-approval.sql", "assert-membership-review-regressions.sql"]) {
+  for (const name of ["assert-bootstrap-replay.sql", "assert-member-intake-publish.sql", "assert-membership-anniversary.sql", "assert-membership-snapshot.sql", "assert-membership-admin-queue.sql", "assert-cycle-free-approval.sql", "assert-membership-review-regressions.sql", "assert-admin-verification.sql"]) {
     writeFileSync(join(verification, name), "-- SQL itself is tested by real database replay\n");
   }
+  writeFileSync(join(verification, "run-admin-verification-concurrency.mjs"), "// Real SQL/concurrency is tested by disposable database replay, not this CLI retry fixture.\n");
   writeFileSync(join(root, "expected.types"), types);
   writeFileSync(join(root, "database.types.ts"), "previous canonical artifact\n");
   const cli = join(root, "bin/supabase-fixture");
@@ -33,7 +34,7 @@ function runFixture({ mode = "pull", failures = 1, lint = false } = {}) {
 set -euo pipefail
 case "$1" in
   --version) printf '2.109.1\\n';;
-  init) mkdir -p supabase; printf 'project_id = "retry-fixture"\\n' > supabase/config.toml;;
+  init) mkdir -p supabase; printf 'project_id = "retry-fixture"\\n[experimental.pgdelta]\\nenabled = true\\n' > supabase/config.toml;;
   start|stop) exit 0;;
   gen|db)
     operation="$1"
