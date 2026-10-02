@@ -80,7 +80,7 @@ export async function requireAdminApiPermission(
   if (options.requireAal2) {
     const mfaState = await checkAdminMFA(await createClient());
 
-    if (!mfaState.ok) {
+    if (!mfaState.ok || mfaState.currentLevel !== "aal2" || mfaState.nextLevel !== "aal2") {
       return {
         response: NextResponse.json(
           { message: "Complete multi-factor verification before this action." },

@@ -1,7 +1,7 @@
 # Admin verification and bulk membership review design
 
 Date: 2026-10-02 (Asia/Dhaka)
-Status: written specification approved by the owner on 2026-10-02; implementation plan awaiting review. Product code and hosted authorization are not changed by this document.
+Status: specification and implementation plan approved by the owner on 2026-10-02; Native execution in progress. Hosted authorization remains unchanged until verification and rollout gates pass.
 
 ## Purpose and approved decisions
 
@@ -123,4 +123,4 @@ The implementation plan will define exact interfaces and task-by-task red/green 
 
 Authorized: this policy, membership-request bulk approval, developed Resend reuse, admin-role dual verification and necessary forward Supabase authorization changes. Not authorized by this design: changing the live enforcement setting, granting/revoking real roles, approving real Alumni/departure requests, deleting the backup branch, or resuming deferred committee features.
 
-Next checkpoint: review `docs/superpowers/plans/2026-10-02-admin-verification-and-bulk-review.md` and confirm the execution approach before product-code or hosted changes.
+Execution progress and verification evidence: `docs/superpowers/plans/2026-10-02-admin-verification-and-bulk-review.md`. Independent patch review and verified forward migration remain required before hosted rollout.

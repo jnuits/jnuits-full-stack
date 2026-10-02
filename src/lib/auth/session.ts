@@ -490,8 +490,8 @@ export async function requireAdminPermission(
     const supabase = await createClient();
     const mfaState = await checkAdminMFA(supabase);
 
-    if (!mfaState.ok) {
-      redirect(mfaState.redirectTo || "/admin/mfa/challenge");
+    if (!mfaState.ok || mfaState.currentLevel !== "aal2" || mfaState.nextLevel !== "aal2") {
+      redirect(mfaState.redirectTo || (mfaState.nextLevel === "aal2" ? "/admin/mfa/challenge" : "/admin/mfa/setup"));
     }
   }
 

@@ -88,7 +88,7 @@ type VerificationResult<T> = { ok: true; value: T } | { ok: false; code: string 
 
 **Interfaces:** Produce `parseAdminOperationIntent(input: unknown): VerificationResult<AdminOperationIntent>` and `evaluateAdminVerification(actor: AdminVerificationActor, kind: VerificationClass): VerificationDecision`. Preserve `checkAdminMFA(client): Promise<AdminMFAState>` as an entry-policy helper, but always resolve actual assurance. Existing `requireAal2: true` callers must check actual AAL2 independently of the enforcement toggle.
 
-- [ ] **Write failing policy tests** in `policy.test.ts`, `operations.test.ts` and new `src/lib/auth/mfa.test.ts`:
+- [x] **Write failing policy tests** in `policy.test.ts`, `operations.test.ts` and new `src/lib/auth/mfa.test.ts`:
 
 ```ts
 expect(evaluateAdminVerification(offAal1Never, "routine")).toEqual({ status: "allowed" });
@@ -100,10 +100,12 @@ expect((await checkAdminMFA(offVerifiedClient)).currentLevel).toBe("aal2");
 ```
 
 Include mandatory-on rows, removed-factor history, enrolled AAL1, malformed intent and unavailable policy/assurance. Unknown state offers authenticator setup/recovery, never email. Existing permission/inactive-admin denials remain covered by session/API tests; Task 2 resolves fresh role version and live session.
-- [ ] **Run red tests:** `npx vitest run --project node src/lib/auth/admin-verification/policy.test.ts src/lib/auth/admin-verification/operations.test.ts src/lib/auth/mfa.test.ts`; expect missing-module/behavior failures.
-- [ ] **Implement contracts and registry schemas**, preserving existing target confirmations and validated fields. Policy/assurance read failures must return an error with `ok: false` even for an AAL2 session, not silently turn the policy into an authorized default. Do not classify unrelated CMS workflows. Re-read local Next.js server-action/route-handler guides before product changes.
-- [ ] **Run green tests** above plus session/API guard tests; expect PASS and no toggle-based AAL2 authorization success.
-- [ ] **Commit** only Task 1 files: `feat(auth): separate admin entry and operation verification`.
+- [x] **Run red tests:** `npx vitest run --project node src/lib/auth/admin-verification/policy.test.ts src/lib/auth/admin-verification/operations.test.ts src/lib/auth/mfa.test.ts`; expect missing-module/behavior failures.
+- [x] **Implement contracts and registry schemas**, preserving existing target confirmations and validated fields. Policy/assurance read failures must return an error with `ok: false` even for an AAL2 session, not silently turn the policy into an authorized default. Do not classify unrelated CMS workflows. Re-read local Next.js server-action/route-handler guides before product changes.
+- [x] **Run green tests** above plus session/API guard tests; expect PASS and no toggle-based AAL2 authorization success.
+- [x] **Commit** only Task 1 files: `feat(auth): separate admin entry and operation verification`.
+
+Task 1 evidence (2026-10-02): new regressions observed failing before implementation; 37 focused tests passed afterwards. Full repository: 264 files / 1,712 tests passed. Typecheck and targeted ESLint passed. No hosted changes.
 
 ## Task 2: Durable Private Challenge, Proof and Enrollment State
 
@@ -244,4 +246,4 @@ expect(frozenMember.portal_access_status).toBe("frozen");
 
 Coverage: policy/classification and missing-state denial → Task 1; private proofs, history, limits and concurrency → Task 2; developed Resend/password/CAPTCHA → Task 3; DB/action/read boundaries, invitations and role restrictions → Task 4; adoption/accessibility/return-to-draft → Task 5; bounded bulk selection, stale/idempotent/partial results → Task 6; real browser/SQL/full-suite review and hosted parity → Task 7. Each Review Focus case has an owning test above.
 
-Implementation is not yet started. Recommended execution: **Native** in this existing isolated worktree, then one independent whole-branch review, because the policy/store/guard interfaces and migrations are closely coupled. Alternative: task-by-task subagent implementation and review, with more context overhead. Owner reviews this plan and confirms execution approach before product-code or hosted changes.
+Owner approved **Native** execution on 2026-10-02. Implementation is in progress in the existing isolated worktree, with one independent whole-branch review required before hosted rollout. Checked steps and evidence above record progress; unchecked work is not completed or deployed.
