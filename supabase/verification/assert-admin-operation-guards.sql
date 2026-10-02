@@ -481,6 +481,7 @@ declare
   target_user uuid:=extensions.gen_random_uuid(); target_profile uuid; actor jsonb; intent jsonb; prepared jsonb;
   result jsonb; challenge_id uuid:=extensions.gen_random_uuid(); proof_id uuid; attempt_id uuid;
   token text:=repeat('e',43); digest text;
+  snooze_started timestamptz;
 begin
   -- A new, confirmed, known-never-enrolled admin uses the developed email
   -- proof path, not a synthetic AAL2 JWT or a private proof-table injection.
@@ -496,6 +497,22 @@ begin
   perform public.admin_verification_record_enrollment(jsonb_build_object('userId',u,'evidence','trusted_never_history'));
   actor:=(public.admin_verification_context(jsonb_build_object('userId',u,'sessionId',sid,'roleVersion',v,'currentLevel','aal1')))->'value';
   if actor->>'enrollment'<>'never' then raise exception 'Known-never-enrolled email fixture failed: %',actor; end if;
+  if to_regprocedure('public.admin_verification_suggestion(jsonb)') is null then raise exception 'Missing private MFA suggestion preference boundary'; end if;
+  result:=public.admin_verification_suggestion(jsonb_build_object('actor',actor,'snooze',false));
+  if result#>>'{value,show}'<>'true' then raise exception 'Missing optional adoption suggestion: %',result; end if;
+  snooze_started:=clock_timestamp();
+  result:=public.admin_verification_suggestion(jsonb_build_object('actor',actor,'snooze',true));
+  if result#>>'{value,show}'<>'false' or (result#>>'{value,snoozedUntil}')::timestamptz<snooze_started+interval '7 days'
+    or (result#>>'{value,snoozedUntil}')::timestamptz>clock_timestamp()+interval '7 days' then
+    raise exception 'Snooze must last seven server-owned days: %',result;
+  end if;
+  update private.admin_verification_preferences set snoozed_until=clock_timestamp()-interval '1 second' where user_id=u;
+  result:=public.admin_verification_suggestion(jsonb_build_object('actor',actor,'snooze',false));
+  if result#>>'{value,show}'<>'true' then raise exception 'Expired snooze hid the suggestion'; end if;
+  if has_function_privilege('authenticated','public.admin_verification_suggestion(jsonb)','EXECUTE')
+    or has_function_privilege('anon','public.admin_verification_suggestion(jsonb)','EXECUTE') then
+    raise exception 'Browser can directly alter private suggestion state';
+  end if;
   insert into auth.users(id,email,created_at,updated_at) values(target_user,'email-freeze-target@local.invalid',now(),now());
   insert into public.admin_profiles(user_id,admin_code,display_name,status,is_active)
     values(target_user,'JNUITS-ADMIN-EMAIL-TARGET','Fictional email target','active',true) returning id into target_profile;

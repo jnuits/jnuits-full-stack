@@ -6,9 +6,10 @@ vi.mock("@/app/admin/membership/renewal-actions", () => ({ confirmRenewalAction:
 import { MembershipRenewalPanel, type RenewalQueueData } from "./membership-renewal-panel";
 const row = { memberId: "11111111-1111-4111-8111-111111111111", fullName: "Fictional Member", jnuitsId: "JNUITS-2099001", joinedOn: "2024-09-01", dueOn: "2025-09-01", lifecycleStatus: "former", portalAccessStatus: "frozen", pathStatus: "open", overdueDays: 395, requestId: null, requestType: null, requestedAt: null, requestUpdatedAt: null, requestNote: null };
 const queue = (overrides: Partial<RenewalQueueData> = {}): RenewalQueueData => ({ queue: "overdue", page: 1, pageSize: 25, total: 26, rows: [row], ...overrides });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, value: { decision: { status: "allowed" } } }) }));
   mocks.confirm.mockResolvedValue({ status: "success", message: "Still former. Confirm the next anniversary separately." });
   mocks.review.mockResolvedValue({ status: "error", message: "Request changed. Refresh before reviewing." });
 });
@@ -35,6 +36,31 @@ describe("membership renewal admin panel", () => {
     fireEvent.click(button);
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Still former"));
     expect(mocks.confirm.mock.calls[0][1].get("expectedDueOn")).toBe("2025-09-01");
+  });
+  it("preserves renewal note and confirmation when verification is cancelled", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, value: { decision: { status: "required", methods: ["totp", "email"] } } }) }));
+    render(<MembershipRenewalPanel data={queue()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Review anniversary" }));
+    fireEvent.change(screen.getByLabelText("Review note"), { target: { value: "Office fee verified." } });
+    fireEvent.click(screen.getByLabelText(/confirm only this anniversary/i));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm anniversary" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel verification" }));
+    expect(screen.getByLabelText("Review note")).toHaveValue("Office fee verified.");
+    expect(screen.getByLabelText(/confirm only this anniversary/i)).toBeChecked();
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+  it("dismissing verification with Escape does not close the original renewal draft", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, value: { decision: { status: "required", methods: ["totp", "email"] } } }) }));
+    render(<MembershipRenewalPanel data={queue()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Review anniversary" }));
+    fireEvent.change(screen.getByLabelText("Review note"), { target: { value: "Office fee verified." } });
+    fireEvent.click(screen.getByLabelText(/confirm only this anniversary/i));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm anniversary" }));
+    const verification = await screen.findByRole("dialog", { name: "Verify your account" });
+    fireEvent(verification, new Event("cancel", { bubbles: true, cancelable: true }));
+    expect(screen.getByRole("dialog", { name: "Confirm one anniversary" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Review note")).toHaveValue("Office fee verified.");
+    expect(mocks.confirm).not.toHaveBeenCalled();
   });
   it("links unknown dates to the existing member editor and disables invalid confirmations", () => {
     render(<MembershipRenewalPanel data={queue({ queue: "unknown", rows: [{ ...row, joinedOn: null, dueOn: null }] })} />);

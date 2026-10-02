@@ -121,6 +121,17 @@ The global workspace-entry enforcement remains unchanged.
 These are disposable replay verification results, not hosted deployment:
 neither staged migration has been applied to the production project yet.
 
+## Adoption Preferences (2026-10-02, staged)
+
+`20261002185531_admin_verification_preferences.sql` adds the service-only
+`admin_verification_suggestion(jsonb)` RPC over the foundation's private
+preferences table. PUBLIC/anon/authenticated execute is revoked and its search
+path is empty. The actor is re-resolved against the live session/profile/role
+version; clients cannot select a user or snooze duration. Snooze is seven
+server-owned days (168 hours). This preference never establishes verification,
+changes MFA enforcement or blocks a routine review. Disposable SQL verifies
+expiry and grants. This third migration also remains unapplied to production.
+
 ## Review Procedure
 
 Before altering any entry:

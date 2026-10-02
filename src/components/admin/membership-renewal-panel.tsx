@@ -1,12 +1,20 @@
 "use client";
 
-import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { AdminVerifiedForm } from "./admin-verified-form";
 import { confirmRenewalAction, reviewMembershipRequestAction, type RenewalActionResult } from "@/app/admin/membership/renewal-actions";
 import { formatDhakaDate } from "@/lib/membership/anniversary";
 import { renewalQueues, type RenewalQueue, type RenewalQueueRow, type RenewalQueueData } from "@/lib/membership/renewal-queue";
 export type { RenewalQueueData } from "@/lib/membership/renewal-queue";
 
 function queueHref(queue: RenewalQueue, page = 1) { return `/admin/membership?renewalQueue=${queue}&renewalPage=${page}#membership-renewals`; }
+
+function DecisionForm({ row, isRenewal, action, children }: { row: RenewalQueueRow; isRenewal: boolean; action: (form: FormData) => void; children: ReactNode }) {
+  if (!isRenewal) return <form action={action} className="grid gap-4 mt-4">{children}</form>;
+  return <AdminVerifiedForm action={action} className="grid gap-4 mt-4" intent={{ operation: "membership.renewal.confirm", payload: {
+    memberId: row.memberId, expectedDueOn: row.dueOn ?? "", resolution: "paid", reference: "", note: "", confirmation: "CONFIRM",
+  } }}>{children}</AdminVerifiedForm>;
+}
 
 function DecisionDialog({ row, onClose }: { row: RenewalQueueRow; onClose: () => void }) {
   const isRenewal = !row.requestId || row.requestType === "membership_renewal";
@@ -31,7 +39,7 @@ function DecisionDialog({ row, onClose }: { row: RenewalQueueRow; onClose: () =>
       <p className="section-copy mt-3">{row.fullName} · {row.jnuitsId}</p>
       <p className="section-copy mt-3">{isRenewal ? `Confirm only the anniversary due ${formatDhakaDate(row.dueOn)} after verifying the office payment or waiver. This does not lift any security freeze. Older overdue anniversaries may need separate confirmations.` : consequence}</p>
       {row.requestNote ? <p className="section-copy mt-3">Member reason: {row.requestNote}</p> : null}
-      <form action={action} className="grid gap-4 mt-4">
+      <DecisionForm row={row} isRenewal={isRenewal} action={action}>
         {isRenewal ? <>
           <input type="hidden" name="memberId" value={row.memberId} />
           <input type="hidden" name="expectedDueOn" value={row.dueOn || ""} />
@@ -46,7 +54,7 @@ function DecisionDialog({ row, onClose }: { row: RenewalQueueRow; onClose: () =>
         <label className="flex items-start gap-2"><input type="checkbox" name="confirmation" value="CONFIRM" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required /><span>{isRenewal ? "I confirm only this anniversary after checking the evidence." : "I understand this decision and its consequences."}</span></label>
         <div className="flex flex-wrap gap-3"><button type="submit" className="primary-button" disabled={pending || !confirmed || !note.trim() || result.status === "success"}>{pending ? "Recording…" : isRenewal ? "Confirm anniversary" : "Record decision"}</button><button type="button" className="ghost-button" disabled={pending} onClick={onClose}>Close</button></div>
         {result.status !== "idle" ? <p role={result.status === "error" ? "alert" : "status"}>{result.message}</p> : null}
-      </form>
+      </DecisionForm>
     </dialog>
   );
 }

@@ -4,6 +4,7 @@ import { saveAdminSecuritySettings } from "@/app/admin/settings/actions";
 import { getAdminSettingsSnapshot } from "@/lib/admin/settings";
 import { ShieldCheck, ShieldQuestion, Smartphone, UserLock } from "lucide-react";
 import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
+import { AdminVerifiedForm } from "./admin-verified-form";
 
 function formatDate(value: null | string | undefined) {
   if (!value) {
@@ -27,11 +28,9 @@ export async function AdminSecuritySettingsScreen() {
   }
 
   const sessionState =
-    !snapshot.securitySettings.admin_totp_enforced
-      ? "TOTP optional"
-      : snapshot.mfaState.currentLevel === "aal2"
-        ? "Verified"
-        : "Step-up required";
+    snapshot.mfaState.currentLevel === "aal2"
+      ? "Authenticator verified"
+      : snapshot.securitySettings.admin_totp_enforced ? "Authenticator verification required" : "Authenticator not verified — optional workspace protection";
   const mfaActionHref =
     snapshot.mfaState.redirectTo || "/admin/mfa/challenge";
   const mfaActionLabel =
@@ -62,10 +61,10 @@ export async function AdminSecuritySettingsScreen() {
             <p className="text-sm font-semibold">Authenticator assurance</p>
           </div>
           <p className="text-2xl font-semibold tracking-[-0.03em]">
-            {snapshot.mfaState.currentLevel || "aal1"}
+              {snapshot.mfaState.currentLevel === "aal2" ? "Verified" : "Not verified"}
           </p>
           <p className="section-copy">
-            Target assurance: AAL2 (required for protected admin routes)
+            Authenticator verification is required for admin-role changes. Eligible accounts may verify other protected operations by email.
           </p>
         </article>
 
@@ -99,15 +98,16 @@ export async function AdminSecuritySettingsScreen() {
           <div className="flex items-center gap-3">
             <Smartphone size={18} />
             <div>
-              <p className="text-sm font-semibold">MFA control plane</p>
+              <p className="text-sm font-semibold">Authenticator protection</p>
               <p className="section-copy">
                 Admin routes beyond login require a verified TOTP session when
                 enforcement is enabled.
               </p>
             </div>
           </div>
-          <form
+          <AdminVerifiedForm
             action={saveAdminSecuritySettings}
+            intent={{ operation: "admin.security.update", payload: { adminTotpEnforced: snapshot.securitySettings.admin_totp_enforced } }}
             className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4"
           >
             <label className="flex items-start gap-3">
@@ -123,9 +123,9 @@ export async function AdminSecuritySettingsScreen() {
                   Require TOTP for admin routes
                 </span>
                 <span className="section-copy mt-1 block">
-                  Keep this enabled for production. Turn it off only while
-                  testing admin accounts that have not enrolled an authenticator
-                  yet.
+                  Require authenticator protection for all admin workspace access.
+                  When optional, sensitive operations still require verification;
+                  admin-role changes always require an authenticator and password.
                 </span>
               </span>
             </label>
@@ -137,14 +137,12 @@ export async function AdminSecuritySettingsScreen() {
                 Last updated {formatDate(snapshot.securitySettings.updated_at)}
               </span>
             </div>
-          </form>
+          </AdminVerifiedForm>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Current level</p>
               <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
-                {snapshot.securitySettings.admin_totp_enforced
-                  ? snapshot.mfaState.currentLevel || "aal1"
-                  : "not enforced"}
+                {snapshot.mfaState.currentLevel === "aal2" ? "Authenticator verified" : "Authenticator not verified"}
               </p>
             </div>
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] p-4">

@@ -6,6 +6,7 @@ import { parseAdminOperationIntent } from "@/lib/auth/admin-verification/operati
 import { getAdminReadProofCookieName } from "@/lib/auth/admin-verification/read-cookie";
 import { getRequestIp } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
+import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
 import type { AdminOperationIntent } from "@/lib/auth/admin-verification/types";
 
 export const runtime = "nodejs";
@@ -45,6 +46,9 @@ async function handlePost(request: NextRequest) {
     const result = input.action === "prepare" ? await prepareAdminVerification(intent)
       : input.action === "email_send" ? await requestAdminEmailVerification(intent, ip)
       : await verifyAdminRolePassword(intent, input.password, input.captchaToken, ip);
+    if (input.action === "prepare" && result.ok && "decision" in result.value) {
+      return NextResponse.json({ ok: true, value: { ...result.value, captcha: getAuthCaptchaUiConfig() } });
+    }
     return NextResponse.json(result, { status: result.ok ? 200 : statusFor(result.code) });
   } catch { return NextResponse.json({ ok: false, code: "verification_unavailable" }, { status: 503 }); }
 }

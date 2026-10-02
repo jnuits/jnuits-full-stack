@@ -38,6 +38,16 @@ describe("same-origin admin verification API", () => {
     expect(response.status).toBe(200); expect(mocks.prepare).toHaveBeenCalledWith(intent);
     expect(JSON.stringify(await response.json())).not.toContain(proof.token);
   });
+  it("returns only public CAPTCHA configuration for the current-password stage", async () => {
+    vi.stubEnv("AUTH_CAPTCHA_REQUIRED", "true");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "public-site-key");
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "private-captcha-secret");
+    mocks.prepare.mockResolvedValue({ ok: true, value: { decision: { status: "required", methods: ["password"] } } });
+    const response = await POST(request({ action: "prepare", intent: { operation: "admin.role.remove", payload: { adminProfileId: id, confirmation: "QA" } } }), { params: Promise.resolve({}) });
+    const body = await response.json();
+    expect(body.value.captcha).toEqual({ required: true, siteKey: "public-site-key" });
+    expect(JSON.stringify(body)).not.toContain("private-captcha-secret");
+  });
   it("sets only a server-resolved read-scope HttpOnly cookie and returns no scope metadata", async () => {
     const response = await POST(request({ action: "email_verify", challengeId: id, code: "123456" }), { params: Promise.resolve({}) });
     const cookie = response.headers.get("Set-Cookie")!;

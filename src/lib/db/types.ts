@@ -4276,6 +4276,7 @@ export type Database = {
         Args: { p_input: Json }
         Returns: Json
       }
+      admin_verification_suggestion: { Args: { p_input: Json }; Returns: Json }
       allocate_membership_id: { Args: { year_block: string }; Returns: string }
       apply_admin_role_operation: {
         Args: { p_operation: string; p_payload: Json; p_proof: string }

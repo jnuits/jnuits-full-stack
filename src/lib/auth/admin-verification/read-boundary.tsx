@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { authorizeAdminOperation, adminVerificationFailureMessage } from "./guard";
 import { getAdminReadProofCookieName } from "./read-cookie";
 import type { AdminReadOperation } from "./types";
+import { AdminVerificationReadGate } from "@/components/admin/admin-verification-read-gate";
 
 const returnPaths: Record<AdminReadOperation, string> = {
   "admin.security.read": "/admin/settings/security",
@@ -19,9 +20,11 @@ export async function authorizeAdminRead(operation: AdminReadOperation) {
   } catch { return {ok: false as const, code: "verification_unavailable"}; }
 }
 
-// Safe server-only shell. Task 5 adds the shared interactive email/dialog flow;
-// no protected screen or data is rendered while that authorization is missing.
+// No protected screen or data is rendered while authorization is missing.
 export function adminReadVerificationNotice(operation: AdminReadOperation, code: string) {
+  if (["verification_required", "verification_invalid", "verification_expired"].includes(code)) {
+    return <section role="alert"><AdminVerificationReadGate operation={operation} /></section>;
+  }
   const next = encodeURIComponent(returnPaths[operation]);
   return <section className="flash-panel grid gap-3" data-tone="warning" role="alert">
     <h1 className="text-lg font-semibold">Account verification required</h1>

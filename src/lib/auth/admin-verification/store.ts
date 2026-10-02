@@ -79,4 +79,8 @@ export class AdminVerificationStore {
     const result = await this.invoke("record_enrollment", { userId, evidence }, z.null());
     if (!result.ok) throw new Error("Enrollment history could not be recorded.");
   }
+
+  suggestion(actor: AdminVerificationActor, snooze: boolean) {
+    return this.invoke("suggestion", { actor, snooze }, z.strictObject({ show: z.boolean(), snoozedUntil: z.iso.datetime({ offset: true }).nullable() }));
+  }
 }
