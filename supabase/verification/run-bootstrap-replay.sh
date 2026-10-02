@@ -316,20 +316,50 @@ docker_run exec "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c \
   "drop table if exists public._jnuits_replay_expectations;"
 
+# Only these read-only CLI operations may retry a registry pull failure. Never
+# retry migration application or SQL assertions, and never publish partial types.
+run_local_read_with_pull_retry() {
+  local output_file="$1"
+  shift
+  local attempt=1 status=0 delay=5
+  local attempt_output="$scratch_dir/read-attempt.stdout"
+  local attempt_error="$scratch_dir/read-attempt.stderr"
+  while true; do
+    if (cd "$project_dir" && "${supabase_cli[@]}" "$@") \
+      >"$attempt_output" 2>"$attempt_error"; then
+      cat "$attempt_error" >&2
+      cp "$attempt_output" "$output_file"
+      return 0
+    else
+      status=$?
+    fi
+    cat "$attempt_output" >&2
+    cat "$attempt_error" >&2
+    if [[ "$attempt" -ge 3 ]] \
+      || ! grep -qiE '(docker|error pulling image|failed to pull image)' "$attempt_error" \
+      || ! grep -qiE 'toomanyrequests|rate exceeded' "$attempt_error"; then
+      return "$status"
+    fi
+    printf 'Registry image pull was rate-limited; retrying read-only CLI operation (%s/3) in %ss.\n' \
+      "$((attempt + 1))" "$delay" >&2
+    sleep "$delay"
+    attempt=$((attempt + 1))
+    delay=15
+  done
+}
+
 if [[ "$generate_types" -eq 1 ]]; then
   generated_types="$scratch_dir/generated-db-types.ts"
   printf 'Generating TypeScript types from the disposable local stack.\n'
-  (
-    cd "$project_dir"
-    "${supabase_cli[@]}" gen types --local --lang typescript --schema public
-  ) >"$generated_types"
+  run_local_read_with_pull_retry "$generated_types" \
+    gen types --local --lang typescript --schema public
   bash "$types_writer" "$generated_types" "$types_output"
 fi
 
 printf 'Checking public/private database functions for compile-time errors.\n'
-(
-  cd "$project_dir"
-  "${supabase_cli[@]}" db lint --local --schema public,private --level error --fail-on error
-)
+lint_output="$scratch_dir/database-lint.stdout"
+run_local_read_with_pull_retry "$lint_output" \
+  db lint --local --schema public,private --level error --fail-on error
+cat "$lint_output"
 
 printf 'BOOTSTRAP REPLAY COMPLETE\n'
