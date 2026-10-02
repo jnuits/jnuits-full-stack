@@ -7,6 +7,8 @@ interface SendEmailOptions {
   html: string;
   replyTo?: string;
   idempotencyKey?: string;
+  /** Verification emails may not expose echoed provider bodies or credentials. */
+  redactProviderErrors?: boolean;
 }
 
 interface SendEmailResult {
@@ -85,19 +87,19 @@ export async function sendEmail(
 
     if (!res.ok) {
       const errorBody = await res.json().catch(() => null);
-      logServerError("sendEmail: Resend returned non-OK", {
+      logServerError("sendEmail: Resend returned non-OK", options.redactProviderErrors ? { status: res.status } : {
         status: res.status,
         body: errorBody,
         to: options.to,
         subject: options.subject,
       });
-      return { success: false, error: summarizeResendError(res.status, errorBody) };
+      return { success: false, error: options.redactProviderErrors ? "Email delivery failed." : summarizeResendError(res.status, errorBody) };
     }
 
     const body = await res.json().catch(() => null);
     return { success: true, messageId: body?.id };
   } catch (err) {
-    logServerError("sendEmail: fetch failed", err);
+    logServerError("sendEmail: fetch failed", options.redactProviderErrors ? { kind: "transport_error" } : err);
     return { success: false, error: "Network error sending email." };
   }
 }

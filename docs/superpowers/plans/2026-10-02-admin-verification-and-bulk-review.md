@@ -143,7 +143,7 @@ SQL asserts browser roles cannot read/issue/amend records, expired/revoked sessi
 - [x] **Run green:** store/token tests plus disposable SQL assertions/advisors; generate updated types and record each function's grants/search path. Expect exactly one concurrent consumption and zero browser access.
 - [x] **Commit:** `feat(auth): persist scoped admin verification proofs`.
 
-Task 2 evidence (2026-10-02): focused actor/store/token/config tests 17 passed; full repository 1,726 passed before the three added replay-config tests. Clean replay applied all 110 migration files plus its bootstrap helper, passed SQL regressions and real two-connection single-consumption test, generated database types and reported no public/private function lint errors. TOTP/session-factor, enrollment-history, policy/email/role-version/expiry, attempt limits, delivery failure and browser ACL checks passed. CLI's experimental pgdelta cache is disabled only in disposable scratch configs to avoid a catalog-export hang; ordered migrations and every verification gate remain required. Hosted rollout is still deferred.
+Task 2 evidence (2026-10-02): focused actor/store/token/config tests 17 passed; full repository 268 files / 1,729 passed after aligning the CLI-retry fixture with the new replay configuration. Clean replay applied all 110 migration files plus its bootstrap helper, passed SQL regressions and real two-connection single-consumption test, generated database types and reported no public/private function lint errors. TOTP/session-factor, enrollment-history, policy/email/role-version/expiry, attempt limits, delivery failure and browser ACL checks passed. CLI's experimental pgdelta cache is disabled only in disposable scratch configs to avoid a catalog-export hang; ordered migrations and every verification gate remain required. Hosted rollout is still deferred.
 
 ## Task 3: Resend OTP and Current-Password Verification
 
@@ -151,7 +151,7 @@ Task 2 evidence (2026-10-02): focused actor/store/token/config tests 17 passed; 
 
 **Interfaces:** Consume Task 1 intent/policy and Task 2 actor/store. Produce `prepareAdminVerification(intent: AdminOperationIntent): Promise<VerificationResult<{ decision: VerificationDecision }>>`, `requestAdminEmailVerification(intent: AdminOperationIntent, ip: string): Promise<VerificationResult<{ challengeId: string; expiresAt: string }>>`, `verifyAdminEmailCode(challengeId: string, code: string, ip: string): Promise<VerificationResult<VerificationProof>>`, and `verifyAdminRolePassword(intent: AdminOperationIntent, password: string, captchaToken: string, ip: string): Promise<VerificationResult<VerificationProof>>`. POST discriminated body: `action: "prepare" | "email_send" | "email_verify" | "password_verify"`; prepare/send/password carry intent, verify carries challengeId/code. Responses are no-store; proofs only returned in same-origin responses, never query parameters. For a successfully verified read intent, also set its scoped HttpOnly cookie so a server refresh can authorize that page; no cookie grants mutation access.
 
-- [ ] **Write failing tests:** `delivery_failure_cannot_redeem`, `sixth_attempt_is_denied`, `resend_and_account_limits_span_targets`, `role_change_rejects_email`, `password_keeps_original_mfa_session`, `captcha_is_required`, `secret_material_is_not_logged`:
+- [x] **Write failing tests:** `delivery_failure_cannot_redeem`, `sixth_attempt_is_denied`, `resend_and_account_limits_span_targets`, `role_change_rejects_email`, `password_keeps_original_mfa_session`, `captcha_is_required`, `secret_material_is_not_logged`:
 
 ```ts
 expect(code).toMatch(/^\d{6}$/);
@@ -163,10 +163,12 @@ expect(serializedAuditAndLogs).not.toContain(code);
 ```
 
 Cover expiry at 300 seconds, key rotation, old code replacement, concurrent checks, unchanged confirmed recipient, five wrong attempts, wrong user/password, permission revocation, enrollment/enforcement races and durable-limiter outage. CAPTCHA requirements come from current config; tests do not disable production protection.
-- [ ] **Run red:** `npx vitest run --project node src/lib/auth/admin-verification/email.test.ts src/lib/auth/admin-verification/password.test.ts src/app/api/admin/verification/route.test.ts`; expect missing implementation failures.
-- [ ] **Implement verification:** CSPRNG `randomInt(0, 1000000)` padded to six digits; await developed `sendEmail` success before marking delivery. Call durable `reservePasswordAttempt` before password sign-in, counting wrong-password attempts as well as success. Use an isolated non-persistent password client and `buildPasswordSignInPayload`; original actor must already be AAL2, returned user must match, temporary cleanup in `finally`. Keep provider response bodies/credentials out of security logs. Same-origin/auth guards and strict schemas precede issuance; fail closed when limits or delivery are unavailable.
-- [ ] **Run green:** commands above; expect PASS and original session unchanged on every password outcome.
-- [ ] **Commit:** `feat(auth): add scoped email and password verification`.
+- [x] **Run red:** `npx vitest run --project node src/lib/auth/admin-verification/email.test.ts src/lib/auth/admin-verification/password.test.ts src/app/api/admin/verification/route.test.ts`; expect missing implementation failures.
+- [x] **Implement verification:** CSPRNG `randomInt(0, 1000000)` padded to six digits; await developed `sendEmail` success before marking delivery. Call durable `reservePasswordAttempt` before password sign-in, counting wrong-password attempts as well as success. Use an isolated non-persistent password client and `buildPasswordSignInPayload`; original actor must already be AAL2, returned user must match, temporary cleanup in `finally`. Keep provider response bodies/credentials out of security logs. Same-origin/auth guards and strict schemas precede issuance; fail closed when limits or delivery are unavailable.
+- [x] **Run green:** commands above; expect PASS and original session unchanged on every password outcome.
+- [x] **Commit:** `feat(auth): add scoped email and password verification`.
+
+Task 3 evidence (2026-10-02): observed missing-module/template and provider-body disclosure tests fail, then all 35 focused tests passed. Full repository: 272 files / 1,763 tests passed; typecheck, targeted ESLint and diff check passed. Tests cover developed transport failure, MAC-only persistence/key rotation, confirmed recipient, eligible policy/history, durable denials, CAPTCHA, isolated session cleanup and real same-origin API checks. Read-scope cookies are HttpOnly/SameSite strict, capped at five minutes, and never issued for mutation/password proof. Original AAL2 sessions are not modified. Actual action integration and production mailbox delivery remain unverified until later gates.
 
 ## Task 4: Enforce Operation Policy at Every Mutation and Read Boundary
 
