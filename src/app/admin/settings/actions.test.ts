@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   requireAdminPermission: vi.fn(),
   upsert: vi.fn(),
+  authorize: vi.fn(), rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
@@ -26,12 +27,14 @@ vi.mock("@/lib/auth/session", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => mocks.createAdminClient(),
 }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
+vi.mock("@/lib/auth/admin-verification/guard", () => ({ authorizeAdminOperation: mocks.authorize, adminVerificationFailureMessage: () => "Verify this operation." }));
 
 vi.mock("@/lib/supabase/flexible", () => ({
   asFlexibleClient: <T>(client: T) => client,
 }));
 
-import { saveAdminNotificationSettings } from "@/app/admin/settings/actions";
+import { saveAdminNotificationSettings, saveAdminSecuritySettings } from "@/app/admin/settings/actions";
 
 describe("saveAdminNotificationSettings", () => {
   beforeEach(() => {
@@ -81,5 +84,38 @@ describe("saveAdminNotificationSettings", () => {
       },
       { onConflict: "user_id" }
     );
+  });
+});
+
+describe("verified admin security settings", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireAdminPermission.mockResolvedValue({ user: { id: "operator-1", adminRole: "super_admin" } });
+    mocks.authorize.mockResolvedValue({ ok: true, value: { auth: { user: { id: "operator-1", adminRole: "super_admin" } } } });
+    mocks.rpc.mockResolvedValue({ data: { ok: true, value: null }, error: null });
+    mocks.from.mockReturnValue({ update: () => ({ eq: async () => ({ error: null }) }) });
+  });
+  it("does not write settings without exact-operation verification", async () => {
+    mocks.authorize.mockResolvedValue({ ok: false, code: "verification_required" });
+    await expect(saveAdminSecuritySettings(new FormData())).rejects.toThrow(/error=.*verification_required/);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+  it("uses the authenticated atomic RPC rather than a parallel service write", async () => {
+    const form = new FormData(); form.set("adminTotpEnforced", "true"); form.set("verificationProof", "bound-proof");
+    await expect(saveAdminSecuritySettings(form)).rejects.toThrow("redirect:/admin/settings/security?message=security-settings-saved");
+    expect(mocks.authorize).toHaveBeenCalledWith({ operation: "admin.security.update", payload: { adminTotpEnforced: true } }, "bound-proof");
+    expect(mocks.rpc).toHaveBeenCalledWith("update_admin_security_verified", { p_payload: { adminTotpEnforced: true }, p_proof: "bound-proof" });
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+  it("preserves the super-admin-only disable restriction", async () => {
+    mocks.authorize.mockResolvedValue({ ok: true, value: { auth: { user: { id: "operator-1", adminRole: "admin" } } } });
+    await expect(saveAdminSecuritySettings(new FormData())).rejects.toThrow(/super-admin-required/);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("does not report RPC denial as a settings save", async () => {
+    mocks.rpc.mockResolvedValue({ data: { ok: false, code: "verification_invalid" }, error: null });
+    await expect(saveAdminSecuritySettings(new FormData())).rejects.toThrow(/error=/);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

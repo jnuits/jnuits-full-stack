@@ -4242,6 +4242,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_verified_admin_invitation: {
+        Args: { p_invitation_id: string }
+        Returns: Json
+      }
       admin_verification_begin_email: { Args: { p_input: Json }; Returns: Json }
       admin_verification_check_read: { Args: { p_input: Json }; Returns: Json }
       admin_verification_check_write: { Args: { p_input: Json }; Returns: Json }
@@ -4273,6 +4277,10 @@ export type Database = {
         Returns: Json
       }
       allocate_membership_id: { Args: { year_block: string }; Returns: string }
+      apply_admin_role_operation: {
+        Args: { p_operation: string; p_payload: Json; p_proof: string }
+        Returns: Json
+      }
       approve_alumni_onboarding_case: {
         Args: {
           p_actor_user_id: string
@@ -4347,6 +4355,10 @@ export type Database = {
           p_make_current?: boolean
           p_operation_id: string
         }
+        Returns: Json
+      }
+      complete_admin_invitation_operation: {
+        Args: { p_attempt_id: string; p_payload: Json }
         Returns: Json
       }
       confirm_form_submission: {
@@ -4728,6 +4740,10 @@ export type Database = {
           cycle_id: string
           cycle_status: string
         }[]
+      }
+      update_admin_security_verified: {
+        Args: { p_payload: Json; p_proof: string }
+        Returns: Json
       }
       update_form_draft_version: {
         Args: {

@@ -10,6 +10,10 @@ const notices: Record<
   AdminInvitationAcceptanceState,
   { message: string; title: string }
 > = {
+  "reissue-required": {
+    title: "Ask for a new invitation",
+    message: "This older invitation needs to be reissued by an authorized administrator. No admin access was activated.",
+  },
   "claim-required": {
     title: "Claim your member profile first",
     message:

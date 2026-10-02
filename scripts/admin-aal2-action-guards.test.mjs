@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
  * Server actions run as standalone POST endpoints: Next.js does not execute
  * page layouts during an action invocation, so an AAL2 requirement declared on
  * a layout (src/lib/admin/access.ts) protects only the rendered page. Any
- * privileged server action must therefore restate `requireAal2: true` in its
- * own `requireAdminPermission(...)` call.
+ * privileged server action must therefore enforce its explicit operation policy
+ * at its own mutation boundary, independent of a page/layout check.
  *
  * This suite is a source-scan regression guard for exactly that rule. It
  * cannot prove completeness by itself (a new privileged action needs a new
@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 const readSource = (relativePath) =>
   readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
-describe("Admin server actions enforce AAL2 at the action boundary", () => {
+describe("Admin server actions enforce operation verification at the action boundary", () => {
   it("saveAdminSecuritySettings requires step-up before touching global MFA enforcement", () => {
     const source = readSource("src/app/admin/settings/actions.ts");
 
@@ -33,7 +33,8 @@ describe("Admin server actions enforce AAL2 at the action boundary", () => {
       fnEnd === -1 ? source.length : fnEnd
     );
 
-    expect(fnBody).toMatch(/requireAdminPermission\([\s\S]*?requireAal2:\s*true/);
+    expect(fnBody).toMatch(/authorizeAdminOperation\(\{\s*operation:\s*"admin.security.update"/);
+    expect(fnBody).toContain('rpc("update_admin_security_verified"');
   });
 
   it("keeps every privileged admin-profiles lifecycle action behind step-up", () => {

@@ -94,4 +94,165 @@ begin
   exception when insufficient_privilege then null; end;
 end;
 $contract$;
+
+do $roles$
+declare
+  u uuid; sid uuid:=extensions.gen_random_uuid(); fid uuid:=extensions.gen_random_uuid(); v bigint;
+  target_user uuid:=extensions.gen_random_uuid(); target_profile uuid; rid uuid; result jsonb; actor jsonb;
+  payload jsonb; prepared jsonb; proof_id uuid; token text:=repeat('y',43); proof text; digest text;
+begin
+  if to_regprocedure('public.apply_admin_role_operation(text,jsonb,text)') is null then
+    raise exception 'Missing atomic MFA-plus-password role boundary';
+  end if;
+  select id into u from auth.users where email='replay-harness@local.invalid';
+  update public.security_settings set admin_totp_enforced=false where id;
+  select id into rid from public.rbac_platform_roles where scope='admin' and code='super_admin';
+  insert into public.rbac_user_platform_roles(user_id,role_id,scope,note) values(u,rid,'admin','Role operation fixture');
+  insert into public.admin_profiles(user_id,admin_code,display_name,status,is_active)
+    values(u,'JNUITS-ADMIN-ROLE-FIXTURE','Fictional role operator','active',true)
+    on conflict(user_id) do update set status='active',is_active=true;
+  insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at) values(fid,u,'totp','verified',now(),now());
+  insert into auth.sessions(id,user_id,aal,factor_id,created_at,updated_at) values(sid,u,'aal2',fid,now(),now());
+  select version into v from public.rbac_user_claim_versions where user_id=u;
+  perform set_config('request.jwt.claim.sub',u::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated','aal','aal2','session_id',sid,'jnuits_role_version',v)::text,true);
+  insert into auth.users(id,email,created_at,updated_at) values(target_user,'role-target@local.invalid',now(),now());
+  insert into public.admin_profiles(user_id,admin_code,display_name,status,is_active)
+    values(target_user,'JNUITS-ADMIN-FROZEN-TARGET','Fictional frozen target','frozen',false) returning id into target_profile;
+  insert into public.rbac_user_platform_roles(user_id,role_id,scope,note)
+    select target_user,id,'admin','Role target fixture' from public.rbac_platform_roles where scope='admin' and code='content_admin';
+  insert into public.rbac_user_platform_roles(user_id,role_id,scope,note)
+    select target_user,id,'portal','Independent portal scope' from public.rbac_platform_roles where scope='portal' and code='member';
+  payload:=jsonb_build_object('adminProfileId',target_profile,'confirmation','JNUITS-ADMIN-FROZEN-TARGET','roleCode','admin');
+  begin
+    perform public.apply_admin_role_operation('admin.role.change',payload,null);
+    raise exception 'MFA alone changed an admin role';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform public.apply_admin_role_operation('admin.role.change',payload,'profile-cookie');
+    raise exception 'Profile edit cookie changed an admin role';
+  exception when insufficient_privilege then null; end;
+  actor:=(public.admin_verification_context(jsonb_build_object('userId',u,'sessionId',sid,'roleVersion',v,'currentLevel','aal2')))->'value';
+  prepared:=public.admin_verification_prepare(jsonb_build_object('actor',actor,'intent',jsonb_build_object('operation','admin.role.change','payload',payload)));
+  digest:=encode(extensions.digest(convert_to(token,'UTF8'),'sha256'),'hex');
+  -- Deliberately inject a private email-method fixture: the mutation must reject
+  -- it even though normal email issuance already denies this operation class.
+  insert into private.admin_verification_proofs(intent_id,token_hash,method)
+    values((prepared#>>'{value,id}')::uuid,digest,'email') returning id into proof_id;
+  begin
+    perform public.apply_admin_role_operation('admin.role.change',payload,proof_id::text||'.'||token);
+    raise exception 'Email alone changed an admin role';
+  exception when insufficient_privilege then null; end;
+  result:=public.admin_verification_reserve_password_attempt(jsonb_build_object('prepared',prepared->'value','ipHash',repeat('a',64)));
+  if not (result->>'ok')::boolean then raise exception 'Password attempt fixture failed: %',result; end if;
+  result:=public.admin_verification_issue_password(jsonb_build_object('prepared',prepared->'value','tokenHash',digest));
+  proof_id:=(result#>>'{value,proofId}')::uuid; proof:=proof_id::text||'.'||token;
+  if proof_id is null then raise exception 'Password proof fixture failed: %',result; end if;
+  begin
+    perform public.apply_admin_role_operation('admin.role.change',payload||jsonb_build_object('roleCode','super_admin'),proof);
+    raise exception 'Changed role reused password proof';
+  exception when insufficient_privilege then null; end;
+  execute 'set local role authenticated';
+  result:=public.apply_admin_role_operation('admin.role.change',payload,proof);
+  execute 'reset role';
+  if not coalesce((result->>'ok')::boolean,false) then raise exception 'Verified role change failed: %',result; end if;
+  if not exists(select 1 from public.rbac_user_platform_roles g join public.rbac_platform_roles r on r.id=g.role_id
+    where g.user_id=target_user and g.scope='admin' and g.revoked_at is null and r.code='admin')
+    or (select count(*) from public.rbac_user_platform_roles where user_id=target_user and scope='admin' and revoked_at is null)<>1
+    or not exists(select 1 from public.admin_profiles where id=target_profile and status='frozen' and not is_active)
+    or not exists(select 1 from public.rbac_user_platform_roles where user_id=target_user and scope='portal' and revoked_at is null) then
+    raise exception 'Role change was non-atomic, lifted freeze, or rewrote portal roles';
+  end if;
+  begin
+    perform public.apply_admin_role_operation('admin.role.change',payload,proof);
+    raise exception 'Consumed password proof reused';
+  exception when insufficient_privilege then null; end;
+  if has_function_privilege('anon','public.apply_admin_role_operation(text,jsonb,text)','EXECUTE') then
+    raise exception 'Anonymous role mutation granted';
+  end if;
+end;
+$roles$;
+
+do $invitation_contract$
+declare u uuid; recipient uuid:=extensions.gen_random_uuid(); sid uuid:=extensions.gen_random_uuid(); invitation uuid; result jsonb;
+  issuer_session uuid; actor jsonb; payload jsonb; prepared jsonb; proof_id uuid; attempt_id uuid;
+  token text:=repeat('z',43); proof text; digest text;
+begin
+  if to_regprocedure('public.accept_verified_admin_invitation(uuid)') is null
+    or to_regprocedure('public.complete_admin_invitation_operation(uuid,jsonb)') is null then
+    raise exception 'Missing immutable invitation authorization boundary';
+  end if;
+  select id into u from auth.users where email='replay-harness@local.invalid';
+  insert into auth.users(id,email,email_confirmed_at,created_at,updated_at)
+    values(recipient,'legacy-invite-fixture@local.invalid',now(),now(),now());
+  insert into auth.sessions(id,user_id,aal,created_at,updated_at) values(sid,recipient,'aal1',now(),now());
+  insert into public.admin_invitations(email,target_user_id,invited_role_code,invited_by_user_id,status)
+    values('legacy-invite-fixture@local.invalid',recipient,'content_admin',u,'pending') returning id into invitation;
+  perform set_config('request.jwt.claim.sub',recipient::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',recipient,'role','authenticated','aal','aal1','session_id',sid)::text,true);
+  execute 'set local role authenticated';
+  result:=public.accept_verified_admin_invitation(invitation);
+  execute 'reset role';
+  if result->>'code' is distinct from 'invitation_reissue_required'
+    or exists(select 1 from public.rbac_user_platform_roles where user_id=recipient and scope='admin' and revoked_at is null) then
+    raise exception 'Legacy unsigned invitation granted a role: %',result;
+  end if;
+  if has_function_privilege('authenticated','public.complete_admin_invitation_operation(uuid,jsonb)','EXECUTE')
+    or has_function_privilege('anon','public.accept_verified_admin_invitation(uuid)','EXECUTE') then
+    raise exception 'Unsafe invitation function ACL';
+  end if;
+  -- Reissuance must be a fresh dual-verified, immutable authorization.
+  update public.admin_invitations set status='revoked' where id=invitation;
+  select id into issuer_session from auth.sessions where user_id=u and aal='aal2' order by created_at desc limit 1;
+  perform set_config('request.jwt.claim.sub',u::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated','aal','aal2','session_id',issuer_session,
+    'jnuits_role_version',(select version from public.rbac_user_claim_versions where user_id=u))::text,true);
+  actor:=(public.admin_verification_context(jsonb_build_object('userId',u,'sessionId',issuer_session,
+    'roleVersion',(select version from public.rbac_user_claim_versions where user_id=u),'currentLevel','aal2')))->'value';
+  payload:=jsonb_build_object('displayName','Fictional invitee','email','legacy-invite-fixture@local.invalid','inviteMode','email',
+    'memberId','','note','Fictional issuance','roleCode','content_admin','title','');
+  prepared:=public.admin_verification_prepare(jsonb_build_object('actor',actor,'intent',jsonb_build_object('operation','admin.role.invite','payload',payload)));
+  digest:=encode(extensions.digest(convert_to(token,'UTF8'),'sha256'),'hex');
+  result:=public.admin_verification_reserve_password_attempt(jsonb_build_object('prepared',prepared->'value','ipHash',repeat('a',64)));
+  if not (result->>'ok')::boolean then raise exception 'Issuance password fixture failed: %',result; end if;
+  result:=public.admin_verification_issue_password(jsonb_build_object('prepared',prepared->'value','tokenHash',digest));
+  proof_id:=(result#>>'{value,proofId}')::uuid; proof:=proof_id::text||'.'||token;
+  result:=public.apply_admin_role_operation('admin.role.invite',payload,proof);
+  attempt_id:=(result#>>'{value,attemptId}')::uuid;
+  if attempt_id is null or exists(select 1 from public.rbac_user_platform_roles where user_id=recipient and scope='admin' and revoked_at is null) then
+    raise exception 'Invitation issuance granted a role or failed: %',result;
+  end if;
+  begin
+    perform public.complete_admin_invitation_operation(attempt_id,jsonb_build_object('targetUserId',u,'claimInvitationId',null));
+    raise exception 'Different recipient completed invitation';
+  exception when insufficient_privilege then null; end;
+  result:=public.complete_admin_invitation_operation(attempt_id,jsonb_build_object('targetUserId',recipient,'claimInvitationId',null));
+  invitation:=(result#>>'{value,invitationId}')::uuid;
+  if invitation is null or not exists(select 1 from private.admin_invitation_authorizations where invitation_id=invitation and recipient_email='legacy-invite-fixture@local.invalid') then
+    raise exception 'Completed invitation has no immutable authorization: %',result;
+  end if;
+  if not exists(select 1 from private.admin_verification_mfa_history where user_id=recipient and not ever_enrolled and never_confirmed_at is not null) then
+    raise exception 'Trusted new-account history was not recorded';
+  end if;
+  -- Simulate only the developed transport's successful delivery metadata.
+  update public.admin_invitations set delivery_status='sent',invited_role_code='super_admin' where id=invitation;
+  perform set_config('request.jwt.claim.sub',recipient::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',recipient,'role','authenticated','aal','aal1','session_id',sid)::text,true);
+  result:=public.accept_verified_admin_invitation(invitation);
+  if result->>'code' is distinct from 'invitation_invalid' or exists(select 1 from public.rbac_user_platform_roles where user_id=recipient and scope='admin' and revoked_at is null) then
+    raise exception 'Changed invitation role bypassed issuer authorization: %',result;
+  end if;
+  update public.admin_invitations set invited_role_code='content_admin' where id=invitation;
+  execute 'set local role authenticated';
+  result:=public.accept_verified_admin_invitation(invitation);
+  execute 'reset role';
+  if not coalesce((result->>'ok')::boolean,false)
+    or (select count(*) from public.rbac_user_platform_roles where user_id=recipient and scope='admin' and revoked_at is null)<>1
+    or not exists(select 1 from public.admin_profiles where user_id=recipient and status='active' and is_active) then
+    raise exception 'Authorized invitation did not atomically activate its recipient: %',result;
+  end if;
+  result:=public.accept_verified_admin_invitation(invitation);
+  if coalesce((result->>'ok')::boolean,false) then raise exception 'Accepted invitation was replayed'; end if;
+end;
+$invitation_contract$;
 rollback;
