@@ -1,0 +1,247 @@
+# Admin Verification and Bulk Membership Review Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Make routine membership reviews usable without an extra MFA challenge, add bounded bulk approval, and enforce the approved verification policy consistently in application code and Supabase.
+
+**Architecture:** An explicit operation registry separates workspace entry from operation permission and verification. Private durable challenge/proof records bind authorization to a verified session and exact payload; database mutations validate and consume their own proof. Reusable verification controls integrate with existing forms rather than replacing the admin console.
+
+**Tech Stack:** Existing Node 24.x, Next.js 16.3.8, React 19, TypeScript, Zod, Supabase Auth/Postgres, Resend, Vitest and Playwright. No dependency installation planned.
+
+**Spec:** `docs/superpowers/specs/2026-10-02-admin-verification-and-bulk-review-design.md` (approved 2026-10-02).
+
+## Global Constraints
+
+- Every operation requires a verified signed-in user, an active administrator profile and its existing permission.
+- Do not change the existing global setting automatically.
+- Admin-role changes require both authenticator MFA and current-password verification; email OTP must never substitute for either requirement.
+- Email verification is not Supabase authenticator assurance. Show `Verify by email` rather than `Bypass MFA`.
+- Challenge lifetime is five minutes, with at most five failed attempts; resend cooldown is 60 seconds, with at most three sends per 15 minutes per account.
+- Mutation proofs are single-use; sensitive read proofs last five minutes and authorize only their named read scope.
+- Password checks: three attempts per ten minutes per operator; password proof validity at most five minutes.
+- Select at most the 25 visible reviewable requests in one queue; required shared review note maximum 500 characters.
+- MFA suggestion dismiss/snooze duration is seven days. No unsolicited MFA-adoption emails.
+- Preserve frozen access, transition history, role-version invalidation, target-role restrictions and last-super-admin protection.
+- No clear codes/passwords/proof secrets in logs, database payloads, URLs or committed fixtures; no user-editable metadata authorization or fake AAL2.
+- Forward-only migrations; do not edit applied migration files or Supabase-managed Auth schemas. Preserve the backup branch and deferred committee features.
+
+## Review Focus
+
+1. Two tabs redeeming the same authorization: exactly one mutation succeeds; the loser cannot replay a role grant (Tasks 2, 4).
+2. MFA enrollment, policy, email or role changes while a code is pending: old proof stops working without changing the original session (Tasks 2, 3).
+3. MFA factor removal and incomplete historical evidence: never silently downgrade an enrolled/unknown administrator to email eligibility (Tasks 1, 2).
+4. Queue refresh during selection or partial bulk success: no hidden/new/changed request is approved; successful transitions are not undone (Task 6).
+5. A cancelled challenge or network failure: preserve the form draft, release pending UI and never automatically replay an uncertain external operation (Tasks 4, 5).
+
+---
+
+## File Map and Shared Contracts
+
+New focused modules under `src/lib/auth/admin-verification/`: `types.ts` for shared contracts, `operations.ts` for schemas/classification, `policy.ts` for pure decisions, `actor.ts` for trusted session resolution, `store.ts` for narrow RPC calls, `tokens.ts` for secret/MAC handling, `email.ts` and `password.ts` for verification, and `guard.ts` for operation authorization. Add adjacent `.test.ts` files; no large general-purpose rewrite of `admin-profiles/actions.ts`.
+
+Existing integration points: `src/lib/auth/mfa.ts`, `src/lib/auth/session.ts`, `src/lib/admin/{api-auth,access}.ts`, `src/lib/supabase/proxy.ts`, `src/app/admin/layout.tsx`, membership review/renewal actions, admin-profile actions/forms, security settings, retention API/workspace, MFA setup/challenge components and system-health page. Their corresponding tests and source-based guard audits remain in scope.
+
+New UI: `src/components/admin/admin-verification-dialog.tsx`, `admin-verified-form.tsx`, `admin-verification-read-gate.tsx`, `admin-mfa-suggestion.tsx`, with adjacent DOM tests. New API: `src/app/api/admin/verification/route.ts` and `src/app/api/admin/mfa-suggestion/route.ts`, with adjacent tests. Membership bulk service: `src/lib/membership/bulk-review.ts`, action: `src/app/admin/membership/bulk-review-actions.ts`; integrate with `membership-renewal-panel.tsx`.
+
+SQL files: create with discovered CLI `supabase migration new admin_verification_foundation` and later `supabase migration new admin_verification_operation_guards`; record the CLI-generated paths here before editing them. This is deliberate CLI-assigned naming, not a fabricated migration timestamp. Add `supabase/verification/assert-admin-verification.sql`, `assert-membership-bulk-review.sql`, and `run-admin-verification-browser-qa.mjs`; register assertions in `run-bootstrap-replay.sh`. Keep `src/lib/db/types.ts` and `docs/operations/security-definer-function-register.md` current.
+
+Shared types, defined in Task 1:
+
+```ts
+type VerificationMethod = "totp" | "email" | "password";
+type VerificationClass = "routine" | "protected_read" | "protected_mutation" | "admin_role";
+type EnrollmentHistory = "never" | "enrolled" | "unknown";
+type AdminOperationIntent = { operation: AdminOperation; payload: Record<string, unknown> };
+type AdminVerificationActor = {
+  userId: string; sessionId: string; email: string; emailConfirmed: boolean;
+  roleVersion: number; currentLevel: "aal1" | "aal2";
+  enforced: boolean; enrollment: EnrollmentHistory;
+};
+type VerificationDecision =
+  | { status: "allowed" }
+  | { status: "required"; methods: VerificationMethod[] }
+  | { status: "denied"; code: string };
+type VerificationProof = { token: string; expiresAt: string };
+type PreparedIntent = {
+  id: string; actor: AdminVerificationActor; intent: AdminOperationIntent;
+  targetRef: string; payloadDigest: string; policyRevision: string;
+};
+type VerificationResult<T> = { ok: true; value: T } | { ok: false; code: string };
+```
+
+`AdminOperation` is the literal union of the registry below, not arbitrary strings. Public request schemas must be strict; actor, target binding, recipient and permission are never accepted from browser metadata. Database JSONB canonicalization computes the payload digest used at issuance and consumption, avoiding incompatible JS/SQL serializers.
+
+| Operations | Class | Existing permission |
+| --- | --- | --- |
+| `membership.request.review` | routine | `admin.membership.manage` |
+| `membership.renewal.confirm` | protected_mutation | `admin.membership.manage` |
+| `admin.role.change`, `admin.role.invite`, `admin.role.remove` | admin_role | `admin.roles.manage_admin` |
+| `admin.lifecycle.freeze`, `admin.lifecycle.unfreeze`, `admin.invitation.revoke` | protected_mutation | `admin.roles.manage_admin` |
+| `admin.security.update` | protected_mutation | `admin.security.write` |
+| `admin.security.read`, `admin.system_health.read` | protected_read | `admin.security.read` |
+| `admin.retention.read` | protected_read | `admin.retention.manage` |
+| `admin.retention.discover`, `admin.retention.archive`, `admin.retention.approve_purge`, `admin.retention.purge` | protected_mutation | `admin.retention.manage` |
+
+## Task 1: Explicit Policy and Accurate Assurance
+
+**Files:** New `types.ts`, `operations.ts`, `policy.ts` and tests in the mapped verification directory; modify `mfa.ts`, `session.ts`, `api-auth.ts` and their tests. Task 2 adds the database-backed actor resolver.
+
+**Interfaces:** Produce `parseAdminOperationIntent(input: unknown): VerificationResult<AdminOperationIntent>` and `evaluateAdminVerification(actor: AdminVerificationActor, kind: VerificationClass): VerificationDecision`. Preserve `checkAdminMFA(client): Promise<AdminMFAState>` as an entry-policy helper, but always resolve actual assurance. Existing `requireAal2: true` callers must check actual AAL2 independently of the enforcement toggle.
+
+- [ ] **Write failing policy tests** in `policy.test.ts`, `operations.test.ts` and new `src/lib/auth/mfa.test.ts`:
+
+```ts
+expect(evaluateAdminVerification(offAal1Never, "routine")).toEqual({ status: "allowed" });
+expect(evaluateAdminVerification(offAal1Never, "protected_mutation")).toEqual({ status: "required", methods: ["totp", "email"] });
+expect(evaluateAdminVerification(offAal2Enrolled, "admin_role")).toEqual({ status: "required", methods: ["password"] });
+expect(evaluateAdminVerification(offAal1Unknown, "protected_read").status).toBe("required");
+expect(parseAdminOperationIntent({ operation: "unknown", payload: {} }).ok).toBe(false);
+expect((await checkAdminMFA(offVerifiedClient)).currentLevel).toBe("aal2");
+```
+
+Include mandatory-on rows, removed-factor history, enrolled AAL1, malformed intent and unavailable policy/assurance. Unknown state offers authenticator setup/recovery, never email. Existing permission/inactive-admin denials remain covered by session/API tests; Task 2 resolves fresh role version and live session.
+- [ ] **Run red tests:** `npx vitest run --project node src/lib/auth/admin-verification/policy.test.ts src/lib/auth/admin-verification/operations.test.ts src/lib/auth/mfa.test.ts`; expect missing-module/behavior failures.
+- [ ] **Implement contracts and registry schemas**, preserving existing target confirmations and validated fields. Policy/assurance read failures must return an error with `ok: false` even for an AAL2 session, not silently turn the policy into an authorized default. Do not classify unrelated CMS workflows. Re-read local Next.js server-action/route-handler guides before product changes.
+- [ ] **Run green tests** above plus session/API guard tests; expect PASS and no toggle-based AAL2 authorization success.
+- [ ] **Commit** only Task 1 files: `feat(auth): separate admin entry and operation verification`.
+
+## Task 2: Durable Private Challenge, Proof and Enrollment State
+
+**Files:** New `actor.ts`, `store.ts`, `tokens.ts`, tests; CLI-generated foundation migration; `assert-admin-verification.sql`; database types and function register.
+
+**Interfaces:** Produce a server-only `AdminVerificationStore` with these methods:
+
+```ts
+prepare(actor: AdminVerificationActor, intent: AdminOperationIntent): Promise<VerificationResult<PreparedIntent>>;
+beginEmail(prepared: PreparedIntent, input: { challengeId: string; codeMac: string; keyId: string; ipHash: string }): Promise<VerificationResult<{ challengeId: string; expiresAt: string }>>;
+markEmailDelivery(challengeId: string, delivered: boolean): Promise<void>;
+loadEmailChallenge(actor: AdminVerificationActor, challengeId: string): Promise<VerificationResult<PreparedIntent>>;
+redeemEmail(actor: AdminVerificationActor, input: { challengeId: string; candidateMacs: string[]; tokenHash: string; ipHash: string }): Promise<VerificationResult<{ proofId: string; expiresAt: string }>>;
+reservePasswordAttempt(prepared: PreparedIntent, ipHash: string): Promise<VerificationResult<null>>;
+issuePassword(prepared: PreparedIntent, tokenHash: string): Promise<VerificationResult<{ proofId: string; expiresAt: string }>>;
+reserve(actor: AdminVerificationActor, intent: AdminOperationIntent, token: string): Promise<VerificationResult<{ attemptId: string }>>;
+checkRead(actor: AdminVerificationActor, intent: AdminOperationIntent, token: string): Promise<VerificationResult<null>>;
+recordEnrollment(userId: string, evidence: "confirmed_factor" | "trusted_never_history"): Promise<void>;
+```
+
+Each method maps to a narrow service-only `public.admin_verification_<snake_case_method>(p_input jsonb) returns jsonb` wrapper; revoke default PUBLIC/anon/authenticated execute. Also produce `loadAdminVerificationActor(): Promise<VerificationResult<AdminVerificationActor>>`, reading trusted Auth user/claims/actual assurance plus service-only `admin_verification_context(p_input jsonb) returns jsonb` for live-session/history/fresh-role checks. Caller user/session come only from verified Auth, not request input. Core logic/tables live in private schema with explicit ACLs/RLS. Authenticated mutation routines use separate private proof validators deriving actor/session from trusted JWT, not these service-only wrappers. Tokens combine returned proof UUID with an application-generated random 32-byte base64url secret; store only SHA-256 secret hashes. `loadEmailChallenge` returns the immutable binding to the verified server only, permitting candidate MAC computation without exposing stored MACs. OTP MAC uses `getApplicationMacKey(s)` from `src/lib/supabase/config.ts`, includes challenge/user/session/operation/digest and supports rotation.
+
+- [ ] **Write failing store/SQL tests**: `replay_consumes_once`, `read_proof_cannot_write`, `unknown_history_is_not_never`, `direct_browser_issuance_denied`, `cross_session_denied`, and `email_race_invalidates_proof`:
+
+```ts
+expect(results.filter(r => r.ok)).toHaveLength(1); // concurrent reservations of one token
+expect(await store.checkRead(changedActor, readIntent, token)).toEqual({ ok: false, code: "verification_invalid" });
+expect(await store.reserve(actor, changedTarget, token)).toEqual({ ok: false, code: "verification_invalid" });
+```
+
+SQL asserts browser roles cannot read/issue/amend records, expired/revoked sessions fail, role versions/confirmed email/current policy are rechecked, and deleting factors cannot reset remembered enrollment. Seed only trusted known history; incomplete legacy history remains unknown. Record newly confirmed factors via server-verified factor reads, not client claims or Auth-schema triggers.
+- [ ] **Add failing actor tests**: missing/revoked session, ordinary member, inactive admin and stale role version return `{ ok: false, code: ... }`; unknown history returns the explicitly restricted unknown-history actor, never a fabricated email-eligible actor. `store.prepare` must reject the operation when its permission is missing.
+- [ ] **Run red:** new Vitest store/token tests and the SQL assertion against a disposable baseline database; expect missing routines/failed assertions, never hosted writes.
+- [ ] **Implement storage and atomic transitions.** Five-minute expiry, five failed attempts, one pending code per user/session/operation. Durable account send limit 3/900 seconds, resend interval 60 seconds; pin additional hashed-IP limits to 10 sends/900 seconds and 30 code checks/600 seconds. Password reservation limit 3/600 seconds/account plus 10/600 seconds/IP. Failure counts survive sessions/operations and delivery failure. Service-only issuance validates live actor/session/permission/policy again. Store terminal consumed/reserved states; do not restore uncertain proof.
+- [ ] **Run green:** store/token tests plus disposable SQL assertions/advisors; generate updated types and record each function's grants/search path. Expect exactly one concurrent consumption and zero browser access.
+- [ ] **Commit:** `feat(auth): persist scoped admin verification proofs`.
+
+## Task 3: Resend OTP and Current-Password Verification
+
+**Files:** New `email.ts`, `password.ts` and tests; `src/app/api/admin/verification/route.ts` and tests. Reuse developed email/password/CAPTCHA helpers; add `buildAdminVerificationEmail({ code, operationLabel, expiresInMinutes }: { code: string; operationLabel: string; expiresInMinutes: number }): string` to `src/lib/notifications/email-builders.ts` and test escaped copy, five-minute expiry and no code in links/subject.
+
+**Interfaces:** Consume Task 1 intent/policy and Task 2 actor/store. Produce `prepareAdminVerification(intent: AdminOperationIntent): Promise<VerificationResult<{ decision: VerificationDecision }>>`, `requestAdminEmailVerification(intent: AdminOperationIntent, ip: string): Promise<VerificationResult<{ challengeId: string; expiresAt: string }>>`, `verifyAdminEmailCode(challengeId: string, code: string, ip: string): Promise<VerificationResult<VerificationProof>>`, and `verifyAdminRolePassword(intent: AdminOperationIntent, password: string, captchaToken: string, ip: string): Promise<VerificationResult<VerificationProof>>`. POST discriminated body: `action: "prepare" | "email_send" | "email_verify" | "password_verify"`; prepare/send/password carry intent, verify carries challengeId/code. Responses are no-store; proofs only returned in same-origin responses, never query parameters. For a successfully verified read intent, also set its scoped HttpOnly cookie so a server refresh can authorize that page; no cookie grants mutation access.
+
+- [ ] **Write failing tests:** `delivery_failure_cannot_redeem`, `sixth_attempt_is_denied`, `resend_and_account_limits_span_targets`, `role_change_rejects_email`, `password_keeps_original_mfa_session`, `captcha_is_required`, `secret_material_is_not_logged`:
+
+```ts
+expect(code).toMatch(/^\d{6}$/);
+expect(await verifyAdminEmailCode(id, "123456", ip)).toEqual({ ok: false, code: "delivery_failed" });
+expect(temporaryClient.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
+expect(originalClient.auth.signOut).not.toHaveBeenCalled();
+expect(serializedAuditAndLogs).not.toContain(password);
+expect(serializedAuditAndLogs).not.toContain(code);
+```
+
+Cover expiry at 300 seconds, key rotation, old code replacement, concurrent checks, unchanged confirmed recipient, five wrong attempts, wrong user/password, permission revocation, enrollment/enforcement races and durable-limiter outage. CAPTCHA requirements come from current config; tests do not disable production protection.
+- [ ] **Run red:** `npx vitest run --project node src/lib/auth/admin-verification/email.test.ts src/lib/auth/admin-verification/password.test.ts src/app/api/admin/verification/route.test.ts`; expect missing implementation failures.
+- [ ] **Implement verification:** CSPRNG `randomInt(0, 1000000)` padded to six digits; await developed `sendEmail` success before marking delivery. Call durable `reservePasswordAttempt` before password sign-in, counting wrong-password attempts as well as success. Use an isolated non-persistent password client and `buildPasswordSignInPayload`; original actor must already be AAL2, returned user must match, temporary cleanup in `finally`. Keep provider response bodies/credentials out of security logs. Same-origin/auth guards and strict schemas precede issuance; fail closed when limits or delivery are unavailable.
+- [ ] **Run green:** commands above; expect PASS and original session unchanged on every password outcome.
+- [ ] **Commit:** `feat(auth): add scoped email and password verification`.
+
+## Task 4: Enforce Operation Policy at Every Mutation and Read Boundary
+
+**Files:** New `guard.ts` and tests; modify mapped server/API/route guards, renewal actions, admin-profile actions, security settings and retention API; second CLI-generated migration; existing SQL regression assertions and source-based `scripts/admin-aal2-action-guards.test.mjs`.
+
+**Interfaces:** Produce `authorizeAdminOperation(intent: AdminOperationIntent, proofToken?: string): Promise<VerificationResult<{ auth: AuthContext; prepared: PreparedIntent }>>`. This checks authorization but does not consume a write proof during rendering/preflight. Actual database mutations consume atomically; external workflows call `store.reserve` immediately before their first side effect. Public authenticated `apply_admin_role_operation(p_operation text, p_payload jsonb, p_proof text) returns jsonb` performs role-change/removal/invite-authorization writes with actual AAL2, password proof and existing target rules in one transaction. Separate service-only `complete_admin_invitation_operation(p_attempt_id uuid, p_payload jsonb) returns jsonb` completes an exact reserved issuance after external Auth creation; `accept_verified_admin_invitation(p_invitation_id uuid) returns jsonb` redeems immutable issuer authorization with existing recipient/expiry/member checks.
+
+- [ ] **Write failing behavioral/SQL tests:** routine AAL1 review with enforcement off succeeds; normal member/inactive admin fails; mandatory-on AAL1 routine review fails; payment without proof fails; admin role with MFA alone/email alone/profile cookie alone fails. Add concurrent last-super-admin demotion, frozen-target preservation and legacy-invite rejection:
+
+```ts
+expect(roleWrites).toHaveLength(0); // no password proof, regardless enforcement toggle
+expect(await executeRoutineReview(aal1Admin)).toMatchObject({ status: "approved" });
+expect(await executeRenewal(aal1Admin, undefined)).toMatchObject({ code: "verification_required" });
+expect(await acceptLegacyInvite()).toMatchObject({ code: "invitation_reissue_required" });
+```
+
+- [ ] **Run red:** action/API/guard tests and disposable SQL assertions; existing database AAL2 review failure is expected before replacing the shared membership operator guard.
+- [ ] **Implement guards:** split routine membership operator from protected renewal guard. Extend `confirm_membership_renewal` with proof argument while retaining older-call compatibility for genuinely verified AAL2; deny unverified legacy calls. Preserve review transaction/expected timestamps, idempotency and audits. Replace parallel admin-role helper writes with transactional verified RPCs; preserve last-super-admin checks under a common database lock. Protect invitations at issuance and acceptance, not only the button. Audit every application writer of admin-scope roles; remove an alternative path only when demonstrably redundant.
+- [ ] **Integrate remaining protected operations:** map security-settings fields, admin lifecycle intent/target, retention scope/job/operation and confirmation into exact validated intents. Add authenticated `update_admin_security_verified(p_payload jsonb, p_proof text) returns jsonb` for atomic settings/proof writes. For external Auth/storage workflows use `store.reserve` first, then service-only `complete_admin_lifecycle_operation(p_attempt_id uuid, p_payload jsonb) returns jsonb` or `complete_admin_retention_operation(p_attempt_id uuid, p_payload jsonb) returns jsonb`; completion must match the reserved immutable operation and live actor, and finalize audit/state in one transaction. Do not broaden existing retention job/evidence grants. Never silently retry or restore uncertain proof. Security-setting permission/super-admin restriction and retention archive/PURGE evidence stay intact. Update read guards to named reusable scope; preserve global workspace-entry enforcement and safe internal return paths.
+- [ ] **Run green:** all changed tests, SQL direct-RPC denial tests and guard audit. Expect protected operations denied before side effects when proof is absent/mismatched, and concurrent role changes never remove the last active super admin.
+- [ ] **Commit:** `feat(admin): enforce operation verification across app and database`.
+
+## Task 5: Accessible Verification and Non-Blocking MFA Suggestion
+
+**Files:** New mapped dialog/form/read-gate/suggestion components and DOM tests; new suggestion API/tests; integrate with existing admin-profile, renewal, security, retention and MFA UI; targeted `globals.css` changes only.
+
+**Interfaces:** `AdminVerifiedForm({ intent, action, children }: { intent: AdminOperationIntent; action: (form: FormData) => void | Promise<unknown>; children: React.ReactNode })` adds `verificationProof` only to the verified submission; the caller owns its existing action-state result. `AdminVerificationDialog({ intent, onVerified, onCancel }: { intent: AdminOperationIntent; onVerified: (proof?: VerificationProof) => void; onCancel: () => void })` uses the policy/result union. `AdminVerificationReadGate({ operation, children }: { operation: AdminOperation; children: React.ReactNode })` must not render protected children before server authorization; page/server read guards run before fetching sensitive data, and an unauthorized page renders only the verification shell. Use a Secure/HttpOnly/SameSite read-scope cookie, never a workspace-wide write cookie. Suggestion endpoint stores authenticated user's seven-day snooze in private state.
+
+- [ ] **Write failing DOM tests:** `cancel_keeps_draft`, `failed_challenge_releases_pending`, `role_dialog_never_offers_email`, `read_gate_hides_sensitive_children`, `suggestion_does_not_block_review`, `snooze_lasts_seven_days`:
+
+```ts
+expect(screen.queryByRole("button", { name: "Verify by email" })).not.toBeInTheDocument(); // admin-role intent
+expect(screen.getByLabelText("Review note")).toHaveValue("Valid claim"); // after cancel
+expect(submitAction).toHaveBeenCalledTimes(1); // double click while pending
+expect(snoozeUntil - now).toBe(7 * 24 * 60 * 60 * 1000);
+```
+
+- [ ] **Run red:** `npx vitest run --project dom src/components/admin/admin-verification-dialog.dom.test.tsx src/components/admin/admin-verified-form.dom.test.tsx src/components/admin/admin-verification-read-gate.dom.test.tsx src/components/admin/admin-mfa-suggestion.dom.test.tsx`; expect missing component failures.
+- [ ] **Implement UI:** preserve existing confirmations/useActionState results and hidden fields; no ordinary callback passed from server to client. Inline authenticator challenge uses existing Supabase MFA APIs, then role-only password/CAPTCHA stage. Setup navigation carries an allowlisted internal return path; non-secret draft survives the round trip. Add focus trap/restoration, labelled inputs, keyboard dismissal, busy/error/retry states, mobile wrapping and correct actual-MFA copy. No raw security jargon, theme redesign or automatic resend loop.
+- [ ] **Run green:** DOM tests plus admin access/UI audits. Confirm challenge cancellation cannot submit and MFA suggestion never substitutes for verification.
+- [ ] **Commit:** `feat(admin): integrate verification controls and MFA suggestions`.
+
+## Task 6: Current-Page Bulk Approval with Accurate Partial Results
+
+**Files:** New mapped bulk service/action and tests; modify renewal panel and DOM tests. Use existing `review_membership_request`, not new inverse lifecycle transitions.
+
+**Interfaces:** `BulkReviewInput = { queue: "alumni" | "departure" | "appeal"; requests: { requestId: string; expectedUpdatedAt: string }[]; note: string; confirmation: "CONFIRM" }`. Produce `approveMembershipRequests(input: BulkReviewInput): Promise<BulkReviewResult>` and `bulkApproveMembershipRequestsAction(previous: BulkReviewResult, form: FormData): Promise<BulkReviewResult>`. Result is `{ status: "idle" | "success" | "partial" | "error"; message: string; results: { requestId: string; status: "approved" | "already_approved" | "stale" | "ineligible" | "failed" }[] }`.
+
+- [ ] **Write failing service/action/DOM tests:** `page_only_select_all`, `indeterminate_selection`, `queue_change_clears_selection`, `changed_refresh_removes_selection`, `mixed_batch_writes_nothing`, `partial_result_keeps_failed_rows`, `retry_is_idempotent`:
+
+```ts
+expect(selectedRequestIds).toEqual(visibleReviewableIds); // never other pages/payments
+expect(reviewRpc).not.toHaveBeenCalled(); // duplicate, 26 entries, mixed type, missing note/confirmation
+expect(result.status).toBe("partial");
+expect(result.results.map(r => r.status)).toEqual(["approved", "stale", "failed"]);
+expect(frozenMember.portal_access_status).toBe("frozen");
+```
+
+- [ ] **Run red:** focused new bulk tests and existing renewal-panel DOM suite; expect missing bulk workflow failures.
+- [ ] **Implement preflight and processing:** validate 1–25 unique UUIDs/ISO timestamps, shared note and confirmation before writes; fetch authoritative request types and ensure one allowed type matches queue. Then process sorted IDs sequentially through existing RPC, retaining each row's expected timestamp. Map already-approved distinctly; rejected/withdrawn/type-changed entries cannot be converted. Report each outcome, revalidate existing views, never call renewal confirmation or unfreeze members. Refresh can reveal individual stale rows without cancelling valid earlier commits.
+- [ ] **Implement selection/confirmation UI:** checkboxes only on visible reviewable rows with timestamps; master indeterminate state, selected count, consequences/member summary and shared note. Reset on page/queue change; refreshed snapshot retains only unchanged pending selections. Disable all selection/submit inputs while pending; clear resolved rows, retain failed unchanged selections. Keep individual review/reject unchanged.
+- [ ] **Run green:** service/action/DOM tests and `assert-membership-bulk-review.sql`; expect separate audits and no duplicate/inverse transitions or hidden-page approvals.
+- [ ] **Commit:** `feat(membership): add bounded bulk request approval`.
+
+## Task 7: Full Verification, Independent Review and Controlled Rollout
+
+**Files:** New `run-admin-verification-browser-qa.mjs` and `e2e/admin-verification.spec.ts`; register SQL assertions/CI replay checks; update operation guide and this plan's checked progress/evidence. All screenshots and disposable credential files remain ignored/outside Git.
+
+**Interfaces:** Browser runner creates disposable local Auth users, seeds trusted enrollment/permissions and reviewed transitions, starts the real Next.js app and runs `e2e/admin-verification.spec.ts` against that disposable Supabase only. Reject any production/linked-project URL; cleanup targets exact fixture IDs. No published or real-member mutation used for testing.
+
+- [ ] **Add failing integration cases** for actual AAL1 routine/bulk review, voluntary/mandatory MFA, email read/write scope, role MFA+password/CAPTCHA, cancellation return, replay rejection and unchanged freeze. Exercise 360px/1440px, light/dark; assert `scrollWidth <= clientWidth`, keyboard dialog behavior and hidden sensitive content before verification. A stubbed email transport proves code handling, not production delivery.
+- [ ] **Run red** through the disposable runner; expect new browser assertions to fail if any application/database gate or UI round trip is missing.
+- [ ] **Complete green verification:** `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `npm run audit:admin-access`, `npm run audit:admin-ui`, `npx vitest run scripts/committed-credential-material.test.mjs`, `npm run migration:check-order:strict`, `npm run db:replay-bootstrap`, and `node supabase/verification/run-admin-verification-browser-qa.mjs`. Configure required build/test environment without printing secrets. Run migration parity against hosted history before and after rollout; unapplied forward files are expected before applying, unexplained historical differences are not. Expect every command exit 0; keep exact counts/log evidence rather than assume the 1,679-test baseline still applies.
+- [ ] **Take independent whole-patch code/security review** after green verification. Address findings and rerun affected/full tests proportionately. Explicitly inspect role writers, operation bindings, function ACLs, missing-state denial, last-super-admin race, email eligibility history and external partial failure. Commit test/guide fixes as `test(admin): verify authorization and bulk review boundaries`.
+- [ ] **Apply verified forward SQL through the Supabase plugin** to the positively identified JnUITS project only. Record pre/post migration history, enforcement value and ACLs. Reconcile plugin-assigned history versions with checked-in files using the repository's established parity workflow, without rewriting applied SQL bodies. Verify exact function bodies, denial paths and advisors; do not approve real requests or grant/revoke real roles for verification. Report legacy unknown enrollment/unsigned invites needing recovery/reissuance rather than fabricate evidence.
+- [ ] **Push branch and open/update PR**, using `git push -u origin codex/admin-verification-policy`; attach the PR to this task. Confirm GitHub Actions independently of Vercel's account restriction. Follow the owner's established authorization to merge only when non-Vercel checks pass; no bypassing protected checks. Verify hosted authorization matches deployed app before claiming production completion. Keep branch until merged/verified; never delete the backup branch.
+
+## Plan Self-Review and Handoff
+
+Coverage: policy/classification and missing-state denial → Task 1; private proofs, history, limits and concurrency → Task 2; developed Resend/password/CAPTCHA → Task 3; DB/action/read boundaries, invitations and role restrictions → Task 4; adoption/accessibility/return-to-draft → Task 5; bounded bulk selection, stale/idempotent/partial results → Task 6; real browser/SQL/full-suite review and hosted parity → Task 7. Each Review Focus case has an owning test above.
+
+Implementation is not yet started. Recommended execution: **Native** in this existing isolated worktree, then one independent whole-branch review, because the policy/store/guard interfaces and migrations are closely coupled. Alternative: task-by-task subagent implementation and review, with more context overhead. Owner reviews this plan and confirms execution approach before product-code or hosted changes.
