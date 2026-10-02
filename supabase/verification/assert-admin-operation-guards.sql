@@ -384,4 +384,147 @@ begin
   if not coalesce((result->>'ok')::boolean,false) then raise exception 'Verified super admin could not disable policy: %',result; end if;
 end;
 $protected_settings_and_revoke$;
+do $retention_contract$
+declare u uuid; sid uuid; actor jsonb; result jsonb; attempt_id uuid; form_id uuid; job_id uuid; intent jsonb; manifest jsonb;
+  version_id uuid; old_submission uuid; recent_submission uuid;
+begin
+  if to_regprocedure('public.complete_admin_retention_operation(uuid,jsonb)') is null then
+    raise exception 'Missing reserved retention completion boundary';
+  end if;
+  select id into u from auth.users where email='replay-harness@local.invalid';
+  select id into sid from auth.sessions where user_id=u and aal='aal2' order by created_at desc limit 1;
+  actor:=(public.admin_verification_context(jsonb_build_object('userId',u,'sessionId',sid,'roleVersion',
+    (select version from public.rbac_user_claim_versions where user_id=u),'currentLevel','aal2')))->'value';
+  insert into public.form_definitions(kind,slug,title,owner_user_id) values('membership_application','retention-verification-qa','Fictional retention form',u) returning id into form_id;
+  insert into public.form_archive_jobs(form_definition_id,requested_by_user_id,retention_eligible_at,status)
+    values(form_id,u,clock_timestamp()-interval '1 year','candidate') returning id into job_id;
+  intent:=jsonb_build_object('jobId',job_id,'scope','form');
+  result:=public.admin_verification_reserve(jsonb_build_object('actor',actor,'intent',jsonb_build_object('operation','admin.retention.archive','payload',intent)));
+  attempt_id:=(result#>>'{value,attemptId}')::uuid;
+  if attempt_id is null then raise exception 'Retention reservation failed: %',result; end if;
+  begin
+    perform public.complete_admin_retention_operation(attempt_id,jsonb_build_object('intent',intent||jsonb_build_object('jobId',extensions.gen_random_uuid()),'stage','archive_start','boundary','2023-01-01T00:00:00Z'));
+    raise exception 'Changed retention target completed a reserved operation';
+  exception when insufficient_privilege then null; end;
+  result:=public.complete_admin_retention_operation(attempt_id,jsonb_build_object('intent',intent,'stage','archive_start','boundary','2023-01-01T00:00:00Z'));
+  if not coalesce((result->>'ok')::boolean,false) or not exists(select 1 from public.form_archive_jobs where id=job_id and status='archive_requested') then
+    raise exception 'Reserved archive did not claim its exact job: %',result;
+  end if;
+  -- Synthetic service-side archive evidence: no files are uploaded in SQL QA.
+  manifest:=jsonb_build_object('algorithm','HMAC-SHA256','signature',repeat('a',64),'manifest',jsonb_build_object(
+    'schemaVersion',2,'scope','form','resourceId',form_id,'boundary','2023-01-01T00:00:00Z','rowCount',0,'files','[]'::jsonb));
+  result:=public.complete_admin_retention_operation(attempt_id,jsonb_build_object('intent',intent,'stage','archive_complete','boundary','2023-01-01T00:00:00Z',
+    'rowCount',0,'reusedFiles',0,'bundle',jsonb_build_object('checksum',repeat('b',64),'manifest',manifest,'manifestFileId','fictional-drive-file')));
+  if not coalesce((result->>'ok')::boolean,false) or not exists(select 1 from public.form_archive_jobs where id=job_id and status='archived')
+    or not exists(select 1 from public.audit_events where action='retention.archive_completed' and metadata->>'job_id'=job_id::text)
+    or not exists(select 1 from private.admin_verification_attempts where id=attempt_id and status='completed') then
+    raise exception 'Archive evidence/state/audit/attempt completion was not atomic: %',result;
+  end if;
+  begin
+    perform public.complete_admin_retention_operation(attempt_id,jsonb_build_object('intent',intent,'stage','archive_failed'));
+    raise exception 'Completed archive demoted or authorization reused';
+  exception when insufficient_privilege then null; end;
+  result:=public.admin_verification_reserve(jsonb_build_object('actor',actor,'intent',jsonb_build_object('operation','admin.retention.approve_purge','payload',intent)));
+  attempt_id:=(result#>>'{value,attemptId}')::uuid;
+  begin
+    perform public.complete_admin_retention_operation(attempt_id,jsonb_build_object('intent',intent,'stage','approve_purge','archiveChecksum',repeat('c',64),'archiveManifest',manifest));
+    raise exception 'Changed archive evidence approved for purge';
+  exception when serialization_failure then null; end;
+  result:=public.complete_admin_retention_operation(attempt_id,jsonb_build_object('intent',intent,'stage','approve_purge','archiveChecksum',repeat('b',64),'archiveManifest',manifest));
+  if not coalesce((result->>'ok')::boolean,false) or not exists(select 1 from public.form_archive_jobs where id=job_id and status='purge_approved' and approved_by_user_id=u) then
+    raise exception 'Verified archive approval failed: %',result;
+  end if;
+  insert into public.form_versions(form_definition_id,version_number,lifecycle,field_schema,created_by_user_id,published_at,published_by_user_id)
+    values(form_id,1,'published','{"fields":[],"payment":{"enabled":false}}',u,now(),u) returning id into version_id;
+  update public.form_definitions set lifecycle='published',current_published_version_id=version_id,published_at=now(),published_by_user_id=u where id=form_id;
+  insert into public.form_submissions(form_definition_id,form_version_id,submitter_email,answers,created_at)
+    values(form_id,version_id,'fictional-old@local.invalid','{"name":"Old fictional respondent"}','2022-01-01') returning id into old_submission;
+  insert into public.form_submissions(form_definition_id,form_version_id,submitter_email,answers,created_at)
+    values(form_id,version_id,'fictional-recent@local.invalid','{"name":"Recent fictional respondent"}',clock_timestamp()) returning id into recent_submission;
+  intent:=intent||jsonb_build_object('confirmation','PURGE');
+  result:=public.admin_verification_reserve(jsonb_build_object('actor',actor,'intent',jsonb_build_object('operation','admin.retention.purge','payload',intent)));
+  attempt_id:=(result#>>'{value,attemptId}')::uuid;
+  result:=public.complete_admin_retention_operation(attempt_id,jsonb_build_object('intent',intent,'stage','purge','archiveChecksum',repeat('b',64),'archiveManifest',manifest));
+  if not coalesce((result->>'ok')::boolean,false) or result#>>'{value,purgedRows}'<>'1'
+    or not exists(select 1 from public.form_submissions where id=old_submission and answers='{}'::jsonb and submitter_email is null)
+    or not exists(select 1 from public.form_submissions where id=recent_submission and answers->>'name'='Recent fictional respondent' and submitter_email='fictional-recent@local.invalid')
+    or not exists(select 1 from public.form_archive_jobs where id=job_id and status='purged') then
+    raise exception 'Verified purge widened the signed cutoff or failed its atomic state update: %',result;
+  end if;
+  if private.retention_calendar_shift('2028-02-29T12:00:00Z',-3)<>'2025-03-01T12:00:00Z'::timestamptz then
+    raise exception 'Retention calendar policy changed for leap-day overflow';
+  end if;
+  result:=public.admin_verification_reserve(jsonb_build_object('actor',actor,'intent',jsonb_build_object('operation','admin.retention.discover','payload','{}'::jsonb)));
+  attempt_id:=(result#>>'{value,attemptId}')::uuid;
+  result:=public.complete_admin_retention_operation(attempt_id,jsonb_build_object('intent','{}'::jsonb,'stage','discover','boundary','2023-01-01T00:00:00Z',
+    'formCandidates',jsonb_build_array(jsonb_build_object('resourceId',form_id,'eligibleAt','2025-01-01T00:00:00Z')),'eventCandidates','[]'::jsonb));
+  if not coalesce((result->>'ok')::boolean,false) or result#>>'{value,formCreated}'<>'1'
+    or not exists(select 1 from public.audit_events where action='retention.discovery_completed' and actor_user_id=u) then
+    raise exception 'Verified discovery did not atomically insert and audit its eligible candidate: %',result;
+  end if;
+  result:=public.admin_verification_reserve(jsonb_build_object('actor',actor,'intent',jsonb_build_object('operation','admin.retention.discover','payload','{}'::jsonb)));
+  attempt_id:=(result#>>'{value,attemptId}')::uuid;
+  delete from auth.sessions where id=sid;
+  begin
+    perform public.complete_admin_retention_operation(attempt_id,jsonb_build_object('intent','{}'::jsonb,'stage','discover','boundary','2023-01-01T00:00:00Z','formCandidates','[]'::jsonb,'eventCandidates','[]'::jsonb));
+    raise exception 'Logged-out operator completed retention writes';
+  exception when insufficient_privilege then null; end;
+  if has_function_privilege('authenticated','public.complete_admin_retention_operation(uuid,jsonb)','EXECUTE')
+    or has_function_privilege('service_role','public.purge_retention_job(text,uuid,uuid)','EXECUTE') then
+    raise exception 'Retention grants bypass its verified boundary';
+  end if;
+end;
+$retention_contract$;
+do $email_external_contract$
+declare
+  u uuid:=extensions.gen_random_uuid(); sid uuid:=extensions.gen_random_uuid(); v bigint;
+  target_user uuid:=extensions.gen_random_uuid(); target_profile uuid; actor jsonb; intent jsonb; prepared jsonb;
+  result jsonb; challenge_id uuid:=extensions.gen_random_uuid(); proof_id uuid; attempt_id uuid;
+  token text:=repeat('e',43); digest text;
+begin
+  -- A new, confirmed, known-never-enrolled admin uses the developed email
+  -- proof path, not a synthetic AAL2 JWT or a private proof-table injection.
+  update public.security_settings set admin_totp_enforced=false where id;
+  insert into auth.users(id,email,email_confirmed_at,created_at,updated_at)
+    values(u,'email-operator@local.invalid',now(),clock_timestamp(),now());
+  insert into public.admin_profiles(user_id,admin_code,display_name,status,is_active)
+    values(u,'JNUITS-ADMIN-EMAIL-QA','Fictional email operator','active',true);
+  insert into public.rbac_user_platform_roles(user_id,role_id,scope,note)
+    select u,id,'admin','Email operation fixture' from public.rbac_platform_roles where scope='admin' and code='super_admin';
+  select version into v from public.rbac_user_claim_versions where user_id=u;
+  insert into auth.sessions(id,user_id,aal,created_at,updated_at) values(sid,u,'aal1',now(),now());
+  perform public.admin_verification_record_enrollment(jsonb_build_object('userId',u,'evidence','trusted_never_history'));
+  actor:=(public.admin_verification_context(jsonb_build_object('userId',u,'sessionId',sid,'roleVersion',v,'currentLevel','aal1')))->'value';
+  if actor->>'enrollment'<>'never' then raise exception 'Known-never-enrolled email fixture failed: %',actor; end if;
+  insert into auth.users(id,email,created_at,updated_at) values(target_user,'email-freeze-target@local.invalid',now(),now());
+  insert into public.admin_profiles(user_id,admin_code,display_name,status,is_active)
+    values(target_user,'JNUITS-ADMIN-EMAIL-TARGET','Fictional email target','active',true) returning id into target_profile;
+  insert into public.rbac_user_platform_roles(user_id,role_id,scope,note)
+    select target_user,id,'admin','Email target fixture' from public.rbac_platform_roles where scope='admin' and code='content_admin';
+  intent:=jsonb_build_object('operation','admin.lifecycle.freeze','payload',jsonb_build_object('adminProfileId',target_profile,'confirmation','JNUITS-ADMIN-EMAIL-TARGET'));
+  result:=public.admin_verification_reserve(jsonb_build_object('actor',actor,'intent',intent));
+  if coalesce((result->>'ok')::boolean,false) then raise exception 'AAL1 lifecycle reserved without proof'; end if;
+  prepared:=public.admin_verification_prepare(jsonb_build_object('actor',actor,'intent',intent));
+  result:=public.admin_verification_begin_email(jsonb_build_object('prepared',prepared->'value','challengeId',challenge_id,'codeMac',repeat('d',64),'keyId','fixture','ipHash',repeat('e',64)));
+  if not coalesce((result->>'ok')::boolean,false) then raise exception 'External-operation email challenge failed: %',result; end if;
+  perform public.admin_verification_mark_email_delivery(jsonb_build_object('challengeId',challenge_id,'delivered',true));
+  digest:=encode(extensions.digest(convert_to(token,'UTF8'),'sha256'),'hex');
+  result:=public.admin_verification_redeem_email(jsonb_build_object('actor',actor,'challengeId',challenge_id,'candidateMacs',jsonb_build_array(repeat('d',64)),'tokenHash',digest,'ipHash',repeat('e',64)));
+  proof_id:=(result#>>'{value,proofId}')::uuid;
+  if proof_id is null then raise exception 'External-operation email proof failed: %',result; end if;
+  result:=public.admin_verification_reserve(jsonb_build_object('actor',actor,'intent',intent,'proofId',proof_id,'tokenHash',digest));
+  attempt_id:=(result#>>'{value,attemptId}')::uuid;
+  if attempt_id is null then raise exception 'Email proof did not reserve the exact external operation: %',result; end if;
+  result:=public.admin_verification_reserve(jsonb_build_object('actor',actor,'intent',intent,'proofId',proof_id,'tokenHash',digest));
+  if coalesce((result->>'ok')::boolean,false) then raise exception 'Consumed email proof reserved twice'; end if;
+  update auth.users set banned_until=clock_timestamp()+interval '1 day' where id=target_user;
+  result:=public.complete_admin_lifecycle_operation(attempt_id,intent->'payload');
+  if not coalesce((result->>'ok')::boolean,false)
+    or not exists(select 1 from public.admin_profiles where id=target_profile and status='frozen' and not is_active)
+    or not exists(select 1 from public.audit_events where actor_user_id=u and action='admin_account.frozen')
+    or not exists(select 1 from private.admin_verification_attempts where id=attempt_id and status='completed') then
+    raise exception 'Email-bound Auth/profile/audit completion failed: %',result;
+  end if;
+end;
+$email_external_contract$;
 rollback;

@@ -59,6 +59,9 @@ describe("Admin server actions enforce operation verification at the action boun
   it("keeps the retention API behind step-up", () => {
     const source = readSource("src/app/api/admin/retention/route.ts");
 
-    expect(source).toMatch(/requireAdminApiPermission\([\s\S]*?requireAal2:\s*true/);
+    expect(source).toContain('operation: "admin.retention.read"');
+    expect(source).toContain("authorizeAdminOperation(intent, verificationProof)");
+    expect(source).toContain(".reserve(verified.value.prepared.actor, intent, verificationProof)");
+    expect(readSource("src/lib/retention/operations.ts")).toContain('rpc("complete_admin_retention_operation"');
   });
 });

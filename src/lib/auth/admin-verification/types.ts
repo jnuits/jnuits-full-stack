@@ -7,6 +7,7 @@ export type AdminOperation =
   | "admin.retention.approve_purge" | "admin.retention.purge";
 
 export type VerificationMethod = "totp" | "email" | "password";
+export type AdminReadOperation = Extract<AdminOperation, "admin.security.read" | "admin.system_health.read" | "admin.retention.read">;
 export type VerificationClass = "routine" | "protected_read" | "protected_mutation" | "admin_role";
 export type EnrollmentHistory = "never" | "enrolled" | "unknown";
 export type AdminOperationIntent = { operation: AdminOperation; payload: Record<string, unknown> };

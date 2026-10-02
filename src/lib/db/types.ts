@@ -4365,6 +4365,10 @@ export type Database = {
         Args: { p_attempt_id: string; p_payload: Json }
         Returns: Json
       }
+      complete_admin_retention_operation: {
+        Args: { p_attempt_id: string; p_payload: Json }
+        Returns: Json
+      }
       confirm_form_submission: {
         Args: { p_confirmation_token_hash: string; p_submission_id: string }
         Returns: {

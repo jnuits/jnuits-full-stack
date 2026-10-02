@@ -596,6 +596,157 @@ $fn$;
 revoke all on function public.accept_verified_admin_invitation(uuid) from public,anon,service_role;
 grant execute on function public.accept_verified_admin_invitation(uuid) to authenticated;
 
+alter table private.admin_verification_attempts add column workflow_state jsonb;
+
+-- Match Date.setUTCFullYear's existing calendar policy, including leap-day
+-- overflow, rather than silently replacing it with interval's clamp behavior.
+create function private.retention_calendar_shift(p_instant timestamptz,p_years integer) returns timestamptz
+language sql immutable set search_path='' as $fn$
+  select (make_date(extract(year from p_instant at time zone 'UTC')::integer+p_years,
+    extract(month from p_instant at time zone 'UTC')::integer,1)
+    +make_interval(days=>extract(day from p_instant at time zone 'UTC')::integer-1)
+    +(p_instant at time zone 'UTC'-date_trunc('day',p_instant at time zone 'UTC'))) at time zone 'UTC'
+$fn$;
+revoke all on function private.retention_calendar_shift(timestamptz,integer) from public,anon,authenticated,service_role;
+
+-- The old actor-id-only service RPC is not an alternate verification path.
+-- Preserve its proven PII cutoff implementation privately behind the completion
+-- boundary; the retired public signature fails closed for every legacy caller.
+alter function public.purge_retention_job(text,uuid,uuid) set schema private;
+alter function private.purge_retention_job(text,uuid,uuid) rename to purge_retention_job_core;
+revoke all on function private.purge_retention_job_core(text,uuid,uuid) from public,anon,authenticated,service_role;
+create function public.purge_retention_job(p_scope text,p_job_id uuid,p_actor_user_id uuid) returns jsonb
+language plpgsql security definer set search_path='' as $fn$
+begin
+  raise exception 'A reserved, verified retention operation is required.' using errcode='42501';
+end;
+$fn$;
+revoke all on function public.purge_retention_job(text,uuid,uuid) from public,anon,authenticated,service_role;
+
+create function public.complete_admin_retention_operation(p_attempt_id uuid,p_payload jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $fn$
+declare intent private.admin_verification_intents%rowtype; stage text:=p_payload->>'stage'; scope text; job_id uuid; resource_id uuid;
+  job jsonb; state jsonb; boundary timestamptz; bundle jsonb; export_id uuid; row_count integer; reused integer;
+  form_count integer:=0; event_count integer:=0; result jsonb;
+begin
+  intent:=private.load_reserved_admin_intent(p_attempt_id);
+  if intent.operation not like 'admin.retention.%' or intent.payload is distinct from p_payload->'intent' then
+    raise exception 'Reserved retention operation does not match.' using errcode='42501';
+  end if;
+  if intent.operation='admin.retention.discover' then
+    if stage is distinct from 'discover' or jsonb_typeof(p_payload->'formCandidates') is distinct from 'array'
+      or jsonb_typeof(p_payload->'eventCandidates') is distinct from 'array'
+      or jsonb_array_length(p_payload->'formCandidates')>10000 or jsonb_array_length(p_payload->'eventCandidates')>10000 then
+      raise exception 'Invalid discovery results.' using errcode='22023';
+    end if;
+    boundary:=(p_payload->>'boundary')::timestamptz;
+    if boundary is null or boundary>private.retention_calendar_shift(clock_timestamp(),-3) then
+      raise exception 'Discovery boundary is not retention eligible.' using errcode='22023';
+    end if;
+    if exists(select 1 from jsonb_to_recordset(p_payload->'formCandidates') as c("resourceId" uuid,"eligibleAt" timestamptz)
+      left join lateral (select min(created_at) as oldest from public.form_submissions where form_definition_id=c."resourceId" and created_at<=boundary) s on true
+      where s.oldest is null or c."eligibleAt" is distinct from private.retention_calendar_shift(s.oldest,3))
+      or exists(select 1 from jsonb_to_recordset(p_payload->'eventCandidates') as c("resourceId" uuid,"eligibleAt" timestamptz)
+        left join public.events e on e.id=c."resourceId" where e.id is null or coalesce(e.ends_at,e.starts_at)>boundary
+          or c."eligibleAt" is distinct from private.retention_calendar_shift(coalesce(e.ends_at,e.starts_at),3)) then
+      raise exception 'Discovery source data changed or is ineligible.' using errcode='40001';
+    end if;
+    insert into public.form_archive_jobs(form_definition_id,requested_by_user_id,retention_eligible_at,status)
+      select distinct c."resourceId",intent.user_id,c."eligibleAt",'candidate'
+        from jsonb_to_recordset(p_payload->'formCandidates') as c("resourceId" uuid,"eligibleAt" timestamptz)
+        where not exists(select 1 from public.form_archive_jobs j where j.form_definition_id=c."resourceId"
+          and j.status in ('archive_requested','archived','candidate','purge_approved')) order by 1 on conflict do nothing;
+    get diagnostics form_count=row_count;
+    insert into public.event_retention_jobs(event_id,requested_by_user_id,retention_eligible_at,status)
+      select distinct c."resourceId",intent.user_id,c."eligibleAt",'candidate'
+        from jsonb_to_recordset(p_payload->'eventCandidates') as c("resourceId" uuid,"eligibleAt" timestamptz)
+        where not exists(select 1 from public.event_retention_jobs j where j.event_id=c."resourceId"
+          and j.status in ('archive_requested','archived','candidate','purge_approved')) order by 1 on conflict do nothing;
+    get diagnostics event_count=row_count;
+    insert into public.audit_events(action,actor_user_id,entity_type,metadata) values('retention.discovery_completed',intent.user_id,'retention_job',
+      jsonb_build_object('boundary',boundary,'event_candidates_created',event_count,'form_candidates_created',form_count));
+    perform private.complete_admin_mutation(p_attempt_id);
+    return jsonb_build_object('ok',true,'value',jsonb_build_object('boundary',boundary,'created',event_count+form_count,
+      'eventCreated',event_count,'formCreated',form_count,'success',true));
+  end if;
+  scope:=intent.payload->>'scope'; job_id:=(intent.payload->>'jobId')::uuid;
+  if scope='form' then
+    select to_jsonb(j),j.form_definition_id into job,resource_id from public.form_archive_jobs j where j.id=job_id for update;
+  elsif scope='event' then
+    select to_jsonb(j),j.event_id into job,resource_id from public.event_retention_jobs j where j.id=job_id for update;
+  else raise exception 'Retention scope is invalid.' using errcode='22023'; end if;
+  if job is null then raise exception 'Retention job was not found.' using errcode='P0002'; end if;
+  select workflow_state into state from private.admin_verification_attempts where id=p_attempt_id;
+  if intent.operation='admin.retention.archive' and stage='archive_start' then
+    boundary:=(p_payload->>'boundary')::timestamptz;
+    if job->>'status' not in ('candidate','failed') or state is not null or (job->>'retention_eligible_at')::timestamptz>clock_timestamp()
+      or boundary is null or boundary>private.retention_calendar_shift(clock_timestamp(),-3) then
+      raise exception 'Retention archive state changed or is not eligible.' using errcode='40001';
+    end if;
+    if scope='form' then update public.form_archive_jobs set status='archive_requested',error_code=null where id=job_id;
+    else update public.event_retention_jobs set status='archive_requested',error_code=null where id=job_id; end if;
+    update private.admin_verification_attempts set workflow_state=jsonb_build_object('boundary',boundary,'resourceId',resource_id) where id=p_attempt_id;
+    return jsonb_build_object('ok',true,'value',null);
+  elsif intent.operation='admin.retention.archive' and stage in ('archive_complete','archive_failed') then
+    if job->>'status'<>'archive_requested' or state is null or state->>'resourceId' is distinct from resource_id::text then
+      raise exception 'The retention archive changed state.' using errcode='40001';
+    end if;
+    if stage='archive_failed' then
+      if scope='form' then update public.form_archive_jobs set status='failed',error_code='archive_failed' where id=job_id;
+      else update public.event_retention_jobs set status='failed',error_code='archive_failed' where id=job_id; end if;
+      update private.admin_verification_attempts set status='failed',completed_at=clock_timestamp() where id=p_attempt_id;
+      insert into private.admin_verification_audit(user_id,operation,event,outcome) values(intent.user_id,intent.operation,'mutation_completed','archive_failed');
+      return jsonb_build_object('ok',true,'value',null);
+    end if;
+    bundle:=p_payload->'bundle'; row_count:=(p_payload->>'rowCount')::integer; reused:=(p_payload->>'reusedFiles')::integer;
+    boundary:=(p_payload->>'boundary')::timestamptz;
+    if boundary is distinct from (state->>'boundary')::timestamptz or jsonb_typeof(bundle->'manifest') is distinct from 'object'
+      or bundle->>'checksum' is null or bundle->>'checksum' !~ '^[a-f0-9]{64}$' or nullif(bundle->>'manifestFileId','') is null
+      or bundle#>>'{manifest,algorithm}' is distinct from 'HMAC-SHA256' or bundle#>>'{manifest,signature}' is null
+      or bundle#>>'{manifest,signature}' !~ '^[a-f0-9]{64}$' or bundle#>>'{manifest,manifest,schemaVersion}' is distinct from '2'
+      or bundle#>>'{manifest,manifest,scope}' is distinct from scope or bundle#>>'{manifest,manifest,resourceId}' is distinct from resource_id::text
+      or (bundle#>>'{manifest,manifest,boundary}')::timestamptz is distinct from boundary
+      or row_count is null or row_count<0 or row_count>10000 or (bundle#>>'{manifest,manifest,rowCount}')::integer is distinct from row_count
+      or reused is null or reused<0 or reused>3 then raise exception 'Archive evidence does not match the reserved job.' using errcode='22023'; end if;
+    if scope='event' then
+      insert into public.event_export_jobs(event_id,requested_by_user_id,export_kind,format,destination,status,row_count,filter_metadata,checksum_sha256,google_drive_file_id)
+        values(resource_id,intent.user_id,'event_archive','archive_manifest','google_drive','completed',row_count,
+          jsonb_build_object('boundary',boundary,'schema_version',2),bundle->>'checksum',bundle->>'manifestFileId') returning id into export_id;
+      update public.event_retention_jobs set status='archived',error_code=null,archive_manifest=bundle->'manifest',
+        manifest_checksum_sha256=bundle->>'checksum',archive_export_job_id=export_id where id=job_id;
+    else
+      update public.form_archive_jobs set status='archived',error_code=null,archive_manifest=bundle->'manifest',manifest_checksum_sha256=bundle->>'checksum' where id=job_id;
+    end if;
+    insert into public.audit_events(action,actor_user_id,entity_id,entity_type,metadata) values('retention.archive_completed',intent.user_id,resource_id,'retention_job',
+      jsonb_build_object('boundary',boundary,'job_id',job_id,'reused_files',reused,'row_count',row_count,'scope',scope));
+    perform private.complete_admin_mutation(p_attempt_id);
+    return jsonb_build_object('ok',true,'value',jsonb_build_object('success',true));
+  elsif (intent.operation='admin.retention.approve_purge' and stage='approve_purge') or (intent.operation='admin.retention.purge' and stage='purge') then
+    if job->>'status' is distinct from (case when stage='approve_purge' then 'archived' else 'purge_approved' end)
+      or job->>'manifest_checksum_sha256' is null or job->>'manifest_checksum_sha256' is distinct from p_payload->>'archiveChecksum'
+      or job->'archive_manifest' is distinct from p_payload->'archiveManifest'
+      or job#>>'{archive_manifest,manifest,scope}' is distinct from scope or job#>>'{archive_manifest,manifest,resourceId}' is distinct from resource_id::text then
+      raise exception 'Verified archive evidence or job state changed.' using errcode='40001';
+    end if;
+    if stage='approve_purge' then
+      if scope='form' then update public.form_archive_jobs set status='purge_approved',approved_at=clock_timestamp(),approved_by_user_id=intent.user_id where id=job_id;
+      else update public.event_retention_jobs set status='purge_approved',approved_at=clock_timestamp(),approved_by_user_id=intent.user_id where id=job_id; end if;
+      insert into public.audit_events(action,actor_user_id,entity_id,entity_type,metadata)
+        values('retention.purge_approved',intent.user_id,job_id,'retention_job',jsonb_build_object('scope',scope));
+      result:=jsonb_build_object('success',true);
+    else
+      if intent.payload->>'confirmation' is distinct from 'PURGE' then raise exception 'Purge confirmation is required.' using errcode='42501'; end if;
+      result:=private.purge_retention_job_core(scope,job_id,intent.user_id);
+    end if;
+    perform private.complete_admin_mutation(p_attempt_id);
+    return jsonb_build_object('ok',true,'value',result);
+  end if;
+  raise exception 'Unsupported retention completion stage.' using errcode='42501';
+end;
+$fn$;
+revoke all on function public.complete_admin_retention_operation(uuid,jsonb) from public,anon,authenticated;
+grant execute on function public.complete_admin_retention_operation(uuid,jsonb) to service_role;
+
 do $acl$
 declare f record;
 begin

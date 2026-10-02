@@ -87,8 +87,39 @@ by email proof for a different, current-day operation.
 active membership permission and a live/current session, with actual TOTP MFA
 when mandatory enforcement is on. It does not relax the renewal wrapper.
 All new private helpers revoke PUBLIC, anon, authenticated and service execution.
-Remaining Task 4 operation integrations are still in progress; none of these
-changes has been applied to the hosted project.
+The same staged migration adds these narrowly scoped entry points:
+
+| Function | Allowed execution | Boundary |
+| --- | --- | --- |
+| `apply_admin_role_operation(text,jsonb,text)` | authenticated only | Signed-session actor, real TOTP plus exact password proof, serialized target/last-super checks and atomic role/audit writes |
+| `update_admin_security_verified(jsonb,text)` | authenticated only | Exact protected intent; only a super admin can disable enforcement; settings, audit and proof consumed atomically |
+| `revoke_admin_invitation_verified(jsonb,text)` | authenticated only | Exact invitation/confirmation and target hierarchy; pending invitations only; cannot remove accepted admin access |
+| `accept_verified_admin_invitation(uuid)` | authenticated only | Immutable verified issuer authorization, recipient/session/member/expiry/delivery checks and transactional grant; unsigned legacy invitations rejected |
+| `complete_admin_invitation_operation(uuid,jsonb)` | service_role only | Reserved issuer intent and live actor; recipient and requested role are immutable before external Auth/member-claim side effects |
+| `complete_admin_lifecycle_operation(uuid,jsonb)` | service_role only | Reserved exact target, fresh actor and observed Auth ban/unban before atomic profile/audit/attempt completion |
+| `complete_admin_retention_operation(uuid,jsonb)` | service_role only | Reserved operation/scope/job and current permission/session/policy; atomic discovery, archive state/evidence, approval or bounded purge |
+
+All use an empty search path and deny PUBLIC/anon execution. Private helpers,
+immutable invitation authorization records and workflow attempts deny direct
+browser/service access. Role and lifecycle writers share the last-super-admin
+lock; pending freeze reservations block target mutations and actor access,
+including expired uncertain attempts until authorized reconciliation. No
+uncertain proof is restored or automatically retried.
+
+The former `purge_retention_job(text,uuid,uuid)` implementation is now a private
+core with no direct browser/service execute grant. Its public legacy signature
+fails closed and also revokes service-role execute. The developed retention
+service still creates/verifies HMAC archive evidence before the completion RPC;
+the database checks that approval/purge use the exact persisted evidence and
+preserves the existing PII cutoff, not a new client-provided purge boundary.
+
+Security settings, system health and retention pages authorize their own named
+five-minute read scope before loading protected data. The central route map
+retains each page's permission and scope rather than an AAL2-only layout gate.
+The global workspace-entry enforcement remains unchanged.
+
+These are disposable replay verification results, not hosted deployment:
+neither staged migration has been applied to the production project yet.
 
 ## Review Procedure
 
