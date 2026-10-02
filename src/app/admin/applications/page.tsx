@@ -114,7 +114,7 @@ export default async function ApplicationsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <span className="abadge abadge--pending"><Clock size={10} /> {membershipCount} membership</span>
-          <span className="abadge abadge--pending"><Clock size={10} /> {alumniCount} alumni</span>
+          <span className="abadge abadge--pending"><Clock size={10} /> {alumniCount} alumni onboarding</span>
         </div>
       </header>
 
@@ -125,6 +125,18 @@ export default async function ApplicationsPage() {
           <p className="mt-1 text-sm leading-7">{flash.message}</p>
         </section>
       ) : null}
+
+      <section className="section-band" aria-labelledby="existing-member-requests-heading">
+        <span className="eyebrow">Membership decisions</span>
+        <h2 className="admin-card-row__title mt-3" id="existing-member-requests-heading">Requests from existing members</h2>
+        <p className="section-copy mt-3">
+          Requests sent from the member portal, including “Apply for Alumni”, are reviewed in Membership DB — not in the new-profile onboarding queues below. Review the existing profile without issuing another claim invitation. Recording a decision requires verified admin MFA.
+        </p>
+        <div className="flex flex-wrap gap-3 mt-4">
+          <a className="primary-button" href="/admin/membership?renewalQueue=alumni#membership-renewals">Review member Alumni requests</a>
+          <a className="ghost-button" href="/admin/membership#membership-renewals">Review renewals and departures</a>
+        </div>
+      </section>
 
       <section className="grid gap-4" aria-labelledby="membership-queue-heading">
         <div>

@@ -30,6 +30,7 @@ function renderMembership() {
     flash: null, managedMemberTotal: 1, managedMembers: [member], memberLifecycleFilter: "", memberPage: 1,
     memberPageSize: 20, memberRoleFilter: "", pendingRenewals: 0, portalRoleOptions: [],
     totalClaimedInvitations: 0, totalIssuedInvitations: 0,
+    renewalQueue: { queue: "overdue" as const, page: 1, pageSize: 25, total: 0, rows: [] },
   };
   return render(<MembershipDbClient {...props} />);
 }
@@ -57,5 +58,20 @@ describe("cycle-free membership workspace", () => {
     await user.click(screen.getByRole("button", { name: "Edit Fictional Member" }));
     expect(screen.getByDisplayValue("2024-07-01")).toBeInTheDocument();
     expect(within(screen.getByRole("navigation", { name: "Membership DB sections" })).queryByRole("button", { name: "Cycles" })).not.toBeInTheDocument();
+  });
+  it("lets operators reach membership decisions without finding them in the member list", async () => {
+    const user = userEvent.setup();
+    renderMembership();
+    const section = document.getElementById("membership-renewals")!;
+    const scroll = vi.spyOn(section, "scrollIntoView");
+    await user.click(within(screen.getByRole("navigation", { name: "Membership DB sections" })).getByRole("button", { name: "Membership decisions" }));
+    expect(scroll).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+    expect(screen.getByRole("link", { name: "Alumni requests" })).toHaveAttribute("href", "/admin/membership?renewalQueue=alumni&renewalPage=1#membership-renewals");
+  });
+  it("routes Alumni requests out of the profile-deletion empty state", () => {
+    renderMembership();
+    const deletionQueue = screen.getByRole("heading", { name: "Profile deletion queue" }).closest("section")!;
+    expect(within(deletionQueue).getByRole("link", { name: "Review member Alumni requests" })).toHaveAttribute("href", "/admin/membership?renewalQueue=alumni#membership-renewals");
+    expect(within(deletionQueue).getByText("No profile deletion requests pending review.")).toBeInTheDocument();
   });
 });

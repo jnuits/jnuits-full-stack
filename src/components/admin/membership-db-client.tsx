@@ -118,11 +118,13 @@ const portalAccessOptions = [
 ] as const;
 const stickyNavItems = [
   { label: "Members", tabId: "tab-members", targetId: "member-operations" },
+  { label: "Membership decisions", tabId: "tab-decisions", targetId: "membership-renewals" },
   { label: "Profile Intake", tabId: "tab-intake", targetId: "member-profile-intake" },
 ] as const;
 
 const stickySectionToTab: Record<string, (typeof stickyNavItems)[number]["tabId"]> = {
   "alumni-queue": "tab-members",
+  "membership-renewals": "tab-decisions",
   "member-profile-intake": "tab-intake",
   "member-operations": "tab-members",
 };
@@ -1474,9 +1476,16 @@ function AccountRequestsSection({
         </span>
       </div>
 
+      <p className="section-copy mt-3">
+        This queue is only for profile deletion. Alumni, renewal, departure, and appeal requests are reviewed in Membership decisions.
+      </p>
+      <a className="ghost-button mt-3" href="/admin/membership?renewalQueue=alumni#membership-renewals">
+        Review member Alumni requests
+      </a>
+
       <div className="mt-6 grid gap-4">
         {accountRequests.length === 0 ? (
-          <div className="empty-state">No account requests pending review.</div>
+          <div className="empty-state">No profile deletion requests pending review.</div>
         ) : (
           <>
             <div className="membership-bulk-toolbar">
