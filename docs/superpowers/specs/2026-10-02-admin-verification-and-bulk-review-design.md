@@ -1,7 +1,7 @@
 # Admin verification and bulk membership review design
 
 Date: 2026-10-02 (Asia/Dhaka)
-Status: specification and implementation plan approved by the owner on 2026-10-02; Native execution in progress. Hosted authorization remains unchanged until verification and rollout gates pass.
+Status: specification and implementation plan approved by the owner on 2026-10-02; Native execution in progress. Reviewed hosted authorization migrations applied after green CI and matching application deployment on 2026-10-04 Asia/Dhaka; remaining provider/browser acceptance is tracked in the implementation plan.
 
 ## Purpose and approved decisions
 

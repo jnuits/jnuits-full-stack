@@ -55,9 +55,9 @@ access. A blind revoke would make valid profile-management policies fail.
 legacy bulk/lifecycle helpers and `has_platform_role(text)` to `service_role`.
 Those functions are not needed by current RLS policies or client code.
 
-## Admin Verification Foundation (2026-10-02, staged)
+## Admin Verification Foundation (applied 2026-10-03 UTC)
 
-`20261002154457_admin_verification_foundation.sql` adds service-only JSON RPCs:
+`20261003181029_admin_verification_foundation.sql` adds service-only JSON RPCs:
 `admin_verification_context`, `prepare`, `begin_email`, `mark_email_delivery`,
 `load_email_challenge`, `redeem_email`, `reserve_password_attempt`,
 `issue_password`, `reserve`, `check_read`, and `record_enrollment` (all with
@@ -68,12 +68,13 @@ only service_role can execute the public wrappers. All private implementation
 functions and tables deny browser and service-role direct access. The wrappers
 recheck live Auth session, active administrator, current role version, permission,
 confirmed email, enrollment history and security policy. No secrets or OTPs are
-returned by the context/preparation RPCs or written to audit records. This is
-staged local verification evidence, not a claim of hosted deployment.
+returned by the context/preparation RPCs or written to audit records. Applied
+through the Supabase plugin after matching production application deployment;
+hosted function bodies and ACLs were checked against the reviewed SQL.
 
-## Admin Operation Guards (2026-10-02, staged)
+## Admin Operation Guards (applied 2026-10-03 UTC)
 
-`20261002165457_admin_verification_operation_guards.sql` adds service-only
+`20261003181032_admin_verification_operation_guards.sql` adds service-only
 `admin_verification_check_write(jsonb)` for non-consuming, exact-intent mutation
 preflight. The authenticated `confirm_membership_renewal` now has a seventh,
 optional proof argument; the previous six-argument implementation is private
@@ -87,7 +88,7 @@ by email proof for a different, current-day operation.
 active membership permission and a live/current session, with actual TOTP MFA
 when mandatory enforcement is on. It does not relax the renewal wrapper.
 All new private helpers revoke PUBLIC, anon, authenticated and service execution.
-The same staged migration adds these narrowly scoped entry points:
+The same migration adds these narrowly scoped entry points:
 
 | Function | Allowed execution | Boundary |
 | --- | --- | --- |
@@ -118,19 +119,21 @@ five-minute read scope before loading protected data. The central route map
 retains each page's permission and scope rather than an AAL2-only layout gate.
 The global workspace-entry enforcement remains unchanged.
 
-These are disposable replay verification results, not hosted deployment:
-neither staged migration has been applied to the production project yet.
+Both migrations are applied to the positively identified production project.
+Hosted checks verified the same authorization boundaries; actual protected-page
+session recovery and production-provider acceptance remain separate checks.
 
-## Adoption Preferences (2026-10-02, staged)
+## Adoption Preferences (applied 2026-10-03 UTC)
 
-`20261002185531_admin_verification_preferences.sql` adds the service-only
+`20261003181035_admin_verification_preferences.sql` adds the service-only
 `admin_verification_suggestion(jsonb)` RPC over the foundation's private
 preferences table. PUBLIC/anon/authenticated execute is revoked and its search
 path is empty. The actor is re-resolved against the live session/profile/role
 version; clients cannot select a user or snooze duration. Snooze is seven
 server-owned days (168 hours). This preference never establishes verification,
 changes MFA enforcement or blocks a routine review. Disposable SQL verifies
-expiry and grants. This third migration also remains unapplied to production.
+expiry and grants. Hosted function bodies and ACLs were verified after the
+Supabase-plugin application; the existing enforcement setting was not changed.
 
 ## Review Procedure
 
