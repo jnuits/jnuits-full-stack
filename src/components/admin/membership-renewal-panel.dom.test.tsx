@@ -1,14 +1,20 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Component, type ReactNode } from "react";
 const mocks = vi.hoisted(() => ({ confirm: vi.fn(), review: vi.fn(), bulk: vi.fn(), refresh: vi.fn() }));
 vi.mock("@/app/admin/membership/renewal-actions", () => ({ confirmRenewalAction: mocks.confirm, reviewMembershipRequestAction: mocks.review }));
 vi.mock("@/app/admin/membership/bulk-review-actions", () => ({ bulkApproveMembershipRequestsAction: mocks.bulk }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh, replace: vi.fn() }) }));
+vi.mock("next/navigation", async importOriginal => ({ ...await importOriginal<typeof import("next/navigation")>(), useRouter: () => ({ refresh: mocks.refresh, replace: vi.fn() }) }));
 import { MembershipRenewalPanel, type RenewalQueueData } from "./membership-renewal-panel";
 const row = { memberId: "11111111-1111-4111-8111-111111111111", fullName: "Fictional Member", jnuitsId: "JNUITS-2099001", joinedOn: "2024-09-01", dueOn: "2025-09-01", lifecycleStatus: "former", portalAccessStatus: "frozen", pathStatus: "open", overdueDays: 395, requestId: null, requestType: null, requestedAt: null, requestUpdatedAt: null, requestNote: null };
 const queue = (overrides: Partial<RenewalQueueData> = {}): RenewalQueueData => ({ queue: "overdue", page: 1, pageSize: 25, total: 26, rows: [row], ...overrides });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+class DraftBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? <p>Membership draft lost</p> : this.props.children; }
+}
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, value: { decision: { status: "allowed" } } }) }));
@@ -23,6 +29,23 @@ const alumniRows = [
 ];
 const alumniQueue = () => queue({ queue: "alumni", rows: alumniRows, total: 70 });
 describe("current-page bulk membership selection", () => {
+  it("uncertain_bulk_response_preserves_note_selection_and_does_not_repeat_decisions", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.bulk.mockRejectedValue(new Error("Network response lost"));
+    render(<DraftBoundary><MembershipRenewalPanel data={alumniQueue()} /></DraftBoundary>);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve selected" }));
+    fireEvent.change(screen.getByLabelText("Bulk review note"), { target: { value: "Eligibility reviewed." } });
+    fireEvent.click(screen.getByLabelText(/understand these decisions/i));
+    fireEvent.click(screen.getByRole("button", { name: "Approve selected requests" }));
+    await waitFor(() => expect(mocks.bulk).toHaveBeenCalledOnce());
+    expect(await screen.findByRole("alert")).toHaveTextContent(/check.*before.*trying again/i);
+    expect(screen.getByLabelText("Bulk review note")).toHaveValue("Eligibility reviewed.");
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close bulk review" })).toBeEnabled();
+    expect(mocks.bulk).toHaveBeenCalledOnce();
+    expect(screen.queryByText("Membership draft lost")).not.toBeInTheDocument();
+  });
   it("page_only_select_all and indeterminate_selection never include payments or missing snapshots", () => {
     render(<MembershipRenewalPanel data={queue({ queue: "alumni", total: 70, rows: [...alumniRows, { ...row, requestId: "55555555-5555-4555-8555-555555555555", requestType: "membership_renewal", requestUpdatedAt: "2026-10-02T00:00:00Z" }, { ...row, requestId: "66666666-6666-4666-8666-666666666666", requestType: "alumni_conversion" }] })} />);
     const boxes = screen.getAllByRole("checkbox"); expect(boxes).toHaveLength(3);
@@ -119,6 +142,24 @@ describe("membership renewal admin panel", () => {
     fireEvent.click(button);
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Still former"));
     expect(mocks.confirm.mock.calls[0][1].get("expectedDueOn")).toBe("2025-09-01");
+  });
+  it("uncertain_action_state_renewal_response_keeps_note_reference_and_confirmation", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.confirm.mockRejectedValue(new Error("Network response lost"));
+    render(<DraftBoundary><MembershipRenewalPanel data={queue()} /></DraftBoundary>);
+    fireEvent.click(screen.getByRole("button", { name: "Review anniversary" }));
+    fireEvent.change(screen.getByLabelText("Review note"), { target: { value: "Office fee verified." } });
+    fireEvent.change(screen.getByLabelText(/Safe office reference/), { target: { value: "OFFICE-42" } });
+    fireEvent.click(screen.getByLabelText(/confirm only this anniversary/i));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm anniversary" }));
+    await waitFor(() => expect(mocks.confirm).toHaveBeenCalledOnce());
+    expect(await screen.findByRole("alert")).toHaveTextContent(/check.*before.*trying again/i);
+    expect(screen.getByLabelText("Review note")).toHaveValue("Office fee verified.");
+    expect(screen.getByLabelText(/Safe office reference/)).toHaveValue("OFFICE-42");
+    expect(screen.getByLabelText(/confirm only this anniversary/i)).toBeChecked();
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+    expect(mocks.confirm).toHaveBeenCalledOnce();
+    expect(screen.queryByText("Membership draft lost")).not.toBeInTheDocument();
   });
   it("preserves renewal note and confirmation when verification is cancelled", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, value: { decision: { status: "required", methods: ["totp", "email"] } } }) }));

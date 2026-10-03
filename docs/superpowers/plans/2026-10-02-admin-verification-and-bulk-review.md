@@ -256,28 +256,50 @@ Task 6 evidence (2026-10-03): bounded/mixed validation, per-row outcomes and pag
 
 - [x] **Add failing integration cases** for actual AAL1 routine/bulk review, voluntary/mandatory MFA, email read/write scope, role MFA+password/CAPTCHA, cancellation return, replay rejection and unchanged freeze. Exercise 360px/1440px, light/dark; assert `scrollWidth <= clientWidth`, keyboard dialog behavior and hidden sensitive content before verification. A stubbed email transport proves code handling, not production delivery.
 - [x] **Run red** through the disposable runner; expect new browser assertions to fail if any application/database gate or UI round trip is missing.
-- [ ] **Complete green verification:** `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `npm run audit:admin-access`, `npm run audit:admin-ui`, `npx vitest run scripts/committed-credential-material.test.mjs`, `npm run migration:check-order:strict`, `npm run db:replay-bootstrap`, and `node supabase/verification/run-admin-verification-browser-qa.mjs`. Configure required build/test environment without printing secrets. Run migration parity against hosted history before and after rollout; unapplied forward files are expected before applying, unexplained historical differences are not. Expect every command exit 0; keep exact counts/log evidence rather than assume the 1,679-test baseline still applies.
-- [ ] **Take independent whole-patch code/security review** after green verification. Address findings and rerun affected/full tests proportionately. Explicitly inspect role writers, operation bindings, function ACLs, missing-state denial, last-super-admin race, email eligibility history and external partial failure. Commit test/guide fixes as `test(admin): verify authorization and bulk review boundaries`.
+- [x] **Complete local green verification:** `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `npm run audit:admin-access`, `npm run audit:admin-ui`, `npx vitest run scripts/committed-credential-material.test.mjs`, `npm run migration:check-order:strict`, `npm run db:replay-bootstrap`, and `node supabase/verification/run-admin-verification-browser-qa.mjs`. Configure required build/test environment without printing secrets. Pre-rollout hosted parity permits only the expected unapplied files; post-rollout parity remains part of the unchecked SQL rollout below. Every listed local command must exit 0; keep exact counts/log evidence rather than assume the 1,679-test baseline still applies. This does not waive the separately failing CI dependency-audit gate.
+- [x] **Take independent whole-patch code/security review** after green verification. Address findings and rerun affected/full tests proportionately. Explicitly inspect role writers, operation bindings, function ACLs, missing-state denial, last-super-admin race, email eligibility history and external partial failure. Initial test/guide commit: `test(admin): verify authorization and bulk review boundaries`; reviewed recovery findings addressed in one TDD fix pass.
 - [ ] **Apply verified forward SQL through the Supabase plugin** to the positively identified JnUITS project only. Record pre/post migration history, enforcement value and ACLs. Reconcile plugin-assigned history versions with checked-in files using the repository's established parity workflow, without rewriting applied SQL bodies. Verify exact function bodies, denial paths and advisors; do not approve real requests or grant/revoke real roles for verification. Report legacy unknown enrollment/unsigned invites needing recovery/reissuance rather than fabricate evidence.
 - [ ] **Push branch and open/update PR**, using `git push -u origin codex/admin-verification-policy`; attach the PR to this task. Confirm GitHub Actions independently of Vercel's account restriction. Follow the owner's established authorization to merge only when non-Vercel checks pass; no bypassing protected checks. Verify hosted authorization matches deployed app before claiming production completion. Keep branch until merged/verified; never delete the backup branch.
 
 ## Plan Self-Review and Handoff
 
-Task 7 local evidence (2026-10-03): all five real Next/Auth/Postgres browser
+Task 7 local evidence (2026-10-03): all six real Next/Auth/Postgres browser
 flows PASS, including the UI role change after native MFA, current password and
-configured CAPTCHA, original AAL2 session retention and replay denial. Real
+configured CAPTCHA, original AAL2 session retention and replay denial. Initial
 browser regressions corrected parent-panel remounting, premature resolved-row
 reselection, server-only request metadata reads and trusted never-enrollment
-discovery; their focused tests were observed RED→GREEN. Full suite: 286 files /
-1,846 tests PASS. Production build PASS with CI placeholder configuration;
-initial prebuild correctly rejected an omitted required Sentry DSN. Fresh clean
-112-file replay plus baseline/types/SQL concurrency/database lint PASS; other
-static gates are recorded in execution evidence. Pre-rollout hosted parity:
-109 applied, exactly three expected pending files, no historical mismatch;
-enforcement remains false. Independent review and external rollout are still
-pending. Email transport and CAPTCHA widget transport are test fixtures; the
-test child supplements only the exact local Auth connect origin in CSP. This
-does not certify production mailbox delivery, hosted CAPTCHA or deployed CSP.
+discovery. The single independent review reported no Critical findings, two
+Important recovery findings and no minors. One TDD fix pass now preserves
+drafts after rejected verified/action-state submissions and reloads expired
+retention reads without replaying the completed mutation. Five recovery DOM
+regressions were observed RED→GREEN; a sixth added test preserves normal
+framework redirects.
+The expanded real-browser tests also pass a lost role-action response and both
+initial/post-mutation retention expiry recoveries. Disposable SMTP ports account
+for the CLI's `local_smtp` section; unrelated local projects stay untouched.
+
+Fresh full suite: 286 files / 1,852 tests PASS. Production build, typecheck,
+whole lint, admin-access/UI audits, credential guard and strict ordering PASS.
+Fresh clean 112-file replay plus baseline/types/SQL concurrency/database lint
+PASS. The Supabase plugin reconfirmed 109 applied migrations, exactly three
+expected pending files, no historical mismatch, enforcement false and no new
+verification tables. No hosted writes, push, PR or merge have occurred.
+
+Task 7 remains incomplete: the CI dependency gate fails on the unchanged
+development-only Next.js ESLint chain's
+[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), with
+no patched upstream release; production-only dependency audit reports zero
+findings. A proposed exact-advisory/chain-only 14-day exception awaits explicit
+owner approval. SQL rollout also requires a matching deployable application or
+an explicitly approved maintenance/cutover window: applying operation guards
+alone breaks the old retention RPC and does not repair old privileged role
+writers. GitHub CI, coordinated deployment, post-rollout parity/ACLs/advisors
+and hosted-provider acceptance checks remain outstanding.
+
+Email transport and CAPTCHA widget transport are test fixtures; the test child
+supplements only the exact local Auth connect origin in CSP. This does not
+certify production mailbox delivery, hosted CAPTCHA or deployed CSP. The
+execution ledger is retained while these external gates remain open.
 
 Coverage: policy/classification and missing-state denial → Task 1; private proofs, history, limits and concurrency → Task 2; developed Resend/password/CAPTCHA → Task 3; DB/action/read boundaries, invitations and role restrictions → Task 4; adoption/accessibility/return-to-draft → Task 5; bounded bulk selection, stale/idempotent/partial results → Task 6; real browser/SQL/full-suite review and hosted parity → Task 7. Each Review Focus case has an owning test above.
 

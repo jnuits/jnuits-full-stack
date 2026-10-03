@@ -52,6 +52,17 @@ Cancelling verification retains the mounted operation's draft. An MFA setup
 suggestion is non-blocking and can be snoozed for seven days. The standalone
 setup/challenge return destination is allowlisted.
 
+A lost submission response also keeps non-secret form entries and releases
+pending controls. The captured proof is discarded; a new protected submission
+requires fresh verification. Check the actual record before retrying because
+the first request might have completed. A bulk review refreshes the queue and
+preserves its note without automatically repeating decisions. Normal Next.js
+redirects still behave normally.
+
+If a retention read expires while the workspace is open, verification reloads
+only the authorized read. It does not repeat discovery, archive or purge. This
+also applies when the read expires just after a successful mutation.
+
 If an Auth/Drive operation reports an uncertain result, do not automatically
 retry it, restore its proof or directly alter role/proof tables. Preserve the
 attempt/job ID and investigate the actual Auth/Drive and database state through
@@ -93,3 +104,17 @@ advisors. Do not approve real requests or mutate real roles as a test.
 GitHub Actions and the Vercel account restriction are separate gates. Do not
 claim production completion until the deployed app matches the authorization
 migrations. Keep the restoration backup branch untouched.
+
+Do not apply the operation-guards migration independently to the old deployed
+application: its legacy retention RPC loses service access, and its privileged
+admin-role writers do not implement the new dual verification. Use a
+coordinated matching-application cutover, or an explicitly authorized
+maintenance window. Do not restore permissive compatibility writers.
+
+Release hold recorded on 2026-10-03: the unchanged development-only Next.js
+ESLint chain fails the dependency gate on
+[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
+The production-only audit is clean; upstream reports no patched braces
+release. No exception is authorized or implemented. A proposed exception must
+be separately approved, limited to this exact advisory and development lint
+chain, and expire after 14 days. All other dependency checks remain required.

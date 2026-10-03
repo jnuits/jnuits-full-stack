@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState, useTransition, type ReactNode } from "react";
+import { unstable_rethrow } from "next/navigation";
 import type { AdminOperationIntent, VerificationProof } from "@/lib/auth/admin-verification/types";
 import { adminVerificationUiMessage, captureAdminFormIntent } from "@/lib/auth/admin-verification/client";
 import { AdminVerificationDialog } from "./admin-verification-dialog";
@@ -21,6 +22,10 @@ export function AdminVerifiedForm({ intent, action, children, className }: {
     setSubmission(null);
     startTransition(async () => {
       try { await action(captured); }
+      catch (failure) {
+        unstable_rethrow(failure); // Redirect/not-found remain owned by Next.
+        setError("The result could not be confirmed. Check the current record before trying again. Your form entries are still here; verify again before another submission.");
+      }
       finally { captured.delete("verificationProof"); locked.current = false; }
     });
   }

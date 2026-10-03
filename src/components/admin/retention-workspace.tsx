@@ -72,6 +72,7 @@ export function RetentionWorkspace() {
       throw new Error(payload?.error || "Retention jobs could not be loaded.");
     }
     setWorkspace(payload);
+    setNeedsRead(false);
   }, []);
 
   useEffect(() => {
@@ -137,7 +138,7 @@ export function RetentionWorkspace() {
   }
 
   const jobs = workspace ? [...workspace.formJobs, ...workspace.eventJobs] : [];
-  if (needsRead) return <AdminVerificationReadGate operation="admin.retention.read" />;
+  if (needsRead) return <AdminVerificationReadGate operation="admin.retention.read" onVerified={async () => { await load(); setMessage(null); }} />;
 
   return (
     <div className="space-y-6">

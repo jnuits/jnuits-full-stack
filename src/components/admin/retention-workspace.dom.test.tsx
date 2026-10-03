@@ -5,6 +5,39 @@ import { RetentionWorkspace } from "./retention-workspace";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }) }));
 afterEach(() => vi.unstubAllGlobals());
 describe("retention protected operations", () => {
+  it("initial_read_expiry_recovers_with_a_fresh_authorized_get_without_remounting", async () => {
+    let reads = 0;
+    const fetch = vi.fn(async (url: string) => {
+      if (url === "/api/admin/retention" && ++reads === 1) return { ok: false, json: async () => ({ code: "verification_expired", error: "Verify again." }) };
+      return { ok: true, json: async () => url === "/api/admin/retention" ? { archiveConfigured: true, eventJobs: [], formJobs: [] } : { ok: true, value: { decision: { status: "allowed" } } } };
+    });
+    vi.stubGlobal("fetch", fetch); const user = userEvent.setup(); render(<RetentionWorkspace />);
+    expect(await screen.findByText("Verify to view this page")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Discover candidates" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Verify account" }));
+    expect(await screen.findByText(/No retention jobs/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Discover candidates" })).toBeEnabled();
+    expect(reads).toBe(2);
+  });
+  it("read_expiry_after_a_completed_mutation_reloads_without_replaying_the_mutation", async () => {
+    let reads = 0;
+    const fetch = vi.fn(async (url: string, options?: RequestInit) => {
+      if (url === "/api/admin/retention") {
+        if (options?.method === "POST") return { ok: true, json: async () => ({ success: true, created: 2 }) };
+        if (++reads === 2) return { ok: false, json: async () => ({ code: "verification_expired", error: "Verify again." }) };
+        return { ok: true, json: async () => ({ archiveConfigured: true, eventJobs: [], formJobs: [] }) };
+      }
+      return { ok: true, json: async () => ({ ok: true, value: { decision: { status: "allowed" } } }) };
+    });
+    vi.stubGlobal("fetch", fetch); const user = userEvent.setup(); render(<RetentionWorkspace />);
+    await screen.findByText(/No retention jobs/);
+    await user.click(screen.getByRole("button", { name: "Discover candidates" }));
+    await screen.findByText("Verify to view this page");
+    await user.click(screen.getByRole("button", { name: "Verify account" }));
+    expect(await screen.findByRole("button", { name: "Discover candidates" })).toBeEnabled();
+    expect(reads).toBe(3);
+    expect(fetch.mock.calls.filter(([url, options]) => url === "/api/admin/retention" && options?.method === "POST")).toHaveLength(1);
+  });
   it("cancelling verification keeps discovery from reaching its write endpoint", async () => {
     const fetch = vi.fn(async (url: string, options?: RequestInit) => ({ ok: true, json: async () => url === "/api/admin/retention" && options?.method !== "POST"
       ? { archiveConfigured: true, eventJobs: [], formJobs: [] }

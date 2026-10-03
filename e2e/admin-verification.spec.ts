@@ -150,6 +150,61 @@ test.describe("disposable admin authorization integration", () => {
     expect(await fixture("renewal_state")).toEqual({ count: 2, frozen: true });
   });
 
+  test("retention read expiry recovers in the mounted workspace without replaying discovery", async ({ page, context }) => {
+    await signedIn(context, "never");
+    await fixture("reset_limits", { name: "never" });
+    await emailProof(context, { operation: "admin.retention.read", payload: {} });
+    let reads = 0; let writes = 0; let expireReads = true;
+    await page.route("**/api/admin/retention", async route => {
+      if (route.request().method() === "GET") {
+        reads++;
+        // Expire only this synthetic actor's named proof, after the page's
+        // server check. The endpoint response and new proof checks stay real.
+        // Development Strict Mode can mount twice. Expire by recovery stage,
+        // not request count, so the replacement proof is not expired again.
+        if (expireReads) await fixture("expire_retention_read", { name: "never" });
+      } else if (route.request().method() === "POST") writes++;
+      await route.continue();
+    });
+    await page.setViewportSize({ width: 360, height: 900 });
+    await page.goto(`${baseURL}/admin/retention`, { waitUntil: "networkidle" });
+    await expect(page.getByRole("heading", { name: "Verify to view this page" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Discover candidates" })).toHaveCount(0);
+    async function verifyRead() {
+      await fixture("reset_limits", { name: "never" }); // Accelerated expiry, not a production limiter bypass.
+      await page.getByRole("button", { name: "Verify account", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Verify your account" });
+      await dialog.getByRole("button", { name: "Verify by email" }).click();
+      await expect(dialog.getByLabel("Email code")).toBeVisible();
+      const { code } = await fixture("email", { name: "never" });
+      await dialog.getByLabel("Email code").fill(code);
+      await dialog.getByRole("button", { name: "Verify and continue" }).click();
+      await expect(page.getByRole("heading", { name: "Data retention", exact: true })).toBeVisible();
+    }
+    const initialReads = reads;
+    expireReads = false;
+    await verifyRead();
+    expect(reads).toBeGreaterThan(initialReads);
+    await fixture("reset_limits", { name: "never" });
+    expireReads = true;
+    await page.getByRole("button", { name: "Discover candidates" }).click();
+    const dialog = page.getByRole("dialog", { name: "Verify your account" });
+    await dialog.getByRole("button", { name: "Verify by email" }).click();
+    await expect(dialog.getByLabel("Email code")).toBeVisible();
+    const { code } = await fixture("email", { name: "never" });
+    await dialog.getByLabel("Email code").fill(code);
+    await dialog.getByRole("button", { name: "Verify and continue" }).click();
+    await expect(page.getByRole("heading", { name: "Verify to view this page" })).toBeVisible();
+    expect(await fixture("retention_discovery_state", { name: "never" })).toEqual({ completed: 1 });
+    const postMutationReads = reads;
+    expireReads = false;
+    await verifyRead();
+    expect(reads).toBeGreaterThan(postMutationReads); expect(writes).toBe(1);
+    expect(await fixture("retention_discovery_state", { name: "never" })).toEqual({ completed: 1 });
+    await healthy(page);
+    await page.screenshot({ path: `${process.env.ADMIN_VERIFICATION_QA_SCREENSHOTS}/retention-recovered-mobile.png`, fullPage: false });
+  });
+
   test("voluntary authenticator works while enforcement is off; mandatory policy never permits email", async ({ page, context }) => {
     const account = await signedIn(context, "voluntary");
     await page.goto(`${baseURL}/admin/settings/security`, { waitUntil: "networkidle" });
@@ -198,6 +253,21 @@ test.describe("disposable admin authorization integration", () => {
     await expect(dialog.getByRole("button", { name: "Verify password and continue" })).toBeEnabled();
     await dialog.getByRole("button", { name: "Cancel verification" }).click();
     await expect(change.locator('[name="confirmation"]')).toHaveValue(intent.payload.confirmation);
+    await change.getByRole("button", { name: /role/i }).click();
+    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click();
+    await dialog.getByLabel("Current password").fill(account.password);
+    await expect(dialog.getByRole("button", { name: "Verify password and continue" })).toBeEnabled();
+    // One lost server-action request: preserve the form and force fresh
+    // verification, never automatically retry an uncertain privileged action.
+    await page.route("**/admin/admin-profiles", async route => {
+      if (route.request().method() === "POST" && route.request().headers()["next-action"]) await route.abort("failed");
+      else await route.continue();
+    });
+    await dialog.getByRole("button", { name: "Verify password and continue" }).click();
+    await expect(change.getByRole("alert")).toContainText(/check.*before.*trying again/i);
+    await expect(change.locator('[name="confirmation"]')).toHaveValue(intent.payload.confirmation);
+    expect((await fixture("target_role")).role).toBe("content_admin");
+    await page.unroute("**/admin/admin-profiles");
     await change.getByRole("button", { name: /role/i }).click();
     await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click();
     await dialog.getByLabel("Current password").fill(account.password);

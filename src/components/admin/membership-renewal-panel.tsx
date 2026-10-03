@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { unstable_rethrow, useRouter } from "next/navigation";
 import { AdminVerifiedForm } from "./admin-verified-form";
 import { confirmRenewalAction, reviewMembershipRequestAction, type RenewalActionResult } from "@/app/admin/membership/renewal-actions";
 import { bulkApproveMembershipRequestsAction } from "@/app/admin/membership/bulk-review-actions";
@@ -21,7 +21,13 @@ function DecisionForm({ row, isRenewal, action, children }: { row: RenewalQueueR
 
 function DecisionDialog({ row, onClose }: { row: RenewalQueueRow; onClose: () => void }) {
   const isRenewal = !row.requestId || row.requestType === "membership_renewal";
-  const [result, action, pending] = useActionState(isRenewal ? confirmRenewalAction : reviewMembershipRequestAction, { status: "idle", message: "" } as RenewalActionResult);
+  const [result, action, pending] = useActionState(async (previous: RenewalActionResult, form: FormData): Promise<RenewalActionResult> => {
+    try { return await (isRenewal ? confirmRenewalAction : reviewMembershipRequestAction)(previous, form); }
+    catch (failure) {
+      unstable_rethrow(failure);
+      return { status: "error", code: "submission_uncertain", message: "The result could not be confirmed. Check the current record before trying again. Your form entries are still here." };
+    }
+  }, { status: "idle", message: "" } as RenewalActionResult);
   const [confirmed, setConfirmed] = useState(false);
   const [note, setNote] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
@@ -116,7 +122,13 @@ function MembershipRenewalWorkspace({ data }: { data: RenewalQueueData }) {
   const [selected, setSelected] = useState<RenewalQueueRow | null>(null);
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [bulkDraft, setBulkDraft] = useState<{ rows: RenewalQueueRow[]; baseline: BulkReviewResult } | null>(null);
-  const [result, action, pending] = useActionState(bulkApproveMembershipRequestsAction, initialBulkReviewResult);
+  const [result, action, pending] = useActionState(async (previous: BulkReviewResult, form: FormData): Promise<BulkReviewResult> => {
+    try { return await bulkApproveMembershipRequestsAction(previous, form); }
+    catch (failure) {
+      unstable_rethrow(failure);
+      return { status: "error", message: "The results could not be confirmed. Check the refreshed queue before trying again; some decisions may already be recorded. Your review note is still here.", results: [] };
+    }
+  }, initialBulkReviewResult);
   const [handledResult, setHandledResult] = useState(result);
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(() => new Set());
   const candidates = reviewableBulkRows(data);

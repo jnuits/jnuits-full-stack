@@ -53,7 +53,9 @@ try {
   let config = disableReplayCatalogCache(readFileSync(configPath, "utf8"));
   config = config.replace(/^project_id = .*$/m, `project_id = "${projectId}"`);
   // Mechanical config rewrite confined to this newly-created scratch project.
-  const ports = { api: 55761, db: 55762, "db.pooler": 55769, studio: 55763, inbucket: 55764 };
+  // CLI 2.109.1 names the mail section local_smtp; older configs use inbucket.
+  // Both must stay on our fixture port, not another project's default 54324.
+  const ports = { api: 55761, db: 55762, "db.pooler": 55769, studio: 55763, inbucket: 55764, local_smtp: 55764 };
   let section = "";
   config = config.split(/\r?\n/).map(line => {
     const match = /^\[([^\]]+)\]/.exec(line); if (match) section = match[1];
@@ -124,6 +126,8 @@ try {
       else if (action === "totp") { assert.ok(account?.secret); result = { code: totp(account.secret) }; }
       else if (action === "policy") { assert.equal(typeof body.enforced, "boolean"); sql(`update public.security_settings set admin_totp_enforced=${body.enforced} where id;`); result = { ok: true }; }
       else if (action === "reset_limits") { assert.ok(account); sql(`delete from private.admin_verification_rate_events where subject_hash='${account.userId}' or kind like '%ip';`); result = { ok: true }; }
+      else if (action === "expire_retention_read") { assert.ok(account); sql(`update private.admin_verification_proofs p set expires_at=clock_timestamp()-interval '1 second' from private.admin_verification_intents i where i.id=p.intent_id and i.user_id='${account.userId}' and i.session_id='${account.sessionId}' and i.operation='admin.retention.read';`); result = { ok: true }; }
+      else if (action === "retention_discovery_state") { assert.ok(account); result = { completed: Number(sql(`select count(*) from public.audit_events where actor_user_id='${account.userId}' and action='retention.discovery_completed';`)) }; }
       else if (action === "membership_state") result = jsonSql(`select json_build_object('alumni',(select count(*) from public.members where id in (${memberIds.slice(0,3).map(id=>`'${id}'`).join(",")}) and lifecycle_status='alumni'),'frozen',(select count(*) from public.members where id in (${memberIds.slice(0,3).map(id=>`'${id}'`).join(",")}) and portal_access_status='frozen'),'fees',(select count(*) from public.membership_renewals where member_id in (${memberIds.map(id=>`'${id}'`).join(",")})),'reviewed',(select count(*) from public.audit_events where action='membership.membership_request_reviewed' and entity_id in (${memberIds.slice(0,3).map(id=>`'${id}'`).join(",")})));`);
       else if (action === "renewal_state") result = jsonSql(`select json_build_object('count',(select count(*) from public.membership_renewals where member_id='${renewalMember}'),'frozen',(select portal_access_status='frozen' from public.members where id='${renewalMember}'));`);
       else if (action === "renewal_intent") result = { operation: "membership.renewal.confirm", payload: { memberId: renewalMember, expectedDueOn: sql(`select renewal_due_on from public.members where id='${renewalMember}';`), resolution: "paid", reference: "", note: "Synthetic exact office receipt.", confirmation: "CONFIRM" } };
