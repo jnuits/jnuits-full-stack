@@ -56,7 +56,11 @@ describe("current-page bulk membership selection", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Close bulk review" }));
     await waitFor(() => expect(screen.getByText("1 selected")).toBeInTheDocument());
     expect(screen.getByRole("checkbox", { name: "Select Fictional Member JNUITS-2099001" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Select Fictional Member JNUITS-2099001" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Select Second Fictional Member JNUITS-2099002" })).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }));
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
     expect(mocks.confirm).not.toHaveBeenCalled();
   });
   it("a refreshed request cannot be submitted from an older open bulk confirmation", () => {

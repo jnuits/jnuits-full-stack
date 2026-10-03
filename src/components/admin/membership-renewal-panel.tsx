@@ -118,7 +118,9 @@ function MembershipRenewalWorkspace({ data }: { data: RenewalQueueData }) {
   const [bulkDraft, setBulkDraft] = useState<{ rows: RenewalQueueRow[]; baseline: BulkReviewResult } | null>(null);
   const [result, action, pending] = useActionState(bulkApproveMembershipRequestsAction, initialBulkReviewResult);
   const [handledResult, setHandledResult] = useState(result);
-  const available = reviewableBulkRows(data);
+  const [resolvedIds, setResolvedIds] = useState<Set<string>>(() => new Set());
+  const candidates = reviewableBulkRows(data);
+  const available = candidates.filter(row => !resolvedIds.has(row.requestId!));
   const snapshot = JSON.stringify(available.map(row => [row.requestId, bulkRowSnapshot(row)]));
   const [observedSnapshot, setObservedSnapshot] = useState(snapshot);
   if (observedSnapshot !== snapshot) {
@@ -130,6 +132,7 @@ function MembershipRenewalWorkspace({ data }: { data: RenewalQueueData }) {
   if (handledResult !== result) {
     setHandledResult(result);
     const resolved = new Set(result.results.filter(row => ["approved", "already_approved"].includes(row.status)).map(row => row.requestId));
+    setResolvedIds(current => new Set([...current, ...resolved]));
     setSelection(current => Object.fromEntries(Object.entries(current).filter(([id]) => !resolved.has(id))));
   }
   const selectedRows = available.filter(row => selection[row.requestId!] === bulkRowSnapshot(row));
@@ -157,7 +160,7 @@ function MembershipRenewalWorkspace({ data }: { data: RenewalQueueData }) {
         {data.rows.length === 0 ? <p className="section-copy mt-4">No records on this queue page.</p> : <ul className="grid gap-4 mt-4">{data.rows.map((row) => {
           const canConfirm = row.joinedOn && row.dueOn && row.pathStatus === "open" && ["current", "former"].includes(row.lifecycleStatus);
           return <li className="admin-renewal-record" key={row.requestId || row.memberId}>
-            {available.some(item => item.requestId === row.requestId) ? <label className="flex items-start gap-2 mb-3"><input type="checkbox" checked={selection[row.requestId!] === bulkRowSnapshot(row)} disabled={pending} onChange={event => setSelection(current => {
+            {candidates.some(item => item.requestId === row.requestId) ? <label className="flex items-start gap-2 mb-3"><input type="checkbox" checked={selection[row.requestId!] === bulkRowSnapshot(row)} disabled={pending || resolvedIds.has(row.requestId!)} onChange={event => setSelection(current => {
               const next = { ...current }; if (event.target.checked) next[row.requestId!] = bulkRowSnapshot(row); else delete next[row.requestId!]; return next;
             })} />Select {row.fullName} {row.jnuitsId}</label> : null}
             <h4 className="font-semibold break-words">{row.fullName} · {row.jnuitsId}</h4>

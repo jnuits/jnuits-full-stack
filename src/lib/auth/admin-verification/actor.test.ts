@@ -9,19 +9,34 @@ const sid = "22222222-2222-4222-8222-222222222222";
 const actor = { userId: id, sessionId: sid, email: "operator@example.com", emailConfirmed: true, roleVersion: 2, enforced: false, enrollment: "unknown", currentLevel: "aal1" };
 let user: unknown; let claims: Record<string, unknown>;
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   user = { id, email: "operator@example.com", email_confirmed_at: "2026-10-02T00:00:00Z" };
   claims = { sub: id, session_id: sid, aal: "aal1", jnuits_role_version: 2 };
   mocks.client.mockResolvedValue({ auth: {
     getUser: async () => ({ data: { user }, error: null }), getClaims: async () => ({ data: { claims }, error: null }),
     mfa: { getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: "aal1", nextLevel: "aal1" }, error: null }) },
   }, rpc: async () => ({ data: false, error: null }) });
-  mocks.context.mockResolvedValue({ data: { ok: true, value: actor }, error: null });
+  mocks.context.mockImplementation(async (name: string) => name === "admin_verification_record_enrollment"
+    ? { data: { ok: false, code: "enrollment_evidence_invalid" }, error: null }
+    : { data: { ok: true, value: actor }, error: null });
   mocks.admin.mockReturnValue({ rpc: mocks.context });
 });
 describe("trusted admin verification actor", () => {
+  it("discovers a newly created never-enrolled account only through the database evidence validator", async () => {
+    mocks.context.mockResolvedValueOnce({ data: { ok: true, value: actor }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, value: null }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, value: { ...actor, enrollment: "never" } }, error: null });
+    expect(await loadAdminVerificationActor()).toEqual({ ok: true, value: { ...actor, enrollment: "never" } });
+    expect(mocks.context.mock.calls[1]).toEqual(["admin_verification_record_enrollment", { p_input: { userId: id, evidence: "trusted_never_history" } }]);
+  });
   it("keeps unknown MFA history restricted instead of inferring never enrolled", async () => {
     expect(await loadAdminVerificationActor()).toEqual({ ok: true, value: actor });
+  });
+  it("never grants fallback when evidence discovery or its refreshed context fails", async () => {
+    mocks.context.mockResolvedValueOnce({ data: { ok: true, value: actor }, error: null }).mockResolvedValueOnce({ data: null, error: { message: "offline" } });
+    expect((await loadAdminVerificationActor()).ok).toBe(false);
+    mocks.context.mockResolvedValueOnce({ data: { ok: true, value: actor }, error: null }).mockResolvedValueOnce({ data: { ok: true, value: null }, error: null }).mockResolvedValueOnce({ data: { ok: false, code: "permission_denied" }, error: null });
+    expect(await loadAdminVerificationActor()).toEqual({ ok: false, code: "permission_denied" });
   });
   it("does not resolve unauthenticated or sessionless identities", async () => {
     user = null;

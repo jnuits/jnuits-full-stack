@@ -24,18 +24,30 @@ export async function loadAdminVerificationActor(): Promise<VerificationResult<A
     const mfa = await checkAdminMFA(client);
     if (mfa.error || !mfa.currentLevel || mfa.currentLevel !== claims.aal) return { ok: false, code: "verification_unavailable" };
     const admin = createAdminClient() as unknown as { rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> };
-    const result = await admin.rpc("admin_verification_context", { p_input: {
-      userId: user.id, sessionId: claims.session_id, roleVersion: claims.jnuits_role_version, currentLevel: mfa.currentLevel,
-    } });
-    if (result.error) return { ok: false, code: "verification_unavailable" };
-    const envelope = z.object({ ok: z.literal(false), code: z.string() }).safeParse(result.data);
-    if (envelope.success) return envelope.data;
-    const parsed = z.object({ ok: z.literal(true), value: adminVerificationActorSchema }).safeParse(result.data);
-    if (!parsed.success) return { ok: false, code: "verification_unavailable" };
-    const actor = parsed.data.value;
-    if (actor.userId !== user.id || actor.sessionId !== claims.session_id || actor.roleVersion !== claims.jnuits_role_version
-      || actor.currentLevel !== mfa.currentLevel || actor.enforced !== mfa.enforced || actor.email !== user.email
-      || actor.emailConfirmed !== Boolean(user.email_confirmed_at)) return { ok: false, code: "verification_invalid" };
-    return { ok: true, value: actor };
+    const readContext = async (): Promise<VerificationResult<AdminVerificationActor>> => {
+      const result = await admin.rpc("admin_verification_context", { p_input: {
+        userId: user.id, sessionId: claims.session_id, roleVersion: claims.jnuits_role_version, currentLevel: mfa.currentLevel,
+      } });
+      if (result.error) return { ok: false, code: "verification_unavailable" };
+      const envelope = z.object({ ok: z.literal(false), code: z.string() }).safeParse(result.data);
+      if (envelope.success) return envelope.data;
+      const parsed = z.object({ ok: z.literal(true), value: adminVerificationActorSchema }).safeParse(result.data);
+      if (!parsed.success) return { ok: false, code: "verification_unavailable" };
+      const actor = parsed.data.value;
+      if (actor.userId !== user.id || actor.sessionId !== claims.session_id || actor.roleVersion !== claims.jnuits_role_version
+        || actor.currentLevel !== mfa.currentLevel || actor.enforced !== mfa.enforced || actor.email !== user.email
+        || actor.emailConfirmed !== Boolean(user.email_confirmed_at)) return { ok: false, code: "verification_invalid" };
+      return { ok: true, value: actor };
+    };
+    const resolved = await readContext();
+    if (!resolved.ok || resolved.value.enrollment !== "unknown") return resolved;
+    // Only Postgres may establish never-enrolled evidence: it checks its own
+    // cutover timestamp, Auth factor/audit history and sticky prior enrollment.
+    // A legacy account's absence of factors is deliberately insufficient.
+    const evidence = await admin.rpc("admin_verification_record_enrollment", { p_input: { userId: user.id, evidence: "trusted_never_history" } });
+    if (evidence.error) return { ok: false, code: "verification_unavailable" };
+    if (z.object({ ok: z.literal(false), code: z.literal("enrollment_evidence_invalid") }).safeParse(evidence.data).success) return resolved;
+    if (!z.strictObject({ ok: z.literal(true), value: z.null() }).safeParse(evidence.data).success) return { ok: false, code: "verification_unavailable" };
+    return readContext(); // Recheck every actor binding after trusted discovery.
   } catch { return { ok: false, code: "verification_unavailable" }; }
 }

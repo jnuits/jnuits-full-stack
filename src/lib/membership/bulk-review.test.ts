@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ authorize: vi.fn(), fetchRows: vi.fn(), rpc: vi.fn() }));
+const mocks = vi.hoisted(() => ({ authorize: vi.fn(), fetchRows: vi.fn(), sessionRows: vi.fn(), adminClient: vi.fn(), rpc: vi.fn() }));
 vi.mock("@/lib/auth/admin-verification/guard", () => ({ authorizeAdminOperation: mocks.authorize }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from: () => ({ select: () => ({ in: mocks.fetchRows }) }), rpc: mocks.rpc }) }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from: () => ({ select: () => ({ in: mocks.sessionRows }) }), rpc: mocks.rpc }) }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.adminClient }));
 import { approveMembershipRequests } from "./bulk-review";
 import type { BulkReviewInput } from "./bulk-review-model";
 const ids = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222", "33333333-3333-4333-8333-333333333333"];
@@ -10,9 +11,19 @@ const input: BulkReviewInput = { queue: "alumni", requests, note: "Eligibility r
 beforeEach(() => {
   vi.clearAllMocks(); mocks.authorize.mockResolvedValue({ ok: true, value: {} });
   mocks.fetchRows.mockResolvedValue({ error: null, data: ids.map(id => ({ id, request_type: "alumni_conversion", status: "pending", payload: {} })) });
+  mocks.sessionRows.mockImplementation((...args: unknown[]) => mocks.fetchRows(...args));
+  mocks.adminClient.mockReturnValue({ from: () => ({ select: () => ({ in: mocks.fetchRows }) }) });
   mocks.rpc.mockImplementation(async (_name: string, args: { p_request_id: string }) => ({ error: null, data: { status: "approved", requestId: args.p_request_id } }));
 });
 describe("bounded authoritative membership approval", () => {
+  it("reads bounded request metadata server-side after authorization while native-session RPCs enforce each decision", async () => {
+    // Hosted migrations intentionally revoke authenticated table SELECT.
+    mocks.sessionRows.mockResolvedValue({ error: { code: "42501" }, data: null });
+    expect((await approveMembershipRequests(input)).status).toBe("success");
+    expect(mocks.sessionRows).not.toHaveBeenCalled();
+    expect(mocks.fetchRows).toHaveBeenCalledWith("id", ids);
+    expect(mocks.rpc).toHaveBeenCalledTimes(3);
+  });
   it("rejects empty, duplicate, oversized or unconfirmed batches before writes", async () => {
     const invalid = [
       { ...input, requests: [] }, { ...input, requests: [requests[0], requests[0]] },
@@ -32,6 +43,7 @@ describe("bounded authoritative membership approval", () => {
     mocks.authorize.mockResolvedValue({ ok: false, code: "permission_denied" });
     expect((await approveMembershipRequests(input)).status).toBe("error");
     expect(mocks.fetchRows).not.toHaveBeenCalled(); expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.adminClient).not.toHaveBeenCalled();
   });
   it("reports partial results in deterministic order with each original snapshot", async () => {
     mocks.rpc.mockResolvedValueOnce({ error: null, data: { status: "approved", requestId: ids[0] } })

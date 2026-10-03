@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { authorizeAdminOperation } from "@/lib/auth/admin-verification/guard";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { bulkRequestTypes, bulkReviewInputSchema, type BulkReviewInput, type BulkReviewResult } from "./bulk-review-model";
 export type { BulkReviewInput, BulkReviewResult } from "./bulk-review-model";
 
@@ -18,7 +19,9 @@ export async function approveMembershipRequests(input: BulkReviewInput): Promise
     const auth = await authorizeAdminOperation({ operation: "membership.request.review", payload: { ...ordered[0], decision: "approved", note, confirmation: "CONFIRM" } });
     if (!auth.ok) return denied("Membership administration and any mandatory account verification are required.");
     const client = await createClient();
-    const fetched = await client.from("profile_update_requests").select("id,request_type,status,payload").in("id", ordered.map(row => row.requestId));
+    // Table SELECT is intentionally server-only. Read just the authorized,
+    // bounded selection; retain the native actor session for every decision RPC.
+    const fetched = await createAdminClient().from("profile_update_requests").select("id,request_type,status,payload").in("id", ordered.map(row => row.requestId));
     const rows = rowsSchema.safeParse(fetched.data);
     if (fetched.error || !rows.success) return denied("The selected requests could not be checked. Refresh before trying again.");
     const byId = new Map(rows.data.map(row => [row.id, row]));
