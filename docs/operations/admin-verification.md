@@ -111,8 +111,8 @@ admin-role writers do not implement the new dual verification. Use a
 coordinated matching-application cutover, or an explicitly authorized
 maintenance window. Do not restore permissive compatibility writers.
 
-Release hold recorded on 2026-10-03: the unchanged development-only Next.js
-ESLint chain fails the dependency gate on
+Release hold recorded on 2026-10-03: the original development-only Next.js
+ESLint chain failed the dependency gate on
 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
 The production-only audit is clean; upstream reports no patched braces
 release. On 2026-10-03 the owner explicitly declined the proposed 14-day
@@ -121,3 +121,13 @@ implemented; all dependency checks remain required. The owner authorized a
 coordinated maintenance cutover for the migrations and matching deployment,
 but that cutover must wait for the dependency gate to pass. Do not apply the
 incompatible operation guards to the old application while the release is held.
+
+CI remediation on 2026-10-03 removes the vulnerable `fast-glob → micromatch →
+braces` chain rather than excepting it. A private local adapter backed by pinned
+`tinyglobby` replaces only the exact Next ESLint plugin's root-directory glob
+API. Clean `npm ci`, a valid installed dependency tree, actual Next lint-rule
+regressions and the unchanged production/development audit verify the fix.
+See `scripts/vendor/next-eslint-glob/README.md` for its scope and upgrade/removal
+contract. Upstream braces has not been declared patched. Merge still requires
+green hosted CI; production authorization SQL still requires the coordinated
+matching-app cutover and hosted-provider acceptance checks.

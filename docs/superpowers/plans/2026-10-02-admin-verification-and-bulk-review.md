@@ -286,7 +286,7 @@ PASS. The Supabase plugin reconfirmed 109 applied migrations, exactly three
 expected pending files, no historical mismatch, enforcement false and no new
 verification tables. No hosted writes, push, PR or merge have occurred.
 
-Task 7 remains incomplete: the CI dependency gate fails on the unchanged
+Task 7 remains incomplete. The original CI dependency gate failed on the unchanged
 development-only Next.js ESLint chain's
 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), with
 no patched upstream release; production-only dependency audit reports zero
@@ -301,8 +301,23 @@ merged-branch cleanup remain deferred with the release hold. The owner's latest
 request authorizes GitHub publication: publish a draft PR, leaving the dependency
 gate enforced and main/deployment/migrations unchanged. Preserve the active
 branch and restoration backup until verified integration. Draft PR #164 is now
-published; its Actions must be assessed independently. This is not a main-branch
+published; its Actions must be assessed independently. This was not a main-branch
 or production deployment checkpoint.
+
+CI repair (2026-10-03): replace only Next ESLint 16.3.8's root-glob dependency
+with the private, pinned tinyglobby adapter. This eliminates the affected
+fast-glob/micromatch/braces code; it does not add an advisory exception or change
+Required CI. A clean install now has a valid dependency tree and zero reported
+advisories. Six regression tests exercise the actual Next plugin's root discovery
+and lint diagnostics. The owner expressly requests merging PR #164 to main
+after all required non-Vercel Actions are green. Hosted migration/cutover,
+post-rollout parity/ACLs/advisors and remote-provider browser acceptance remain
+separate, incomplete steps, not prerequisites waived by merging the code.
+
+Fresh CI-repair local validation: all 1,858 tests in 287 files PASS after clean
+`npm ci`; lint, build, typecheck, access/UI audits, credential guard and strict
+112-migration ordering PASS. Both production and development dependency audits
+PASS with the existing mandatory policy and no new exception.
 
 Owner-requested fresh local revalidation (2026-10-03): all 1,852 tests in 286
 files, build/typecheck/lint/access/UI/strict-order checks, clean disposable SQL

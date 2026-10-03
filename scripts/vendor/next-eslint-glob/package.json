@@ -1,0 +1,10 @@
+{
+  "name": "@jnuits/next-eslint-glob",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scoped globSync compatibility for Next 16.3.8 lint root discovery, without braces",
+  "main": "index.cjs",
+  "dependencies": {
+    "tinyglobby": "0.2.17"
+  }
+}
