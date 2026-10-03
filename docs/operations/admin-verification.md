@@ -63,6 +63,14 @@ If a retention read expires while the workspace is open, verification reloads
 only the authorized read. It does not repeat discovery, archive or purge. This
 also applies when the read expires just after a successful mutation.
 
+An invalid or out-of-date signed session cannot be repaired with an OTP for
+that session. Security Settings, System Health and Data Retention instead show
+`Sign in again` with the existing `Logout` control. Log out, sign in through
+the normal admin login, then complete `Verify account` if prompted. This
+refreshes genuine signed session/role evidence; it does not bypass permissions,
+MFA or admin-role password verification. Unavailable verification services and
+permission denials still fail closed, without offering an unusable challenge.
+
 If an Auth/Drive operation reports an uncertain result, do not automatically
 retry it, restore its proof or directly alter role/proof tables. Preserve the
 attempt/job ID and investigate the actual Auth/Drive and database state through
@@ -131,3 +139,23 @@ See `scripts/vendor/next-eslint-glob/README.md` for its scope and upgrade/remova
 contract. Upstream braces has not been declared patched. Merge still requires
 green hosted CI; production authorization SQL still requires the coordinated
 matching-app cutover and hosted-provider acceptance checks.
+
+Rollout checkpoint (2026-10-04 Asia/Dhaka): PR #164 is merged; its PR/main
+Actions passed. The owner-triggered production deployment on main `690eff5`
+matches the reviewed application. The Supabase plugin then applied the three
+reviewed migrations with versions `20261003181029`, `20261003181032` and
+`20261003181035`. Local/hosted histories match at 112/112; all 44 selected
+function bodies and their ACLs were verified, with SQL file contents unchanged.
+Admin identity/role digests and mandatory-MFA enforcement remain unchanged.
+The owner confirmed a fresh login followed by authenticator verification opens
+Security Settings normally. Mailbox/CAPTCHA/provider acceptance is not inferred
+from that confirmation or the disposable browser fixtures.
+
+The advisor's 11 additional private-table "RLS enabled, no policy" notices are
+intentional default-deny server-owned verification/authorization tables with
+all direct browser/service grants revoked. Four added authenticated-definer
+notices concern the registered, guarded role/security/invitation RPCs; renewal
+is the existing guarded RPC with its new proof argument. Keep those explicit
+authorization gates, rather than blindly revoking their intended entry points.
+Existing advisor notices, including the free-tier leaked-password feature,
+are unchanged; application-level compromised-password protection remains in use.

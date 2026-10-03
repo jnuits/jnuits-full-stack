@@ -4,12 +4,7 @@ import { authorizeAdminOperation, adminVerificationFailureMessage } from "./guar
 import { getAdminReadProofCookieName } from "./read-cookie";
 import type { AdminReadOperation } from "./types";
 import { AdminVerificationReadGate } from "@/components/admin/admin-verification-read-gate";
-
-const returnPaths: Record<AdminReadOperation, string> = {
-  "admin.security.read": "/admin/settings/security",
-  "admin.system_health.read": "/admin/system-health",
-  "admin.retention.read": "/admin/retention",
-};
+import { LogoutButton } from "@/components/auth/logout-button";
 
 /** Call before fetching data; a parent layout cannot protect child rendering. */
 export async function authorizeAdminRead(operation: AdminReadOperation) {
@@ -25,14 +20,11 @@ export function adminReadVerificationNotice(operation: AdminReadOperation, code:
   if (["verification_required", "verification_invalid", "verification_expired"].includes(code)) {
     return <section role="alert"><AdminVerificationReadGate operation={operation} /></section>;
   }
-  const next = encodeURIComponent(returnPaths[operation]);
+  const needsFreshSession = code === "session_invalid" || code === "role_version_stale";
   return <section className="flash-panel grid gap-3" data-tone="warning" role="alert">
-    <h1 className="text-lg font-semibold">Account verification required</h1>
+    <h1 className="text-lg font-semibold">{needsFreshSession ? "Sign in again" : "Account verification required"}</h1>
     <p>{adminVerificationFailureMessage(code)}</p>
     <p className="section-copy">Protected information is hidden until your account is verified.</p>
-    {code === "verification_required" || code === "verification_invalid" || code === "verification_expired" ? <div className="flex flex-wrap gap-3">
-      <a className="admin-btn admin-btn--secondary" href={`/admin/mfa/setup?next=${next}`}>Set up authenticator</a>
-      <a className="admin-btn admin-btn--primary" href={`/admin/mfa/challenge?next=${next}`}>Verify authenticator</a>
-    </div> : null}
+    {needsFreshSession ? <LogoutButton className="admin-btn admin-btn--primary inline-flex w-fit items-center gap-2" redirectTo="/admin/login" /> : null}
   </section>;
 }

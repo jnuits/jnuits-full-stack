@@ -36,6 +36,7 @@ export async function authorizeAdminOperation(
 
 export function adminVerificationFailureMessage(code: string): string {
   if (code === "permission_denied") return "You do not have permission for this operation.";
+  if (code === "session_invalid" || code === "role_version_stale") return "Your session is out of date. Log out and sign in again before verifying your account.";
   if (code === "verification_required") return "Verify your account before completing this operation.";
   if (code === "verification_invalid" || code === "verification_expired") return "Verification expired or the details changed. Verify again.";
   return "Your account could not be verified. Refresh and try again.";
