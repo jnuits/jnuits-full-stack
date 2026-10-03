@@ -289,12 +289,25 @@ Task 7 remains incomplete: the CI dependency gate fails on the unchanged
 development-only Next.js ESLint chain's
 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), with
 no patched upstream release; production-only dependency audit reports zero
-findings. A proposed exact-advisory/chain-only 14-day exception awaits explicit
-owner approval. SQL rollout also requires a matching deployable application or
-an explicitly approved maintenance/cutover window: applying operation guards
-alone breaks the old retention RPC and does not repair old privileged role
-writers. GitHub CI, coordinated deployment, post-rollout parity/ACLs/advisors
-and hosted-provider acceptance checks remain outstanding.
+findings. On 2026-10-03 the owner declined the exact-advisory/chain-only 14-day
+exception and instructed that the release remain blocked until patched. The
+owner authorized the coordinated maintenance/cutover window, to be used only
+after the dependency gate passes. Applying operation guards alone breaks the
+old retention RPC and does not repair old privileged role writers. GitHub CI,
+coordinated deployment, post-rollout parity/ACLs/advisors and hosted-provider
+acceptance checks remain outstanding. Local-main integration, GitHub push and
+safe merged-branch cleanup are authorized, but remain deferred with the release
+hold; preserve the active branch and restoration backup.
+
+Owner-requested fresh local revalidation (2026-10-03): all 1,852 tests in 286
+files, build/typecheck/lint/access/UI/strict-order checks, clean disposable SQL
+replay and all six real authenticated browser scenarios pass. The full suite
+first exposed a 15-second Windows Git Bash fixture timeout; its bounded
+Windows-only harness deadline was corrected without altering production retry
+behavior or dropping assertions. Hosted Supabase remains at 109 applied
+migrations with exactly the three expected files pending. These browser checks
+use disposable local Supabase, not the remote database: remote-DB acceptance
+must follow the coordinated migration/deployment cutover and is not complete.
 
 Email transport and CAPTCHA widget transport are test fixtures; the test child
 supplements only the exact local Auth connect origin in CSP. This does not

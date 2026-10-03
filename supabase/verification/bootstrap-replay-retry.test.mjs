@@ -7,6 +7,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const bash = process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" : "bash";
+// Git Bash's fixture subprocesses take longer under the full parallel Windows
+// suite. Bound the harness separately from the runner's unchanged retry policy.
+const fixtureTimeout = process.platform === "win32" ? 45_000 : 15_000;
+const testTimeout = fixtureTimeout + 5_000;
 const fixtures = [];
 const tables = ["form_definitions", "form_versions", "form_submissions", "form_submission_assets", "form_export_jobs", "form_archive_jobs", "alumni_onboarding_cases"];
 const types = `export type Database = {\n${tables.map((table) => `  ${table}: never`).join("\n")}\n}\n`;
@@ -64,7 +68,7 @@ esac
   const result = spawnSync(bash, ["--noprofile", "--norc", "-c", launch], {
     cwd: root,
     encoding: "utf8",
-    timeout: 15_000,
+    timeout: fixtureTimeout,
     env: { ...process.env, SUPABASE_BIN: cli.replaceAll("\\", "/"), SUPABASE_CLI_COMMAND: "", SUPABASE_REPLAY_DB_PORT: "", DB_TYPES_OUTPUT: join(root, "database.types.ts").replaceAll("\\", "/"), SCRATCH_ACK: "DISPOSABLE_SCRATCH", FIXTURE_ROOT: root.replaceAll("\\", "/"), FAIL_MODE: mode, FAILURES: String(failures), FAIL_OPERATION: lint ? "db" : "gen" },
   });
   const attempts = readFileSync(join(root, lint ? "db-attempts" : "gen-attempts"), "utf8");
@@ -78,29 +82,33 @@ afterEach(() => {
 describe("disposable replay image-pull retry", () => {
   it("retries rate-limited generation and discards partial generator output", () => {
     const result = runFixture();
+    expect(result.error, result.stderr).toBeUndefined();
     expect(result.status, result.stderr).toBe(0);
     expect(result.attempts).toBe(2);
     expect(result.artifact).toBe(types);
     expect(result.backoffs).toBe("5\n");
-  }, 20_000);
+  }, testTimeout);
   it("retries rate-limited function lint without replaying migrations", () => {
     const result = runFixture({ lint: true });
+    expect(result.error, result.stderr).toBeUndefined();
     expect(result.status, result.stderr).toBe(0);
     expect(result.attempts).toBe(2);
-  }, 20_000);
+  }, testTimeout);
   it("fails after bounded pull retries and preserves the previous artifact", () => {
     const result = runFixture({ failures: 9 });
+    expect(result.error, result.stderr).toBeUndefined();
     expect(result.status).toBe(125);
     expect(result.attempts).toBe(3);
     expect(result.artifact).toBe("previous canonical artifact\n");
     expect(result.backoffs).toBe("5\n15\n");
-  }, 20_000);
+  }, testTimeout);
   it("never retries SQL failures", () => {
     const result = runFixture({ mode: "sql", lint: true, failures: 9 });
+    expect(result.error, result.stderr).toBeUndefined();
     expect(result.status).toBe(7);
     expect(result.attempts).toBe(1);
     expect(result.stderr).toContain("SQLSTATE 42703");
     expect(result.stderr).toContain("partial output that must not reach the canonical artifact");
     expect(result.backoffs).toBe("");
-  }, 20_000);
+  }, testTimeout);
 });

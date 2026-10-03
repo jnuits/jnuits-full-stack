@@ -115,6 +115,9 @@ Release hold recorded on 2026-10-03: the unchanged development-only Next.js
 ESLint chain fails the dependency gate on
 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
 The production-only audit is clean; upstream reports no patched braces
-release. No exception is authorized or implemented. A proposed exception must
-be separately approved, limited to this exact advisory and development lint
-chain, and expire after 14 days. All other dependency checks remain required.
+release. On 2026-10-03 the owner explicitly declined the proposed 14-day
+exception and chose to keep the release blocked until patched. No exception is
+implemented; all dependency checks remain required. The owner authorized a
+coordinated maintenance cutover for the migrations and matching deployment,
+but that cutover must wait for the dependency gate to pass. Do not apply the
+incompatible operation guards to the old application while the release is held.
