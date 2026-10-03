@@ -123,14 +123,25 @@ if (
   failures.push("src/lib/site.ts must source adminNavigation from getAdminNavigationLinks().");
 }
 
-const securityRouteIndex = accessSource.indexOf('href: "/admin/settings/security"');
-const securityRouteBlock =
-  securityRouteIndex >= 0
-    ? accessSource.slice(securityRouteIndex, accessSource.indexOf("},", securityRouteIndex))
-    : "";
-
-if (!securityRouteBlock.includes("requireAal2: true")) {
-  failures.push("/admin/settings/security must require AAL2 in the central access map.");
+// These pages authorize their own named read before fetching data. An AAL2-only
+// layout gate would incorrectly exclude eligible, scoped email verification.
+const protectedReads = [
+  ["/admin/settings/security", "admin.security.read", "admin.security.read"],
+  ["/admin/system-health", "admin.system_health.read", "admin.security.read"],
+  ["/admin/retention", "admin.retention.read", "admin.retention.manage"],
+];
+for (const [route, operation, permission] of protectedReads) {
+  const index = accessSource.indexOf(`href: "${route}"`);
+  const block = index < 0 ? "" : accessSource.slice(index, accessSource.indexOf("},", index));
+  if (!block.includes(`readOperation: "${operation}"`) ||
+      !block.includes(`requiredPermission: "${permission}"`) ||
+      block.includes("requireAal2: true")) {
+    failures.push(`${route} must preserve permission and named verification (${operation}) in the central access map.`);
+  }
+  const page = read(`src/app${route}/page.tsx`);
+  if (!page.includes(`authorizeAdminRead("${operation}")`)) {
+    failures.push(`${route} must authorize its own named read before rendering protected information.`);
+  }
 }
 
 if (failures.length > 0) {

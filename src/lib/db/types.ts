@@ -4242,7 +4242,46 @@ export type Database = {
       }
     }
     Functions: {
+      accept_verified_admin_invitation: {
+        Args: { p_invitation_id: string }
+        Returns: Json
+      }
+      admin_verification_begin_email: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_check_read: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_check_write: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_context: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_issue_password: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_load_email_challenge: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_mark_email_delivery: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_prepare: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_record_enrollment: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_redeem_email: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_reserve: { Args: { p_input: Json }; Returns: Json }
+      admin_verification_reserve_password_attempt: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      admin_verification_suggestion: { Args: { p_input: Json }; Returns: Json }
       allocate_membership_id: { Args: { year_block: string }; Returns: string }
+      apply_admin_role_operation: {
+        Args: { p_operation: string; p_payload: Json; p_proof: string }
+        Returns: Json
+      }
       approve_alumni_onboarding_case: {
         Args: {
           p_actor_user_id: string
@@ -4319,6 +4358,18 @@ export type Database = {
         }
         Returns: Json
       }
+      complete_admin_invitation_operation: {
+        Args: { p_attempt_id: string; p_payload: Json }
+        Returns: Json
+      }
+      complete_admin_lifecycle_operation: {
+        Args: { p_attempt_id: string; p_payload: Json }
+        Returns: Json
+      }
+      complete_admin_retention_operation: {
+        Args: { p_attempt_id: string; p_payload: Json }
+        Returns: Json
+      }
       confirm_form_submission: {
         Args: { p_confirmation_token_hash: string; p_submission_id: string }
         Returns: {
@@ -4334,6 +4385,7 @@ export type Database = {
           p_expected_due_on: string
           p_member_id: string
           p_note?: string
+          p_proof?: string
           p_reference?: string
           p_resolution: string
         }
@@ -4656,6 +4708,10 @@ export type Database = {
         }
         Returns: Json
       }
+      revoke_admin_invitation_verified: {
+        Args: { p_payload: Json; p_proof: string }
+        Returns: Json
+      }
       set_member_lifecycle_status: {
         Args: {
           next_lifecycle_status: string
@@ -4697,6 +4753,10 @@ export type Database = {
           cycle_id: string
           cycle_status: string
         }[]
+      }
+      update_admin_security_verified: {
+        Args: { p_payload: Json; p_proof: string }
+        Returns: Json
       }
       update_form_draft_version: {
         Args: {

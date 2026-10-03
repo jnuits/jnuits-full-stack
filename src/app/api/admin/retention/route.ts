@@ -14,22 +14,29 @@ import {
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { authorizeAdminOperation, adminVerificationFailureMessage } from "@/lib/auth/admin-verification/guard";
+import { AdminVerificationStore } from "@/lib/auth/admin-verification/store";
+import { getAdminReadProofCookieName } from "@/lib/auth/admin-verification/read-cookie";
+import type { AdminOperationIntent } from "@/lib/auth/admin-verification/types";
 
 export const runtime = "nodejs";
 
-const jobActionSchema = z.object({
+const proofSchema = z.string().trim().min(1).max(256).optional();
+const jobActionSchema = z.strictObject({
   action: z.enum(["archive", "approve_purge"]),
   jobId: z.string().uuid(),
   scope: z.enum(["event", "form"]),
+  verificationProof: proofSchema,
 });
-const purgeActionSchema = z.object({
+const purgeActionSchema = z.strictObject({
   action: z.literal("purge"),
   confirmation: z.literal("PURGE"),
   jobId: z.string().uuid(),
   scope: z.enum(["event", "form"]),
+  verificationProof: proofSchema,
 });
 const actionSchema = z.union([
-  z.object({ action: z.literal("discover") }),
+  z.strictObject({ action: z.literal("discover"), verificationProof: proofSchema }),
   jobActionSchema,
   purgeActionSchema,
 ]);
@@ -37,14 +44,16 @@ const actionSchema = z.union([
 async function authorize() {
   return requireAdminApiPermission("admin.retention.manage", {
     forbiddenMessage: "Only authorized administrators can manage retention.",
-    requireAal2: true,
     unauthenticatedMessage: "Sign in before managing retention.",
   });
 }
 
-async function handleGet() {
+async function handleGet(request: NextRequest) {
   const permission = await authorize();
   if (permission.response) return permission.response;
+  const name = getAdminReadProofCookieName("admin.retention.read")!;
+  const verified = await authorizeAdminOperation({ operation: "admin.retention.read", payload: {} }, request.cookies.get(name)?.value);
+  if (!verified.ok) return NextResponse.json({ error: adminVerificationFailureMessage(verified.code), code: verified.code }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
 
   try {
     const workspace = await listRetentionWorkspace(asFlexibleClient(createAdminClient()));
@@ -66,20 +75,29 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ error: "Choose a valid retention action. Purge requires typing PURGE." }, { status: 422 });
   }
 
+  const { verificationProof, ...action } = parsed.data;
+  const intent: AdminOperationIntent = { operation: `admin.retention.${action.action}`, payload: action.action === "discover" ? {} : {
+    jobId: action.jobId, scope: action.scope, ...(action.action === "purge" ? { confirmation: action.confirmation } : {}),
+  } };
+  const verified = await authorizeAdminOperation(intent, verificationProof);
+  if (!verified.ok) return NextResponse.json({ error: adminVerificationFailureMessage(verified.code), code: verified.code }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
+
   try {
     const admin = asFlexibleClient(createAdminClient());
-    if (parsed.data.action === "approve_purge") {
-      await requireVerifiedRetentionArchive(admin, parsed.data.scope, parsed.data.jobId);
-    } else if (parsed.data.action === "purge") {
-      await requireVerifiedRetentionArchive(admin, parsed.data.scope, parsed.data.jobId, {
+    if (action.action === "approve_purge") {
+      await requireVerifiedRetentionArchive(admin, action.scope, action.jobId);
+    } else if (action.action === "purge") {
+      await requireVerifiedRetentionArchive(admin, action.scope, action.jobId, {
         allowedStatuses: ["purge_approved"],
         statusMessage: "Purge requires an archived, approved job.",
       });
     }
+    const reservation = await new AdminVerificationStore().reserve(verified.value.prepared.actor, intent, verificationProof);
+    if (!reservation.ok) return NextResponse.json({ error: adminVerificationFailureMessage(reservation.code), code: reservation.code }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
     const result = await runRetentionAction(admin, {
-      ...parsed.data,
+      ...action,
       actorUserId: permission.auth.user.id,
-    });
+    }, reservation.value.attemptId);
     return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const verificationFailure = error instanceof RetentionArchiveVerificationError;

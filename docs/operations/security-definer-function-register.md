@@ -55,6 +55,83 @@ access. A blind revoke would make valid profile-management policies fail.
 legacy bulk/lifecycle helpers and `has_platform_role(text)` to `service_role`.
 Those functions are not needed by current RLS policies or client code.
 
+## Admin Verification Foundation (2026-10-02, staged)
+
+`20261002154457_admin_verification_foundation.sql` adds service-only JSON RPCs:
+`admin_verification_context`, `prepare`, `begin_email`, `mark_email_delivery`,
+`load_email_challenge`, `redeem_email`, `reserve_password_attempt`,
+`issue_password`, `reserve`, `check_read`, and `record_enrollment` (all with
+the `admin_verification_` prefix and one `jsonb` argument).
+
+All use an empty search path. PUBLIC, anon and authenticated execute is revoked;
+only service_role can execute the public wrappers. All private implementation
+functions and tables deny browser and service-role direct access. The wrappers
+recheck live Auth session, active administrator, current role version, permission,
+confirmed email, enrollment history and security policy. No secrets or OTPs are
+returned by the context/preparation RPCs or written to audit records. This is
+staged local verification evidence, not a claim of hosted deployment.
+
+## Admin Operation Guards (2026-10-02, staged)
+
+`20261002165457_admin_verification_operation_guards.sql` adds service-only
+`admin_verification_check_write(jsonb)` for non-consuming, exact-intent mutation
+preflight. The authenticated `confirm_membership_renewal` now has a seventh,
+optional proof argument; the previous six-argument implementation is private
+and denies browser/service execution. The wrapper derives its actor from the
+signed JWT, checks the live session/current grant version and consumes proof
+atomically with renewal state and audit writes. Genuinely verified TOTP sessions
+retain legacy-call compatibility. Historical receipt dates are not authorized
+by email proof for a different, current-day operation.
+
+`private.require_membership_operator()` now applies the routine-review policy:
+active membership permission and a live/current session, with actual TOTP MFA
+when mandatory enforcement is on. It does not relax the renewal wrapper.
+All new private helpers revoke PUBLIC, anon, authenticated and service execution.
+The same staged migration adds these narrowly scoped entry points:
+
+| Function | Allowed execution | Boundary |
+| --- | --- | --- |
+| `apply_admin_role_operation(text,jsonb,text)` | authenticated only | Signed-session actor, real TOTP plus exact password proof, serialized target/last-super checks and atomic role/audit writes |
+| `update_admin_security_verified(jsonb,text)` | authenticated only | Exact protected intent; only a super admin can disable enforcement; settings, audit and proof consumed atomically |
+| `revoke_admin_invitation_verified(jsonb,text)` | authenticated only | Exact invitation/confirmation and target hierarchy; pending invitations only; cannot remove accepted admin access |
+| `accept_verified_admin_invitation(uuid)` | authenticated only | Immutable verified issuer authorization, recipient/session/member/expiry/delivery checks and transactional grant; unsigned legacy invitations rejected |
+| `complete_admin_invitation_operation(uuid,jsonb)` | service_role only | Reserved issuer intent and live actor; recipient and requested role are immutable before external Auth/member-claim side effects |
+| `complete_admin_lifecycle_operation(uuid,jsonb)` | service_role only | Reserved exact target, fresh actor and observed Auth ban/unban before atomic profile/audit/attempt completion |
+| `complete_admin_retention_operation(uuid,jsonb)` | service_role only | Reserved operation/scope/job and current permission/session/policy; atomic discovery, archive state/evidence, approval or bounded purge |
+
+All use an empty search path and deny PUBLIC/anon execution. Private helpers,
+immutable invitation authorization records and workflow attempts deny direct
+browser/service access. Role and lifecycle writers share the last-super-admin
+lock; pending freeze reservations block target mutations and actor access,
+including expired uncertain attempts until authorized reconciliation. No
+uncertain proof is restored or automatically retried.
+
+The former `purge_retention_job(text,uuid,uuid)` implementation is now a private
+core with no direct browser/service execute grant. Its public legacy signature
+fails closed and also revokes service-role execute. The developed retention
+service still creates/verifies HMAC archive evidence before the completion RPC;
+the database checks that approval/purge use the exact persisted evidence and
+preserves the existing PII cutoff, not a new client-provided purge boundary.
+
+Security settings, system health and retention pages authorize their own named
+five-minute read scope before loading protected data. The central route map
+retains each page's permission and scope rather than an AAL2-only layout gate.
+The global workspace-entry enforcement remains unchanged.
+
+These are disposable replay verification results, not hosted deployment:
+neither staged migration has been applied to the production project yet.
+
+## Adoption Preferences (2026-10-02, staged)
+
+`20261002185531_admin_verification_preferences.sql` adds the service-only
+`admin_verification_suggestion(jsonb)` RPC over the foundation's private
+preferences table. PUBLIC/anon/authenticated execute is revoked and its search
+path is empty. The actor is re-resolved against the live session/profile/role
+version; clients cannot select a user or snooze duration. Snooze is seven
+server-owned days (168 hours). This preference never establishes verification,
+changes MFA enforcement or blocks a routine review. Disposable SQL verifies
+expiry and grants. This third migration also remains unapplied to production.
+
 ## Review Procedure
 
 Before altering any entry:

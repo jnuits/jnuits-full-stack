@@ -17,26 +17,23 @@ async function isAdminTotpEnforced(supabase: SupabaseClient<Database>) {
     ) => Promise<{ data: boolean | null; error: { message?: string } | null }>;
   }).rpc("is_admin_totp_enforced");
 
-  if (error) {
-    return true;
-  }
-
-  return data !== false;
+  return { enforced: data !== false, error: error || (typeof data !== "boolean" ? { message: "Security policy unavailable." } : null) };
 }
 
 export async function checkAdminMFA(
   supabase: SupabaseClient<Database>
 ): Promise<AdminMFAState> {
-  const enforced = await isAdminTotpEnforced(supabase);
+  const policy = await isAdminTotpEnforced(supabase);
+  const enforced = policy.enforced;
 
-  if (!enforced) {
+  if (policy.error) {
     return {
       currentLevel: null,
       enforced,
-      error: null,
+      error: "Admin security policy could not be verified.",
       nextLevel: null,
-      ok: true,
-      redirectTo: null,
+      ok: false,
+      redirectTo: "/admin/mfa/setup",
     };
   }
 
@@ -56,6 +53,13 @@ export async function checkAdminMFA(
 
   const currentLevel = data?.currentLevel ?? null;
   const nextLevel = data?.nextLevel ?? null;
+
+  if (!["aal1", "aal2"].includes(currentLevel || "") || !["aal1", "aal2"].includes(nextLevel || "")) {
+    return { currentLevel, nextLevel, enforced, error: "Session assurance could not be verified.", ok: false, redirectTo: "/admin/mfa/setup" };
+  }
+
+  // Entry is optional when the setting is off; this is not an action-level MFA proof.
+  if (!enforced) return { currentLevel, nextLevel, enforced, error: null, ok: true, redirectTo: null };
 
   if (currentLevel === "aal2" && nextLevel === "aal2") {
     return {

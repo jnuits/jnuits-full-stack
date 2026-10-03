@@ -1,4 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MembershipDbClient, type ManagedMemberClientRecord } from "./membership-db-client";
@@ -23,7 +24,7 @@ const member: ManagedMemberClientRecord = {
   joined_on: "2024-07-01", lifecycle_status: "current", linkedin_url: null, member_type: "current", phone: null,
   portal_access_status: "active", student_id: null, updated_at: "2026-09-28T00:00:00Z", user_id: null, website_url: null,
 };
-function renderMembership() {
+function renderMembership(overrides: Partial<ComponentProps<typeof MembershipDbClient>> = {}) {
   const props = {
     accountRequests: [], activeCycle: null, activeMembersInCycles: 0, batches: [], cycles: [], cycleMembers: [],
     departmentOptions: [{ internalCode: "computer-science-engineering", name: "Computer Science & Engineering", shortCode: "CSE" }],
@@ -31,8 +32,9 @@ function renderMembership() {
     memberPageSize: 20, memberRoleFilter: "", pendingRenewals: 0, portalRoleOptions: [],
     totalClaimedInvitations: 0, totalIssuedInvitations: 0,
     renewalQueue: { queue: "overdue" as const, page: 1, pageSize: 25, total: 0, rows: [] },
+    ...overrides,
   };
-  return render(<MembershipDbClient {...props} />);
+  return { ...render(<MembershipDbClient {...props} />), props };
 }
 describe("cycle-free membership workspace", () => {
   beforeEach(() => {
@@ -73,5 +75,18 @@ describe("cycle-free membership workspace", () => {
     const deletionQueue = screen.getByRole("heading", { name: "Profile deletion queue" }).closest("section")!;
     expect(within(deletionQueue).getByRole("link", { name: "Review member Alumni requests" })).toHaveAttribute("href", "/admin/membership?renewalQueue=alumni#membership-renewals");
     expect(within(deletionQueue).getByText("No profile deletion requests pending review.")).toBeInTheDocument();
+  });
+  it("a real workspace queue refresh retains the dialog and only unchanged selections", () => {
+    const row = { memberId: member.id, fullName: member.full_name, jnuitsId: member.jnuits_id, joinedOn: member.joined_on, dueOn: "2025-07-01", lifecycleStatus: "former", portalAccessStatus: "frozen", pathStatus: "open", overdueDays: 100, requestId: "22222222-2222-4222-8222-222222222222", requestType: "alumni_conversion", requestedAt: "2026-10-03T00:00:00Z", requestUpdatedAt: "2026-10-03T00:00:00Z", requestNote: null };
+    const second = { ...row, requestId: "33333333-3333-4333-8333-333333333333", memberId: "44444444-4444-4444-8444-444444444444", fullName: "Second fictional member", jnuitsId: "JNUITS-2099871" };
+    const { rerender, props } = renderMembership({ renewalQueue: { queue: "alumni", page: 1, pageSize: 25, total: 2, rows: [row, second] } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve selected" }));
+    fireEvent.change(screen.getByLabelText("Bulk review note"), { target: { value: "Synthetic reviewed eligibility." } });
+    rerender(<MembershipDbClient {...props} renewalQueue={{ queue: "alumni", page: 1, pageSize: 25, total: 2, rows: [{ ...row, requestUpdatedAt: "2026-10-03T01:00:00Z" }, second] }} />);
+    expect(screen.getByRole("dialog", { name: "Approve selected membership requests" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Bulk review note")).toHaveValue("Synthetic reviewed eligibility.");
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
+    expect(screen.getByText(/selection changed.*close/i)).toBeInTheDocument();
   });
 });

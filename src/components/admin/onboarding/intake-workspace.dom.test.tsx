@@ -395,6 +395,9 @@ describe("shared onboarding intake workspace", () => {
     expect(await screen.findByText("1 valid")).toBeInTheDocument();
 
     row = screen.getByRole("group", { name: "Draft row 2" });
+    // A refreshed draft can render before the async transition releases the
+    // row. Typing into a disabled input is intentionally ignored by the UI.
+    await waitFor(() => expect(within(row).getByLabelText("Exclusion reason for row 2")).toBeEnabled());
     await user.type(within(row).getByLabelText("Exclusion reason for row 2"), "Duplicate row");
     await user.click(within(row).getByRole("button", { name: "Exclude row 2" }));
     await waitFor(() =>
@@ -403,7 +406,8 @@ describe("shared onboarding intake workspace", () => {
       )
     );
 
-    row = await screen.findByRole("group", { name: "Draft row 2" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Reinclude row 2" })).toBeEnabled());
+    row = screen.getByRole("group", { name: "Draft row 2" });
     await user.click(within(row).getByRole("button", { name: "Reinclude row 2" }));
     await waitFor(() =>
       expect(mocks.excludeRow).toHaveBeenLastCalledWith(

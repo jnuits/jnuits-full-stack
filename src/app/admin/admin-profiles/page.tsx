@@ -22,6 +22,7 @@ import { AdminProfileActivityList } from "@/components/admin/admin-profile-activ
 import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
 import { AdminProfileEditorForm } from "@/components/admin/admin-profile-editor-form";
 import { ConfirmSubmitButton } from "@/components/admin/confirm-submit-button";
+import { AdminVerifiedForm } from "@/components/admin/admin-verified-form";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import {
   ADMIN_LIFECYCLE_LABELS,
@@ -372,7 +373,7 @@ function InviteAdminPanel({
               No member profiles matched this search. Use email-only invite if this person has no profile.
             </div>
           ) : (
-            <form action={inviteAdminAction} className="grid gap-4">
+            <AdminVerifiedForm action={inviteAdminAction} className="grid gap-4" intent={{ operation: "admin.role.invite", payload: { inviteMode: "member", memberId: "", email: "", displayName: "", roleCode: allowedRoles[0] ?? "content_admin", title: "", note: "" } }}>
               <input name="inviteMode" type="hidden" value="member" />
               <div className="admin-invite-candidate-list grid gap-2">
                 {memberCandidates.map((candidate) => (
@@ -402,11 +403,11 @@ function InviteAdminPanel({
               <button className="admin-btn admin-btn--primary admin-invite-action" disabled={!canSubmitMemberInvite} type="submit">
                 <MailPlus size={14} /> Invite selected member
               </button>
-            </form>
+            </AdminVerifiedForm>
           )}
         </div>
 
-        <form action={inviteAdminAction} className="admin-invite-card admin-invite-card--email">
+        <AdminVerifiedForm action={inviteAdminAction} className="admin-invite-card admin-invite-card--email" intent={{ operation: "admin.role.invite", payload: { inviteMode: "email", memberId: "", email: "", displayName: "", roleCode: allowedRoles[0] ?? "content_admin", title: "", note: "" } }}>
           <input name="inviteMode" type="hidden" value="email" />
           <div>
             <p className="section-kicker">No member profile</p>
@@ -446,7 +447,7 @@ function InviteAdminPanel({
           <button className="admin-btn admin-btn--primary admin-invite-action admin-invite-submit" type="submit">
             <MailPlus size={14} /> Send email-only invite
           </button>
-        </form>
+        </AdminVerifiedForm>
       </div>
     </section>
   );
@@ -498,7 +499,7 @@ function InvitationsPanel({
                     {invitation.lastSentAt ? ` / last ${formatDate(invitation.lastSentAt)}` : ""}
                   </p>
                   {invitation.status === "pending" ? (
-                    <form action={revokeAdminInvitationAction} className="flex flex-wrap items-center gap-2">
+                    <AdminVerifiedForm action={revokeAdminInvitationAction} className="flex flex-wrap items-center gap-2" intent={{ operation: "admin.invitation.revoke", payload: { invitationId: invitation.id, confirmation: "" } }}>
                       <input name="invitationId" type="hidden" value={invitation.id} />
                       <input
                         className="max-w-48"
@@ -513,7 +514,7 @@ function InvitationsPanel({
                       >
                         Revoke
                       </ConfirmSubmitButton>
-                    </form>
+                    </AdminVerifiedForm>
                   ) : null}
                 </div>
               </article>
@@ -548,7 +549,7 @@ function AccessControls({ profile }: { profile: AdminProfileDirectoryProfile }) 
       <p className="section-kicker">Access controls</p>
       <div className="mt-4 grid gap-4">
         {profile.capabilities.canChangeRole ? (
-          <form action={changeAdminRoleAction} className="grid gap-3 rounded-[0.9rem] border border-[var(--line)] p-3">
+          <AdminVerifiedForm action={changeAdminRoleAction} className="grid gap-3 rounded-[0.9rem] border border-[var(--line)] p-3" intent={{ operation: "admin.role.change", payload: { adminProfileId: profile.id, confirmation: "", roleCode: profile.primaryRole?.code ?? "content_admin" } }}>
             <input name="adminProfileId" type="hidden" value={profile.id} />
             <label className="input-label">
               Change role
@@ -572,12 +573,12 @@ function AccessControls({ profile }: { profile: AdminProfileDirectoryProfile }) 
             >
               Change role
             </ConfirmSubmitButton>
-          </form>
+          </AdminVerifiedForm>
         ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           {profile.capabilities.canFreeze ? (
-            <form action={updateAdminLifecycleAction} className="grid gap-2 rounded-[0.9rem] border border-[var(--line)] p-3">
+            <AdminVerifiedForm action={updateAdminLifecycleAction} className="grid gap-2 rounded-[0.9rem] border border-[var(--line)] p-3" intent={{ operation: "admin.lifecycle.freeze", payload: { adminProfileId: profile.id, confirmation: "" } }}>
               <input name="adminProfileId" type="hidden" value={profile.id} />
               <input name="intent" type="hidden" value="freeze" />
               <input name="confirmation" placeholder={profile.adminCode} required />
@@ -589,11 +590,11 @@ function AccessControls({ profile }: { profile: AdminProfileDirectoryProfile }) 
               >
                 Freeze
               </ConfirmSubmitButton>
-            </form>
+            </AdminVerifiedForm>
           ) : null}
 
           {profile.capabilities.canUnfreeze ? (
-            <form action={updateAdminLifecycleAction} className="grid gap-2 rounded-[0.9rem] border border-[var(--line)] p-3">
+            <AdminVerifiedForm action={updateAdminLifecycleAction} className="grid gap-2 rounded-[0.9rem] border border-[var(--line)] p-3" intent={{ operation: "admin.lifecycle.unfreeze", payload: { adminProfileId: profile.id, confirmation: "" } }}>
               <input name="adminProfileId" type="hidden" value={profile.id} />
               <input name="intent" type="hidden" value="unfreeze" />
               <input name="confirmation" placeholder={profile.adminCode} required />
@@ -605,11 +606,11 @@ function AccessControls({ profile }: { profile: AdminProfileDirectoryProfile }) 
               >
                 Unfreeze
               </ConfirmSubmitButton>
-            </form>
+            </AdminVerifiedForm>
           ) : null}
 
           {profile.capabilities.canRemove ? (
-            <form action={updateAdminLifecycleAction} className="grid gap-2 rounded-[0.9rem] border border-[var(--line)] p-3 sm:col-span-2">
+            <AdminVerifiedForm action={updateAdminLifecycleAction} className="grid gap-2 rounded-[0.9rem] border border-[var(--line)] p-3 sm:col-span-2" intent={{ operation: "admin.role.remove", payload: { adminProfileId: profile.id, confirmation: "" } }}>
               <input name="adminProfileId" type="hidden" value={profile.id} />
               <input name="intent" type="hidden" value="remove" />
               <input name="confirmation" placeholder={profile.email || profile.adminCode} required />
@@ -621,7 +622,7 @@ function AccessControls({ profile }: { profile: AdminProfileDirectoryProfile }) 
               >
                 Remove admin access
               </ConfirmSubmitButton>
-            </form>
+            </AdminVerifiedForm>
           ) : null}
         </div>
       </div>

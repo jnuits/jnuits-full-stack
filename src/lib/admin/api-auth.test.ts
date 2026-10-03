@@ -34,7 +34,7 @@ describe("requireAdminApiPermission", () => {
     mocks.hasAdminRole.mockReturnValue(true);
     mocks.hasPermission.mockResolvedValue(true);
     mocks.loadAdminLifecycleAccessState.mockResolvedValue("active");
-    mocks.checkAdminMFA.mockResolvedValue({ ok: true });
+    mocks.checkAdminMFA.mockResolvedValue({ ok: true, currentLevel: "aal2", nextLevel: "aal2", error: null });
   });
 
   it("requires AAL2 when a protected API operation asks for it", async () => {
@@ -59,5 +59,10 @@ describe("requireAdminApiPermission", () => {
     await expect(result.response?.json()).resolves.toMatchObject({
       message: "Complete multi-factor verification before this action.",
     });
+  });
+
+  it("does not use disabled entry enforcement as proof of AAL2", async () => {
+    mocks.checkAdminMFA.mockResolvedValue({ ok: true, enforced: false, currentLevel: "aal1", nextLevel: "aal1", error: null });
+    expect((await requireAdminApiPermission("admin.retention.manage", { requireAal2: true })).response?.status).toBe(403);
   });
 });

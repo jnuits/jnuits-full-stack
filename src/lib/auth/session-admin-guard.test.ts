@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   lifecycle: vi.fn(),
   redirect: vi.fn(),
+  checkAdminMFA: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -19,7 +20,7 @@ vi.mock("@/lib/auth/admin-lifecycle", () => ({
 }));
 
 vi.mock("@/lib/auth/mfa", () => ({
-  checkAdminMFA: vi.fn(),
+  checkAdminMFA: mocks.checkAdminMFA,
 }));
 
 vi.mock("@/lib/supabase/flexible", () => ({
@@ -30,7 +31,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: () => mocks.createClient(),
 }));
 
-import { requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPermission, requireAdminUser } from "@/lib/auth/session";
 
 function createAuthenticatedClient() {
   return {
@@ -61,6 +62,7 @@ function createAuthenticatedClient() {
         }),
       }),
     }),
+    rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
   };
 }
 
@@ -88,5 +90,11 @@ describe("requireAdminUser lifecycle enforcement", () => {
     await expect(requireAdminUser()).rejects.toThrow(
       "redirect:/admin/access-pending?access=frozen",
     );
+  });
+
+  it("requires actual MFA at a protected action even with workspace enforcement off", async () => {
+    mocks.lifecycle.mockResolvedValue("active");
+    mocks.checkAdminMFA.mockResolvedValue({ ok: true, currentLevel: "aal1", nextLevel: "aal2", enforced: false, redirectTo: null });
+    await expect(requireAdminPermission("admin.membership.manage", { requireAal2: true })).rejects.toThrow("redirect:/admin/mfa/challenge");
   });
 });

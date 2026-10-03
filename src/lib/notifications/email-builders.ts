@@ -934,3 +934,13 @@ export function buildFormConfirmationEmail(props: FormConfirmationEmailProps): s
 
   return wrap(`Confirm your email for ${props.formTitle}.`, content);
 }
+
+export function buildAdminVerificationEmail(props: { code: string; operationLabel: string; expiresInMinutes: number }): string {
+  return wrap("Verify your JnUITS admin action.", [
+    h1("Verify your admin action"),
+    p(`Use this code to confirm <strong>${esc(props.operationLabel)}</strong> in the browser where you requested it.`),
+    codeBlock(props.code),
+    p(`This code expires in ${esc(String(props.expiresInMinutes))} minutes and can be used only once. It does not sign you in or grant new permissions.`),
+    p("Never share this code. If you did not request this action, ignore this email."),
+  ].join(""));
+}

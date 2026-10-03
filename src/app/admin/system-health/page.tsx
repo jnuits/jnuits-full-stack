@@ -1,4 +1,5 @@
 import { Activity, AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
+import { authorizeAdminRead, adminReadVerificationNotice } from "@/lib/auth/admin-verification/read-boundary";
 import {
   buildSystemHealthSnapshot,
   type HealthStatus,
@@ -30,6 +31,8 @@ function groupChecks(checks: SystemHealthCheck[]) {
 }
 
 export default async function AdminSystemHealthPage() {
+  const verified = await authorizeAdminRead("admin.system_health.read");
+  if (!verified.ok) return adminReadVerificationNotice("admin.system_health.read", verified.code);
   const snapshot = await buildSystemHealthSnapshot();
   const groups = groupChecks(snapshot.checks);
   const parityReview = snapshot.checks.find(

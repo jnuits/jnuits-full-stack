@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { safeAdminVerificationReturnPath } from "@/lib/auth/admin-verification/return-path";
 
 type TOTPFactor = {
   friendly_name?: null | string;
@@ -11,7 +12,7 @@ type TOTPFactor = {
   status: string;
 };
 
-export function AdminMFAChallenge() {
+export function AdminMFAChallenge({ returnPath = "/admin/dashboard" }: { returnPath?: string } = {}) {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [error, setError] = useState<null | string>(null);
@@ -87,7 +88,8 @@ export function AdminMFAChallenge() {
         method: "POST",
       }).catch(() => undefined);
 
-      router.replace("/admin/dashboard");
+      await fetch("/api/admin/mfa-suggestion", { cache: "no-store" }).catch(() => undefined);
+      router.replace(safeAdminVerificationReturnPath(returnPath));
       router.refresh();
     } finally {
       setPending(false);
@@ -143,7 +145,7 @@ export function AdminMFAChallenge() {
               No verified authenticator factor is enrolled for this admin
               account.
             </p>
-            <Link className="primary-button w-fit" href="/admin/mfa/setup">
+            <Link className="primary-button w-fit" href={`/admin/mfa/setup?next=${encodeURIComponent(safeAdminVerificationReturnPath(returnPath))}`}>
               Set up MFA
             </Link>
           </div>

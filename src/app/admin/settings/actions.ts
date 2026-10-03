@@ -7,6 +7,8 @@ import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { authorizeAdminOperation } from "@/lib/auth/admin-verification/guard";
+import { createClient } from "@/lib/supabase/server";
 
 
 const notificationSettingsSchema = z.object({
@@ -79,15 +81,6 @@ export async function saveAdminNotificationSettings(formData: FormData) {
 }
 
 export async function saveAdminSecuritySettings(formData: FormData) {
-  const auth = await requireAdminPermission("admin.security.write", {
-    fallbackPath: "/admin/settings/security",
-    requireAal2: true,
-  });
-
-  if (!auth.user) {
-    redirect("/admin/login?next=%2Fadmin%2Fsettings%2Fsecurity");
-  }
-
   const parsed = securitySettingsSchema.safeParse({
     adminTotpEnforced: readCheckbox(formData, "adminTotpEnforced"),
   });
@@ -96,21 +89,20 @@ export async function saveAdminSecuritySettings(formData: FormData) {
     redirect("/admin/settings/security?error=security-settings-invalid");
   }
 
-  if (!parsed.data.adminTotpEnforced && auth.user.adminRole !== "super_admin") {
+  const proof = typeof formData.get("verificationProof") === "string" ? String(formData.get("verificationProof")) || undefined : undefined;
+  const authorized = await authorizeAdminOperation({ operation: "admin.security.update", payload: parsed.data }, proof);
+  if (!authorized.ok) redirect(`/admin/settings/security?error=${encodeURIComponent(authorized.code)}`);
+  const auth = authorized.value.auth;
+
+  if (!parsed.data.adminTotpEnforced && auth.user?.adminRole !== "super_admin") {
     redirect("/admin/settings/security?error=super-admin-required");
   }
 
-  const admin = asFlexibleClient(createAdminClient());
-  const { error } = await admin
-    .from("security_settings" as string)
-    .update({
-      admin_totp_enforced: parsed.data.adminTotpEnforced,
-      updated_by_user_id: auth.user.id,
-    })
-    .eq("id", true);
+  const client = asFlexibleClient(await createClient());
+  const { error, data } = await client.rpc("update_admin_security_verified", { p_payload: parsed.data, p_proof: proof ?? null });
 
-  if (error) {
-    const message = getSafeAdminActionErrorMessage(error, {
+  if (error || !data || typeof data !== "object" || data.ok !== true) {
+    const message = getSafeAdminActionErrorMessage(error || new Error("Verification was not accepted."), {
       context: "settings.security.save",
       fallback: "Security settings could not be saved.",
     });

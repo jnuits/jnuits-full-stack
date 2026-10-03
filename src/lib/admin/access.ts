@@ -1,3 +1,5 @@
+import type { AdminReadOperation } from "@/lib/auth/admin-verification/types";
+
 export type AdminPermission =
   | "admin.admin_profiles.manage"
   | "admin.audit.read"
@@ -73,11 +75,13 @@ export type AdminAccessItem = {
   label: string;
   requiredPermission: AdminPermission | null;
   requireAal2?: boolean;
+  readOperation?: AdminReadOperation;
 };
 
 export type AdminRouteAccess = {
   requiredPermission: AdminPermission | null;
   requireAal2: boolean;
+  readOperation?: AdminReadOperation;
 };
 
 export const adminAccessItems: readonly AdminAccessItem[] = [
@@ -236,7 +240,7 @@ export const adminAccessItems: readonly AdminAccessItem[] = [
     iconKey: "shield",
     label: "System Health",
     requiredPermission: "admin.security.read",
-    requireAal2: true,
+    readOperation: "admin.system_health.read",
   },
   {
     group: "Settings",
@@ -251,7 +255,7 @@ export const adminAccessItems: readonly AdminAccessItem[] = [
     iconKey: "shield",
     label: "Security Settings",
     requiredPermission: "admin.security.read",
-    requireAal2: true,
+    readOperation: "admin.security.read",
   },
   {
     group: "Settings",
@@ -259,7 +263,7 @@ export const adminAccessItems: readonly AdminAccessItem[] = [
     iconKey: "shield",
     label: "Data Retention",
     requiredPermission: "admin.retention.manage",
-    requireAal2: true,
+    readOperation: "admin.retention.read",
   },
   {
     group: "Settings",
@@ -326,22 +330,25 @@ export function getAdminRouteAccess(pathname: string): AdminRouteAccess {
     return { requiredPermission: null, requireAal2: false };
   }
 
-  const hiddenRoute = hiddenAdminRoutes.find((route) =>
-    routeMatches(clean, route.href)
-  );
-
-  if (hiddenRoute) {
-    return hiddenRoute.access;
-  }
+  const hiddenRoute = [...hiddenAdminRoutes]
+    .sort((left, right) => right.href.length - left.href.length)
+    .find((route) => routeMatches(clean, route.href));
 
   const item = [...adminAccessItems]
     .sort((left, right) => right.href.length - left.href.length)
     .find((candidate) => routeMatches(clean, candidate.href));
 
+  // A hidden parent (e.g. /admin/settings) must not shadow a more specific
+  // visible page's permission and named verification scope.
+  if (hiddenRoute && (!item || hiddenRoute.href.length >= item.href.length)) {
+    return hiddenRoute.access;
+  }
+
   if (item) {
     return {
       requiredPermission: item.requiredPermission,
       requireAal2: Boolean(item.requireAal2),
+      ...(item.readOperation ? { readOperation: item.readOperation } : {}),
     };
   }
 

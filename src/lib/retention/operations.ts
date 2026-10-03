@@ -1,6 +1,8 @@
 import "server-only";
+import { z } from "zod";
 
 import type { FlexibleSupabaseClient } from "@/lib/supabase/flexible";
+import { requireVerifiedRetentionArchive } from "@/lib/retention/approval";
 import {
   archiveRetentionDriveFile,
   createFormArchiveMaterials,
@@ -29,14 +31,22 @@ import {
 
 const PAGE_SIZE = 500;
 const MAX_ROWS = 10_000;
-const ACTIVE_STATUSES: RetentionJobStatus[] = [
-  "archive_requested",
-  "archived",
-  "candidate",
-  "purge_approved",
-];
 const CONCURRENT_CHANGE_MESSAGE =
   "The retention job changed state in another session. Reload the workspace and try again.";
+
+async function completeRetentionStep(admin: FlexibleSupabaseClient, attemptId: string, payload: Record<string, unknown>) {
+  const result = await admin.rpc("complete_admin_retention_operation", { p_attempt_id: attemptId, p_payload: payload });
+  if (result.error) {
+    const code = asRecord(result.error).code;
+    throw new RetentionWorkflowError(code === "40001" ? CONCURRENT_CHANGE_MESSAGE : "The verified retention update could not be confirmed. Refresh and verify again.", code === "40001" ? 409 : code === "42501" ? 403 : 500);
+  }
+  const parsed = z.object({ ok: z.literal(true), value: z.union([z.null(), z.object({ success: z.literal(true) }).passthrough()]) }).safeParse(result.data);
+  const expectsNull = payload.stage === "archive_start" || payload.stage === "archive_failed";
+  if (!parsed.success || (expectsNull ? parsed.data.value !== null : parsed.data.value === null)) {
+    throw new RetentionWorkflowError("The verification completion could not be confirmed.");
+  }
+  return parsed.data.value;
+}
 
 export type RetentionScope = "event" | "form";
 
@@ -100,9 +110,6 @@ function jobTable(scope: RetentionScope) {
   return scope === "form" ? "form_archive_jobs" : "event_retention_jobs";
 }
 
-function resourceColumn(scope: RetentionScope) {
-  return scope === "form" ? "form_definition_id" : "event_id";
-}
 
 function mapJob(row: RetentionJobRow, scope: RetentionScope) {
   return {
@@ -122,37 +129,6 @@ function mapJob(row: RetentionJobRow, scope: RetentionScope) {
   };
 }
 
-/**
- * Every retention status change goes through here. A Supabase update that
- * matches zero rows reports no error, so the affected ids must be selected and
- * counted; otherwise a lost race looks indistinguishable from success.
- */
-async function applyJobTransition(
-  admin: FlexibleSupabaseClient,
-  scope: RetentionScope,
-  jobId: string,
-  fromStatuses: RetentionJobStatus[],
-  patch: Record<string, unknown>,
-  failureMessage: string
-) {
-  const result = await admin
-    .from(jobTable(scope))
-    .update(patch)
-    .eq("id", jobId)
-    .in("status", fromStatuses)
-    .select("id");
-
-  if (result.error) {
-    throw new RetentionWorkflowError(failureMessage);
-  }
-
-  const rows = Array.isArray(result.data) ? result.data : [];
-  if (rows.length !== 1) {
-    throw new RetentionWorkflowError(CONCURRENT_CHANGE_MESSAGE, 409);
-  }
-
-  return rows[0] as { id: string };
-}
 
 export async function listRetentionWorkspace(admin: FlexibleSupabaseClient) {
   const [formResult, eventResult] = await Promise.all([
@@ -221,66 +197,10 @@ async function loadPagedRows(
   );
 }
 
-async function existingResourceIds(
-  admin: FlexibleSupabaseClient,
-  scope: RetentionScope,
-  ids: string[]
-) {
-  if (!ids.length) return new Set<string>();
-
-  const column = resourceColumn(scope);
-  const result = await admin
-    .from(jobTable(scope))
-    .select(column)
-    .in(column, ids)
-    .in("status", ACTIVE_STATUSES);
-
-  if (result.error) {
-    throw new RetentionWorkflowError("Existing retention jobs could not be checked.");
-  }
-
-  return new Set(
-    (result.data || [])
-      .map((row: Record<string, unknown>) => row[column])
-      .filter((value: unknown): value is string => typeof value === "string")
-  );
-}
-
-async function insertCandidates(
-  admin: FlexibleSupabaseClient,
-  scope: RetentionScope,
-  candidates: Array<{ eligibleAt: string; resourceId: string }>,
-  actorUserId: string
-) {
-  const existing = await existingResourceIds(
-    admin,
-    scope,
-    candidates.map((candidate) => candidate.resourceId)
-  );
-  const column = resourceColumn(scope);
-  const rows = candidates
-    .filter((candidate) => !existing.has(candidate.resourceId))
-    .map((candidate) => ({
-      [column]: candidate.resourceId,
-      requested_by_user_id: actorUserId,
-      retention_eligible_at: candidate.eligibleAt,
-      status: "candidate",
-    }));
-
-  if (!rows.length) return 0;
-
-  const result = await admin.from(jobTable(scope)).insert(rows);
-
-  if (result.error && result.error.code !== "23505") {
-    throw new RetentionWorkflowError("Retention candidates could not be saved.");
-  }
-
-  return result.error ? 0 : rows.length;
-}
 
 async function discoverRetentionCandidates(
   admin: FlexibleSupabaseClient,
-  actorUserId: string
+  attemptId: string
 ) {
   const boundary = retentionBoundaryAt();
   const oldSubmissions = await loadPagedRows(
@@ -315,35 +235,18 @@ async function discoverRetentionCandidates(
     "Retention-eligible events could not be scanned."
   );
 
-  const formCreated = await insertCandidates(
-    admin,
-    "form",
-    [...oldestByForm.entries()].map(([resourceId, createdAt]) => ({
+  const formCandidates = [...oldestByForm.entries()].map(([resourceId, createdAt]) => ({
       eligibleAt: retentionEligibleAt(createdAt),
       resourceId,
-    })),
-    actorUserId
-  );
-  const eventCreated = await insertCandidates(
-    admin,
-    "event",
-    eligibleEvents.flatMap((row) => {
+    }));
+  const eventCandidates = eligibleEvents.flatMap((row) => {
       const id = row.id;
       const sourceDate = row.ends_at || row.starts_at;
       return typeof id === "string" && typeof sourceDate === "string"
         ? [{ eligibleAt: retentionEligibleAt(sourceDate), resourceId: id }]
         : [];
-    }),
-    actorUserId
-  );
-
-  await recordAudit(admin, actorUserId, "retention.discovery_completed", null, {
-    boundary,
-    event_candidates_created: eventCreated,
-    form_candidates_created: formCreated,
-  });
-
-  return { boundary, created: eventCreated + formCreated, eventCreated, formCreated, success: true };
+    });
+  return completeRetentionStep(admin, attemptId, { intent: {}, stage: "discover", boundary, formCandidates, eventCandidates });
 }
 
 async function loadJob(
@@ -586,16 +489,13 @@ async function uploadArchiveBundle({
 async function markArchiveFailed(
   admin: FlexibleSupabaseClient,
   scope: RetentionScope,
-  jobId: string
+  jobId: string,
+  attemptId: string
 ) {
   try {
     // Constrained to archive_requested so a job that has since been archived,
     // approved, or purged can never be demoted back into a re-archivable state.
-    await admin
-      .from(jobTable(scope))
-      .update({ error_code: "archive_failed", status: "failed" })
-      .eq("id", jobId)
-      .in("status", ["archive_requested"]);
+    await completeRetentionStep(admin, attemptId, { intent: {jobId, scope}, stage: "archive_failed" });
   } catch {
     // Never let failure bookkeeping mask the original archive error.
   }
@@ -605,7 +505,7 @@ async function archiveRetentionJob(
   admin: FlexibleSupabaseClient,
   scope: RetentionScope,
   jobId: string,
-  actorUserId: string
+  attemptId: string
 ) {
   const job = await loadJob(admin, scope, jobId);
 
@@ -626,18 +526,10 @@ async function archiveRetentionJob(
     scope === "form" ? job.form_definition_id : job.event_id;
   if (!resourceId) throw new RetentionWorkflowError("Retention job target is missing.");
 
-  await applyJobTransition(
-    admin,
-    scope,
-    jobId,
-    ["candidate", "failed"],
-    { error_code: null, status: "archive_requested" },
-    "Retention archive could not be started."
-  );
+  await completeRetentionStep(admin, attemptId, { intent: {jobId, scope}, stage: "archive_start", boundary });
 
   try {
     const date = now.toISOString().slice(0, 10);
-    let archiveExportJobId: null | string = null;
     let bundle: Awaited<ReturnType<typeof uploadArchiveBundle>>;
     let rowCount = 0;
 
@@ -675,55 +567,13 @@ async function archiveRetentionJob(
         scope,
       });
 
-      const exportJob = await admin
-        .from("event_export_jobs")
-        .insert({
-          checksum_sha256: bundle.checksum,
-          destination: "google_drive",
-          event_id: event.id,
-          export_kind: "event_archive",
-          filter_metadata: { boundary, schema_version: 2 },
-          format: "archive_manifest",
-          google_drive_file_id: bundle.manifestFileId,
-          requested_by_user_id: actorUserId,
-          row_count: rowCount,
-          status: "completed",
-        })
-        .select("id")
-        .single();
-      if (exportJob.error || !exportJob.data?.id) {
-        throw new RetentionWorkflowError("Event archive audit job could not be saved.");
-      }
-      archiveExportJobId = exportJob.data.id;
     }
-
-    const completion: Record<string, unknown> = {
-      archive_manifest: bundle.manifest,
-      error_code: null,
-      manifest_checksum_sha256: bundle.checksum,
-      status: "archived",
-    };
-    if (archiveExportJobId) completion.archive_export_job_id = archiveExportJobId;
-
-    await applyJobTransition(
-      admin,
-      scope,
-      jobId,
-      ["archive_requested"],
-      completion,
-      "Retention archive record could not be completed."
-    );
-
-    await recordAudit(admin, actorUserId, "retention.archive_completed", resourceId, {
-      boundary,
-      job_id: jobId,
-      reused_files: bundle.reusedFiles,
-      row_count: rowCount,
-      scope,
+    await completeRetentionStep(admin, attemptId, {
+      intent: {jobId, scope}, stage: "archive_complete", boundary, bundle, reusedFiles: bundle.reusedFiles, rowCount,
     });
     return { boundary, reusedFiles: bundle.reusedFiles, rowCount, success: true };
   } catch (error) {
-    await markArchiveFailed(admin, scope, jobId);
+    await markArchiveFailed(admin, scope, jobId, attemptId);
     throw error;
   }
 }
@@ -732,38 +582,23 @@ async function approveRetentionPurge(
   admin: FlexibleSupabaseClient,
   scope: RetentionScope,
   jobId: string,
-  actorUserId: string
+  attemptId: string
 ) {
   const job = await loadJob(admin, scope, jobId);
   if (!canApproveRetentionPurge(job.status)) {
     throw new RetentionWorkflowError("Archive must complete before purge approval.", 409);
   }
 
-  const approvedAt = new Date().toISOString();
-  await applyJobTransition(
-    admin,
-    scope,
-    jobId,
-    ["archived"],
-    {
-      approved_at: approvedAt,
-      approved_by_user_id: actorUserId,
-      status: "purge_approved",
-    },
-    "Retention purge approval could not be saved."
-  );
-
-  await recordAudit(admin, actorUserId, "retention.purge_approved", jobId, {
-    scope,
-  });
-  return { success: true };
+  const archive = await requireVerifiedRetentionArchive(admin, scope, jobId);
+  return completeRetentionStep(admin, attemptId, {intent: {jobId, scope}, stage: "approve_purge", archiveManifest: archive,
+    archiveChecksum: sha256(Buffer.from(serializeRetentionArchiveManifest(archive), "utf8"))});
 }
 
 async function purgeRetentionJob(
   admin: FlexibleSupabaseClient,
   scope: RetentionScope,
   jobId: string,
-  actorUserId: string
+  attemptId: string
 ) {
   const job = await loadJob(admin, scope, jobId);
   if (!canPurgeRetentionJob(job.status)) {
@@ -773,50 +608,27 @@ async function purgeRetentionJob(
   // The boundary is read back out of the signed manifest inside
   // purge_retention_job, so the purge can only ever touch rows the archive
   // already captured.
-  const result = await admin.rpc("purge_retention_job", {
-    p_actor_user_id: actorUserId,
-    p_job_id: jobId,
-    p_scope: scope,
-  });
-  if (result.error) {
-    throw new RetentionWorkflowError("Retention source PII could not be purged.");
-  }
-
-  return result.data || { success: true };
+  const archive = await requireVerifiedRetentionArchive(admin, scope, jobId, {allowedStatuses: ["purge_approved"], statusMessage: "Purge requires an archived, approved job."});
+  return completeRetentionStep(admin, attemptId, {intent: {jobId, scope, confirmation: "PURGE"}, stage: "purge", archiveManifest: archive,
+    archiveChecksum: sha256(Buffer.from(serializeRetentionArchiveManifest(archive), "utf8"))});
 }
 
-async function recordAudit(
-  admin: FlexibleSupabaseClient,
-  actorUserId: string,
-  action: string,
-  entityId: null | string,
-  metadata: Record<string, unknown>
-) {
-  const result = await admin.from("audit_events").insert({
-    action,
-    actor_user_id: actorUserId,
-    entity_id: entityId,
-    entity_type: "retention_job",
-    metadata: metadata as never,
-  });
-  if (result.error) {
-    throw new RetentionWorkflowError("Retention audit record could not be saved.");
-  }
-}
 
 export async function runRetentionAction(
   admin: FlexibleSupabaseClient,
-  action: RetentionAction
+  action: RetentionAction,
+  attemptId: string
 ) {
+  if (!z.uuid().safeParse(attemptId).success) throw new RetentionWorkflowError("A reserved verification operation is required.", 403);
   if (action.action === "discover") {
-    return discoverRetentionCandidates(admin, action.actorUserId);
+    return discoverRetentionCandidates(admin, attemptId);
   }
   if (action.action === "archive") {
     return archiveRetentionJob(
       admin,
       action.scope,
       action.jobId,
-      action.actorUserId
+      attemptId
     );
   }
   if (action.action === "approve_purge") {
@@ -824,13 +636,13 @@ export async function runRetentionAction(
       admin,
       action.scope,
       action.jobId,
-      action.actorUserId
+      attemptId
     );
   }
   return purgeRetentionJob(
     admin,
     action.scope,
     action.jobId,
-    action.actorUserId
+    attemptId
   );
 }

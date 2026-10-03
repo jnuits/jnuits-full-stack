@@ -11,6 +11,7 @@ export function isAdminInvitationAcceptPath(pathname: string) {
 export type AdminInvitationAcceptanceState =
   | "claim-required"
   | "expired"
+  | "reissue-required"
   | "retry"
   | "wrong-account";
 
@@ -48,6 +49,7 @@ export function resolveAdminInvitationAcceptanceState(
   if (/claim the linked member profile/i.test(message)) {
     return "claim-required";
   }
+  if (/requires authorized reissuance/i.test(message)) return "reissue-required";
 
   if (/invitation has expired|invitation.*expired/i.test(message)) {
     return "expired";

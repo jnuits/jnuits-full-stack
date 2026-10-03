@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { AdminOperationIntent, VerificationProof } from "@/lib/auth/admin-verification/types";
+import { AdminVerificationDialog } from "./admin-verification-dialog";
+import { AdminVerificationReadGate } from "./admin-verification-read-gate";
 
 type RetentionJob = {
   approvedAt: null | string;
@@ -52,16 +55,24 @@ export function RetentionWorkspace() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [needsRead, setNeedsRead] = useState(false);
+  const inFlight = useRef(false);
+  const requestRef = useRef<{ intent: AdminOperationIntent; body: Record<string, unknown> } | null>(null);
+  const [verification, setVerification] = useState<{ intent: AdminOperationIntent; body: Record<string, unknown> } | null>(null);
 
   const load = useCallback(async () => {
     const response = await fetch("/api/admin/retention", { cache: "no-store" });
     const payload = (await response.json().catch(() => null)) as
-      | (Workspace & { error?: string })
+      | (Workspace & { error?: string; code?: string })
       | null;
     if (!response.ok || !payload) {
+      if (payload?.code && ["verification_required", "verification_invalid", "verification_expired"].includes(payload.code)) {
+        setWorkspace(null); setNeedsRead(true);
+      }
       throw new Error(payload?.error || "Retention jobs could not be loaded.");
     }
     setWorkspace(payload);
+    setNeedsRead(false);
   }, []);
 
   useEffect(() => {
@@ -74,6 +85,7 @@ export function RetentionWorkspace() {
     action: "approve_purge" | "archive" | "discover" | "purge",
     job?: RetentionJob
   ) {
+    if (inFlight.current) return;
     if (action === "purge") {
       const confirmation = window.prompt(
         "Archive is complete. Type PURGE to permanently redact source form/registration PII. Cloudinary originals remain retained."
@@ -87,13 +99,22 @@ export function RetentionWorkspace() {
     const key = job ? `${job.scope}:${job.id}` : "discover";
     setBusyKey(key);
     setMessage(null);
+    inFlight.current = true;
+    const payload = { ...(job ? { jobId: job.id, scope: job.scope } : {}), ...(action === "purge" ? { confirmation: "PURGE" } : {}) };
+    const captured = { intent: { operation: `admin.retention.${action}`, payload } as AdminOperationIntent, body: { action, ...payload } };
+    requestRef.current = captured; setVerification(captured);
+  }
+
+  async function completeAction(proof?: VerificationProof) {
+    const captured = requestRef.current;
+    if (!captured) return;
+    requestRef.current = null; setVerification(null);
 
     try {
       const response = await fetch("/api/admin/retention", {
         body: JSON.stringify({
-          action,
-          ...(job ? { jobId: job.id, scope: job.scope } : {}),
-          ...(action === "purge" ? { confirmation: "PURGE" } : {}),
+          ...captured.body,
+          ...(proof ? { verificationProof: proof.token } : {}),
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -101,9 +122,9 @@ export function RetentionWorkspace() {
       const payload = (await response.json().catch(() => null)) as
         | { created?: number; error?: string; success?: boolean }
         | null;
-      if (!response.ok) throw new Error(payload?.error || "Retention action failed.");
+      if (!response.ok || payload?.success !== true) throw new Error(payload?.error || "Retention action failed. Refresh its status before retrying.");
       setMessage(
-        action === "discover"
+        captured.body.action === "discover"
           ? `${payload?.created || 0} retention candidate(s) created.`
           : "Retention job updated."
       );
@@ -112,10 +133,12 @@ export function RetentionWorkspace() {
       setMessage(error instanceof Error ? error.message : "Retention action failed.");
     } finally {
       setBusyKey(null);
+      inFlight.current = false;
     }
   }
 
   const jobs = workspace ? [...workspace.formJobs, ...workspace.eventJobs] : [];
+  if (needsRead) return <AdminVerificationReadGate operation="admin.retention.read" onVerified={async () => { await load(); setMessage(null); }} />;
 
   return (
     <div className="space-y-6">
@@ -212,6 +235,7 @@ export function RetentionWorkspace() {
           </div>
         )}
       </section>
+      {verification ? <AdminVerificationDialog intent={verification.intent} onVerified={proof => void completeAction(proof)} onCancel={() => { requestRef.current = null; setVerification(null); setBusyKey(null); inFlight.current = false; }} /> : null}
     </div>
   );
 }

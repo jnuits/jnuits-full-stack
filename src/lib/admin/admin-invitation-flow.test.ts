@@ -39,6 +39,7 @@ describe("admin invitation handoff", () => {
   });
 
   it("maps server-side acceptance failures to safe UI states", () => {
+    expect(resolveAdminInvitationAcceptanceState(new Error("This legacy invitation requires authorized reissuance."))).toBe("reissue-required");
     expect(
       resolveAdminInvitationAcceptanceState(
         new Error("Claim the linked member profile with this same account before accepting admin access."),

@@ -17,7 +17,7 @@ import {
   buildAdminInvitationAcceptPath,
   resolveAdminInvitationAcceptanceState,
 } from "@/lib/admin/admin-invitation-flow";
-import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
+import { getSafeAdminActionErrorMessage, SafeAdminActionError } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { issueInvitationForMember } from "@/lib/admin/invitations";
 import {
@@ -34,6 +34,10 @@ import { sendEmail } from "@/lib/notifications/send-email";
 import { recordSecurityEvent } from "@/lib/security/security-events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
+import { createClient } from "@/lib/supabase/server";
+import { authorizeAdminOperation, adminVerificationFailureMessage } from "@/lib/auth/admin-verification/guard";
+import { AdminVerificationStore } from "@/lib/auth/admin-verification/store";
+import type { AdminOperationIntent } from "@/lib/auth/admin-verification/types";
 
 const adminProfileUpdateSchema = z.object({
   adminProfileId: z.string().trim().min(1, "Missing admin profile identifier."),
@@ -247,165 +251,6 @@ async function actorCanManageTarget(options: {
     targetUserId: options.target.profile.user_id,
   });
 }
-async function countActiveSuperAdmins(admin: AdminClient) {
-  const result = await asFlexibleClient(admin)
-    .from("rbac_user_platform_roles" as string)
-    .select("user_id, rbac_platform_roles!inner(code, scope)")
-    .eq("scope", "admin")
-    .is("revoked_at", null)
-    .eq("rbac_platform_roles.code", "super_admin");
-
-  if (result.error) throw result.error;
-
-  const userIds = Array.from(
-    new Set(((result.data || []) as Array<{ user_id?: string }>).map((row) => row.user_id).filter(Boolean) as string[]),
-  );
-
-  if (userIds.length === 0) return 0;
-
-  const profiles = await asFlexibleClient(admin)
-    .from("admin_profiles" as string)
-    .select("user_id, is_active, status")
-    .in("user_id", userIds);
-
-  if (profiles.error) throw profiles.error;
-
-  return ((profiles.data || []) as Array<{ is_active?: boolean; status?: null | string }>).filter((profile) =>
-    profile.is_active && normalizeAdminLifecycleStatus(profile.status, Boolean(profile.is_active)) === "active",
-  ).length;
-}
-
-async function assertNotLastSuperAdminChange(admin: AdminClient, target: TargetAccount) {
-  if (target.primaryRole !== "super_admin") return;
-
-  const activeSuperAdmins = await countActiveSuperAdmins(admin);
-  if (activeSuperAdmins <= 1) {
-    throw new Error("The last active super admin cannot be changed, frozen, or removed.");
-  }
-}
-
-async function updateAdminProfileStatus(
-  admin: AdminClient,
-  options: {
-    actorUserId: string;
-    isActive: boolean;
-    profileId: string;
-    reason: string;
-    status: AdminAccountLifecycleStatus;
-  },
-) {
-  const now = new Date().toISOString();
-  const result = await asFlexibleClient(admin)
-    .from("admin_profiles" as string)
-    .update({
-      is_active: options.isActive,
-      status: options.status,
-      status_reason: options.reason,
-      status_updated_at: now,
-      status_updated_by_user_id: options.actorUserId,
-      updated_at: now,
-    })
-    .eq("id", options.profileId);
-
-  if (!result.error) return;
-  if (!isMissingSchemaError(result.error)) throw result.error;
-
-  const legacyResult = await asFlexibleClient(admin)
-    .from("admin_profiles" as string)
-    .update({ is_active: options.isActive, updated_at: now })
-    .eq("id", options.profileId);
-
-  if (legacyResult.error) throw legacyResult.error;
-}
-
-async function revokeActiveAdminGrants(
-  admin: AdminClient,
-  options: { actorUserId: string; reason: string; targetUserId: string },
-) {
-  const now = new Date().toISOString();
-  const result = await asFlexibleClient(admin)
-    .from("rbac_user_platform_roles" as string)
-    .update({
-      note: options.reason,
-      revocation_reason: options.reason,
-      revoked_at: now,
-      revoked_by_user_id: options.actorUserId,
-    })
-    .eq("user_id", options.targetUserId)
-    .eq("scope", "admin")
-    .is("revoked_at", null);
-
-  if (!result.error) return;
-  if (!isMissingSchemaError(result.error)) throw result.error;
-
-  const legacyResult = await asFlexibleClient(admin)
-    .from("rbac_user_platform_roles" as string)
-    .update({ note: options.reason, revoked_at: now })
-    .eq("user_id", options.targetUserId)
-    .eq("scope", "admin")
-    .is("revoked_at", null);
-
-  if (legacyResult.error) throw legacyResult.error;
-}
-
-async function insertAdminRoleGrant(
-  admin: AdminClient,
-  options: {
-    actorUserId: string;
-    note: string;
-    roleCode: AdminAccountRoleCode;
-    targetUserId: string;
-  },
-) {
-  const roleResult = await asFlexibleClient(admin)
-    .from("rbac_platform_roles" as string)
-    .select("id")
-    .eq("code", options.roleCode)
-    .eq("scope", "admin")
-    .maybeSingle();
-
-  if (roleResult.error || !roleResult.data) {
-    throw roleResult.error || new Error("Target admin role is not configured.");
-  }
-
-  const targetRoleId = (roleResult.data as { id: string }).id;
-  const loadActiveGrant = async () => {
-    const result = await asFlexibleClient(admin)
-      .from("rbac_user_platform_roles" as string)
-      .select("id, role_id")
-      .eq("user_id", options.targetUserId)
-      .eq("scope", "admin")
-      .is("revoked_at", null)
-      .maybeSingle();
-
-    if (result.error) throw result.error;
-    return (result.data || null) as { id: string; role_id: string } | null;
-  };
-
-  const existingGrant = await loadActiveGrant();
-  if (existingGrant) {
-    if (existingGrant.role_id === targetRoleId) return;
-    throw new Error("This account already has a different active admin role.");
-  }
-
-  const insertResult = await asFlexibleClient(admin)
-    .from("rbac_user_platform_roles" as string)
-    .insert({
-      granted_by: options.actorUserId,
-      note: options.note,
-      role_id: targetRoleId,
-      scope: "admin",
-      user_id: options.targetUserId,
-    });
-
-  if (!insertResult.error) return;
-  if (!isUniqueConstraintError(insertResult.error)) throw insertResult.error;
-
-  const concurrentGrant = await loadActiveGrant();
-  if (concurrentGrant?.role_id === targetRoleId) return;
-  throw insertResult.error;
-}
-
 async function auditAdminAccountEvent(
   admin: AdminClient,
   payload: {
@@ -441,30 +286,8 @@ async function auditAdminAccountEvent(
   });
 }
 
-function generateAdminCode(userId: string) {
-  return `JNUITS-ADMIN-${userId.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
-}
-
 function normalizeEmail(value: null | string | undefined) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
-}
-
-function isUniqueConstraintError(error: unknown) {
-  const code =
-    error && typeof error === "object" && "code" in error
-      ? String((error as { code?: unknown }).code || "")
-      : "";
-  const message =
-    error && typeof error === "object" && "message" in error
-      ? String((error as { message?: unknown }).message || "")
-      : error instanceof Error
-        ? error.message
-        : String(error || "");
-
-  return (
-    code === "23505" ||
-    /admin_profiles_(user_id|linked_member_id)_key|duplicate key value violates unique constraint/i.test(message)
-  );
 }
 
 async function ensureAdminInvitationSchema(admin: AdminClient) {
@@ -575,52 +398,6 @@ async function ensureTargetAuthUserForEmail(admin: AdminClient, email: string) {
   };
 }
 
-async function loadExistingAdminProfileForInvite(
-  flexibleAdmin: ReturnType<typeof asFlexibleClient>,
-  options: { linkedMemberId?: null | string; targetUserId: string },
-) {
-  let userProfileResult = await flexibleAdmin
-    .from("admin_profiles" as string)
-    .select("id, user_id, admin_code, linked_member_id, is_active, status")
-    .eq("user_id", options.targetUserId)
-    .maybeSingle();
-
-  if (userProfileResult.error && isMissingSchemaError(userProfileResult.error)) {
-    userProfileResult = await flexibleAdmin
-      .from("admin_profiles" as string)
-      .select("id, user_id, admin_code, linked_member_id, is_active")
-      .eq("user_id", options.targetUserId)
-      .maybeSingle();
-  }
-
-  if (userProfileResult.error) throw userProfileResult.error;
-
-  let linkedProfileResult = options.linkedMemberId
-    ? await flexibleAdmin
-        .from("admin_profiles" as string)
-        .select("id, user_id, admin_code, linked_member_id, is_active, status")
-        .eq("linked_member_id", options.linkedMemberId)
-        .maybeSingle()
-    : { data: null, error: null };
-
-  if (linkedProfileResult.error && isMissingSchemaError(linkedProfileResult.error)) {
-    linkedProfileResult = options.linkedMemberId
-      ? await flexibleAdmin
-          .from("admin_profiles" as string)
-          .select("id, user_id, admin_code, linked_member_id, is_active")
-          .eq("linked_member_id", options.linkedMemberId)
-          .maybeSingle()
-      : { data: null, error: null };
-  }
-
-  if (linkedProfileResult.error) throw linkedProfileResult.error;
-
-  return {
-    linkedProfile: (linkedProfileResult.data || null) as AdminProfileRecord | null,
-    userProfile: (userProfileResult.data || null) as AdminProfileRecord | null,
-  };
-}
-
 async function loadPendingAdminInvitationForUser(admin: AdminClient, user: { email?: null | string; id: string }) {
   const flexibleAdmin = asFlexibleClient(admin);
   const selectFields = "id, email, invited_role_code, status, target_user_id, target_admin_profile_id, expires_at";
@@ -654,113 +431,6 @@ async function loadPendingAdminInvitationForUser(admin: AdminClient, user: { ema
   return emailResult.data || null;
 }
 
-async function ensurePendingAdminProfile(options: {
-  actorUserId: string;
-  admin: AdminClient;
-  displayName: string;
-  email: string;
-  linkedMemberId?: null | string;
-  roleCode: AdminAccountRoleCode;
-  targetUserId: string;
-  title: string;
-}) {
-  const flexibleAdmin = asFlexibleClient(options.admin);
-  const { linkedProfile, userProfile } = await loadExistingAdminProfileForInvite(
-    flexibleAdmin,
-    {
-      linkedMemberId: options.linkedMemberId || null,
-      targetUserId: options.targetUserId,
-    },
-  );
-
-  if (userProfile && linkedProfile && userProfile.id !== linkedProfile.id) {
-    throw new Error("This user and member profile are already tied to different admin identities.");
-  }
-
-  const existing = linkedProfile || userProfile;
-  const now = new Date().toISOString();
-  const nextProfileValues = {
-    display_name: options.displayName || options.email,
-    email: options.email,
-    is_active: false,
-    linked_member_id: options.linkedMemberId || null,
-    status: "pending_invite",
-    status_reason: `Invited as ${ADMIN_ROLE_LABELS[options.roleCode]}`,
-    status_updated_at: now,
-    status_updated_by_user_id: options.actorUserId,
-    title: options.title || ADMIN_ROLE_LABELS[options.roleCode],
-    updated_at: now,
-    user_id: options.targetUserId,
-  };
-
-  if (existing) {
-    const status = normalizeAdminLifecycleStatus(existing.status, existing.is_active);
-    if (status !== "removed") {
-      throw new Error("This user or member already has a pending or active admin identity.");
-    }
-
-    const result = await flexibleAdmin
-      .from("admin_profiles" as string)
-      .update(nextProfileValues)
-      .eq("id", existing.id)
-      .select("id")
-      .single();
-
-    if (result.error) throw result.error;
-    return (result.data as { id: string }).id;
-  }
-
-  const result = await flexibleAdmin
-    .from("admin_profiles" as string)
-    .insert({
-      ...nextProfileValues,
-      admin_code: generateAdminCode(options.targetUserId),
-      created_by_user_id: options.actorUserId,
-    })
-    .select("id")
-    .single();
-
-  if (result.error) {
-    if (!isUniqueConstraintError(result.error)) throw result.error;
-
-    const conflict = await loadExistingAdminProfileForInvite(flexibleAdmin, {
-      linkedMemberId: options.linkedMemberId || null,
-      targetUserId: options.targetUserId,
-    });
-
-    if (
-      conflict.userProfile &&
-      conflict.linkedProfile &&
-      conflict.userProfile.id !== conflict.linkedProfile.id
-    ) {
-      throw new Error("This user and member profile are already tied to different admin identities.");
-    }
-
-    const conflictProfile = conflict.linkedProfile || conflict.userProfile;
-    if (conflictProfile) {
-      const status = normalizeAdminLifecycleStatus(
-        conflictProfile.status,
-        conflictProfile.is_active,
-      );
-
-      if (status === "removed") {
-        const updateResult = await flexibleAdmin
-          .from("admin_profiles" as string)
-          .update(nextProfileValues)
-          .eq("id", conflictProfile.id)
-          .select("id")
-          .single();
-
-        if (updateResult.error) throw updateResult.error;
-        return (updateResult.data as { id: string }).id;
-      }
-    }
-
-    throw new Error("This user or member already has a pending or active admin identity.");
-  }
-
-  return (result.data as { id: string }).id;
-}
 async function setFlashAndRedirect(
   tone: "error" | "success",
   title: string,
@@ -846,7 +516,6 @@ export async function updateAdminProfileAction(formData: FormData) {
 export async function updateAdminLifecycleAction(formData: FormData) {
   const auth = await requireAdminPermission("admin.roles.manage_admin", {
     fallbackPath: "/admin/admin-profiles",
-    requireAal2: true,
   });
   const actorUserId = auth.user?.id;
   const actorRole = normalizeAdminRoleCode(auth.user?.adminRole);
@@ -864,6 +533,12 @@ export async function updateAdminLifecycleAction(formData: FormData) {
       parsed.error.issues[0]?.message || "Invalid lifecycle action.",
     );
   }
+
+  const operation = parsed.data.intent === "remove" ? "admin.role.remove" : parsed.data.intent === "freeze" ? "admin.lifecycle.freeze" : "admin.lifecycle.unfreeze";
+  const intent: AdminOperationIntent = { operation, payload: { adminProfileId: parsed.data.adminProfileId, confirmation: parsed.data.confirmation } };
+  const proof = asString(formData.get("verificationProof")) || undefined;
+  const authorized = await authorizeAdminOperation(intent, proof);
+  if (!authorized.ok) return setFlashAndRedirect("error", "Lifecycle action failed", adminVerificationFailureMessage(authorized.code));
 
   const admin = createAdminClient();
   let target: TargetAccount | null = null;
@@ -886,63 +561,32 @@ export async function updateAdminLifecycleAction(formData: FormData) {
     if (parsed.data.intent === "unfreeze" && !capabilities.canUnfreeze) throw new Error("Your role cannot unfreeze this admin account.");
     if (parsed.data.intent === "remove" && !capabilities.canRemove) throw new Error("Your role cannot remove this admin account.");
 
-    if (parsed.data.intent !== "unfreeze") await assertNotLastSuperAdminChange(admin, target);
-
-    if (parsed.data.intent === "freeze") {
-      const { error } = await admin.auth.admin.updateUserById(target.profile.user_id, { ban_duration: "876000h" });
-      if (error) throw error;
-      await updateAdminProfileStatus(admin, {
-        actorUserId,
-        isActive: false,
-        profileId: target.profile.id,
-        reason: "Frozen by admin account lifecycle action.",
-        status: "frozen",
-      });
-      await auditAdminAccountEvent(admin, {
-        action: "admin_account.frozen",
-        actorUserId,
-        profile: target.profile,
-        severity: "warning",
-      });
-    }
-
-    if (parsed.data.intent === "unfreeze") {
-      const { error } = await admin.auth.admin.updateUserById(target.profile.user_id, { ban_duration: "none" });
-      if (error) throw error;
-      await updateAdminProfileStatus(admin, {
-        actorUserId,
-        isActive: true,
-        profileId: target.profile.id,
-        reason: "Unfrozen by admin account lifecycle action.",
-        status: "active",
-      });
-      await auditAdminAccountEvent(admin, {
-        action: "admin_account.unfrozen",
-        actorUserId,
-        profile: target.profile,
-      });
-    }
-
     if (parsed.data.intent === "remove") {
-      await revokeActiveAdminGrants(admin, {
-        actorUserId,
-        reason: "Removed through admin account lifecycle action.",
-        targetUserId: target.profile.user_id,
+      const result = await asFlexibleClient(await createClient()).rpc("apply_admin_role_operation", {
+        p_operation: operation, p_payload: intent.payload, p_proof: proof || null,
       });
-      await admin.auth.admin.updateUserById(target.profile.user_id, { ban_duration: "none" });
-      await updateAdminProfileStatus(admin, {
-        actorUserId,
-        isActive: false,
-        profileId: target.profile.id,
-        reason: "Admin role removed; Auth user and member profile preserved.",
-        status: "removed",
+      if (result.error) throw result.error;
+      const completed = z.object({ ok: z.literal(true), value: z.object({ targetUserId: z.uuid(), adminProfileId: z.uuid() }) }).safeParse(result.data);
+      if (!completed.success || completed.data.value.targetUserId !== target.profile.user_id || completed.data.value.adminProfileId !== target.profile.id) {
+        throw new SafeAdminActionError("The verified role removal could not be confirmed. Refresh before trying again.");
+      }
+      // The dual-verified DB transaction has already removed only admin roles.
+      // Cleanup cannot restore its consumed proof or revive those permissions.
+      const cleanup = await admin.auth.admin.updateUserById(target.profile.user_id, { ban_duration: "none" });
+      if (cleanup.error) throw new SafeAdminActionError("Admin access was removed, but account cleanup needs administrator review. Do not repeat the role removal.");
+    } else {
+      const reservation = await new AdminVerificationStore().reserve(authorized.value.prepared.actor, intent, proof);
+      if (!reservation.ok) throw new SafeAdminActionError(adminVerificationFailureMessage(reservation.code));
+      const { error } = await admin.auth.admin.updateUserById(target.profile.user_id, {
+        ban_duration: parsed.data.intent === "freeze" ? "876000h" : "none",
       });
-      await auditAdminAccountEvent(admin, {
-        action: "admin_account.removed",
-        actorUserId,
-        profile: target.profile,
-        severity: "critical",
+      if (error) throw new SafeAdminActionError("The account update could not be confirmed. Ask an administrator to review its state before trying again.");
+      const result = await asFlexibleClient(admin).rpc("complete_admin_lifecycle_operation", {
+        p_attempt_id: reservation.value.attemptId, p_payload: intent.payload,
       });
+      if (result.error || !z.object({ ok: z.literal(true), value: z.null() }).safeParse(result.data).success) {
+        throw new SafeAdminActionError("The account update needs administrator review before another attempt. Its verification cannot be reused.");
+      }
     }
   } catch (error) {
     await setFlashAndRedirect(
@@ -987,6 +631,10 @@ export async function changeAdminRoleAction(formData: FormData) {
     );
   }
 
+  const proof = asString(formData.get("verificationProof")) || undefined;
+  const authorized = await authorizeAdminOperation({ operation: "admin.role.change", payload: parsed.data }, proof);
+  if (!authorized.ok) return setFlashAndRedirect("error", "Role change failed", adminVerificationFailureMessage(authorized.code));
+
   const admin = createAdminClient();
   let target: TargetAccount | null = null;
 
@@ -1004,33 +652,12 @@ export async function changeAdminRoleAction(formData: FormData) {
     if (!capabilities.allowedRoleTargets.includes(parsed.data.roleCode)) throw new Error("The selected target role is not allowed.");
     if (!confirmationMatches(target.profile, parsed.data.confirmation)) throw new Error("Confirmation did not match the target admin code or email.");
     if (target.primaryRole === parsed.data.roleCode) throw new Error("This admin already has the selected role.");
-    if (target.primaryRole === "super_admin" && parsed.data.roleCode !== "super_admin") await assertNotLastSuperAdminChange(admin, target);
 
-    await revokeActiveAdminGrants(admin, {
-      actorUserId,
-      reason: `Changed admin role to ${parsed.data.roleCode}.`,
-      targetUserId: target.profile.user_id,
-    });
-    await insertAdminRoleGrant(admin, {
-      actorUserId,
-      note: `Granted through admin account console as ${ADMIN_ROLE_LABELS[parsed.data.roleCode]}.`,
-      roleCode: parsed.data.roleCode,
-      targetUserId: target.profile.user_id,
-    });
-    await updateAdminProfileStatus(admin, {
-      actorUserId,
-      isActive: true,
-      profileId: target.profile.id,
-      reason: `Role changed to ${ADMIN_ROLE_LABELS[parsed.data.roleCode]}.`,
-      status: "active",
-    });
-    await auditAdminAccountEvent(admin, {
-      action: "admin_account.role_changed",
-      actorUserId,
-      metadata: { previousRole: target.primaryRole, roleCode: parsed.data.roleCode },
-      profile: target.profile,
-      severity: parsed.data.roleCode === "super_admin" || target.primaryRole === "super_admin" ? "critical" : "warning",
-    });
+    const client = asFlexibleClient(await createClient());
+    const result = await client.rpc("apply_admin_role_operation", { p_operation: "admin.role.change", p_payload: parsed.data, p_proof: proof ?? null });
+    if (result.error || !result.data || typeof result.data !== "object" || result.data.ok !== true) {
+      throw result.error || new Error("Admin role verification was not accepted.");
+    }
   } catch (error) {
     await setFlashAndRedirect(
       "error",
@@ -1082,6 +709,10 @@ export async function inviteAdminAction(formData: FormData) {
     );
   }
 
+  const proof = asString(formData.get("verificationProof")) || undefined;
+  const authorized = await authorizeAdminOperation({ operation: "admin.role.invite", payload: parsed.data }, proof);
+  if (!authorized.ok) return setFlashAndRedirect("error", "Admin invitation failed", adminVerificationFailureMessage(authorized.code), "/admin/admin-profiles?tab=invitations");
+
   const allowedRoles: AdminAccountRoleCode[] = actorRole === "super_admin"
     ? ["super_admin", "admin", "content_admin"]
     : actorRole === "admin"
@@ -1101,22 +732,28 @@ export async function inviteAdminAction(formData: FormData) {
 
   try {
     await ensureAdminInvitationSchema(admin);
+    const client = asFlexibleClient(await createClient());
+    const issuance = await client.rpc("apply_admin_role_operation", { p_operation: "admin.role.invite", p_payload: parsed.data, p_proof: proof ?? null });
+    const bound = z.object({ ok: z.literal(true), value: z.object({ attemptId: z.uuid(), recipientEmail: z.email(), displayName: z.string(), linkedMemberId: z.uuid().nullable() }) }).safeParse(issuance.data);
+    if (issuance.error || !bound.success) throw issuance.error || new SafeAdminActionError("Invitation verification was not accepted. Verify again before retrying.");
 
     let actionLink = `${getAppBaseUrl()}/admin/invite/accept`;
     let claimInvitationId: null | string = null;
     let requiresMemberClaim = false;
     let email = parsed.data.email;
-    let displayName = parsed.data.displayName;
+    const displayName = bound.data.value.displayName;
     let linkedMemberId: null | string = null;
     let targetUser: User | null = null;
 
     if (parsed.data.inviteMode === "member") {
       const member = await findMemberForAdminInvite(admin, parsed.data.memberId);
+      if (member.id !== bound.data.value.linkedMemberId || normalizeEmail(member.email) !== bound.data.value.recipientEmail) {
+        throw new SafeAdminActionError("The member details changed. Refresh and verify this invitation again.");
+      }
       const linkedProfile = await loadAdminProfileByLinkedMember(admin, member.id);
       assertLinkedMemberCanBeInvited({ linkedProfile, member });
 
       email = normalizeEmail(member.email);
-      displayName = parsed.data.displayName || member.full_name || email;
       linkedMemberId = member.id;
 
       if (!email) {
@@ -1158,7 +795,6 @@ export async function inviteAdminAction(formData: FormData) {
       actionLink = target.actionLink;
       targetUser = target.user;
       email = parsed.data.email;
-      displayName = parsed.data.displayName || parsed.data.email;
     }
 
     if (!targetUser) {
@@ -1177,51 +813,13 @@ export async function inviteAdminAction(formData: FormData) {
     if (existingAdminGrant.error) throw existingAdminGrant.error;
     if (existingAdminGrant.data) throw new Error("This user already has active admin access.");
 
-    const profileId = await ensurePendingAdminProfile({
-      actorUserId,
-      admin,
-      displayName,
-      email,
-      linkedMemberId,
-      roleCode: parsed.data.roleCode,
-      targetUserId: targetUser.id,
-      title: parsed.data.title,
+    const completion = await asFlexibleClient(admin).rpc("complete_admin_invitation_operation", {
+      p_attempt_id: bound.data.value.attemptId,
+      p_payload: { targetUserId: targetUser.id, claimInvitationId },
     });
-
-    const invitationInsertValues = {
-      claim_invitation_id: claimInvitationId,
-      delivery_status: "pending",
-      email,
-      invited_by_user_id: actorUserId,
-      invited_role_code: parsed.data.roleCode,
-      note: parsed.data.note || null,
-      status: "pending",
-      target_admin_profile_id: profileId,
-      target_user_id: targetUser.id,
-    };
-
-    let invitationResult = await asFlexibleClient(admin)
-      .from("admin_invitations" as string)
-      .insert(invitationInsertValues)
-      .select("id")
-      .single();
-
-    if (invitationResult.error && isMissingSchemaError(invitationResult.error)) {
-      if (claimInvitationId) {
-        logServerError("adminInvitation.claimInvitationIdColumnMissing", invitationResult.error);
-      }
-      const legacyInvitationValues = { ...invitationInsertValues };
-      delete (legacyInvitationValues as Partial<typeof invitationInsertValues>).claim_invitation_id;
-      invitationResult = await asFlexibleClient(admin)
-        .from("admin_invitations" as string)
-        .insert(legacyInvitationValues)
-        .select("id")
-        .single();
-    }
-
-    if (invitationResult.error || !invitationResult.data) throw invitationResult.error || new Error("Admin invitation record could not be created.");
-
-    const invitationId = (invitationResult.data as { id: string }).id;
+    const completed = z.object({ ok: z.literal(true), value: z.object({ invitationId: z.uuid(), adminProfileId: z.uuid() }) }).safeParse(completion.data);
+    if (completion.error || !completed.success) throw completion.error || new SafeAdminActionError("The reserved invitation could not be completed. Refresh its status before retrying.");
+    const invitationId = completed.data.value.invitationId;
     const delivery = await sendEmail({
       html: buildAdminInvitationEmail({
         actionLink,
@@ -1235,7 +833,7 @@ export async function inviteAdminAction(formData: FormData) {
       to: email,
     });
 
-    await asFlexibleClient(admin)
+    const deliveryUpdate = await asFlexibleClient(admin)
       .from("admin_invitations" as string)
       .update({
         delivery_status: delivery.success ? "sent" : "failed",
@@ -1245,22 +843,6 @@ export async function inviteAdminAction(formData: FormData) {
         status: delivery.success ? "pending" : "failed",
       })
       .eq("id", invitationId);
-
-    await asFlexibleClient(admin).from("audit_events" as string).insert({
-      action: "admin_invitation.created",
-      actor_user_id: actorUserId,
-      entity_id: invitationId,
-      entity_type: "admin_invitation",
-      metadata: {
-        claimInvitationId,
-        deliveryStatus: delivery.success ? "sent" : "failed",
-        email,
-        inviteMode: parsed.data.inviteMode,
-        linkedMemberId,
-        roleCode: parsed.data.roleCode,
-        targetUserId: targetUser.id,
-      },
-    });
 
     await recordSecurityEvent(admin, {
       actorUserId,
@@ -1276,6 +858,7 @@ export async function inviteAdminAction(formData: FormData) {
       severity: parsed.data.roleCode === "super_admin" ? "critical" : "warning",
       targetUserId: targetUser.id,
     });
+    if (deliveryUpdate.error || !delivery.success) throw new SafeAdminActionError("The invitation was created but email delivery did not complete. Check its status before reissuing it.");
   } catch (error) {
     await setFlashAndRedirect(
       "error",
@@ -1300,7 +883,6 @@ export async function inviteAdminAction(formData: FormData) {
 export async function revokeAdminInvitationAction(formData: FormData) {
   const auth = await requireAdminPermission("admin.roles.manage_admin", {
     fallbackPath: "/admin/admin-profiles?tab=invitations",
-    requireAal2: true,
   });
   const actorUserId = auth.user?.id;
 
@@ -1319,44 +901,18 @@ export async function revokeAdminInvitationAction(formData: FormData) {
     );
   }
 
-  const admin = createAdminClient();
+  const proof = asString(formData.get("verificationProof")) || undefined;
+  const authorized = await authorizeAdminOperation({ operation: "admin.invitation.revoke", payload: parsed.data }, proof);
+  if (!authorized.ok) return setFlashAndRedirect("error", "Invitation revoke failed", adminVerificationFailureMessage(authorized.code), "/admin/admin-profiles?tab=invitations");
 
   try {
-    const result = await asFlexibleClient(admin)
-      .from("admin_invitations" as string)
-      .select("id, email, invited_role_code, invited_by_user_id, status, target_user_id, target_admin_profile_id")
-      .eq("id", parsed.data.invitationId)
-      .maybeSingle();
-
-    if (result.error || !result.data) throw result.error || new Error("Admin invitation was not found.");
-
-    const invitation = result.data as AdminInvitationRecord;
-    if (parsed.data.confirmation.toLowerCase() !== invitation.email.toLowerCase()) throw new Error("Confirmation did not match the invitation email.");
-
-    const update = await asFlexibleClient(admin)
-      .from("admin_invitations" as string)
-      .update({ revoked_at: new Date().toISOString(), revoked_by_user_id: actorUserId, status: "revoked" })
-      .eq("id", invitation.id);
-
-    if (update.error) throw update.error;
-
-    if (invitation.target_admin_profile_id) {
-      await updateAdminProfileStatus(admin, {
-        actorUserId,
-        isActive: false,
-        profileId: invitation.target_admin_profile_id,
-        reason: "Pending admin invitation revoked.",
-        status: "removed",
-      });
-    }
-
-    await asFlexibleClient(admin).from("audit_events" as string).insert({
-      action: "admin_invitation.revoked",
-      actor_user_id: actorUserId,
-      entity_id: invitation.id,
-      entity_type: "admin_invitation",
-      metadata: { email: invitation.email, roleCode: invitation.invited_role_code },
+    const result = await asFlexibleClient(await createClient()).rpc("revoke_admin_invitation_verified", {
+      p_payload: parsed.data, p_proof: proof || null,
     });
+    if (result.error) throw result.error;
+    if (!z.object({ ok: z.literal(true), value: z.null() }).safeParse(result.data).success) {
+      throw new SafeAdminActionError("The verified invitation cancellation could not be confirmed. Refresh before trying again.");
+    }
   } catch (error) {
     await setFlashAndRedirect(
       "error",
@@ -1445,37 +1001,22 @@ export async function acceptAdminInvitationAction() {
       }
     }
 
-    await insertAdminRoleGrant(admin, {
-      actorUserId: user.id,
-      note: "Accepted admin invitation.",
-      roleCode,
-      targetUserId: user.id,
-    });
-
-    if (invitation.target_admin_profile_id) {
-      await updateAdminProfileStatus(admin, {
-        actorUserId: user.id,
-        isActive: true,
-        profileId: invitation.target_admin_profile_id,
-        reason: "Admin invitation accepted.",
-        status: "active",
-      });
+    const client = await createClient();
+    const result = await asFlexibleClient(client).rpc("accept_verified_admin_invitation", { p_invitation_id: invitation.id });
+    if (result.error) throw result.error;
+    if (!result.data || typeof result.data !== "object" || result.data.ok !== true) {
+      const code = result.data && typeof result.data === "object" ? result.data.code : null;
+      const messages: Record<string, string> = {
+        invitation_reissue_required: "This legacy invitation requires authorized reissuance.",
+        invitation_expired: "This admin invitation has expired.",
+        invitation_claim_required: "Claim the linked member profile with this same account before accepting admin access.",
+        invitation_wrong_account: "This invitation belongs to a different signed-in user.",
+      };
+      throw new SafeAdminActionError(typeof code === "string" && messages[code] ? messages[code] : "This invitation could not be activated.");
     }
-
-    const update = await asFlexibleClient(admin)
-      .from("admin_invitations" as string)
-      .update({ accepted_at: new Date().toISOString(), accepted_by_user_id: user.id, status: "accepted", target_user_id: user.id })
-      .eq("id", invitation.id);
-
-    if (update.error) throw update.error;
-
-    await recordSecurityEvent(admin, {
-      actorUserId: user.id,
-      eventType: "admin_invitation.accepted",
-      payload: { invitationId: invitation.id, roleCode },
-      severity: roleCode === "super_admin" ? "critical" : "warning",
-      targetUserId: user.id,
-    });
+    // The grant advances the role version. Do not keep stale recipient claims.
+    const refreshed = await client.auth.refreshSession();
+    if (refreshed.error) throw new SafeAdminActionError("Admin access was recorded. Sign in again to refresh your session.");
   } catch (error) {
     logServerError("adminInvitation.accept", error);
     redirect(buildAdminInvitationAcceptPath({ state: resolveAdminInvitationAcceptanceState(error) }));

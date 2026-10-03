@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { safeAdminVerificationReturnPath } from "@/lib/auth/admin-verification/return-path";
 
-export function AdminMFASetup() {
+export function AdminMFASetup({ onVerified, returnPath = "/admin/dashboard" }: { onVerified?: () => void; returnPath?: string } = {}) {
   const router = useRouter();
   const enrolledRef = useRef(false);
   const [code, setCode] = useState("");
@@ -34,7 +35,8 @@ export function AdminMFASetup() {
       );
 
       if (verifiedTotp) {
-        router.replace("/admin/mfa/challenge");
+        if (onVerified) { onVerified(); return; }
+        router.replace(`/admin/mfa/challenge?next=${encodeURIComponent(safeAdminVerificationReturnPath(returnPath))}`);
         router.refresh();
         return;
       }
@@ -82,7 +84,7 @@ export function AdminMFASetup() {
     }
 
     void enrollFactor();
-  }, [router]);
+  }, [router, onVerified, returnPath]);
 
   async function handleVerify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -115,7 +117,11 @@ export function AdminMFASetup() {
         return;
       }
 
-      router.replace("/admin/dashboard");
+      // The endpoint resolves trusted factor/session history server-side; a
+      // browser event or claimed factor ID never establishes enrollment.
+      await fetch("/api/admin/mfa-suggestion", { cache: "no-store" }).catch(() => undefined);
+      if (onVerified) { onVerified(); return; }
+      router.replace(safeAdminVerificationReturnPath(returnPath));
       router.refresh();
     } finally {
       setPending(false);
@@ -129,8 +135,8 @@ export function AdminMFASetup() {
           <p className="admin-page-header__breadcrumb">Admin security</p>
           <h1 className="admin-page-header__title">Set up MFA</h1>
           <p className="admin-page-header__desc">
-            Admin accounts require a verified TOTP authenticator before entering
-            the operator workspace.
+            Add an authenticator to protect your account and verify sensitive
+            operations. Mandatory workspace protection follows society settings.
           </p>
         </div>
       </div>

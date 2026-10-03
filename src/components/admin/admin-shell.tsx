@@ -6,6 +6,7 @@ import {
 import { hasPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminNavClient } from "./admin-nav-client";
+import { AdminMfaSuggestion } from "./admin-mfa-suggestion";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -127,6 +128,7 @@ export async function AdminShell({
       badgeCounts={badgeCounts}
       navigationItems={navigationItems}
     >
+      <AdminMfaSuggestion />
       {children}
     </AdminNavClient>
   );

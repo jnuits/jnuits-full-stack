@@ -1655,7 +1655,7 @@ export function MembershipDbClient({
 
       <StickySectionNav />
 
-      {renewalQueue ? <MembershipRenewalPanel key={`${renewalQueue.queue}:${renewalQueue.page}:${renewalQueue.rows.map((row) => row.requestUpdatedAt || row.dueOn).join(":")}`} data={renewalQueue} /> : null}
+      {renewalQueue ? <MembershipRenewalPanel data={renewalQueue} /> : null}
 
       <MemberOperationsSection
         key={`${memberPage}:${memberPageSize}:${memberLifecycleFilter}:${memberRoleFilter}`}

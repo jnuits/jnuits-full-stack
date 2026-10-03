@@ -12,9 +12,12 @@ vi.mock("@/lib/integrations/google-drive", () => ({
 }));
 
 import { RetentionWorkflowError, runRetentionAction } from "./operations";
+import { signRetentionArchiveManifest, serializeRetentionArchiveManifest } from "./archive";
+import { sha256 } from "@/lib/exports/tabular";
 
 const ACTOR = "11111111-1111-4111-8111-111111111111";
 const JOB_ID = "22222222-2222-4222-8222-222222222222";
+const ATTEMPT_ID = "33333333-3333-4333-8333-333333333333";
 const NOW = new Date("2026-07-26T00:00:00.000Z");
 const BOUNDARY = "2023-07-26T00:00:00.000Z";
 const PAGE_SIZE = 500;
@@ -71,7 +74,12 @@ function createAdmin(handler: Handler) {
     return chainFor(call);
   }
 
-  const rpc = vi.fn().mockResolvedValue({ data: { success: true }, error: null });
+  const rpc = vi.fn().mockImplementation(async (name: string, args: {p_payload: {stage: string}}) => {
+    if (name !== "complete_admin_retention_operation") throw new Error(`Unexpected unverified RPC: ${name}`);
+    const value = args.p_payload.stage === "archive_start" || args.p_payload.stage === "archive_failed" ? null
+      : args.p_payload.stage === "discover" ? {success: true, boundary: BOUNDARY, created: 0, formCreated: 0, eventCreated: 0} : {success: true};
+    return {data: {ok: true, value}, error: null};
+  });
   const admin = {
     from: (table: string) => ({
       insert: (payload: unknown) => record(table, "insert", payload),
@@ -97,10 +105,8 @@ function pageReads(calls: Call[], table: string) {
   );
 }
 
-function statusUpdate(calls: Call[], status: string) {
-  return calls.find(
-    (call) => call.op === "update" && (call.payload as Record<string, unknown>)?.status === status
-  );
+function completionStep(rpc: ReturnType<typeof vi.fn>, stage: string) {
+  return rpc.mock.calls.map(([,args]) => args?.p_payload as Record<string, unknown>).find(payload => payload?.stage === stage);
 }
 
 function eventPage(size: number) {
@@ -123,12 +129,15 @@ const oldSubmission = {
 };
 
 function formJobRow(status = "candidate") {
+  const archive = status === "archived" ? signRetentionArchiveManifest({archivedAt: NOW.toISOString(), assetReferences: [], boundary: BOUNDARY,
+    files: [{bytes: 1, id: "fictional-file", name: "archive.csv", sha256: "a".repeat(64)}], resourceId: "form-1", rowCount: 1, scope: "form"}) : null;
   return {
     created_at: "2021-01-01T00:00:00.000Z",
     form_definition_id: "form-1",
     id: JOB_ID,
     retention_eligible_at: "2025-01-01T00:00:00.000Z",
     status,
+    ...(archive ? {archive_manifest: archive, manifest_checksum_sha256: sha256(Buffer.from(serializeRetentionArchiveManifest(archive)))} : {}),
   };
 }
 
@@ -159,7 +168,7 @@ function archiveForm(admin: FlexibleSupabaseClient) {
     actorUserId: ACTOR,
     jobId: JOB_ID,
     scope: "form",
-  });
+  }, ATTEMPT_ID);
 }
 
 beforeEach(() => {
@@ -178,6 +187,13 @@ afterEach(() => {
 });
 
 describe("retention archive boundary", () => {
+  it("refuses a workflow without a reserved operation before reads, writes, or uploads", async () => {
+    const { admin, calls } = createAdmin(archiveHandler());
+    // @ts-expect-error A legacy caller must also fail closed at runtime.
+    await expect(runRetentionAction(admin, { action: "archive", actorUserId: ACTOR, jobId: JOB_ID, scope: "form" })).rejects.toThrow(/reserved|verification/i);
+    expect(calls).toEqual([]);
+    expect(mocks.uploadGoogleDriveFile).not.toHaveBeenCalled();
+  });
   it("selects only rows at or before the three-year boundary", async () => {
     const { admin, calls } = createAdmin(archiveHandler());
 
@@ -189,18 +205,15 @@ describe("retention archive boundary", () => {
   });
 
   it("seals the boundary into the signed manifest so purge cannot widen it", async () => {
-    const { admin, calls } = createAdmin(archiveHandler());
+    const { admin, rpc } = createAdmin(archiveHandler());
 
     await archiveForm(admin);
 
-    const completion = calls.find(
-      (call) => call.op === "update" && Boolean((call.payload as Record<string, unknown>)?.archive_manifest)
-    );
-    const manifest = (completion?.payload as { archive_manifest: { manifest: { boundary: string; schemaVersion: number } } })
-      .archive_manifest.manifest;
+    const completion = completionStep(rpc, "archive_complete");
+    const manifest = (completion?.bundle as {manifest: {manifest: {boundary: string; schemaVersion: number}}}).manifest.manifest;
     expect(manifest.boundary).toBe(BOUNDARY);
     expect(manifest.schemaVersion).toBe(2);
-    expect(completion?.filters).toContain('in:status=["archive_requested"]');
+    expect(completion?.intent).toEqual({jobId: JOB_ID, scope: "form"});
   });
 
   it("content-addresses every archive data upload", async () => {
@@ -233,8 +246,24 @@ describe("retention archive boundary", () => {
 });
 
 describe("retention transition safety", () => {
-  it("treats a zero-row transition as a lost race instead of success", async () => {
-    const { admin } = createAdmin(archiveHandler({ transitionRows: [] }));
+  it("uses the exact reserved completion boundary instead of parallel service status/audit writes", async () => {
+    const { admin, calls, rpc } = createAdmin(archiveHandler());
+    await archiveForm(admin);
+    expect(calls.filter(call => call.op !== "select")).toEqual([]);
+    expect(rpc).toHaveBeenCalledWith("complete_admin_retention_operation", expect.objectContaining({p_attempt_id: ATTEMPT_ID,
+      p_payload: expect.objectContaining({intent: {jobId: JOB_ID, scope: "form"}, stage: "archive_start", boundary: BOUNDARY})}));
+    expect(rpc).toHaveBeenCalledWith("complete_admin_retention_operation", expect.objectContaining({p_attempt_id: ATTEMPT_ID,
+      p_payload: expect.objectContaining({intent: {jobId: JOB_ID, scope: "form"}, stage: "archive_complete", boundary: BOUNDARY})}));
+  });
+  it("never reports success when the verified completion response is malformed", async () => {
+    const { admin, rpc } = createAdmin(archiveHandler());
+    rpc.mockResolvedValue({data: {success:true}, error:null});
+    await expect(archiveForm(admin)).rejects.toThrow(/verification|confirmed/i);
+    expect(mocks.uploadGoogleDriveFile).not.toHaveBeenCalled();
+  });
+  it("treats a rejected database compare-and-set as a lost race instead of success", async () => {
+    const { admin, rpc } = createAdmin(archiveHandler());
+    rpc.mockResolvedValueOnce({data: null, error: {code: "40001"}});
 
     const error = await archiveForm(admin).catch((thrown: unknown) => thrown);
 
@@ -244,13 +273,13 @@ describe("retention transition safety", () => {
   });
 
   it("guards the failure path so a terminal job is never demoted", async () => {
-    const { admin, calls } = createAdmin(
+    const { admin, rpc } = createAdmin(
       archiveHandler({ submissionError: { message: "boom" } })
     );
 
     await expect(archiveForm(admin)).rejects.toThrow("Form archive rows could not be loaded.");
 
-    expect(statusUpdate(calls, "failed")?.filters).toContain('in:status=["archive_requested"]');
+    expect(completionStep(rpc, "archive_failed")?.intent).toEqual({jobId: JOB_ID, scope: "form"});
   });
 
   it("refuses purge approval when the archived row moved underneath it", async () => {
@@ -258,25 +287,25 @@ describe("retention transition safety", () => {
       if (call.table === "form_archive_jobs" && call.op === "select") {
         return { data: formJobRow("archived") };
       }
-      if (call.table === "form_archive_jobs" && call.op === "update") return { data: [] };
       return { data: [] };
     });
+    rpc.mockResolvedValueOnce({data: null, error: {code: "40001"}});
 
     const error = await runRetentionAction(admin, {
       action: "approve_purge",
       actorUserId: ACTOR,
       jobId: JOB_ID,
       scope: "form",
-    }).catch((thrown: unknown) => thrown);
+    }, ATTEMPT_ID).catch((thrown: unknown) => thrown);
 
     expect((error as RetentionWorkflowError).status).toBe(409);
-    expect(rpc).not.toHaveBeenCalled();
+    expect(completionStep(rpc, "approve_purge")?.intent).toEqual({jobId: JOB_ID, scope: "form"});
   });
 });
 
 describe("retention partial provider failure and recovery", () => {
   it("leaves a half-uploaded archive in failed, never archived", async () => {
-    const { admin, calls } = createAdmin(archiveHandler());
+    const { admin, calls, rpc } = createAdmin(archiveHandler());
     // The bundle uploads CSV, JSON and XLSX together; one provider failure must
     // take the whole archive down rather than record a partial success.
     mocks.uploadGoogleDriveFile.mockImplementation(({ filename }: { filename: string }) =>
@@ -287,11 +316,9 @@ describe("retention partial provider failure and recovery", () => {
 
     await expect(archiveForm(admin)).rejects.toThrow("Google Drive archive upload failed.");
 
-    expect(statusUpdate(calls, "failed")).toBeDefined();
-    expect(statusUpdate(calls, "archived")).toBeUndefined();
-    expect(
-      calls.some((call) => Boolean((call.payload as Record<string, unknown>)?.archive_manifest))
-    ).toBe(false);
+    expect(completionStep(rpc, "archive_failed")?.intent).toEqual({jobId: JOB_ID, scope: "form"});
+    expect(completionStep(rpc, "archive_complete")).toBeUndefined();
+    expect(calls.filter(call => call.op !== "select")).toEqual([]);
   });
 
   it("cannot approve purge for a job left failed by a partial archive", async () => {
@@ -302,7 +329,7 @@ describe("retention partial provider failure and recovery", () => {
       actorUserId: ACTOR,
       jobId: JOB_ID,
       scope: "form",
-    }).catch((thrown: unknown) => thrown);
+    }, ATTEMPT_ID).catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(RetentionWorkflowError);
     expect((error as RetentionWorkflowError).status).toBe(409);
@@ -319,14 +346,14 @@ describe("retention partial provider failure and recovery", () => {
       actorUserId: ACTOR,
       jobId: JOB_ID,
       scope: "form",
-    }).catch((thrown: unknown) => thrown);
+    }, ATTEMPT_ID).catch((thrown: unknown) => thrown);
 
     expect((error as RetentionWorkflowError).status).toBe(409);
     expect(rpc).not.toHaveBeenCalled();
   });
 
   it("resumes a failed archive by reusing the files that already landed", async () => {
-    const { admin, calls } = createAdmin(archiveHandler({ jobStatus: "failed" }));
+    const { admin, rpc } = createAdmin(archiveHandler({ jobStatus: "failed" }));
     // Deterministic keys mean the previous attempt's CSV and JSON are found and
     // reused; only the XLSX that never completed is uploaded again.
     mocks.uploadGoogleDriveFile.mockImplementation(({ filename }: { filename: string }) =>
@@ -340,16 +367,12 @@ describe("retention partial provider failure and recovery", () => {
     const result = await archiveForm(admin);
 
     expect(result).toMatchObject({ reusedFiles: 2, success: true });
-    expect(statusUpdate(calls, "archived")).toBeDefined();
-
-    // A failed job re-enters through the same guarded transition.
-    expect(statusUpdate(calls, "archive_requested")?.filters).toContain(
-      'in:status=["candidate","failed"]'
-    );
+    expect(completionStep(rpc, "archive_complete")?.reusedFiles).toBe(2);
+    expect(completionStep(rpc, "archive_start")?.intent).toEqual({jobId: JOB_ID, scope: "form"});
   });
 
   it("records the reuse count in the archive audit rather than hiding the retry", async () => {
-    const { admin, calls } = createAdmin(archiveHandler({ jobStatus: "failed" }));
+    const { admin, rpc } = createAdmin(archiveHandler({ jobStatus: "failed" }));
     mocks.uploadGoogleDriveFile.mockImplementation(({ filename }: { filename: string }) =>
       Promise.resolve({
         id: `drive-${filename}`,
@@ -360,14 +383,9 @@ describe("retention partial provider failure and recovery", () => {
 
     await archiveForm(admin);
 
-    const audit = calls.find(
-      (call) =>
-        call.op === "insert" &&
-        (call.payload as Record<string, unknown>)?.action === "retention.archive_completed"
-    );
     // Three data files reused; the manifest is always fresh because it embeds
     // its own archive timestamp.
-    expect((audit?.payload as { metadata: { reused_files: number } }).metadata.reused_files).toBe(3);
+    expect(completionStep(rpc, "archive_complete")?.reusedFiles).toBe(3);
   });
 });
 
@@ -380,7 +398,7 @@ describe("retention discovery", () => {
       return { data: [] };
     });
 
-    const result = await runRetentionAction(admin, { action: "discover", actorUserId: ACTOR });
+    const result = await runRetentionAction(admin, { action: "discover", actorUserId: ACTOR }, ATTEMPT_ID);
 
     expect(result).toMatchObject({ boundary: BOUNDARY, success: true });
     expect(filterFor(calls, "form_submissions", "lte:created_at")).toBe(`lte:created_at=${BOUNDARY}`);
@@ -401,7 +419,7 @@ describe("retention discovery", () => {
       return { data: [] };
     });
 
-    const result = await runRetentionAction(admin, { action: "discover", actorUserId: ACTOR });
+    const result = await runRetentionAction(admin, { action: "discover", actorUserId: ACTOR }, ATTEMPT_ID);
 
     expect(result).toMatchObject({ success: true });
     const reads = pageReads(calls, "events");
@@ -418,7 +436,7 @@ describe("retention discovery", () => {
     const error = await runRetentionAction(admin, {
       action: "discover",
       actorUserId: ACTOR,
-    }).catch((thrown: unknown) => thrown);
+    }, ATTEMPT_ID).catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(RetentionWorkflowError);
     expect((error as RetentionWorkflowError).status).toBe(409);
