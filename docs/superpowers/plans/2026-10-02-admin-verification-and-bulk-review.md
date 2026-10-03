@@ -217,7 +217,7 @@ expect(snoozeUntil - now).toBe(7 * 24 * 60 * 60 * 1000);
 
 **Interfaces:** `BulkReviewInput = { queue: "alumni" | "departure" | "appeal"; requests: { requestId: string; expectedUpdatedAt: string }[]; note: string; confirmation: "CONFIRM" }`. Produce `approveMembershipRequests(input: BulkReviewInput): Promise<BulkReviewResult>` and `bulkApproveMembershipRequestsAction(previous: BulkReviewResult, form: FormData): Promise<BulkReviewResult>`. Result is `{ status: "idle" | "success" | "partial" | "error"; message: string; results: { requestId: string; status: "approved" | "already_approved" | "stale" | "ineligible" | "failed" }[] }`.
 
-- [ ] **Write failing service/action/DOM tests:** `page_only_select_all`, `indeterminate_selection`, `queue_change_clears_selection`, `changed_refresh_removes_selection`, `mixed_batch_writes_nothing`, `partial_result_keeps_failed_rows`, `retry_is_idempotent`:
+- [x] **Write failing service/action/DOM tests:** `page_only_select_all`, `indeterminate_selection`, `queue_change_clears_selection`, `changed_refresh_removes_selection`, `mixed_batch_writes_nothing`, `partial_result_keeps_failed_rows`, `retry_is_idempotent`:
 
 ```ts
 expect(selectedRequestIds).toEqual(visibleReviewableIds); // never other pages/payments
@@ -227,11 +227,13 @@ expect(result.results.map(r => r.status)).toEqual(["approved", "stale", "failed"
 expect(frozenMember.portal_access_status).toBe("frozen");
 ```
 
-- [ ] **Run red:** focused new bulk tests and existing renewal-panel DOM suite; expect missing bulk workflow failures.
-- [ ] **Implement preflight and processing:** validate 1–25 unique UUIDs/ISO timestamps, shared note and confirmation before writes; fetch authoritative request types and ensure one allowed type matches queue. Then process sorted IDs sequentially through existing RPC, retaining each row's expected timestamp. Map already-approved distinctly; rejected/withdrawn/type-changed entries cannot be converted. Report each outcome, revalidate existing views, never call renewal confirmation or unfreeze members. Refresh can reveal individual stale rows without cancelling valid earlier commits.
-- [ ] **Implement selection/confirmation UI:** checkboxes only on visible reviewable rows with timestamps; master indeterminate state, selected count, consequences/member summary and shared note. Reset on page/queue change; refreshed snapshot retains only unchanged pending selections. Disable all selection/submit inputs while pending; clear resolved rows, retain failed unchanged selections. Keep individual review/reject unchanged.
-- [ ] **Run green:** service/action/DOM tests and `assert-membership-bulk-review.sql`; expect separate audits and no duplicate/inverse transitions or hidden-page approvals.
-- [ ] **Commit:** `feat(membership): add bounded bulk request approval`.
+- [x] **Run red:** focused new bulk tests and existing renewal-panel DOM suite; expect missing bulk workflow failures.
+- [x] **Implement preflight and processing:** validate 1–25 unique UUIDs/ISO timestamps, shared note and confirmation before writes; fetch authoritative request types and ensure one allowed type matches queue. Then process sorted IDs sequentially through existing RPC, retaining each row's expected timestamp. Map already-approved distinctly; rejected/withdrawn/type-changed entries cannot be converted. Report each outcome, revalidate existing views, never call renewal confirmation or unfreeze members. Refresh can reveal individual stale rows without cancelling valid earlier commits.
+- [x] **Implement selection/confirmation UI:** checkboxes only on visible reviewable rows with timestamps; master indeterminate state, selected count, consequences/member summary and shared note. Reset on page/queue change; refreshed snapshot retains only unchanged pending selections. Disable all selection/submit inputs while pending; clear resolved rows, retain failed unchanged selections. Keep individual review/reject unchanged.
+- [x] **Run green:** service/action/DOM tests and `assert-membership-bulk-review.sql`; expect separate audits and no duplicate/inverse transitions or hidden-page approvals.
+- [x] **Commit:** `feat(membership): add bounded bulk request approval`.
+
+Task 6 evidence (2026-10-03): bounded/mixed validation, per-row outcomes and page-selection controls RED→GREEN. Changed open-dialog rejection also reproduced and corrected; pending controls lock, failed unchanged rows remain selected and resolved rows clear. Full suite: 285 files / 1,838 tests PASS; typecheck, whole ESLint, admin-access/UI audits and diff check PASS. Clean replay: 112 migrations plus baseline, separate audit/idempotency/stale/departure/appeal/freeze/fee assertions, independent concurrency, generated types and database lint PASS. No additional mutation RPC or migration required; hosted state unchanged. Final browser/review/rollout gates remain Task 7.
 
 ## Task 7: Full Verification, Independent Review and Controlled Rollout
 
