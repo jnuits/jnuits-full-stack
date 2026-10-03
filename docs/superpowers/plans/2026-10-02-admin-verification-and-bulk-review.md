@@ -259,7 +259,8 @@ Task 6 evidence (2026-10-03): bounded/mixed validation, per-row outcomes and pag
 - [x] **Complete local green verification:** `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `npm run audit:admin-access`, `npm run audit:admin-ui`, `npx vitest run scripts/committed-credential-material.test.mjs`, `npm run migration:check-order:strict`, `npm run db:replay-bootstrap`, and `node supabase/verification/run-admin-verification-browser-qa.mjs`. Configure required build/test environment without printing secrets. Pre-rollout hosted parity permits only the expected unapplied files; post-rollout parity remains part of the unchecked SQL rollout below. Every listed local command must exit 0; keep exact counts/log evidence rather than assume the 1,679-test baseline still applies. This does not waive the separately failing CI dependency-audit gate.
 - [x] **Take independent whole-patch code/security review** after green verification. Address findings and rerun affected/full tests proportionately. Explicitly inspect role writers, operation bindings, function ACLs, missing-state denial, last-super-admin race, email eligibility history and external partial failure. Initial test/guide commit: `test(admin): verify authorization and bulk review boundaries`; reviewed recovery findings addressed in one TDD fix pass.
 - [ ] **Apply verified forward SQL through the Supabase plugin** to the positively identified JnUITS project only. Record pre/post migration history, enforcement value and ACLs. Reconcile plugin-assigned history versions with checked-in files using the repository's established parity workflow, without rewriting applied SQL bodies. Verify exact function bodies, denial paths and advisors; do not approve real requests or grant/revoke real roles for verification. Report legacy unknown enrollment/unsigned invites needing recovery/reissuance rather than fabricate evidence.
-- [ ] **Push branch and open/update PR**, using `git push -u origin codex/admin-verification-policy`; attach the PR to this task. Confirm GitHub Actions independently of Vercel's account restriction. Follow the owner's established authorization to merge only when non-Vercel checks pass; no bypassing protected checks. Verify hosted authorization matches deployed app before claiming production completion. Keep branch until merged/verified; never delete the backup branch.
+- [ ] **Publish branch and open/update a draft PR**, using `git push -u origin codex/admin-verification-policy`; attach the PR to this task. The owner's latest request authorizes publishing the work to GitHub while the release is held. Draft publication is not a production release or permission to waive the dependency gate.
+- [ ] **Pass GitHub Actions and complete authorized main integration/cutover.** Confirm Actions independently of Vercel's account restriction. Follow the owner's established authorization to merge only when non-Vercel checks pass; no bypassing protected checks. Verify hosted authorization matches deployed app before claiming production completion. Keep branch until merged/verified; never delete the backup branch. Tell the owner when main is actually ready for the account-owner README deployment trigger; a draft PR is not that checkpoint.
 
 ## Plan Self-Review and Handoff
 
@@ -295,9 +296,11 @@ owner authorized the coordinated maintenance/cutover window, to be used only
 after the dependency gate passes. Applying operation guards alone breaks the
 old retention RPC and does not repair old privileged role writers. GitHub CI,
 coordinated deployment, post-rollout parity/ACLs/advisors and hosted-provider
-acceptance checks remain outstanding. Local-main integration, GitHub push and
-safe merged-branch cleanup are authorized, but remain deferred with the release
-hold; preserve the active branch and restoration backup.
+acceptance checks remain outstanding. Local-main integration and safe
+merged-branch cleanup remain deferred with the release hold. The owner's latest
+request authorizes GitHub publication: publish a draft PR, leaving the dependency
+gate enforced and main/deployment/migrations unchanged. Preserve the active
+branch and restoration backup until verified integration.
 
 Owner-requested fresh local revalidation (2026-10-03): all 1,852 tests in 286
 files, build/typecheck/lint/access/UI/strict-order checks, clean disposable SQL
