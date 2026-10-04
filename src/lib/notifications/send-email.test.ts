@@ -11,6 +11,16 @@ vi.mock("@/lib/errors/api-error", () => ({
 import { sendEmail } from "@/lib/notifications/send-email";
 
 describe("sendEmail", () => {
+  it("sends newsletter plaintext with a dedicated key without changing transactional credentials",async()=>{
+    vi.stubEnv("RESEND_API_KEY","transactional-fixture-key");vi.stubEnv("RESEND_FROM_EMAIL","JnUITS <no-reply@example.test>");
+    const fetchMock=vi.fn().mockImplementation(async()=>Response.json({id:"newsletter-message"}));vi.stubGlobal("fetch",fetchMock);
+    await sendEmail({to:"consenting@example.test",subject:"Confirm newsletter",html:"<p>Confirm</p>",text:"Confirm newsletter",providerApiKey:"dedicated-newsletter-fixture-key",timeoutMs:5000,redactProviderErrors:true});
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe("Bearer dedicated-newsletter-fixture-key");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toBe("Confirm newsletter");
+    expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+    await sendEmail({to:"member@example.test",subject:"Transactional",html:"<p>Welcome</p>"});
+    expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer transactional-fixture-key");
+  });
   it("redacts OTP provider bodies and transport errors from logs and caller responses", async () => {
     vi.stubEnv("RESEND_API_KEY", "test-api-key");
     vi.stubEnv("RESEND_FROM_EMAIL", "no-reply@example.test");

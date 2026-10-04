@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getPublishedGallerySitemapEntries } from "@/lib/content/gallery";
 import { getPublishedEventSitemapEntries } from "@/lib/content/events";
+import { getPublicContentSitemapEntries } from "@/lib/content/sitemap-entries";
 import { publicNavigation } from "@/lib/site";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -15,17 +16,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const staticRoutes: MetadataRoute.Sitemap = routes.map((href) => ({
     url: `${baseUrl}${href}`,
-    lastModified: new Date(),
     changeFrequency: href === "/" ? "weekly" as const : "monthly" as const,
     priority: href === "/" ? 1 : 0.7,
   }));
-  const [galleryRoutes, eventRoutes] = await Promise.all([
+  const [galleryRoutes, eventRoutes, contentRoutes] = await Promise.all([
     getPublishedGallerySitemapEntries(),
     getPublishedEventSitemapEntries(),
+    getPublicContentSitemapEntries(),
   ]);
 
-  return [
+  const entries: MetadataRoute.Sitemap = [
     ...staticRoutes,
+    ...contentRoutes.map((entry) => ({ url: baseUrl + entry.path, ...(entry.updatedAt ? {lastModified: new Date(entry.updatedAt)} : {}), changeFrequency: "weekly" as const, priority: 0.7 })),
     ...galleryRoutes.map((album) => ({
       url: `${baseUrl}/gallery/${album.slug}`,
       lastModified: new Date(album.updatedAt),
@@ -39,4 +41,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.72,
     })),
   ];
+  return [...new Map(entries.map(entry => [entry.url, entry])).values()];
 }

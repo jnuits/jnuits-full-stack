@@ -377,6 +377,18 @@ docker_run cp \
 docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
   -f /tmp/jnuits-replay/assert-audit-security.sql
 
+docker_run cp \
+  "$(to_native "$repo_root/supabase/verification/assert-content-query-summaries.sql")" \
+  "$db_container:/tmp/jnuits-replay/assert-content-query-summaries.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
+  -f /tmp/jnuits-replay/assert-content-query-summaries.sql
+
+docker_run cp \
+  "$(to_native "$repo_root/supabase/verification/assert-newsletter-consent.sql")" \
+  "$db_container:/tmp/jnuits-replay/assert-newsletter-consent.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
+  -f /tmp/jnuits-replay/assert-newsletter-consent.sql
+
 if [[ "$generate_types" -eq 1 ]]; then
   generated_types="$scratch_dir/generated-db-types.ts"
   printf 'Generating TypeScript types from the disposable local stack.\n'

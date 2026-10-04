@@ -5,6 +5,10 @@ interface SendEmailOptions {
   to: string;
   subject: string;
   html: string;
+  text?: string;
+  /** Server-only key override for a separately managed provider integration. */
+  providerApiKey?: string;
+  timeoutMs?: number;
   replyTo?: string;
   idempotencyKey?: string;
   /** Verification emails may not expose echoed provider bodies or credentials. */
@@ -51,7 +55,7 @@ function summarizeResendError(status: number, body: unknown) {
 export async function sendEmail(
   options: SendEmailOptions
 ): Promise<SendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = options.providerApiKey ?? process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
   const replyTo = process.env.RESEND_REPLY_TO || from;
 
@@ -76,12 +80,14 @@ export async function sendEmail(
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers,
+      ...(options.timeoutMs ? { signal: AbortSignal.timeout(options.timeoutMs) } : {}),
       body: JSON.stringify({
         from,
         to: [options.to],
         reply_to: options.replyTo ?? replyTo,
         subject: options.subject,
         html: options.html,
+        ...(options.text ? { text: options.text } : {}),
       }),
     });
 

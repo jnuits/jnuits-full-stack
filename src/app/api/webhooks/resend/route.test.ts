@@ -35,8 +35,18 @@ function request() {
 }
 
 describe("Resend delivery webhook", () => {
+  it("records newsletter suppression only after verified events match no earlier ledger", async () => {
+    mocks.rpc.mockResolvedValue({data:[{tracked:false}],error:null});
+    mocks.rpc.mockResolvedValueOnce({data:[{tracked:false}],error:null}).mockResolvedValueOnce({data:[{tracked:false}],error:null}).mockResolvedValueOnce({data:[{tracked:false}],error:null}).mockResolvedValueOnce({data:{tracked:true,duplicate:true},error:null});
+    mocks.verifyResendWebhook.mockReturnValue({createdAt:"2026-10-04T00:00:00Z",eventId:"fixture-complaint",providerMessageId:"newsletter-fixture",type:"email.complained"});
+    const response=await POST(request());
+    expect(await response.json()).toEqual({received:true,tracked:true,duplicate:true});
+    expect(mocks.rpc).toHaveBeenNthCalledWith(4,"newsletter_store",{p_action:"webhook",p_payload:{event_id:"fixture-complaint",message_id:"newsletter-fixture",event_type:"email.complained",occurred_at:"2026-10-04T00:00:00Z",delivery_status:"complained"}});
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.rpc.mockReset();
     process.env.RESEND_WEBHOOK_SECRET = "whsec_test";
     mocks.createAdminClient.mockReturnValue({ rpc: mocks.rpc });
     mocks.rpc.mockResolvedValue({

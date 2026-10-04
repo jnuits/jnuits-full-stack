@@ -1247,6 +1247,65 @@ export const getPublishedBlogs = cache(async () => {
   });
 });
 
+
+export type BlogArchiveResult = {
+  items: BlogPreview[];
+  categories: string[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+export const getPublishedBlogArchive = cache(async (
+  filters: { page?: number; category?: string } = {}
+): Promise<BlogArchiveResult> => {
+  const pageSize = 24;
+  const page = Number.isSafeInteger(filters.page) && (filters.page || 0) > 0 ? Number(filters.page) : 1;
+  const category = normalizeIdentifier(filters.category || "");
+  const supabase = createPublicClient();
+  const facetResult = await supabase.rpc("get_public_blog_categories" as never);
+  const categories = (facetResult.data || []) as unknown as string[];
+  const buildQuery = (head = false) => {
+    let request = supabase.from("content_posts").select(`${blogListPostSelect}, created_at`, { count: "exact", head })
+      .eq("content_type", "blog").eq("status", "published");
+    if (category === "blog") request = request.or("category.is.null,category.ilike.Blog");
+    else if (category) request = request.ilike("category", category.replace(/[%_\\]/g, "\\$&"));
+    return request.order("published_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false });
+  };
+  const countResult = await buildQuery(true);
+  if (facetResult.error || countResult.error) throw new Error("The blog archive could not be loaded.");
+  if (!categories.length && !countResult.count) {
+    const items = fallbackPublicBlogs.filter(item => !category || normalizeIdentifier(item.category) === category);
+    const totalPages = Math.max(1, Math.ceil(items.length/pageSize));
+    const normalizedPage = Math.min(page, totalPages);
+    return { items: items.slice((normalizedPage-1)*pageSize, normalizedPage*pageSize),
+      categories: [...new Set(fallbackPublicBlogs.map(item => item.category))].sort(),
+      page: normalizedPage, pageSize, totalItems: items.length, totalPages };
+  }
+  const totalItems = countResult.count || 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems/pageSize));
+  const normalizedPage = Math.min(page, totalPages);
+  const result = await buildQuery().range((normalizedPage-1)*pageSize, normalizedPage*pageSize-1);
+  if (result.error) throw new Error("The blog archive could not be loaded.");
+  return {
+    items: (result.data || []).map((record, index) => {
+      const row = record as unknown as BlogPostRecordWithRelations;
+      return {
+        ...mapBlogAttribution(row), slug: record.slug, title: record.title,
+        category: record.category || "Blog", summary: record.summary || record.excerpt || "Public editorial item.",
+        excerpt: record.excerpt || record.summary || "Public editorial entry.",
+        publishedAt: record.published_at || record.created_at,
+        readTime: record.read_time || "5 min read",
+        imageSrc: resolveImage(row.media_assets, fallbackPublicBlogs[index]?.imageSrc || fallbackBlogImage),
+      } satisfies BlogPreview;
+    }),
+    categories, page: normalizedPage, pageSize, totalItems, totalPages,
+  };
+});
+
+
 function mapEventStatus(value: string | null | undefined): EventPreview["status"] {
   if (value === "archived") {
     return "Archive";

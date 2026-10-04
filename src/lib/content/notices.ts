@@ -1,6 +1,6 @@
 import "server-only";
 
-import { cache } from "react";
+
 import type { Tables } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -82,34 +82,6 @@ function normalizeText(value: string | null | undefined) {
   return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
-function buildSearchText(row: NoticeRow) {
-  return [
-    row.slug,
-    row.title,
-    row.category,
-    row.summary,
-    row.body,
-    row.cta_href,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function buildPagedSlice<T>(items: T[], page: number) {
-  const totalItems = items.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / NOTICES_PER_PAGE));
-  const normalizedPage = Math.min(Math.max(page, 1), totalPages);
-  const start = (normalizedPage - 1) * NOTICES_PER_PAGE;
-
-  return {
-    items: items.slice(start, start + NOTICES_PER_PAGE),
-    page: normalizedPage,
-    totalItems,
-    totalPages,
-  };
-}
-
 function mapNoticeRow(row: NoticeRow): AdminNoticeListItem {
   return {
     body: row.body,
@@ -134,60 +106,43 @@ export function formatNoticeAdminDate(value: string | null) {
   return noticeDateFormatter.format(new Date(value));
 }
 
-const getAllAdminNoticeRows = cache(async () => {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("content_posts")
-    .select(NOTICE_SELECT)
-    .eq("content_type", "notice")
-    .order("published_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
-
-  return (data || []) as NoticeRow[];
-});
 
 export async function getAdminNoticesDashboard(
   filters: AdminNoticeDashboardFilters = {}
 ): Promise<AdminNoticeDashboardResult> {
-  const page = Number.isInteger(filters.page) && (filters.page || 0) > 0
-    ? Number(filters.page)
-    : 1;
-  const query = normalizeText(filters.query);
+  const page = Number.isSafeInteger(filters.page) && (filters.page || 0)>0 ? Number(filters.page) : 1;
   const category = normalizeIdentifier(filters.category);
   const status = normalizeIdentifier(filters.status);
-  const rows = await getAllAdminNoticeRows();
-  const metrics = {
-    archived: rows.filter((row) => row.status === "archived").length,
-    drafts: rows.filter((row) => row.status === "draft").length,
-    published: rows.filter((row) => row.status === "published").length,
-    total: rows.length,
+  const search = normalizeText(filters.query);
+  const admin = createAdminClient();
+  const { data: summary, error: summaryError } = await admin.rpc("get_admin_notice_summary" as never);
+  if (summaryError || !summary) throw new Error("Notice summaries could not be loaded.");
+  const dashboardSummary = summary as unknown as Pick<AdminNoticeDashboardResult,"categories"|"metrics">;
+  const buildQuery = (head = false) => {
+    let request = admin.from("content_posts").select(NOTICE_SELECT, { count: "exact", head }).eq("content_type","notice");
+    if (status) request = request.eq("status",status);
+    if (category === "notice") request = request.or("category.is.null,category.ilike.Notice");
+    else if (category) request = request.ilike("category",category.replace(/[%_\\]/g,"\\$&"));
+    if (search) {
+      const escaped = search.replace(/[\\%_]/g,"\\$&").replace(/"/g,'\\"');
+      const pattern = '"%' + escaped + '%"';
+      request = request.or(["slug","title","category","summary","body","cta_href"].map(column => column+".ilike."+pattern).join(","));
+    }
+    return request.order("published_at",{ ascending:false, nullsFirst:false })
+      .order("created_at",{ ascending:false }).order("id",{ascending:false});
+
   };
-  const filteredRows = rows.filter((row) => {
-    if (status && row.status !== status) {
-      return false;
-    }
-
-    if (category && normalizeIdentifier(row.category || "Notice") !== category) {
-      return false;
-    }
-
-    if (query && !buildSearchText(row).includes(query)) {
-      return false;
-    }
-
-    return true;
-  });
-  const paged = buildPagedSlice(filteredRows, page);
-
-  return {
-    categories: Array.from(new Set(rows.map((row) => row.category || "Notice"))).sort(),
-    items: paged.items.map(mapNoticeRow),
-    metrics,
-    page: paged.page,
-    totalItems: paged.totalItems,
-    totalPages: paged.totalPages,
-  };
+  const countResult = await buildQuery(true);
+  if (countResult.error) throw new Error("Notices could not be loaded.");
+  const totalItems = countResult.count || 0;
+  const totalPages = Math.max(1,Math.ceil(totalItems/NOTICES_PER_PAGE));
+  const normalizedPage = Math.min(page,totalPages);
+  const result = await buildQuery().range((normalizedPage-1)*NOTICES_PER_PAGE,normalizedPage*NOTICES_PER_PAGE-1);
+  if (result.error) throw new Error("Notices could not be loaded.");
+  return { ...dashboardSummary, items: (result.data || []).map(row => mapNoticeRow(row as NoticeRow)),
+    page: normalizedPage, totalItems, totalPages };
 }
+
 
 export async function getNoticeEditorData(
   noticeId?: string | null
