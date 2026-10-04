@@ -1,7 +1,54 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { brandProfile } from "@/lib/branding";
 import { getProjectBySlug } from "@/lib/content/projects";
+import { getAppBaseUrl } from "@/lib/env";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const project = await getProjectBySlug(slug);
+
+  if (!project) {
+    return {
+      title: "Project not found",
+    };
+  }
+
+  const description =
+    project.tagline ||
+    project.description?.slice(0, 155) ||
+    "Project showcase by JnU IT Society.";
+  const canonicalPath = `/projects/${project.slug}`;
+
+  return {
+    alternates: {
+      canonical: canonicalPath,
+    },
+    description,
+    openGraph: {
+      description,
+      images: project.coverImageUrl
+        ? [
+            {
+              alt: project.title,
+              url: project.coverImageUrl,
+            },
+          ]
+        : undefined,
+      siteName: brandProfile.shortName,
+      title: project.title,
+      type: "article",
+      url: `${getAppBaseUrl()}${canonicalPath}`,
+    },
+    title: `${project.title} | ${brandProfile.shortName}`,
+  };
+}
 
 const CATEGORY_COLORS: Record<string, string> = {
   web: "color-mix(in oklab,var(--brand-blue) 15%,transparent)",
