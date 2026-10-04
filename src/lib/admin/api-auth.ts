@@ -77,10 +77,17 @@ export async function requireAdminApiPermission(
     };
   }
 
-  if (options.requireAal2) {
+  try {
+    // Every API must honor workspace entry policy. Optional entry enforcement
+    // never substitutes for a sensitive operation's unconditional native AAL2.
     const mfaState = await checkAdminMFA(await createClient());
-
-    if (!mfaState.ok || mfaState.currentLevel !== "aal2" || mfaState.nextLevel !== "aal2") {
+    const requiresNativeAal2 = options.requireAal2 || mfaState.enforced;
+    if (
+      !mfaState.ok ||
+      mfaState.error ||
+      (requiresNativeAal2 &&
+        (mfaState.currentLevel !== "aal2" || mfaState.nextLevel !== "aal2"))
+    ) {
       return {
         response: NextResponse.json(
           { message: "Complete multi-factor verification before this action." },
@@ -88,7 +95,15 @@ export async function requireAdminApiPermission(
         ),
       };
     }
+  } catch {
+    return {
+      response: NextResponse.json(
+        { message: "Admin security policy could not be verified. Try again later." },
+        { status: 503 }
+      ),
+    };
   }
+
 
   return { auth: { ...auth, user: auth.user } };
 }

@@ -351,7 +351,7 @@ function formatMigrationParityReport(result) {
         " Remote migration history contains versions without local files."
     );
   } else {
-    lines.push("\n" + col(c.green, "All migrations are in sync."));
+    lines.push("\n" + col(c.green, "All migration versions match hosted history (SQL content not verified)."));
   }
 
   return `${lines.join("\n")}\n`;

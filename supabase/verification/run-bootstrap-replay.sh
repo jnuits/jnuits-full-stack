@@ -371,6 +371,12 @@ run_local_read_with_pull_retry() {
   done
 }
 
+docker_run cp \
+  "$(to_native "$repo_root/supabase/verification/assert-audit-security.sql")" \
+  "$db_container:/tmp/jnuits-replay/assert-audit-security.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
+  -f /tmp/jnuits-replay/assert-audit-security.sql
+
 if [[ "$generate_types" -eq 1 ]]; then
   generated_types="$scratch_dir/generated-db-types.ts"
   printf 'Generating TypeScript types from the disposable local stack.\n'

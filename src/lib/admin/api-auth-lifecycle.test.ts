@@ -25,6 +25,8 @@ import { requireAdminApiPermission } from "./api-auth";
 describe("admin API lifecycle boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.createClient.mockResolvedValue({});
+    mocks.checkAdminMFA.mockResolvedValue({ ok: true, enforced: false, currentLevel: "aal1", nextLevel: "aal1", error: null });
     mocks.getAuthContext.mockResolvedValue({
       roles: ["admin"],
       user: { id: "11111111-1111-4111-8111-111111111111" },

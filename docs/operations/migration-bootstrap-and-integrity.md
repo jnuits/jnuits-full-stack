@@ -296,3 +296,30 @@ ports cannot collide. Both jobs retain preflight and post-run cleanup as
 defense in depth, but no serialization dependency is required. Historical
 self-hosted constraints are recorded in `self-hosted-runners.md` and issue
 #78.
+## 2026-10-04: enforced SQL-content integrity
+
+`node scripts/check-migration-integrity.mjs` validates the sealed manifest against
+raw committed Git blobs at `68d8c3730d599b37b4bacb177bd48c0d28008958`, then protects
+every SQL file in the trusted PR base. Historical edits and deletion fail even
+when a contributor changes the manifest. New forward migrations are appended
+and become protected as soon as they merge. This supersedes the deferred
+checksum convention above without rewriting any historical SQL.
+
+CI fetches full history and runs the checker from the trusted base when it
+exists, so a same-change checker edit cannot silently reseal history. Workflow
+changes themselves still require the normal protected-branch review.
+
+A historical version reconciliation requires a receipt approved on protected
+main BEFORE the rename. Put the receipt in
+`supabase/migration-reconciliation-receipts.json` with `oldPath`, `newPath`,
+`projectId`, `hostedVersion`, `sha256` of the original committed SQL and
+`verifiedAt` from plugin verification. Review the actual hosted migration SQL
+receipt before accepting that evidence. The replacement SQL must retain the
+same Git blob bytes. Receipts introduced by the rename itself do not authorize
+it. Reconciliation of a new pending migration's plugin-assigned version before
+its first merge does not rewrite historical SQL.
+
+Filename-version/name parity is a separate check. SQL-content integrity proves
+repository history identity; it does NOT prove that hosted SQL matches.
+Hosted migration statement receipts and effective grants/policies are required
+for release evidence. Never reapply the existing verification migrations.
