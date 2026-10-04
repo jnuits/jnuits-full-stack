@@ -30,7 +30,7 @@ export const publicMemberNavigation: NavItem[] = [
   {
     href: "/membership-form",
     label: "Application form",
-    description: "Check application status and membership onboarding options.",
+    description: "Active intake announcements and membership onboarding options.",
   },
   {
     href: "/register",
