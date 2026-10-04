@@ -49,3 +49,11 @@ action and record the result. Current connection remains unable to perform it.
 Implementation/replay local; hosted application, required CI, deployment and
 platform-owner follow-up are tracked in the ignored remediation ledger.
 No destructive table operation or real account/role mutation is used for QA.
+
+## Hosted security rollout — 2026-10-04
+
+After required CI passed at e31e9ddb1c9ce49228a4e0a863002d91a2c143be and the single review fix pass passed, the Supabase plugin applied the reviewed SQL to fsirdkjgrcocowxqjhjg. Its assigned version is 20261004161020. The local unmerged migration was renamed from 20261004104409 with identical SHA256 9e9ef1129dd638a44ec035f6cdf7fb438eb8cfa65db0f59c12aa79b7217f489f; no SQL edit or reapplication occurred.
+
+Postflight: 113 hosted migrations, zero unintended effective TRUNCATE/TRIGGER/REFERENCES/MAINTAIN privileges for browser roles on public base tables, RLS retained, and all 213 anonymous/authenticated/service role-relation DML combinations identical to immediate preflight. Anonymous helper execution is denied; authenticated and service execution retained with the permission/service-invoker guard. Detailed sanitized catalog receipts remain in the ignored execution ledger workspace.
+
+The revised exact PR head must pass required CI before merge. Hosted version/name parity and the submitted SQL fingerprint are recorded separately from catalog behavior. Provider-owned supabase_admin defaults and application production deployment/acceptance remain open.
