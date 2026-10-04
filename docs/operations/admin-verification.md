@@ -25,6 +25,30 @@ Unknown historical enrollment requires authenticator setup or authorized
 account recovery, not an assumed "never enrolled" classification. Legacy
 invitations without verified issuance must be reissued by an authorized admin.
 
+## Authenticator setup and sign-in
+
+Keep JnUITS styling while using the familiar password, authenticator, return-to-work
+sequence. Mandatory workspace MFA sends an account without a verified factor to
+setup, and an enrolled AAL1 account to the challenge. Optional enforcement still
+allows routine reviews at AAL1; protected operations apply their own verification.
+
+Setup follows Supabase's native `enroll → challenge → verify` APIs. Scan the QR
+code, or explicitly reveal the setup key for manual entry in a TOTP app (issuer
+JnUITS, six digits, 30 seconds). Enter the current six-digit code to finish.
+Successful setup/challenge also checks that the native session reached AAL2 before
+continuing to the allowlisted original destination. A provider/network failure
+shows a retryable error; it is never reported as completed enrollment.
+
+The QR and manual key exist only in the mounted setup UI. Do not log, persist,
+share, or capture them. Browser QA masks both in screenshots and disables traces.
+Pending TOTP factors are discovered through `listFactors().data.all`, since
+`data.totp` contains verified factors only. Cleanup never removes verified factors
+or another MFA method. Previously enrolled and legacy unknown accounts retain
+their existing recovery restrictions; email OTP cannot replace native AAL2.
+
+References: [Supabase native TOTP flow](https://supabase.com/docs/guides/auth/auth-mfa/totp),
+[GitHub QR/manual-key setup interaction](https://docs.github.com/en/authentication/securing-your-account-with-two-factor-authentication-2fa/configuring-two-factor-authentication).
+
 ## Routine bulk review
 
 Open Membership DB → the Alumni, departure or appeal queue. Select individual

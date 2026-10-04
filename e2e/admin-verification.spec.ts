@@ -205,6 +205,52 @@ test.describe("disposable admin authorization integration", () => {
     await page.screenshot({ path: `${process.env.ADMIN_VERIFICATION_QA_SCREENSHOTS}/retention-recovered-mobile.png`, fullPage: false });
   });
 
+  test("native authenticator setup offers QR/manual entry and returns an AAL2 session to the requested queue", async ({ page, context }) => {
+    const account = await signedIn(context, "setup");
+    await fixture("policy", { enforced: true });
+    try {
+      await page.goto(`${baseURL}/admin/membership?renewalQueue=alumni`, { waitUntil: "networkidle" });
+      await expect(page).toHaveURL(/\/admin\/mfa\/setup\?next=/);
+      const setup = page.getByRole("heading", { name: "Set up MFA", exact: true });
+      await expect(setup).toBeVisible();
+      await expect(page.getByAltText("TOTP setup QR code")).toBeVisible();
+      for (const width of [360, 1440]) for (const theme of ["light", "dark"]) {
+        await page.setViewportSize({ width, height: 900 });
+        const themeToggle = page.locator(".admin-topbar").getByRole("button", { name: "Toggle color theme" });
+        if (await themeToggle.getAttribute("aria-pressed") !== String(theme === "dark")) await themeToggle.click();
+        await expect(themeToggle).toHaveAttribute("aria-pressed", String(theme === "dark"));
+        const navigation = page.locator(".admin-sidebar");
+        if (width === 360 && await navigation.getAttribute("data-open") === "true") {
+          await page.getByRole("button", { name: "Close navigation", exact: true }).click();
+        }
+        await expect(navigation).toHaveAttribute("data-open", "false");
+        await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+        if (theme === "dark") await expect(page.locator("html")).toHaveClass(/dark/);
+        else await expect(page.locator("html")).not.toHaveClass(/dark/);
+        await healthy(page);
+        // QR encodes the native setup secret. Never put it in any artifact.
+        await page.screenshot({ path: `${process.env.ADMIN_VERIFICATION_QA_SCREENSHOTS}/mfa-setup-${width}-${theme}.png`, animations: "disabled", fullPage: true, mask: [page.getByAltText("TOTP setup QR code"), page.locator("code")] });
+      }
+      await page.getByRole("button", { name: "Can't scan? Show setup key" }).click();
+      await page.screenshot({ path: `${process.env.ADMIN_VERIFICATION_QA_SCREENSHOTS}/mfa-manual-entry.png`, fullPage: true, mask: [page.getByAltText("TOTP setup QR code"), page.locator("code")] });
+      const secret = await page.locator("code").textContent();
+      expect(Boolean(secret)).toBe(true);
+      const { code } = await fixture("setup_totp", { name: "setup", secret });
+      await page.getByRole("button", { name: "Hide setup key" }).click();
+      await expect(page.locator("code")).toHaveCount(0);
+      await page.getByLabel("Verification code").fill(code);
+      await page.getByRole("button", { name: "Verify and continue" }).click();
+      await expect(page).toHaveURL(`${baseURL}/admin/membership?renewalQueue=alumni`);
+      expect((await fixture("session_assurance", { userId: account.userId })).aal).toBe("aal2");
+      await healthy(page);
+      await page.goto(`${baseURL}/admin/mfa/challenge?next=%2Fadmin%2Fsettings%2Fsecurity`, { waitUntil: "networkidle" });
+      await page.getByLabel("Verification code").fill((await fixture("totp", { name: "setup" })).code);
+      await page.getByRole("button", { name: "Verify and continue" }).click();
+      await expect(page).toHaveURL(`${baseURL}/admin/settings/security`);
+      await expect(page.getByRole("heading", { name: /Security settings/i })).toBeVisible();
+    } finally { await fixture("policy", { enforced: false }); }
+  });
+
   test("voluntary authenticator works while enforcement is off; mandatory policy never permits email", async ({ page, context }) => {
     const account = await signedIn(context, "voluntary");
     await page.goto(`${baseURL}/admin/settings/security`, { waitUntil: "networkidle" });
@@ -236,7 +282,7 @@ test.describe("disposable admin authorization integration", () => {
     expect((await verificationRequest(context, { action: "email_send", intent })).ok).toBe(false);
     expect((await fixture("role_rpc", { name: "super", intent })).allowed).toBe(false);
     expect((await verificationRequest(context, { action: "password_verify", intent, password: account.password, captchaToken: "" })).ok).toBe(false);
-    await page.goto(`${baseURL}/admin/admin-profiles`, { waitUntil: "networkidle" });
+    await page.goto(`${baseURL}/admin/admin-profiles?profile=${encodeURIComponent(intent.payload.adminProfileId)}`, { waitUntil: "networkidle" });
     await expect(page.locator("body")).toContainText("Synthetic Target");
     // The UI password stage and configured token propagation are exercised
     // through the actual form; the widget uses a test-only provider fixture.
@@ -259,7 +305,7 @@ test.describe("disposable admin authorization integration", () => {
     await expect(dialog.getByRole("button", { name: "Verify password and continue" })).toBeEnabled();
     // One lost server-action request: preserve the form and force fresh
     // verification, never automatically retry an uncertain privileged action.
-    await page.route("**/admin/admin-profiles", async route => {
+    await page.route("**/admin/admin-profiles*", async route => {
       if (route.request().method() === "POST" && route.request().headers()["next-action"]) await route.abort("failed");
       else await route.continue();
     });
@@ -267,7 +313,7 @@ test.describe("disposable admin authorization integration", () => {
     await expect(change.getByRole("alert")).toContainText(/check.*before.*trying again/i);
     await expect(change.locator('[name="confirmation"]')).toHaveValue(intent.payload.confirmation);
     expect((await fixture("target_role")).role).toBe("content_admin");
-    await page.unroute("**/admin/admin-profiles");
+    await page.unroute("**/admin/admin-profiles*");
     await change.getByRole("button", { name: /role/i }).click();
     await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click();
     await dialog.getByLabel("Current password").fill(account.password);

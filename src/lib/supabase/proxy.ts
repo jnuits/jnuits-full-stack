@@ -6,6 +6,7 @@ import {
   isAdminInvitationAcceptPath,
 } from "@/lib/admin/admin-invitation-flow";
 import { checkAdminMFA } from "@/lib/auth/mfa";
+import { safeAdminVerificationReturnPath } from "@/lib/auth/admin-verification/return-path";
 import { normalizeRoleVersionClaim } from "@/lib/auth/role-version";
 import type { Database } from "@/lib/db/types";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/config";
@@ -313,6 +314,7 @@ export async function updateSession(request: NextRequest) {
     }
 
     if (adminRole) {
+      const destination = safeAdminVerificationReturnPath(request.nextUrl.searchParams.get("next"));
       const mfaRedirect = await resolveAdminMfaRedirect(
         supabase,
         "/admin/dashboard"
@@ -321,7 +323,8 @@ export async function updateSession(request: NextRequest) {
       return redirectWithCookies(
         request,
         supabaseResponse,
-        mfaRedirect || "/admin/dashboard"
+        mfaRedirect || destination,
+        mfaRedirect ? { next: destination } : undefined
       );
     }
 
@@ -383,7 +386,9 @@ export async function updateSession(request: NextRequest) {
     const mfaRedirect = await resolveAdminMfaRedirect(supabase, pathname);
 
     if (mfaRedirect) {
-      return redirectWithCookies(request, supabaseResponse, mfaRedirect);
+      return redirectWithCookies(request, supabaseResponse, mfaRedirect, {
+        next: safeAdminVerificationReturnPath(`${pathname}${request.nextUrl.search}`),
+      });
     }
   }
 
