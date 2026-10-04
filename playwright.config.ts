@@ -4,6 +4,7 @@ const port = Number.parseInt(process.env.PLAYWRIGHT_PORT || "3100", 10);
 const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
 const baseURL = externalBaseURL || `http://127.0.0.1:${port}`;
 const fullMatrix = process.env.PLAYWRIGHT_FULL_MATRIX === "1";
+const releaseSmoke = process.env.PLAYWRIGHT_RELEASE_SMOKE === "1";
 
 const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === "1";
 const localWebServer = externalBaseURL
@@ -40,7 +41,13 @@ export default defineConfig({
           use: { ...devices["Desktop Chrome"], viewport: { height: 1024, width: 768 } },
         },
       ]
-    : [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+    : releaseSmoke
+      ? [
+          { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+          { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+          { name: "webkit", use: { ...devices["Desktop Safari"] } },
+        ]
+      : [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   reporter: process.env.CI ? "github" : "list",
   retries: process.env.CI ? 1 : 0,
   testDir: "./e2e",

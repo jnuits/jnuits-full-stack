@@ -389,6 +389,8 @@ docker_run cp \
 docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
   -f /tmp/jnuits-replay/assert-newsletter-consent.sql
 
+SCRATCH_ACK=DISPOSABLE_SCRATCH node "$repo_root/supabase/verification/run-newsletter-concurrency.mjs" "$db_container"
+
 if [[ "$generate_types" -eq 1 ]]; then
   generated_types="$scratch_dir/generated-db-types.ts"
   printf 'Generating TypeScript types from the disposable local stack.\n'

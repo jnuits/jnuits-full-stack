@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import type { MetadataRoute } from "next";
 import { getPublishedGallerySitemapEntries } from "@/lib/content/gallery";
 import { getPublishedEventSitemapEntries } from "@/lib/content/events";
