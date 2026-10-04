@@ -323,3 +323,5 @@ Filename-version/name parity is a separate check. SQL-content integrity proves
 repository history identity; it does NOT prove that hosted SQL matches.
 Hosted migration statement receipts and effective grants/policies are required
 for release evidence. Never reapply the existing verification migrations.
+
+The integrity gate runs before dependency installation. It compares raw blobs and the sealed manifest in the exact candidate Git commit against the immutable anchor and trusted base; working files are checked independently with filters disabled. Lifecycle scripts, clean filters, and working-tree restoration cannot conceal a committed SQL rewrite. The CLI accepts --candidate-ref to pin the tested commit (HEAD by default).

@@ -167,12 +167,11 @@ jobs:
           node-version: 24.14.1
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
 
 
       - name: Verify immutable migration SQL from trusted base
         env:
+          MIGRATION_CANDIDATE_REF: ${{ github.sha }}
           MIGRATION_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           base_ref="${MIGRATION_BASE_REF:-origin/main}"
@@ -180,12 +179,15 @@ jobs:
           checker="$RUNNER_TEMP/jnuits-migration-integrity.mjs"
           if git cat-file -e "$base_ref:scripts/check-migration-integrity.mjs" 2>/dev/null; then
             git show "$base_ref:scripts/check-migration-integrity.mjs" > "$checker"
-            node "$checker" --base-ref "$base_ref"
+            node "$checker" --base-ref "$base_ref" --candidate-ref "$MIGRATION_CANDIDATE_REF"
           else
             # Initial introduction is reviewed as part of this pull request.
-            node scripts/check-migration-integrity.mjs --base-ref "$base_ref"
+            node scripts/check-migration-integrity.mjs --base-ref "$base_ref" --candidate-ref "$MIGRATION_CANDIDATE_REF"
           fi
 
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Validate migration contracts
         run: >-

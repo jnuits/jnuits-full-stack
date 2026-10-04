@@ -24,6 +24,7 @@ function fixture() {
     sha256: createHash("sha256").update(oldSql).digest("hex"),
   }] };
   writeFileSync(join(cwd, "supabase/migration-integrity.json"), JSON.stringify(manifest));
+  git("add", "."); git("commit", "-qm", "Seal fixture manifest");
   return { cwd, git, anchor, manifest };
 }
 afterEach(() => {
@@ -33,7 +34,7 @@ afterEach(() => {
     rmSync(cwd, { recursive: true, force: true });
   }
 });
-describe("immutable migration SQL", () => {
+describe("immutable migration SQL", { timeout: 30000 }, () => {
   it("accepts unchanged sealed history and appended forward SQL", () => {
     const f = fixture();
     writeFileSync(join(f.cwd, "supabase/migrations/20260102000000_next.sql"), "select 2;");
@@ -42,6 +43,34 @@ describe("immutable migration SQL", () => {
   it("detects one-byte edits under an existing version", () => {
     const f = fixture(); writeFileSync(join(f.cwd, oldPath), "select 2;\n");
     expect(checkMigrationIntegrity({ ...f, baseRef: f.anchor }).join(" ")).toContain(oldPath);
+  });
+  it("rejects a committed SQL edit concealed by restoring the working file", () => {
+    const f=fixture();
+    writeFileSync(join(f.cwd,oldPath),"select 2;\n");f.git("add",".");f.git("commit","-qm","Concealed historical rewrite");
+    writeFileSync(join(f.cwd,oldPath),oldSql);
+    expect(checkMigrationIntegrity({...f,baseRef:f.anchor}).join(" ")).toContain(oldPath);
+  });
+  it("does not trust EOL filters that make modified working bytes hash identically", () => {
+    const f=fixture();
+    writeFileSync(join(f.cwd,".gitattributes"),"supabase/migrations/*.sql text\n");
+    writeFileSync(join(f.cwd,oldPath),"select 1;\r\n");
+    expect(checkMigrationIntegrity({...f,baseRef:f.anchor}).join(" ")).toContain(oldPath);
+  });
+  it("ignores an active clean filter returning approved bytes for changed SQL", () => {
+    const f=fixture();
+    writeFileSync(join(f.cwd,"fixture-clean.cjs"),"process.stdout.write("+JSON.stringify(oldSql)+");");
+    writeFileSync(join(f.cwd,".gitattributes"),"supabase/migrations/*.sql filter=mask\n");
+    f.git("config","filter.mask.clean","node fixture-clean.cjs");
+    writeFileSync(join(f.cwd,oldPath),"select 2;\n");
+    expect(f.git("hash-object","--path="+oldPath,"--",oldPath)).toBe(f.manifest.migrations[0].blob);
+    expect(checkMigrationIntegrity({...f,baseRef:f.anchor}).join(" ")).toContain(oldPath);
+  });
+  it("rejects a committed manifest rewrite concealed by working-tree restoration", () => {
+    const f=fixture();
+    writeFileSync(join(f.cwd,"supabase/migration-integrity.json"),JSON.stringify({...f.manifest,version:2}));
+    f.git("add",".");f.git("commit","-qm","Concealed manifest rewrite");
+    writeFileSync(join(f.cwd,"supabase/migration-integrity.json"),JSON.stringify(f.manifest));
+    expect(checkMigrationIntegrity({...f,baseRef:f.anchor}).join(" ")).toContain("sealed manifest");
   });
   it("rejects deletion", () => {
     const f = fixture(); rmSync(join(f.cwd, oldPath));
