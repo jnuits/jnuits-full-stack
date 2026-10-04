@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readBoundedRequestText, RequestBodyTooLargeError } from "@/lib/security/bounded-request-body";
 
 import { logServerError } from "@/lib/errors/api-error";
 import { verifyResendWebhook } from "@/lib/notifications/resend-webhook";
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
 
   let event;
   try {
-    const payload = await request.text();
+    const payload = await readBoundedRequestText(request, 256 * 1024);
     event = verifyResendWebhook({
       headers: {
         "svix-id": request.headers.get("svix-id"),
@@ -37,7 +38,8 @@ export async function POST(request: Request) {
       payload,
       secret,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Webhook payload is too large." }, { status: 413 });
     return NextResponse.json({ error: "Invalid webhook signature." }, { status: 400 });
   }
 

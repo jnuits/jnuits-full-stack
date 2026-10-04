@@ -178,4 +178,61 @@ describe("Resend delivery webhook", () => {
 
     expect(response.status).toBe(500);
   });
+
+  it.each([undefined, "1", "262145"])("rejects oversized webhook bytes with declared length %s before verification or persistence", async (declared) => {
+    let canceled = false;
+    let emitted = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        emitted += 1;
+        if (emitted === 1) controller.enqueue(new Uint8Array(262145));
+        else if (emitted < 4) controller.enqueue(new Uint8Array(1));
+        else controller.close();
+      },
+      cancel() { canceled = true; },
+    });
+    const oversized = new Request("https://jnuits.example.test/api/webhooks/resend", {
+      method: "POST", body, duplex: "half",
+      headers: declared ? { "content-length": declared } : {},
+    } as RequestInit);
+    const response = await POST(oversized);
+    expect(response.status).toBe(413);
+    expect(canceled).toBe(true);
+    expect(mocks.verifyResendWebhook).not.toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("counts multibyte UTF-8 bytes across chunks rather than characters", async () => {
+    const chunk = new TextEncoder().encode("€".repeat(44000));
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(chunk); controller.enqueue(chunk); controller.close(); },
+    });
+    const response = await POST(new Request("https://jnuits.example.test/api/webhooks/resend", { method: "POST", body, duplex: "half" } as RequestInit));
+    expect(response.status).toBe(413);
+    expect(mocks.verifyResendWebhook).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("preserves exact payload across a split multibyte character", async () => {
+    const payload = '{"type":"email.delivered","label":"বাংলা €"}';
+    const bytes = new TextEncoder().encode(payload);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(bytes.slice(0, 37)); controller.enqueue(bytes.slice(37)); controller.close(); },
+    });
+    const response = await POST(new Request("https://jnuits.example.test/api/webhooks/resend", { method: "POST", body, duplex: "half" } as RequestInit));
+    expect(response.status).toBe(200);
+    expect(mocks.verifyResendWebhook).toHaveBeenCalledWith(expect.objectContaining({ payload }));
+  });
+
+  it("does not verify an aborted body", async () => {
+    const abort = new AbortController();
+    abort.abort();
+    const response = await POST(new Request("https://jnuits.example.test/api/webhooks/resend", {
+      method: "POST", body: "{}", signal: abort.signal,
+    }));
+    expect(response.status).toBe(400);
+    expect(mocks.verifyResendWebhook).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
 });

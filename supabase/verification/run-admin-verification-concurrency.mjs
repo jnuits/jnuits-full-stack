@@ -49,6 +49,7 @@ try {
     create function pg_temp.try_change() returns boolean language plpgsql as $q$ begin
       perform public.apply_admin_role_operation('admin.role.change','${JSON.stringify(demotion.payload)}'::jsonb,'${demotionProof}'); return true;
       exception when insufficient_privilege then return false; end; $q$;
+    grant execute on function pg_temp.try_change() to authenticated;
     set local role authenticated; select pg_temp.try_change(); commit;`), "t\nt\nf");
   const removals = administrators.map((_, index) => ({ operation: "admin.role.remove", payload: { adminProfileId: administrators[1-index].profile, confirmation: administrators[1-index].code } }));
   const proofs = await Promise.all(actors.map((actor,index) => issueRoleProof(actor, removals[index])));
@@ -58,6 +59,7 @@ try {
     create function pg_temp.try_remove() returns boolean language plpgsql as $q$ begin
       perform public.apply_admin_role_operation('admin.role.remove','${JSON.stringify(removals[index].payload)}'::jsonb,'${proofs[index]}'); return true;
       exception when insufficient_privilege then return false; end; $q$;
+    grant execute on function pg_temp.try_remove() to authenticated;
     set local role authenticated; select pg_temp.try_remove(); select pg_sleep(0.2); commit;`)));
   assert.deepEqual(outcomes.map(value => value.trim()).sort(), ["f", "t"]);
   assert.equal(await sql("select count(*) from public.admin_profiles where status='active' and is_active and private.admin_role_rank(user_id)=3;"), "1");

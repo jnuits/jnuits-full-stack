@@ -1,0 +1,566 @@
+{
+  "version": 1,
+  "anchorCommit": "68d8c3730d599b37b4bacb177bd48c0d28008958",
+  "migrations": [
+    {
+      "path": "supabase/migrations/20260408000000_extensions_and_helpers.sql",
+      "blob": "781df71945a49430ff6b51f203bbfbe9a60cb213",
+      "sha256": "b25559f14a1bcd736207e4ce4b65169880b7ea53eb6df80283a7e2b3c623e843"
+    },
+    {
+      "path": "supabase/migrations/20260408001000_identity_certificates_rls.sql",
+      "blob": "50ce2f11015aac67661c7e726911010e605072fc",
+      "sha256": "f875729f1e33ffa35ac27d06a62de63fbca0f7f187c029fe09571d2ad8b26b55"
+    },
+    {
+      "path": "supabase/migrations/20260408002000_fix_function_search_path.sql",
+      "blob": "35afae325e4284cf24a9fd3911c8bf57dde5bfd1",
+      "sha256": "410596d30813b1ee790864a8eb481ae137fc87d36f38d5cea92b1f4368edda18"
+    },
+    {
+      "path": "supabase/migrations/20260408003000_lock_membership_applications.sql",
+      "blob": "cdf54807d65f9f96af2706776588e887a2e0ccb0",
+      "sha256": "6cf3f57b58fe5535678441d46f0ef5f00c89340a7e1a2cdde607cb9f44c3cde0"
+    },
+    {
+      "path": "supabase/migrations/20260408004000_seed_departments.sql",
+      "blob": "89c6bcc40a0aa82406384403963cde6d394cefb0",
+      "sha256": "498004b22a08f9b33831f228ab7f7bae8e13c6759568cb4edb39cf3eb7002dce"
+    },
+    {
+      "path": "supabase/migrations/20260408005000_membership_review_queue.sql",
+      "blob": "37d79a312598505c8d6887e8e6c46a4151e342f4",
+      "sha256": "e241172e29e4014ec3fc324c2542bc1d926ec2033b6643abb3e779f51ed80be7"
+    },
+    {
+      "path": "supabase/migrations/20260408006000_committee_reports_content_media.sql",
+      "blob": "f08f7735cceaccce9a220e2c321f823ae320932e",
+      "sha256": "727d987fe630d6f7287269300b0fc74be3121cff97e14f69f2d847f2cf99f7f7"
+    },
+    {
+      "path": "supabase/migrations/20260408007000_cloudinary_stepup_blog_rollover.sql",
+      "blob": "0c62def7868be9e5dc374db3f8f9aef1f7ebd8c1",
+      "sha256": "3512eabd0b70bb8e330737fe1b458789fda439ae0e2ebe1629de7974a43ecfb2"
+    },
+    {
+      "path": "supabase/migrations/20260409040000_super_admin_role_hierarchy.sql",
+      "blob": "2a0f6060820c98a6d55ce00170cffd4da5116597",
+      "sha256": "370cf53eb66f3bda6e0bab144860386f3d11d3f9d30482917a5d5245429a9d44"
+    },
+    {
+      "path": "supabase/migrations/20260409051000_membership_cycles_and_batches.sql",
+      "blob": "917271746b60b23657cc830a52e4693543878448",
+      "sha256": "b5f8ebd4508c99968f6f6f4fe761156ab9da53fcc0a1595305d9e53ea8309735"
+    },
+    {
+      "path": "supabase/migrations/20260409060000_optimize_performance_and_rls.sql",
+      "blob": "2ec7bcd637a3058c38bddbe7f6ea15117f614c8f",
+      "sha256": "d9ee12df5baaf9fad29252a9e64437d083f50755ac12e108a299cdc5f0497316"
+    },
+    {
+      "path": "supabase/migrations/20260410000000_consolidate_permissive_policies.sql",
+      "blob": "f1377ebcbbe7b4fda1778fcbb20a1deb3c6db15e",
+      "sha256": "3471a4660562dfe2ac267e3f3513efc661ba118d6e3b4360eed358b5cc382c45"
+    },
+    {
+      "path": "supabase/migrations/20260411000000_event_registration.sql",
+      "blob": "3870533104202e24681327182ae890dd90631bfa",
+      "sha256": "09c9b1e3db511c80fa8f97450bc51dcf38387a207e3e1231624d9e32aaa53149"
+    },
+    {
+      "path": "supabase/migrations/20260412000000_project_showcase.sql",
+      "blob": "62862a57c2154b0c9fc61304bd7f92b37ae858e1",
+      "sha256": "a1bb6d96ba79623db7829fbc8707de0e73439ba2eecda5b5816976361f24f6dd"
+    },
+    {
+      "path": "supabase/migrations/20260420000000_gallery_album_rebuild.sql",
+      "blob": "b76f00f54e3b0d74900b7eeda3dc965fa26934b7",
+      "sha256": "6d227d12ee1ea2d8e2305225a0ea7748366fed24c56302134f2c620750f335f6"
+    },
+    {
+      "path": "supabase/migrations/20260421000000_events_module_rebuild.sql",
+      "blob": "2b2c11975e02cfbc0660051037844ca5b4e12725",
+      "sha256": "842a68466c9045b3e77a8505b109255dbfd6e3e5d557add9a02c1490bd1cbfd2"
+    },
+    {
+      "path": "supabase/migrations/20260421010000_event_registrations_legacy_fk_nullable.sql",
+      "blob": "9907f2006f9be18ac69274f7b6cae7f2576d34bf",
+      "sha256": "c0d002df4ac29c7e65968dbc5b6f6f18f81917c7b09cfc54310c2b58da743ff8"
+    },
+    {
+      "path": "supabase/migrations/20260423000000_rbac_role_scopes_and_permissions.sql",
+      "blob": "00db285d606feff9fe4bdbc94dafcd00f9d08fb5",
+      "sha256": "16f9398e210f2c0b64d384ad7903695e89079942dd2094cf5b4368c4fd5c07a6"
+    },
+    {
+      "path": "supabase/migrations/20260423001000_rbac_claim_hook_and_helpers.sql",
+      "blob": "8e462366f3d6bb36a5308f20922fc08c6d0a4aa5",
+      "sha256": "858ca670b6c064d0208d526503603ae115c5c0ca55d4c337d77f1f166ecaed91"
+    },
+    {
+      "path": "supabase/migrations/20260423002000_rbac_role_policies.sql",
+      "blob": "249cc898007904bc1866b5e6e358b8234b354211",
+      "sha256": "813cd745a8b5471e64265420eceedb78ff9c9d207b6dcc480535ae6cc4980830"
+    },
+    {
+      "path": "supabase/migrations/20260424000000_multi_portal_phase3_features.sql",
+      "blob": "a3c41e052135105ae508e197669e01d2b46407b7",
+      "sha256": "7ea9fd62576ddcc8aaa833dd351ed58a08e642f536466b69947fe4b8a035aeb7"
+    },
+    {
+      "path": "supabase/migrations/20260424001000_multi_portal_phase3_permission_completion.sql",
+      "blob": "7baa993daaca1936c55a2771022ad6d5eef18dc3",
+      "sha256": "5e0aca1df44225689991fe682282289c7a9d5b3ea683ac0f59c48ac0f65ec339"
+    },
+    {
+      "path": "supabase/migrations/20260424002000_rbac_non_recursive_policies.sql",
+      "blob": "889b385a1578e54d4e6480ec6a1572890126e1dc",
+      "sha256": "eadc52bd318aea7ec3a1dda4080ec861d61414cff6ef4de1d23d3746f069ebc2"
+    },
+    {
+      "path": "supabase/migrations/20260424003000_rbac_support_table_read_policies.sql",
+      "blob": "5d17391053f642809026a2265ef664fb58df9ae1",
+      "sha256": "89bfbfa5d3300e4200b7c2bbae7e754322207bd9a0043c5109c1812d5710e78d"
+    },
+    {
+      "path": "supabase/migrations/20260424004000_event_registration_no_direct_public_insert.sql",
+      "blob": "d3aca6eca54d92eb2f1371de9d56b9ec7589279c",
+      "sha256": "e399ef8cd2970498bdce41a204c51aaac18448c45df970209cdc5e85e5f47e4a"
+    },
+    {
+      "path": "supabase/migrations/20260425000000_admin_totp_enforcement_setting.sql",
+      "blob": "f2a713a3f4af4aa771d640a08c48c958d5acff15",
+      "sha256": "0da5fb28faba954ce702f87a409597f4c8c50e135cbc4d3ac7c5a5528bb9c78f"
+    },
+    {
+      "path": "supabase/migrations/20260425001000_profile_identity_change_requests.sql",
+      "blob": "70f9f9c26f355d0c4de038959372fccf01c3b744",
+      "sha256": "42220c98d24e762d2223cee4ec28e1c547deb77b5ed0000f4dc7c660d99230a2"
+    },
+    {
+      "path": "supabase/migrations/20260426000000_auth_hardening_findings.sql",
+      "blob": "7784c381bfe7c4cc30d56845001b5e02ab5befe5",
+      "sha256": "d77ac8a3c046efbf671a3f0384a29508459d71534b6a625500b88916cf831d98"
+    },
+    {
+      "path": "supabase/migrations/20260426002000_auth_hardening_drift_repair.sql",
+      "blob": "4a1e33f8e9549a1e19307f504c68b1f22f0e5d98",
+      "sha256": "38ca615c5f80b5a5fc93d314226574a380498a8a9746c792cc58bd4c51c753f7"
+    },
+    {
+      "path": "supabase/migrations/20260426003000_membership_identity_foundation.sql",
+      "blob": "ed43c1edd3feffd25926aa3dbb33d729e25bd328",
+      "sha256": "6b3c9cae3210a1459d387d5a72a52a93cab21fb985c2716c157ddcb4223bdac6"
+    },
+    {
+      "path": "supabase/migrations/20260426004000_membership_identity_advisor_fixes.sql",
+      "blob": "518e2235f3cc5d7e585864d276b71500190ca5ee",
+      "sha256": "f40eed0fe0db5b757d4c158c8dfc0e5cacfd3e8905d0bab820167838b8e66ac8"
+    },
+    {
+      "path": "supabase/migrations/20260426005000_membership_id_sequence_sync.sql",
+      "blob": "3a54757a7d2c97d9291fa1f804c531038c7c6a6d",
+      "sha256": "f2785a2ee5cff7fc95d78155ffd75d6a9d59517f50b49320d6615dfcb45983b4"
+    },
+    {
+      "path": "supabase/migrations/20260429000000_migrate_legacy_alumni_ids.sql",
+      "blob": "f3ad858900a62c1d434df214acf2669cc7276f83",
+      "sha256": "e78b8043948bd9448d514e7573393f0f24207b8107bc3a7fa50dce510179dc44"
+    },
+    {
+      "path": "supabase/migrations/20260430001000_members_facebook_profile_url.sql",
+      "blob": "0bf06eba78c7ed97960dedc598539d1de935417f",
+      "sha256": "c8ced73d9a3503258702929e3d08f62205887fb852fe2aa4f1d5cced09ccf116"
+    },
+    {
+      "path": "supabase/migrations/20260501165717_invitation_workspace.sql",
+      "blob": "7dc0a3f07d297251e98e7c9ce16e40af6e3441b0",
+      "sha256": "3566fead38695ed5d9c411c6c729bea589c29790f13393aad780e44d8fb1d64f"
+    },
+    {
+      "path": "supabase/migrations/20260502000000_workplace_workspace.sql",
+      "blob": "9c26532827030d515b8afdf9ad5a5f7ec73cb087",
+      "sha256": "9e221f6ae9805ba4c486b52b360d40970352ed8d915b45215112c1ee22f04124"
+    },
+    {
+      "path": "supabase/migrations/20260502171751_committee_advisors_portal.sql",
+      "blob": "bdb4e1f4aa192b7ab0d9ce895c070d18a6d86d34",
+      "sha256": "3a4022163bb7cfa94ca118e8b83f2d446a4525a81c19e0b38cb3178823e7b126"
+    },
+    {
+      "path": "supabase/migrations/20260506090544_committee_advisor_identity_history.sql",
+      "blob": "7f7882923c1bcd26a2366b2a24a57087a148022a",
+      "sha256": "21d8f62d7be260b9dcf1d9e43042c046a3242b34c52daa58d91f073a5bcb4e76"
+    },
+    {
+      "path": "supabase/migrations/20260508211434_add_uzzal_honorable_advisor_profile.sql",
+      "blob": "1309e57ec3dadb4210ef494d31d71a9cf90d449f",
+      "sha256": "e505a5c1a90bc82dee747e13250171c2ba0102aa0639bd44fb912b9509f3b522"
+    },
+    {
+      "path": "supabase/migrations/20260509090000_contact_settings.sql",
+      "blob": "499b94c935b875d17ea0575124e711f330829179",
+      "sha256": "d461f042b22b73cab659ea810d7224f86ea25a761f8a71341bfeb304fb8fb602"
+    },
+    {
+      "path": "supabase/migrations/20260513150815_mark_sajeeb_saha_former_honorable_advisor.sql",
+      "blob": "ecd06d007709e976e632ecac9e41e32a4b3328ef",
+      "sha256": "fe7a0867aa5542db6695c70479e803e4c53cd225850a2d7d06cfcff2405269a6"
+    },
+    {
+      "path": "supabase/migrations/20260516042440_fix_advisor_jnuits_id_search_path.sql",
+      "blob": "5b9a71b9cb195a100639485c9df62b73999878de",
+      "sha256": "1e3df23fd8093ccf9b7c060fcec1c685ac12389b826711bd5b600dd7e667f3a4"
+    },
+    {
+      "path": "supabase/migrations/20260517035310_advisor_speeches.sql",
+      "blob": "0a4f5acc99beb70d5fe159330a775cd3a86034d2",
+      "sha256": "f71acc86f7f5fbbaafb933360d5db6450ebd680669bf766007fee9b53822fedb"
+    },
+    {
+      "path": "supabase/migrations/20260518090000_rename_main_advisor_labels.sql",
+      "blob": "cc84531a37a7dcfc95870282bf243d9f18939b5d",
+      "sha256": "c9e226e67bf90fec20c017439b4cc07387eafa999e1723397a0c9bfdda50463f"
+    },
+    {
+      "path": "supabase/migrations/20260518091500_fix_abu_layek_duplicate_university.sql",
+      "blob": "ca8351bb997570646086e2f511c04c3339145995",
+      "sha256": "de8eec2632e99d53865b0e810065eb97fd382fbcf52b3dc1dd3e1ae7a4c01260"
+    },
+    {
+      "path": "supabase/migrations/20260518093000_data_api_explicit_grants.sql",
+      "blob": "f136cb0ab821ffe030b5709f15f5ae16e698c13b",
+      "sha256": "9ed0ee4ead260428bb50740be3ab5b4190107933d542cad48d67e2db4fd6fa59"
+    },
+    {
+      "path": "supabase/migrations/20260518102000_notice_workspace_content_post_grants.sql",
+      "blob": "8b2b5510515b941aa978cf2dcccfeb3fb6e9a558",
+      "sha256": "40fe6ff164c0c40322f768d622328a15ca91bad786ab43d43a54ccc6dad45469"
+    },
+    {
+      "path": "supabase/migrations/20260525033833_harden_member_invitation_claims.sql",
+      "blob": "47c98f39e72ae480bb4e8a3580db13023a5032a6",
+      "sha256": "1cabd84f1fc6d7aa7152829b8135007a3d8e3a31c48b3066af3644a1df730792"
+    },
+    {
+      "path": "supabase/migrations/20260608093000_admin_permission_policy_hardening.sql",
+      "blob": "51bb48fa033c9ced23865dec72fe3d5af2ff214a",
+      "sha256": "54b799bd87cff3d8f89e2b2f323ec7f25acff1f19ab5766e95ed852b6a5c5969"
+    },
+    {
+      "path": "supabase/migrations/20260612090000_security_performance_remediation.sql",
+      "blob": "043791c021888c5e63957d93fe6df03e765a6e85",
+      "sha256": "b5100ecb521e0ce57c8baf7a7c8e53797d157401de49cd6cbf7fb48f38751e1f"
+    },
+    {
+      "path": "supabase/migrations/20260613090000_public_certificate_safe_view.sql",
+      "blob": "dcd1398ec34de4447606d3770223c68c2292d942",
+      "sha256": "f6936344a736ec60d22a90f039ceca5f875a5aa8f6aed0a44d9cd7153e142223"
+    },
+    {
+      "path": "supabase/migrations/20260628034000_tighten_public_view_and_function_grants.sql",
+      "blob": "70d901d0e2cf8ed8b239ddc0f24070a3193757a7",
+      "sha256": "8e11959054ac35d6ea0b55ef1c2b0444f5c3a564fa35524b49403be3813cfc30"
+    },
+    {
+      "path": "supabase/migrations/20260630190842_admin_account_lifecycle.sql",
+      "blob": "6b7508c5a136e4b5180ffc7bb9c6afec0d06b8df",
+      "sha256": "2524f3cb4c92d20889b69d7f291f9697a50d022caf7f374aef53b242e65860f2"
+    },
+    {
+      "path": "supabase/migrations/20260630191141_admin_invitation_member_search_hardening.sql",
+      "blob": "dd1a2cbc41f7bc2ef0036bcdaa3908366d4badde",
+      "sha256": "046913e094c79685062cfb8a5adeceb47a4a79c9c20bbecc6ca69e8925450597"
+    },
+    {
+      "path": "supabase/migrations/20260703020515_certificate_full_name.sql",
+      "blob": "8a54ba602d764522310cb25616fa961af50ace08",
+      "sha256": "5b632905759f85245f11a218d1f84393cbe6b514cbb622206542753c712a5d90"
+    },
+    {
+      "path": "supabase/migrations/20260703040706_cleanup_certificate_legacy_names.sql",
+      "blob": "04ab63a7a9214bf82809bd7a4b4eb1928b24f48f",
+      "sha256": "2065d41db6bb9bc3c741d186ced8913038de8401360d46a94f360b082250af2d"
+    },
+    {
+      "path": "supabase/migrations/20260705013614_tighten_certificate_public_access.sql",
+      "blob": "1ad2ad3fa62e22603c26611b386e1954539094de",
+      "sha256": "96e914ad6daefd5023c3c002975a97726b9e6ac34fe13d19b8d39bc2f9968405"
+    },
+    {
+      "path": "supabase/migrations/20260705013928_public_certificate_view_access.sql",
+      "blob": "35ef43d745e79a9a30587ec6ccc196519695e9e7",
+      "sha256": "07cf4b2b765ab500016cd236b2061eac67acb36d185533aa9fd7231358371204"
+    },
+    {
+      "path": "supabase/migrations/20260705020732_public_certificate_security_invoker_view.sql",
+      "blob": "3b809ec1381c0bbcf15b579c870c09e9ad665fb9",
+      "sha256": "b5b2e423e790861cb5b60e8c34ad4fe08f3d68b133d34bae035ca0d428a10827"
+    },
+    {
+      "path": "supabase/migrations/20260705022356_revoke_anon_admin_totp_helper.sql",
+      "blob": "fe2a24228340a447a0ad300d27d9cf65281b935c",
+      "sha256": "0da0dda53dcdc60d89deca09bba80b7ccf551065bfed1db72dfae8e147db833c"
+    },
+    {
+      "path": "supabase/migrations/20260705151405_restrict_authenticated_security_definer_exec.sql",
+      "blob": "abf40b748ebc5bf2e51e3df4f22bcaaeafa15dfa",
+      "sha256": "d04e71c3c29deff0a4059fd5682626762f1ab4ba69bedc561961a6c6de0021a0"
+    },
+    {
+      "path": "supabase/migrations/20260705202621_tighten_public_certificate_view_grants.sql",
+      "blob": "000b90f8cf39f2af04b24e59123f40bac148b470",
+      "sha256": "2d82f28f7cb8d12c1bb24f28d81ed80050c797f06d00cf05021f896a8fa94187"
+    },
+    {
+      "path": "supabase/migrations/20260705205024_add_operational_foreign_key_indexes.sql",
+      "blob": "8f3e6581c6fa88761139bbba8e8076919ec89fcb",
+      "sha256": "152de88c8dcd95c9433727352c40f45adb9b2723e6b67d71603d4ee1e5f57b01"
+    },
+    {
+      "path": "supabase/migrations/20260706025103_tighten_admin_operational_grants.sql",
+      "blob": "4b00bff41907e08ea61659b19858499ed8bc5ba9",
+      "sha256": "2b81c4396249e4956b97bd66bf5f79010a5d5542a3569a87f79ae8ff272e5069"
+    },
+    {
+      "path": "supabase/migrations/20260706030908_drop_duplicate_fk_indexes.sql",
+      "blob": "8f2f523b27f25f67be5253eb71da6086cd39847a",
+      "sha256": "5181147097a974e136e6e66e032532d7a1d11636c61df287e99fadef015f7614"
+    },
+    {
+      "path": "supabase/migrations/20260706031032_add_remaining_advisor_fk_indexes.sql",
+      "blob": "60e4504d82c49fe04242a624e3c723669074073d",
+      "sha256": "8c81a7d6fe247ca85d8b79bd844314f04efff80a7030ac7ad2287b422fa1f3b9"
+    },
+    {
+      "path": "supabase/migrations/20260706035422_drop_duplicate_content_post_indexes.sql",
+      "blob": "fc849a39ac20bf8d572cded91b407a569e7627cc",
+      "sha256": "fbd8f20b5e4273736905a28bb60e00c4ad6c13e804bad62d82193e43f161788b"
+    },
+    {
+      "path": "supabase/migrations/20260706074012_phase2_rls_policy_advisor_cleanup.sql",
+      "blob": "a61e2b0dd0cc9b655be7a7a7c80ccd48b3473e4a",
+      "sha256": "f269b108e1818b0ef39693b039d2ef550a28175e52990a7aa5e98233f1e22178"
+    },
+    {
+      "path": "supabase/migrations/20260710073007_phase2_rls_initplan_uid_wrap.sql",
+      "blob": "172293aae741766454ed702f43c39494f1f104a1",
+      "sha256": "42cc0d3d2ab33626af3718aac2b37c4a972579c2fc7d97628973d01a1cec6900"
+    },
+    {
+      "path": "supabase/migrations/20260710073629_tighten_sensitive_table_grants.sql",
+      "blob": "bcdce629c24ef2f9e4fdc02c72bc49c0bec802e0",
+      "sha256": "9d23c430f14e0d2e1392bb05274f81ae26b0024a3212fb81a4861950b415af72"
+    },
+    {
+      "path": "supabase/migrations/20260710074151_archive_legacy_gallery_entries.sql",
+      "blob": "3973a87f573569fae444d6eb941810e18dfcc68a",
+      "sha256": "c4b4593e27ace913522fafa73c8708539fa13f56b5588d340bcc3ef035b0eb0d"
+    },
+    {
+      "path": "supabase/migrations/20260710213516_find_auth_user_by_email.sql",
+      "blob": "d1085a2f0ff60d60321d3693c797d925bd8d53ca",
+      "sha256": "d87b8150cf8b05133327d17e5fee54e765d3574b887de7649fa82dfb96cb3a4e"
+    },
+    {
+      "path": "supabase/migrations/20260714060450_add_event_registration_counts_rpc.sql",
+      "blob": "7a3c465c03408f49eb76f259892f3ac3c8b669fb",
+      "sha256": "3d112ca251a8515dc43a5931d237fb657df801c9159cd5be2a40065abd198b02"
+    },
+    {
+      "path": "supabase/migrations/20260718131116_event_registration_operations.sql",
+      "blob": "41addaf36e9b8e1cae6d9c3204229bde6f950a70",
+      "sha256": "6bf9f6d2002ce0025ffe1174561c080aa8b16f94a4e41339b6949a10460af58f"
+    },
+    {
+      "path": "supabase/migrations/20260718131143_event_export_retention.sql",
+      "blob": "94bae913f65048895ba0c0c05fad28763b6709f9",
+      "sha256": "5904e4d83ed16fc2d155b77082df1d1330ecfddd9e232a33126bd13b7212e10c"
+    },
+    {
+      "path": "supabase/migrations/20260718131228_create_versioned_form_platform.sql",
+      "blob": "4380cd7cc43f36ac7e571d461b62aa6d70519d41",
+      "sha256": "b947734858919f13323c62b9c981cbfccf256ff4c6d5f237a31c92822256c132"
+    },
+    {
+      "path": "supabase/migrations/20260718131600_form_confirmation_workflow.sql",
+      "blob": "4021e73405d4322780023880fff9c674c1818b51",
+      "sha256": "aab6b010b7af699f304ca5fdf697fca26752f60e2ca61324d4c00468d8802d65"
+    },
+    {
+      "path": "supabase/migrations/20260718131617_form_draft_management.sql",
+      "blob": "8648f7cf497e640b1411ff53fdc3449eeb9de52f",
+      "sha256": "01901d311b9b552a05a551842e12b104c01e7a59f1fd2d469c5c9ba8a7008b7b"
+    },
+    {
+      "path": "supabase/migrations/20260718131634_event_form_atomic_registration.sql",
+      "blob": "5b30e03692d07951806756ce65fad3efcb68c0fe",
+      "sha256": "790f17d28db6d729be91cc2054d327ecfcfa6321d596033ba6a7d52ee48e495e"
+    },
+    {
+      "path": "supabase/migrations/20260718220709_event_form_assets_atomic_registration.sql",
+      "blob": "f52646bdd75ed158f703d1d1c3e95ba8010d17c4",
+      "sha256": "72786711d175342e19532fcf2ec80adfd35a9caa0e2563fc8af7d7d9cc252535"
+    },
+    {
+      "path": "supabase/migrations/20260719060148_form_draft_version_updates.sql",
+      "blob": "285b6031edcffedf6414cacdab5cc34c32608ac5",
+      "sha256": "208d4ba82f88fa26db7c99a2e91fd27af403e49c5db40ed0f5baf3d9f1de954a"
+    },
+    {
+      "path": "supabase/migrations/20260719071435_resend_delivery_webhook_events.sql",
+      "blob": "eee44fccb31118879746e7f7f662a8edd59107af",
+      "sha256": "fdc25a24397b41bad555d0657cc4769b090a42606514cfd3736facd03b056ad2"
+    },
+    {
+      "path": "supabase/migrations/20260719101454_form_confirmation_resend.sql",
+      "blob": "993c2f6c288d750bfc4aed62b715bc2adcf19add",
+      "sha256": "736a1344ff06030bc0ccb25878c37fd54614a192c5981b5c98e2a56a38883509"
+    },
+    {
+      "path": "supabase/migrations/20260719120000_event_registration_delivery_webhooks.sql",
+      "blob": "932787287843b707c2f45d34585d969ac36ff24f",
+      "sha256": "a688376b6d40fd92c47c9229cb1f11cf3ee8e06b99cbdb25a11422129bae2ece"
+    },
+    {
+      "path": "supabase/migrations/20260722120000_event_form_publication_compatibility.sql",
+      "blob": "16dac1f2228bfc7ec972cad92c51197464220f4b",
+      "sha256": "cdf2de141d51a7fa8eab58d771c091de31905e2da87deb0cd68d3f5e321ec505"
+    },
+    {
+      "path": "supabase/migrations/20260722150000_retention_purge_rpc.sql",
+      "blob": "b3ea9768711846eb7e9a52a2f0171fea865c5e59",
+      "sha256": "0508677813186a002802d8a20d2492a6a461fed43350bac1e378fc0c17fb545f"
+    },
+    {
+      "path": "supabase/migrations/20260723123000_form_definition_lifecycle_transitions.sql",
+      "blob": "52ab5ea87dc4998abcdc8f286b1674a3194c40fe",
+      "sha256": "b23a79c7cf2afae1e4326e5aa4684f6d7cfa215890166f7d2ca4d88219cd2281"
+    },
+    {
+      "path": "supabase/migrations/20260723151000_event_waitlist_promotion_idempotency.sql",
+      "blob": "5c4db192abce28a06066f741653d7ca244507d29",
+      "sha256": "9783a460e61128726aed215c55f74bb0d9386f6fbd7cd80b053816b225233b41"
+    },
+    {
+      "path": "supabase/migrations/20260723163000_event_atomic_checkin.sql",
+      "blob": "9c628995f9527c020cf76cc7a19488ca51eb87bb",
+      "sha256": "b05ecc56ceaba706e9bd16bbe073a7477ac1a48e773cec183aa0baf7344679c7"
+    },
+    {
+      "path": "supabase/migrations/20260723171500_membership_application_cycles.sql",
+      "blob": "a77595220b9b5cb50e70a4d87dadd04c82e16e8f",
+      "sha256": "5bbfa4317663a8452ba7c75a2bce94d5c3891a120e67605b9b95e986e0a383da"
+    },
+    {
+      "path": "supabase/migrations/20260723174500_membership_application_decisions.sql",
+      "blob": "ef6a9721bfc53a12a137e9f592dc85912338994b",
+      "sha256": "4017fe96d4fb09f19f2f497f69f35be107b97a5dbcd43474035e0022ce4babcf"
+    },
+    {
+      "path": "supabase/migrations/20260723193000_alumni_onboarding_decisions.sql",
+      "blob": "21a23e0435405b1525acd583d6ab2ffec220fd08",
+      "sha256": "0e314602ad77f1a2accb3e4886daa2eaa4bbb58e64415eb26417964c186ebfc4"
+    },
+    {
+      "path": "supabase/migrations/20260723233000_form_upload_sessions.sql",
+      "blob": "f5c258edbf4b3305f25fe49f803ec5a2ffb7d535",
+      "sha256": "f4b94258dd87772a1f443c0b38826529e7771463c317f27d1a9dc2046958dff3"
+    },
+    {
+      "path": "supabase/migrations/20260724140000_form_publication_and_upload_session_hardening.sql",
+      "blob": "cba34ce68aee2acfcc7381fceee60b8f79492918",
+      "sha256": "066b3ac1293ec0b5ce081af1607c20fd61ae2ebf41d904ad68401789e6f71531"
+    },
+    {
+      "path": "supabase/migrations/20260726020000_retention_purge_boundary_enforcement.sql",
+      "blob": "35357b011e7c3ac007f9ffcccde837426f2815e7",
+      "sha256": "61e901034fd37196bc92ab0f5be46750ca84b55ed08517f6932faf222a45fdf2"
+    },
+    {
+      "path": "supabase/migrations/20260825000000_membership_id_sequences_rls_hardening.sql",
+      "blob": "c928269260bc6a636aa64ad3dc671784502f9ada",
+      "sha256": "739045f8bd549a703cae1b34065e13f9de9a1a9250ed550d012414716236ccfc"
+    },
+    {
+      "path": "supabase/migrations/20260825010000_phase2_rls_policy_hardening.sql",
+      "blob": "2599ed72f4ae6d153cf37d1c4e8d5c0b16388bf1",
+      "sha256": "ae3393b7ed9af2507f9271bd49a2514b0c6099a65675fcf73f161188a4ed71d2"
+    },
+    {
+      "path": "supabase/migrations/20260825010100_phase2_schema_integrity_constraints.sql",
+      "blob": "c9685c0da3448d264edf20baaa3fbed7413e3227",
+      "sha256": "119d0e83ddfa5efdf66f90f625f41018426061d2ea92dbc69025ec15771d2cf8"
+    },
+    {
+      "path": "supabase/migrations/20260825010200_member_directory_facets.sql",
+      "blob": "2adf8393b34f76fc4219540ab1bde9cd1ef6d306",
+      "sha256": "f0e31db4dddf406e717c8b02a2573735f220df9b3043241198d74c5015402cbc"
+    },
+    {
+      "path": "supabase/migrations/20260927014347_committee_onboarding_foundation.sql",
+      "blob": "91130d95b6f1a3aa6d48e1bfccb4ace7490ad2f4",
+      "sha256": "2ad66dd624ddbf5d7a118e88697a43548d5b072ffb4e8e08f17a69e79a5ab1aa"
+    },
+    {
+      "path": "supabase/migrations/20260927014437_committee_onboarding_draft_publish.sql",
+      "blob": "a2914bd13d4c2900eaa874149514a3340a0d507b",
+      "sha256": "4e3782c1e972dcf191e710def6ec5e8e90b4183f69709edb6d2f5c9a0188184b"
+    },
+    {
+      "path": "supabase/migrations/20260929031337_seventh_executive_committee_and_verified_history.sql",
+      "blob": "fd8a0e9c1429bcde59b57d13f4c3edfaceefb401",
+      "sha256": "afb1abbf55c132ec5a246836b390187fbea547c21c4f9ca3755d090f77686a4e"
+    },
+    {
+      "path": "supabase/migrations/20260929110000_member_intake_catalog.sql",
+      "blob": "c9252ce0cc01988c656a4b7a70fc79a29ad043e8",
+      "sha256": "e474c536ae472c6d38f1a5db07e037e91097565f8663ae2b91d7ab2cd1a23891"
+    },
+    {
+      "path": "supabase/migrations/20261001090000_member_intake_publish_contract.sql",
+      "blob": "f2bd2e26272c1a245e546cb415955b5320b8a8b2",
+      "sha256": "b15460a3e6d73df58f2d49a27dcd5323da5a814b63c615698ea44d8d41db9bf2"
+    },
+    {
+      "path": "supabase/migrations/20261001090001_membership_anniversary_lifecycle.sql",
+      "blob": "2db75157f132fb57736244a5269e057b5cec51b0",
+      "sha256": "9203081f0d5b9030c892d54e53b6913cfe4140af89c089baf86a237d36708b7b"
+    },
+    {
+      "path": "supabase/migrations/20261001090002_cycle_free_membership_approval.sql",
+      "blob": "dc8c9cf1320c0ae908442b73e6b01eb20e8e27ce",
+      "sha256": "38f57c91b7a45fc3c8130e9a633ff243cc65c3ed36b8e24b6b4329c7f1c35525"
+    },
+    {
+      "path": "supabase/migrations/20261001090003_member_lifecycle_snapshot.sql",
+      "blob": "a49f45f70299a2d41254288c4eafc873363f37cd",
+      "sha256": "79a51d77873adc60f6af21993cf6dd1d7283ee0899471e479c105b0d2c510e03"
+    },
+    {
+      "path": "supabase/migrations/20261001090004_membership_admin_queues.sql",
+      "blob": "9b6f8f3dc868e25a82024f810b41121a5c49a394",
+      "sha256": "93e4ec612ecd4789b6911bd8d60c5a698a4242910382620776722201808fde22"
+    },
+    {
+      "path": "supabase/migrations/20261001154954_membership_lifecycle_review_guards.sql",
+      "blob": "8fc4f4027227ac8ba9a892090714dc742f5e969d",
+      "sha256": "7ac459ae63efda764610ead360d875d7c5f1c2f26529080ecc8e405bafaba43d"
+    },
+    {
+      "path": "supabase/migrations/20261003181029_admin_verification_foundation.sql",
+      "blob": "b3dbe873712657e1f9f78bf97f0a431929e9b7cd",
+      "sha256": "d3944b558872d8c3e2d120425c47038ef2027993feb4ee53f5ea360cc55f715e"
+    },
+    {
+      "path": "supabase/migrations/20261003181032_admin_verification_operation_guards.sql",
+      "blob": "f9f05735d89994e0e20562a96ac2863c80a228cb",
+      "sha256": "13dd5f691719efc5fa43e93810da20d534c6b21bf09391e41859e45b1d526222"
+    },
+    {
+      "path": "supabase/migrations/20261003181035_admin_verification_preferences.sql",
+      "blob": "a304b685e31ca2b5f8149111d287806335406bb1",
+      "sha256": "9a2165b4fcaef3a9cfadd021f3572ae68781ffcc6ce9ca273c2e1432039a6b0b"
+    }
+  ]
+}

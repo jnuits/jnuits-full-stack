@@ -65,4 +65,46 @@ describe("requireAdminApiPermission", () => {
     mocks.checkAdminMFA.mockResolvedValue({ ok: true, enforced: false, currentLevel: "aal1", nextLevel: "aal1", error: null });
     expect((await requireAdminApiPermission("admin.retention.manage", { requireAal2: true })).response?.status).toBe(403);
   });
+
+  it.each([
+    [false, "aal1", "aal1"],
+    [false, "aal2", "aal2"],
+    [true, "aal2", "aal2"],
+  ])("allows valid routine API assurance with enforcement=%s and %s/%s", async (enforced, currentLevel, nextLevel) => {
+    mocks.checkAdminMFA.mockResolvedValue({ ok: true, enforced, currentLevel, nextLevel, error: null });
+    expect((await requireAdminApiPermission("cms.events.manage")).auth?.user.id).toBe("11111111-1111-4111-8111-111111111111");
+  });
+
+  it.each([
+    { ok: false, enforced: true, currentLevel: "aal1", nextLevel: "aal2", error: null },
+    { ok: false, enforced: false, currentLevel: null, nextLevel: null, error: "Session assurance could not be verified." },
+    { ok: false, enforced: true, currentLevel: null, nextLevel: null, error: "Admin security policy could not be verified." },
+    { ok: true, enforced: true, currentLevel: "aal1", nextLevel: "aal2", error: null },
+    { ok: true, enforced: true, currentLevel: "aal2", nextLevel: "aal1", error: null },
+  ])("denies a protected handler before work for invalid policy/assurance %j", async (state) => {
+    mocks.checkAdminMFA.mockResolvedValue(state);
+    const permission = await requireAdminApiPermission("cms.events.manage");
+    expect(permission.response?.status).toBe(403);
+    expect(permission.auth).toBeUndefined();
+  });
+
+  it("fails closed when policy transport throws", async () => {
+    mocks.checkAdminMFA.mockRejectedValue(new Error("Unavailable transport"));
+    const permission = await requireAdminApiPermission("cms.events.manage");
+    expect(permission.response?.status).toBe(503);
+    expect(permission.auth).toBeUndefined();
+  });
+
+  it.each(["frozen", "removed", "pending_invite"])("denies lifecycle %s without policy work", async (state) => {
+    mocks.loadAdminLifecycleAccessState.mockResolvedValue(state);
+    expect((await requireAdminApiPermission("cms.events.manage")).response?.status).toBe(403);
+    expect(mocks.checkAdminMFA).not.toHaveBeenCalled();
+  });
+
+  it("denies a user lacking permission without policy work", async () => {
+    mocks.hasPermission.mockResolvedValue(false);
+    expect((await requireAdminApiPermission("cms.events.manage")).response?.status).toBe(403);
+    expect(mocks.checkAdminMFA).not.toHaveBeenCalled();
+  });
+
 });

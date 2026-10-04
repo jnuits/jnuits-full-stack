@@ -43,7 +43,7 @@ evidence that the function should be revoked.
 
 | Function | Current purpose | Residual concern | Next safe step |
 | --- | --- | --- | --- |
-| `is_super_admin_user(uuid)` | Prevents lower admins from modifying a super-admin target in `admin_profiles` RLS policies | A signed-in caller can ask whether an arbitrary opaque user ID is a super admin | Stage a reviewed migration that returns false unless the caller has `admin.admin_profiles.manage`; preserve policy behavior and test normal-admin, super-admin, and portal-user cases before applying live |
+| `is_super_admin_user(uuid)` | Prevents lower admins from modifying a super-admin target in `admin_profiles` RLS policies | Forward audit migration returns false to unprivileged callers; trusted service and `admin.admin_profiles.manage` callers retain target checks | See 2026-10-04-audit-security-release.md; hosted rollout/platform defaults remain tracked separately |
 
 Do not revoke `authenticated` execution from this helper before changing the
 policy design: RLS expressions call it while evaluating `admin_profiles`
