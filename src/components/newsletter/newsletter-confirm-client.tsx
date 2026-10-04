@@ -206,8 +206,7 @@ export function NewsletterConfirmClient({ initialToken }: NewsletterConfirmClien
               Invalid confirmation link
             </h1>
             <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
-              This confirmation link is invalid or has already been used. Please subscribe
-              again through the website footer to receive a new link.
+              This confirmation link is unrecognized or malformed. If you need a new confirmation link, please submit your email again through the newsletter form.
             </p>
           </div>
           <div className="pt-2">

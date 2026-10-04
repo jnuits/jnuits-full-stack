@@ -107,9 +107,52 @@ describe("NewsletterSubscribeForm", () => {
       expect(screen.getByText(/too many requests/i)).toBeInTheDocument();
     });
 
-    // Retry resets error
+    // Retry resets error and focuses email input
     const retryBtn = screen.getByRole("button", { name: /try again/i });
     await user.click(retryBtn);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(emailInput).toHaveFocus();
+  });
+
+  it("maps invalid_input and captcha_failed machine codes to helpful human messages", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: "invalid_input" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<NewsletterSubscribeForm />);
+
+    const emailInput = screen.getByLabelText(/email address/i);
+    const consentCheckbox = screen.getByRole("checkbox");
+    const submitBtn = screen.getByRole("button", { name: /subscribe/i });
+
+    await user.type(emailInput, "bad@example.com");
+    await user.click(consentCheckbox);
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/please enter a valid email address and verify the required fields/i)
+      ).toBeInTheDocument();
+    });
+
+    // Test captcha_failed
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: "captcha_failed" }),
+    });
+
+    await user.click(screen.getByRole("button", { name: /try again/i }));
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/security verification failed\. please complete the captcha and try again/i)
+      ).toBeInTheDocument();
+    });
   });
 });

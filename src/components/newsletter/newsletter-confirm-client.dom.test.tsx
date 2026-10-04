@@ -87,6 +87,9 @@ describe("NewsletterConfirmClient", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /invalid confirmation link/i })).toBeInTheDocument();
+      expect(
+        screen.getByText(/this confirmation link is unrecognized or malformed/i)
+      ).toBeInTheDocument();
     });
   });
 

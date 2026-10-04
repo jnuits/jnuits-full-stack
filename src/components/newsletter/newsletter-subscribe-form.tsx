@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { TurnstileField } from "@/components/auth/turnstile-field";
 
 const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 export function NewsletterSubscribeForm() {
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState("");
@@ -25,7 +26,7 @@ export function NewsletterSubscribeForm() {
     }
 
     if (!consent) {
-      setErrorMessage("You must accept the terms to subscribe.");
+      setErrorMessage("Please confirm your consent to receive JnUITS newsletter updates.");
       setStatus("error");
       return;
     }
@@ -64,15 +65,20 @@ export function NewsletterSubscribeForm() {
       } else if (res.status === 503) {
         setErrorMessage("The newsletter service is temporarily unavailable. Please try again later.");
       } else if (res.status === 400) {
-        setErrorMessage(
-          payload?.message ||
-            payload?.error ||
-            "Please check your email address and verify the required fields."
-        );
+        const errorCode = payload?.error;
+        if (errorCode === "invalid_input") {
+          setErrorMessage("Please enter a valid email address and verify the required fields.");
+        } else if (errorCode === "captcha_failed") {
+          setErrorMessage("Security verification failed. Please complete the CAPTCHA and try again.");
+        } else {
+          setErrorMessage(
+            payload?.message ||
+              "Please check your email address and verify the required fields."
+          );
+        }
       } else {
         setErrorMessage(
           payload?.message ||
-            payload?.error ||
             "Unable to process subscription right now. Please try again."
         );
       }
@@ -93,6 +99,7 @@ export function NewsletterSubscribeForm() {
     setErrorMessage(null);
     setCaptchaRevision((r) => r + 1);
     setCaptchaToken("");
+    emailInputRef.current?.focus();
   }
 
   if (status === "success") {
@@ -130,6 +137,7 @@ export function NewsletterSubscribeForm() {
         name="email"
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
+        ref={emailInputRef}
         required
         type="email"
         value={email}
