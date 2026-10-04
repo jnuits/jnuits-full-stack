@@ -23,7 +23,7 @@ const contactHref =
 
 export default function AlumniAccessPage() {
   return (
-    <main className="shell py-12">
+    <div className="shell py-12">
       <section className="glass-card grid gap-8 px-6 py-8 sm:px-8 lg:grid-cols-[1.05fr_0.95fr]">
         <div>
           <span className="eyebrow">Alumni access</span>
@@ -117,6 +117,6 @@ export default function AlumniAccessPage() {
           </Link>
         </article>
       </section>
-    </main>
+    </div>
   );
 }

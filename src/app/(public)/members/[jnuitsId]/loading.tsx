@@ -1,6 +1,6 @@
 export default function MemberProfileLoading() {
   return (
-    <main className="profile-page">
+    <div className="profile-page">
       <div
         className="skeleton-line"
         style={{ height: 14, marginBottom: 32, width: 140 }}
@@ -18,6 +18,6 @@ export default function MemberProfileLoading() {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

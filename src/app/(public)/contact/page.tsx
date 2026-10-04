@@ -479,7 +479,7 @@ export default async function ContactPage({
     typeof resolvedSearchParams.subject === "string" ? resolvedSearchParams.subject : "";
 
   return (
-    <main className="contact-public-page shell py-12">
+    <div className="contact-public-page shell py-12">
       <ContactHero />
 
       <section className="pb-16 pt-12" aria-label="Contact details and form">
@@ -503,6 +503,6 @@ export default async function ContactPage({
 
         <LocationMapCard />
       </section>
-    </main>
+    </div>
   );
 }

@@ -9375,7 +9375,8 @@ footer {
 /* ── Admin Production-Grade Enhancements ─────────────────────────────────── */
 
 /* 1. Skip to Main Content Link (WCAG 2.4.1) */
-.admin-skip-link {
+.admin-skip-link,
+.public-skip-link {
   position: fixed;
   top: 0.75rem;
   left: 0.75rem;
@@ -9392,7 +9393,8 @@ footer {
   transition: transform 0.15s ease-in-out;
   text-decoration: none;
 }
-.admin-skip-link:focus-visible {
+.admin-skip-link:focus-visible,
+.public-skip-link:focus-visible {
   transform: translateY(0);
   outline: none;
 }

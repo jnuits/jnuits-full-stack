@@ -8,8 +8,13 @@ export default async function PublicLayout({
 }) {
   return (
     <>
+      <a href="#main-content" className="public-skip-link">
+        Skip to main content
+      </a>
       <SiteHeader />
-      <main className="public-site flex-1">{children}</main>
+      <main id="main-content" tabIndex={-1} className="public-site flex-1">
+        {children}
+      </main>
       <SiteFooter />
     </>
   );
