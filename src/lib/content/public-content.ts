@@ -234,7 +234,7 @@ export const homepageContent = {
     heading: "Jagannath University IT Society",
     subheading:
       "JnUITS is the official student IT club of Jagannath University — offering workshops, coding competitions, tech talks, and community-driven programs that bridge academic learning with real-world IT skills.",
-    primaryCTA: { label: "Join JnUITS", href: "/members/join" },
+    primaryCTA: { label: "Membership onboarding", href: "/membership-form" },
     secondaryCTA: { label: "Explore events", href: "/events" },
   },
   stats: verifiedPublicStats,
@@ -296,7 +296,7 @@ export const homepageContent = {
       title: "Membership Orientation",
       caption:
         "New members meet the society, its teams, and opportunities to contribute.",
-      link: "/members/join",
+      link: "/membership-form",
     },
     {
       id: "national-it-fest-participation",
@@ -363,13 +363,13 @@ export const homepageContent = {
     eyebrow: "Join the society",
     heading: "Become a member of JnUITS",
     body:
-      "Membership is open to all Jagannath University students interested in IT, innovation, and community.",
+      "Learn about membership onboarding, active intake announcements, and member registration for Jagannath University students.",
     bullets: [
       "Priority access to workshops and competitions",
       "Opportunities to lead and organize events",
       "Network with peers, alumni, and industry professionals",
     ],
-    primaryCTA: { label: "Apply for membership", href: "/members/join" },
+    primaryCTA: { label: "Membership onboarding", href: "/membership-form" },
     secondaryCTA: { label: "How membership works", href: "/about#membership" },
   },
   universityContext: {
