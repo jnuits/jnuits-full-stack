@@ -24,6 +24,7 @@
 admin-snapshots/
 /artifacts/portal-snapshots/
 /portal-snapshots/
+/artifacts/frontend-audit-evidence/
 
 # next.js
 /.next/
