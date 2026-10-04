@@ -260,12 +260,46 @@ Task 6 evidence (2026-10-03): bounded/mixed validation, per-row outcomes and pag
 - [x] **Take independent whole-patch code/security review** after green verification. Address findings and rerun affected/full tests proportionately. Explicitly inspect role writers, operation bindings, function ACLs, missing-state denial, last-super-admin race, email eligibility history and external partial failure. Initial test/guide commit: `test(admin): verify authorization and bulk review boundaries`; reviewed recovery findings addressed in one TDD fix pass.
 - [x] **Apply verified forward SQL through the Supabase plugin** to the positively identified JnUITS project only. Record pre/post migration history, enforcement value and ACLs. Reconcile plugin-assigned history versions with checked-in files using the repository's established parity workflow, without rewriting applied SQL bodies. Verify exact function bodies, denial paths and advisors; do not approve real requests or grant/revoke real roles for verification. Completed 2026-10-04 Asia/Dhaka: 112/112 history parity, 44 matching selected function bodies, unchanged roles/enforcement; seven legacy unknown-enrollment admins, zero unexpired unsigned invites. Expected private default-deny and guarded-RPC advisor notices are documented in the operations guide.
 - [x] **Publish branch and open/update a draft PR**, using `git push -u origin codex/admin-verification-policy`; attach the PR to this task. Published and attached as [draft PR #164](https://github.com/jnuits/jnuits-full-stack/pull/164) on 2026-10-03. The owner's latest request authorizes publishing the work to GitHub while the release is held. Draft publication is not a production release or permission to waive the dependency gate.
-- [x] **Pass GitHub Actions and complete authorized original main integration/cutover.** PR #164 merged only after green required non-Vercel checks. PR/main Quality Gate and Diff Check pass; matching production main690eff5 confirmed before SQL application. Do not equate this with all production-provider acceptance below. The recovery UI/version reconciliation patch needs its own green PR/main integration and owner-triggered deployment.
-- [ ] **Complete remaining hosted-provider/browser acceptance and release cleanup.** Owner confirmed native authenticator verification opens production Security Settings on 2026-10-04. Production email-code delivery, hosted CAPTCHA and remaining remote-DB browser checks still need actual evidence; disposable transport fixtures do not certify them. Publish/reconcile the rollout patch through green CI, verify its deployment, then perform authorized safe merged-branch cleanup. Keep the backup branch and pending execution ledger.
+- [x] **Pass GitHub Actions and complete authorized original main integration/cutover.** PR #164 and recovery/version reconciliation PR #165 merged only after green required non-Vercel checks. PR/main Quality Gate and Diff Check pass; the owner's README trigger deployed PR #165 on READY production56daa01. Do not equate this with all production-provider acceptance below.
+- [ ] **Complete remaining hosted-provider/browser acceptance and release cleanup.** Owner confirmed native authenticator verification opens production Security Settings on 2026-10-04. Production email-code delivery, hosted CAPTCHA and remaining remote-DB browser checks still need actual evidence; disposable transport fixtures do not certify them. Integrate the authorized focused MFA follow-up through green CI and verify its matching deployment. Perform safe merged-branch cleanup only after outstanding acceptance completes. Keep the backup branch and pending execution ledger.
 
 ## Plan Self-Review and Handoff
 
-### Latest rollout checkpoint (2026-10-04 Asia/Dhaka)
+### Current production and MFA follow-up checkpoint (2026-10-04 Asia/Dhaka)
+
+PR #165 merged at `fe3ecac426f128e3bb13c5f1ba3e9063726d9e13` after required
+non-Vercel checks passed. The owner then committed a README-only trigger as
+`56daa010c2b6436b52ca0fa73e0b95b0f55839fd`. Fresh Vercel inspection confirms
+production alias `jnuits.org.bd` on READY `dpl_V2Ftum9Zw3FqakHYzPHmiKeBhYRP`
+at that exact SHA, containing PR #165. Its Quality Gate and Diff Check both
+passed. Primary main is clean and synchronized to the owner trigger.
+
+Fresh Supabase plugin inspection confirms healthy `fsirdkjgrcocowxqjhjg`,
+112/112 exact migration-name/version parity, mandatory enforcement still false,
+nine active admins (two enrolled, seven unknown), service-only verification
+wrapper grants and default-deny private verification tables. No email challenges
+have been issued. Existing unknown history cannot supply an email-delivery test.
+No migrations, roles, requests or enforcement settings were changed.
+
+The owner will perform authenticated production testing. Their additional request
+is to complete native Supabase AAL2 setup and GitHub-style interaction while
+keeping JnUITS styling. The focused `codex/admin-mfa-completeness` follow-up adds
+QR/manual-key setup, pending-TOTP cleanup from the actual all-factors list,
+six-digit inputs, retryable errors, native-AAL2 confirmation before continuing,
+and allowlisted return destinations. Original optional-enforcement and role
+dual-verification policies remain binding. Provider acceptance and release cleanup
+remain open; preserve this plan's ignored ledger, worktree and backup branch.
+
+Fresh follow-up evidence: 290 files / 1,880 tests PASS, production build and
+subsequent typecheck PASS, whole lint and unchanged access/UI/dependency gates
+PASS. All seven disposable Next/Auth/Postgres browser scenarios PASS, including
+native enrollment, QR/manual entry, confirmed AAL2 and exact return navigation.
+360px/1440px light/dark setup screenshots use the real theme toggle and mask
+QR/key secrets; traces remain disabled. Failed test assumptions and corrections
+are retained in the ignored ledger. Public production login/CSP/unauthenticated
+denial checks pass; actual email delivery and human CAPTCHA completion remain open.
+
+### Initial production rollout (2026-10-04 Asia/Dhaka)
 
 PR #164 merged to main after all required non-Vercel checks passed. Production
 alias `jnuits.org.bd` is on READY deployment `dpl_3STV6Xwrf3XgicQSi1kaZzsNkFrV`,
@@ -298,8 +332,8 @@ actual Next/Auth/Postgres browser scenarios PASS. The browser runner preserves
 the original authorization checks and changes no hosted data. Its transport
 fixtures still do not establish hosted provider delivery/CAPTCHA acceptance.
 
-Task 7 is still incomplete: rollout-patch publication/deployment,
-hosted-provider/browser acceptance and safe branch cleanup remain pending.
+At this initial checkpoint, rollout-patch publication/deployment was pending;
+the current checkpoint above supersedes that status. Provider acceptance and safe cleanup remain pending.
 Do not infer provider acceptance from migration success or this one recovered
 page. Earlier checkpoints below describe their historical pre-rollout state,
 not current pending migrations.

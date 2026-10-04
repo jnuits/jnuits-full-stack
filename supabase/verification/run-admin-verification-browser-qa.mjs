@@ -82,7 +82,7 @@ try {
   // Mirror existing hosted explicit exposure. Never grant browser RBAC/proof
   // table writes; authorization RPC ACLs remain exactly as migrated.
   sql("grant select on all tables in schema public to service_role; update public.security_settings set admin_totp_enforced=false where id;");
-  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"]]) {
+  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"]]) {
     const email = `qa-${name}-${runId}@local.invalid`, password = `Qa!${randomBytes(18).toString("base64url")}`;
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     assert.ok(!created.error && created.data.user, "Synthetic account creation failed.");
@@ -124,6 +124,12 @@ try {
       else if (action === "transport") { assert.ok([...accounts.values()].some(item => item.email === body.to)); const code = body.html.match(/<code\b[^>]*>\s*([0-9]{6})\s*<\/code>/)?.[1]; assert.ok(code); mail.set(body.to, code); result = { id: "disposable-transport" }; }
       else if (action === "email") { assert.ok(account && mail.has(account.email)); result = { code: mail.get(account.email) }; }
       else if (action === "totp") { assert.ok(account?.secret); result = { code: totp(account.secret) }; }
+      else if (action === "setup_totp") {
+        assert.equal(body.name, "setup"); assert.ok(account);
+        assert.match(body.secret, /^[A-Z2-7]{16,128}$/);
+        account.secret = body.secret; // In-memory only; included in diagnostic redaction.
+        result = { code: totp(account.secret) };
+      }
       else if (action === "policy") { assert.equal(typeof body.enforced, "boolean"); sql(`update public.security_settings set admin_totp_enforced=${body.enforced} where id;`); result = { ok: true }; }
       else if (action === "reset_limits") { assert.ok(account); sql(`delete from private.admin_verification_rate_events where subject_hash='${account.userId}' or kind like '%ip';`); result = { ok: true }; }
       else if (action === "expire_retention_read") { assert.ok(account); sql(`update private.admin_verification_proofs p set expires_at=clock_timestamp()-interval '1 second' from private.admin_verification_intents i where i.id=p.intent_id and i.user_id='${account.userId}' and i.session_id='${account.sessionId}' and i.operation='admin.retention.read';`); result = { ok: true }; }

@@ -19,6 +19,7 @@ import {
 } from "@/lib/auth/action-protection";
 import { resolveSignOutRedirect } from "@/lib/auth/sign-out-redirect";
 import { checkAdminMFA } from "@/lib/auth/mfa";
+import { adminMfaRedirectPath } from "@/lib/auth/admin-verification/return-path";
 import { findAuthUserByEmail } from "@/lib/auth/auth-user-lookup";
 import { buildPasswordSignInPayload } from "@/lib/auth/password-sign-in";
 import {
@@ -499,10 +500,13 @@ async function loginForPortal(portal: LoginPortal, formData: FormData) {
     });
   }
 
-  const redirectPath =
-    portal === "admin"
-      ? (await checkAdminMFA(supabase)).redirectTo || nextPath
-      : nextPath;
+  let redirectPath = nextPath;
+  if (portal === "admin") {
+    const mfa = await checkAdminMFA(supabase);
+    if (mfa.redirectTo) {
+      redirectPath = adminMfaRedirectPath(mfa.redirectTo, nextPath);
+    }
+  }
 
   revalidatePath("/", "layout");
   redirect(redirectPath);

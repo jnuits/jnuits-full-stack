@@ -1,4 +1,7 @@
 const destinations = new Set(["/admin/dashboard", "/admin/admin-profiles", "/admin/membership", "/admin/settings/security", "/admin/system-health", "/admin/retention"]);
+export function adminMfaRedirectPath(path: "/admin/mfa/setup" | "/admin/mfa/challenge", returnPath?: unknown) {
+  return `${path}?next=${encodeURIComponent(safeAdminVerificationReturnPath(returnPath))}`;
+}
 export function safeAdminVerificationReturnPath(value?: unknown) {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || /[\\\u0000-\u0020]/.test(value)) return "/admin/dashboard";
   try {
