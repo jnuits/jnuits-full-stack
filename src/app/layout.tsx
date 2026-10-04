@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import {
   Inter,
   JetBrains_Mono,
@@ -6,6 +7,7 @@ import {
   Noto_Sans_Bengali,
 } from "next/font/google";
 import { brandProfile } from "@/lib/branding";
+import { NonceProvider } from "@/components/security/nonce-provider";
 import "./globals.css";
 
 const bodyFont = Inter({
@@ -42,11 +44,13 @@ export const metadata: Metadata = {
     `${brandProfile.slogan}. ${brandProfile.fullName} is the non-profit university IT club of ${brandProfile.university}, based at ${brandProfile.address}.`,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
@@ -58,7 +62,9 @@ export default function RootLayout({
         suppressHydrationWarning
         className="min-h-full bg-background text-foreground flex flex-col"
       >
-        {children}
+        <NonceProvider nonce={nonce}>
+          {children}
+        </NonceProvider>
       </body>
     </html>
   );
