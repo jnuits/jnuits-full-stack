@@ -31,6 +31,7 @@ function runFixture({ mode = "pull", failures = 1, lint = false } = {}) {
     writeFileSync(join(verification, name), "-- SQL itself is tested by real database replay\n");
   }
   writeFileSync(join(verification, "run-admin-verification-concurrency.mjs"), "// Real SQL/concurrency is tested by disposable database replay, not this CLI retry fixture.\n");
+  writeFileSync(join(verification, "run-newsletter-concurrency.mjs"), "// Newsletter concurrency is verified by real disposable SQL replay, not the CLI retry fixture.\n");
   writeFileSync(join(root, "expected.types"), types);
   writeFileSync(join(root, "database.types.ts"), "previous canonical artifact\n");
   const cli = join(root, "bin/supabase-fixture");
