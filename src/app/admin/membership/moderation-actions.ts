@@ -997,7 +997,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
     p_request_id: request.id, p_actor_user_id: actorUserId, p_decision: "approved", p_review_note: reviewNote || "",
   });
   if (result.error || !result.data) {
-    await setAdminFlash({ tone: "error", title: "Profile approval failed", message: result.error?.code === "40001"
+    await setAdminFlash({ tone: "error", title: "Profile approval failed", message: result.error?.code === "PT409"
       ? "A newer direct edit supersedes this request. Reject it or ask the member to resubmit."
       : "The profile request could not be approved. Reload the queue and try again." });
     redirect("/admin/profile-changes");

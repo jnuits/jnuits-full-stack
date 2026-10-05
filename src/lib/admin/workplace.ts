@@ -195,7 +195,7 @@ export async function reviewWorkplaceRequest(options: {
     p_review_note: options.reviewNote || "",
   });
   if (result.error) {
-    if (result.error.code === "40001") throw new SafeAdminActionError("A newer direct edit supersedes this request. Reject it or ask the member to resubmit.");
+    if (result.error.code === "PT409") throw new SafeAdminActionError("A newer direct edit supersedes this request. Reject it or ask the member to resubmit.");
     logServerError("workplace atomic review", result.error);
     throw new Error("Workplace request could not be reviewed. Reload the queue and try again.");
   }

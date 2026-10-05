@@ -89,9 +89,10 @@ test.describe("disposable profile self-service and review integration", () => {
       expect((await fixture("profile_state")).phone).toBeNull();
       expect((await context.request.post(`${baseURL}/api/profile/direct`, { headers, data: { fullName: "Forbidden Identity" } })).status()).toBe(400);
       expect((await context.request.post(`${baseURL}/api/portal/workplace-requests`, { headers, data: { currentOrganization: "Legacy Submission" } })).status()).toBe(410);
+      expect(await fixture("profile_conflict")).toEqual({ code: "PT409", status: 409 });
       await adminPage.goto(`${baseURL}/admin/workplace`, { waitUntil: "networkidle" });
       await adminPage.getByRole("button", { name: "Review Synthetic Profile Alumni's workplace request", exact: true }).first().click();
-      const staleResponse = adminPage.waitForResponse(response => response.url().includes("/admin/workplace") && response.request().method() === "POST");
+      const staleResponse = adminPage.waitForResponse(response => response.url().includes("/admin/workplace") && response.request().method() === "POST", { timeout: 45_000 });
       await adminPage.getByRole("button", { name: "Approve", exact: true }).first().click();
       expect((await staleResponse).status()).toBe(200);
       await expect(adminPage.locator('.flash-panel[data-tone="error"]')).toContainText(/newer direct edit/i, { timeout: 25_000 });

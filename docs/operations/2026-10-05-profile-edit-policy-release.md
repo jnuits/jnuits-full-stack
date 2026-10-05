@@ -24,6 +24,8 @@ Previously submitted workplace/profile requests remain pending and reviewable. N
 
 Approval, rejection, and workplace cancellation serialize using member-then-request locks. Decisions cannot replace an already committed decision. A direct save stamps overlapping pending requests with a server-owned supersession marker; neither a client-supplied future timestamp nor malformed metadata can bypass it. Approval of an overlapping older request fails visibly, leaving it pending for explicit rejection or resubmission. Unrelated identity corrections can still be approved. Legacy blank optional values retain their previous no-change semantics.
 
+A permanently superseded request returns the documented [PostgREST HTTP conflict](https://docs.postgrest.org/en/v16/references/errors.html) (`PT409`) rather than a transaction retry signal.
+
 The database validates stored field types before conversion, including numeric academic fields. Graduation years use the existing database range, 1950–2100. Existing email/JnUITS ID approval workflows retain their verification and canonical-ID rules; their rejection updates require a still-pending row.
 
 ## Release procedure and evidence
@@ -34,7 +36,7 @@ The database validates stored field types before conversion, including numeric a
 3. Require all non-Vercel pull-request checks. Apply only the reviewed forward migration through the Supabase plugin, recording assigned version and SQL-content receipts. Do not reapply any previously hosted migration.
 4. Merge normally, verify main checks and read-only Production Readiness, then verify the actual production deployment SHA. A Vercel collaboration block requires the owner's supported deployment process.
 
-The disposable suite uses fictional accounts, real local Supabase Auth, and actual Next.js browser interactions. CAPTCHA and email transport fixtures do not certify production provider or mailbox acceptance. Screenshots contain only fictional data; credential/password/token traces and automatic screenshots are disabled.
+The disposable suite uses fictional accounts, real local Supabase Auth, and actual Next.js production-mode browser interactions. The runner builds with only local fixture Auth credentials and provider placeholders, validates that build configuration, and then starts the production server. CAPTCHA and email transport fixtures do not certify production provider or mailbox acceptance. Screenshots contain only fictional data; credential/password/token traces and automatic screenshots are disabled.
 
 Execution evidence and the focused review are kept in the ignored `.superpowers/sdd/2026-10-05-profile-edit-policy/` ledger. Hosted SQL receipts and final release checkpoints will be recorded alongside this document when verified.
 

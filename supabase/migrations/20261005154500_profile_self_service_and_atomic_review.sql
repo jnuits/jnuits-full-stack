@@ -94,7 +94,7 @@ begin
       then r.metadata->'supersededDirectFields' else '[]'::jsonb end) field where patch ? field.value)
       or exists(select 1 from public.membership_lifecycle_events event where event.member_id=m.id and event.event_type='profile_direct_edit'
       and event.occurred_at>r.requested_at and exists(select 1 from jsonb_array_elements_text(event.metadata->'changedFields') field where patch ? field.value)) then
-      raise exception 'A newer direct edit supersedes this request. Reject it or ask the member to resubmit.' using errcode='40001';
+      raise exception 'A newer direct edit supersedes this request. Reject it or ask the member to resubmit.' using errcode='PT409';
     end if;
     if patch ? 'full_name' and (patch->>'full_name' is null or length(patch->>'full_name') not between 2 and 160) then raise exception 'Invalid full name' using errcode='22023'; end if;
     if patch ? 'department_code' and not exists(select 1 from public.departments where code=patch->>'department_code' and is_active=true) then raise exception 'Invalid active department' using errcode='22023'; end if;

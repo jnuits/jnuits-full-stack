@@ -31,7 +31,7 @@ begin
   begin
     perform public.review_member_profile_update(request_id,reviewer_id,'approved','');
     raise exception 'Stale review overwrote the newer direct edit';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
   if (select status from public.profile_update_requests where id=request_id) <> 'pending' then raise exception 'Stale request was automatically decided'; end if;
   perform public.review_member_profile_update(request_id,reviewer_id,'rejected','Superseded by direct edit');
   if (select status from public.profile_update_requests where id=request_id) <> 'rejected' then raise exception 'Old request cannot be rejected'; end if;

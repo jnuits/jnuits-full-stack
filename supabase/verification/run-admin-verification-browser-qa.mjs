@@ -126,6 +126,7 @@ try {
       if (action === "account") { assert.ok(account); result = { cookies: account.cookies.map(({ name, value }) => ({ name, value })), userId: account.userId, password: account.password, factorId: account.factorId }; }
       else if (action === "transport") { assert.ok([...accounts.values()].some(item => item.email === body.to)); const code = body.html.match(/<code\b[^>]*>\s*([0-9]{6})\s*<\/code>/)?.[1]; if (code) mail.set(body.to, code); result = { id: "disposable-transport" }; }
       else if (action === "profile_state") { assert.ok(profileQA); const id = uuid(accounts.get("profile").profileId); result = jsonSql(`select json_build_object('organization',m.current_organization,'phone',m.phone,'studentId',m.student_id,'batch',m.batch_no,'graduationYear',m.graduation_year,'requests',(select coalesce(json_agg(json_build_object('id',q.id,'type',q.request_type,'status',q.status)),'[]') from public.profile_update_requests q where q.member_id=m.id)) from public.members m where m.id='${id}';`); }
+      else if (action === "profile_conflict") { assert.ok(profileQA); const id = uuid(accounts.get("profile").profileId); const requestId = uuid(sql(`select id from public.profile_update_requests where member_id='${id}' and request_type='workplace_update' and status='pending' limit 1;`)); const value = await admin.rpc("review_member_profile_update", { p_request_id: requestId, p_actor_user_id: accounts.get("never").userId, p_decision: "approved", p_review_note: "Synthetic conflict check" }); result = { code: value.error?.code, status: value.status }; }
       else if (action === "workplace_request") { assert.ok(profileQA); assert.ok(["Initial Requested Workplace","Obsolete Workplace"].includes(body.organization)); const id = uuid(accounts.get("profile").profileId); result = { id: uuid(sql(`insert into public.profile_update_requests(member_id,request_type,status,payload,requested_at) values('${id}','workplace_update','pending',jsonb_build_object('currentOrganization','${body.organization}'),clock_timestamp()+interval '10 years') returning id;`).split(/\r?\n/)[0]) }; }
       else if (action === "email") { assert.ok(account && mail.has(account.email)); result = { code: mail.get(account.email) }; }
       else if (action === "totp") { assert.ok(account?.secret); result = { code: totp(account.secret) }; }
@@ -162,13 +163,23 @@ try {
   assert.equal(env.AUTH_CAPTCHA_REQUIRED, "true");
   console.log("Synthetic AAL1/AAL2 identities and reviewed-member fixtures are ready.");
   env.NODE_OPTIONS = `--require "${join(repo, "supabase/verification/admin-verification-qa-preload.cjs").replaceAll("\\", "/")}"`;
-  next = spawn(process.execPath, [join(repo, "node_modules/next/dist/bin/next"), "dev", "--webpack", "--hostname", "127.0.0.1", "--port", "3127"], { cwd: repo, env, stdio: ["ignore", "pipe", "pipe"] });
   let diagnostics = "";
   const capture = chunk => {
     let safe = String(chunk);
     for (const secret of [bridgeToken, status.SERVICE_ROLE_KEY, status.ANON_KEY, ...[...accounts.values()].flatMap(account => [account.password, account.secret].filter(Boolean)), ...mail.values()]) safe = safe.split(secret).join("[redacted]");
     diagnostics = `${diagnostics}${safe.replace(/eyJ[A-Za-z0-9._-]+/g, "[token redacted]").replace(/\b[0-9]{6}\b/g, "[code redacted]")}`.slice(-4000);
   };
+  if (profileQA) {
+    env.NODE_ENV = "production";
+    console.log("Building the real production application for profile acceptance.");
+    const validation = spawnSync(process.execPath, [join(repo, "scripts/validate-env.mjs"), "--production"], { cwd: repo, env, encoding: "utf8" });
+    assert.equal(validation.status, 0, "Disposable production build configuration failed validation.");
+    const build = spawn(process.execPath, [join(repo, "node_modules/next/dist/bin/next"), "build"], { cwd: repo, env, stdio: ["ignore", "pipe", "pipe"] });
+    build.stdout.on("data", capture); build.stderr.on("data", capture);
+    assert.equal(await new Promise(resolve => build.once("exit", resolve)), 0, `Disposable production build failed. ${diagnostics}`);
+    console.log("Production build passed. Starting production-mode browser acceptance.");
+  }
+  next = spawn(process.execPath, [join(repo, "node_modules/next/dist/bin/next"), ...(profileQA ? ["start"] : ["dev", "--webpack"]), "--hostname", "127.0.0.1", "--port", "3127"], { cwd: repo, env, stdio: ["ignore", "pipe", "pipe"] });
   next.stdout.on("data", capture); next.stderr.on("data", capture);
   let ready = false;
   for (let attempt = 0; attempt < 120; attempt++) { if (next.exitCode !== null) break; try { const response = await fetch("http://127.0.0.1:3127/admin/login", { signal: AbortSignal.timeout(5000) }); if (response.status < 500) { ready = true; break; } } catch {} await new Promise(resolve => setTimeout(resolve, 500)); }
