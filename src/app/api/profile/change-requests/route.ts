@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { cookies } from "next/headers";
+import { isStepUpActiveForUser } from "@/lib/auth/step-up";
+import { identityProfileSchema } from "@/lib/members/profile-update-policy";
 
 import { isActiveDepartmentCode } from "@/lib/departments.server";
 import { RATE_LIMITS } from "@/lib/security/rate-limit";
@@ -11,41 +14,18 @@ import { createClient } from "@/lib/supabase/server";
 import { reconcileMembershipLifecycle } from "@/lib/membership/reconciliation";
 import { resolveMembershipAccessMode } from "@/lib/membership/lifecycle";
 
-const profileChangePayloadSchema = z
-  .object({
-    departmentCode: z.string().trim().max(80).optional(),
-    requestType: z.literal("profile_change").optional(),
-    facebookUrl: z.string().trim().url().optional().or(z.literal("")),
-    fullName: z.string().trim().max(160).optional(),
-    phone: z.string().trim().max(40).optional(),
-    linkedinUrl: z.string().trim().url().optional().or(z.literal("")),
-    websiteUrl: z.string().trim().url().optional().or(z.literal("")),
-  })
-  .refine(
-    (value) =>
-      Boolean(
-          value.departmentCode ||
-          value.facebookUrl ||
-          value.fullName ||
-          value.phone ||
-          value.linkedinUrl ||
-          value.websiteUrl
-      ),
-    {
-    message: "Provide at least one profile field to change.",
-    }
-  );
+const profileChangePayloadSchema = identityProfileSchema;
 
 const emailChangePayloadSchema = z.object({
   newEmail: z.string().trim().email().max(254),
   requestType: z.literal("email_change"),
-});
+}).strict();
 
 const jnuitsIdChangePayloadSchema = z
   .object({
     newJnuitsId: z.string().trim().max(80),
     requestType: z.literal("jnuits_id_change"),
-  })
+  }).strict()
   .transform((value, context) => {
     const normalized = normalizeJnuitsIdForCreation(value.newJnuitsId);
 
@@ -70,10 +50,8 @@ const changeRequestSchema = z.union([
 
 async function requireLinkedMemberUser() {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims as Record<string, unknown> | undefined;
-
-  const userId = typeof claims?.sub === "string" ? claims.sub : null;
+  const { data, error: authError } = await supabase.auth.getUser();
+  const userId = authError ? null : data.user?.id;
 
   if (!userId) {
     return {
@@ -193,6 +171,10 @@ async function handlePost(request: NextRequest) {
       { message: "No linked member profile exists for this account." },
       { status: 404 }
     );
+  }
+
+  if (!isStepUpActiveForUser(await cookies(), viewer.userId!)) {
+    return NextResponse.json({ message: "Verify your current password before requesting identity changes." }, { status: 403 });
   }
 
   const payload = await request.json().catch(() => null);

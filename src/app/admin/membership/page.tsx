@@ -121,7 +121,7 @@ export default async function AdminMembershipPage({
     flexibleAdmin
       .from("profile_update_requests" as string)
       .select(
-        "id, member_id, request_type, status, requested_at, review_note, members(full_name, jnuits_id)"
+        "id, member_id, request_type, status, requested_at, review_note, members!profile_update_requests_member_id_fkey(full_name, jnuits_id)"
       )
       .eq("request_type", "account_deletion")
       .eq("status", "pending")

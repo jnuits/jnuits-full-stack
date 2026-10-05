@@ -1,4 +1,6 @@
 import "server-only";
+import { cookies } from "next/headers";
+import { isStepUpActiveForUser } from "@/lib/auth/step-up";
 
 import { logServerError } from "@/lib/errors/api-error";
 import {
@@ -157,6 +159,9 @@ export async function authorizeAvatarTarget(
         currentMembershipPathStatus: asOptionalString(member.current_membership_path_status),
         portalAccessStatus: asPortalAccessStatus(member.portal_access_status),
       });
+    if (ownMutableProfile && !isStepUpActiveForUser(await cookies(), actorUserId)) {
+      return { ok: false, status: 403, message: "Unlock profile editing with your current password before updating your photo." };
+    }
     const canManageMembers =
       ownMutableProfile || (await hasPermission("admin.membership.manage"));
 

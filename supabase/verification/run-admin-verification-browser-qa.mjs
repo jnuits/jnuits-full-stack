@@ -6,12 +6,14 @@ import { createServer } from "node:http";
 import { join, sep } from "node:path";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import { disableReplayCatalogCache } from "./configure-bootstrap-replay.mjs";
 
 // Only creates its own isolated, unlinked project. There is deliberately no
 // --db-url, --linked, existing workdir or hosted-credentials argument.
 assert.equal(process.argv.length, 2, "Remote database/workdir arguments are forbidden.");
 assert.ok(!process.env.ADMIN_VERIFICATION_QA_WORKDIR && !process.env.SUPABASE_DB_URL, "External projects are forbidden.");
+const profileQA = process.env.PROFILE_SELF_SERVICE_QA === "DISPOSABLE_SCRATCH";
 const repo = realpathSync(process.cwd());
 const root = join(repo, ".replay-scratch"); mkdirSync(root, { recursive: true });
 const scratch = mkdtempSync(join(root, "replay.admin-"));
@@ -81,15 +83,17 @@ try {
   const admin = createClient(status.API_URL, status.SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   // Mirror existing hosted explicit exposure. Never grant browser RBAC/proof
   // table writes; authorization RPC ACLs remain exactly as migrated.
-  sql("grant select on all tables in schema public to service_role; update public.security_settings set admin_totp_enforced=false where id;");
-  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"]]) {
+  sql("grant select on all tables in schema public to service_role; grant insert,update on public.profile_update_requests to service_role; grant insert on public.audit_events to service_role; update public.security_settings set admin_totp_enforced=false where id;");
+  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"]] : [])]) {
     const email = `qa-${name}-${runId}@local.invalid`, password = `Qa!${randomBytes(18).toString("base64url")}`;
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     assert.ok(!created.error && created.data.user, "Synthetic account creation failed.");
     const userId = uuid(created.data.user.id);
     const adminCode = `JNUITS-ADMIN-QA-${name.toUpperCase()}`;
-    const profileId = uuid(sql(`insert into public.admin_profiles(user_id,admin_code,display_name,is_active,status) values('${userId}','${adminCode}','Synthetic ${name === "target" ? "Target" : name}',true,'active') returning id;`).split(/\r?\n/)[0]);
-    sql(`insert into public.rbac_user_platform_roles(user_id,role_id,scope,note) select '${userId}',id,'admin','Disposable fixture' from public.rbac_platform_roles where code='${role}' and scope='admin';`);
+    const profileId = name === "profile"
+      ? uuid(sql(`insert into public.members(user_id,jnuits_id,full_name,email,member_type,lifecycle_status,portal_access_status,student_id,batch_no,graduation_year,current_organization,phone,professional_visibility) values('${userId}','JnUITS-2099961','Synthetic Profile Alumni','${email}','alumni','alumni','active','ST-OLD',17,2026,'Original Workplace','01700000000','private') returning id;`).split(/\r?\n/)[0])
+      : uuid(sql(`insert into public.admin_profiles(user_id,admin_code,display_name,is_active,status) values('${userId}','${adminCode}','Synthetic ${name === "target" ? "Target" : name}',true,'active') returning id;`).split(/\r?\n/)[0]);
+    sql(`insert into public.rbac_user_platform_roles(user_id,role_id,scope,note) select '${userId}',id,'${name === "profile" ? "portal" : "admin"}','Disposable fixture' from public.rbac_platform_roles where code='${role}' and scope='${name === "profile" ? "portal" : "admin"}';`);
     const cookies = [];
     const session = createServerClient(status.API_URL, status.ANON_KEY, { cookies: { getAll: () => cookies, setAll: values => { for (const value of values) { const index = cookies.findIndex(cookie => cookie.name === value.name); if (index >= 0) cookies.splice(index, 1); cookies.push(value); } } } });
     assert.ok(!(await session.auth.signInWithPassword({ email, password })).error, "Synthetic sign-in failed.");
@@ -121,7 +125,10 @@ try {
       let result; const action = request.url.slice(1);
       const roleIntent = { operation: "admin.role.change", payload: { adminProfileId: accounts.get("target").profileId, roleCode: "admin", confirmation: accounts.get("target").adminCode } };
       if (action === "account") { assert.ok(account); result = { cookies: account.cookies.map(({ name, value }) => ({ name, value })), userId: account.userId, password: account.password, factorId: account.factorId }; }
-      else if (action === "transport") { assert.ok([...accounts.values()].some(item => item.email === body.to)); const code = body.html.match(/<code\b[^>]*>\s*([0-9]{6})\s*<\/code>/)?.[1]; assert.ok(code); mail.set(body.to, code); result = { id: "disposable-transport" }; }
+      else if (action === "transport") { assert.ok([...accounts.values()].some(item => item.email === body.to)); const code = body.html.match(/<code\b[^>]*>\s*([0-9]{6})\s*<\/code>/)?.[1]; if (code) mail.set(body.to, code); result = { id: "disposable-transport" }; }
+      else if (action === "profile_state") { assert.ok(profileQA); const id = uuid(accounts.get("profile").profileId); result = jsonSql(`select json_build_object('organization',m.current_organization,'phone',m.phone,'studentId',m.student_id,'batch',m.batch_no,'graduationYear',m.graduation_year,'requests',(select coalesce(json_agg(json_build_object('id',q.id,'type',q.request_type,'status',q.status)),'[]') from public.profile_update_requests q where q.member_id=m.id)) from public.members m where m.id='${id}';`); }
+      else if (action === "profile_conflict") { assert.ok(profileQA); const id = uuid(accounts.get("profile").profileId); const requestId = uuid(sql(`select id from public.profile_update_requests where member_id='${id}' and request_type='workplace_update' and status='pending' limit 1;`)); const value = await admin.rpc("review_member_profile_update", { p_request_id: requestId, p_actor_user_id: accounts.get("never").userId, p_decision: "approved", p_review_note: "Synthetic conflict check" }); result = { code: value.error?.code, status: value.status }; }
+      else if (action === "workplace_request") { assert.ok(profileQA); assert.ok(["Initial Requested Workplace","Obsolete Workplace"].includes(body.organization)); const id = uuid(accounts.get("profile").profileId); result = { id: uuid(sql(`insert into public.profile_update_requests(member_id,request_type,status,payload,requested_at) values('${id}','workplace_update','pending',jsonb_build_object('currentOrganization','${body.organization}'),clock_timestamp()+interval '10 years') returning id;`).split(/\r?\n/)[0]) }; }
       else if (action === "email") { assert.ok(account && mail.has(account.email)); result = { code: mail.get(account.email) }; }
       else if (action === "totp") { assert.ok(account?.secret); result = { code: totp(account.secret) }; }
       else if (action === "setup_totp") {
@@ -157,13 +164,28 @@ try {
   assert.equal(env.AUTH_CAPTCHA_REQUIRED, "true");
   console.log("Synthetic AAL1/AAL2 identities and reviewed-member fixtures are ready.");
   env.NODE_OPTIONS = `--require "${join(repo, "supabase/verification/admin-verification-qa-preload.cjs").replaceAll("\\", "/")}"`;
-  next = spawn(process.execPath, [join(repo, "node_modules/next/dist/bin/next"), "dev", "--webpack", "--hostname", "127.0.0.1", "--port", "3127"], { cwd: repo, env, stdio: ["ignore", "pipe", "pipe"] });
   let diagnostics = "";
   const capture = chunk => {
     let safe = String(chunk);
     for (const secret of [bridgeToken, status.SERVICE_ROLE_KEY, status.ANON_KEY, ...[...accounts.values()].flatMap(account => [account.password, account.secret].filter(Boolean)), ...mail.values()]) safe = safe.split(secret).join("[redacted]");
     diagnostics = `${diagnostics}${safe.replace(/eyJ[A-Za-z0-9._-]+/g, "[token redacted]").replace(/\b[0-9]{6}\b/g, "[code redacted]")}`.slice(-4000);
   };
+  if (profileQA) {
+    env.NODE_ENV = "production";
+    console.log("Building the real production application for profile acceptance.");
+    const { validateEnv } = await import(pathToFileURL(join(repo, "scripts/validate-env.mjs")).href);
+    const validation = validateEnv(env, { production: true });
+    // Exactly three isolated-fixture exceptions: HTTP loopback Auth/app and
+    // disabled Sentry delivery. The deployment validator is never weakened.
+    assert.deepEqual(validation.missing, ["NEXT_PUBLIC_SENTRY_DSN"]);
+    assert.deepEqual(validation.invalid, ["NEXT_PUBLIC_SUPABASE_URL must be a valid https URL.", "APP_BASE_URL must be a valid https URL."]);
+    console.log("Fixture-only config exceptions: HTTP loopback and disabled Sentry; deployment validation unchanged.");
+    const build = spawn(process.execPath, [join(repo, "node_modules/next/dist/bin/next"), "build"], { cwd: repo, env, stdio: ["ignore", "pipe", "pipe"] });
+    build.stdout.on("data", capture); build.stderr.on("data", capture);
+    assert.equal(await new Promise(resolve => build.once("exit", resolve)), 0, `Disposable production build failed. ${diagnostics}`);
+    console.log("Production build passed. Starting production-mode browser acceptance.");
+  }
+  next = spawn(process.execPath, [join(repo, "node_modules/next/dist/bin/next"), ...(profileQA ? ["start"] : ["dev", "--webpack"]), "--hostname", "127.0.0.1", "--port", "3127"], { cwd: repo, env, stdio: ["ignore", "pipe", "pipe"] });
   next.stdout.on("data", capture); next.stderr.on("data", capture);
   let ready = false;
   for (let attempt = 0; attempt < 120; attempt++) { if (next.exitCode !== null) break; try { const response = await fetch("http://127.0.0.1:3127/admin/login", { signal: AbortSignal.timeout(5000) }); if (response.status < 500) { ready = true; break; } } catch {} await new Promise(resolve => setTimeout(resolve, 500)); }
@@ -171,11 +193,11 @@ try {
   delete env.NODE_OPTIONS;
   Object.assign(env, { PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3127", PLAYWRIGHT_NO_COPY_PROMPT: "1", ADMIN_VERIFICATION_QA_SCREENSHOTS: screenshots, NODE_ENV: "test" });
   console.log("Running real Next/Supabase browser integration; transport does not certify mailbox delivery.");
-  const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", "e2e/admin-verification.spec.ts", "--project=chromium", "--workers=1", "--output", join(screenshots, "playwright-output"), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
+  const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", profileQA ? "e2e/profile-self-service.spec.ts" : "e2e/admin-verification.spec.ts", "--project=chromium", "--workers=1", "--output", join(screenshots, "playwright-output"), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
   const code = await new Promise(resolve => child.once("exit", resolve));
   if (code !== 0) console.error(`Redacted disposable Next diagnostics: ${diagnostics}`);
   assert.equal(code, 0, "Disposable admin verification browser suite failed.");
-  console.log("ADMIN VERIFICATION BROWSER QA PASSED (disposable project only).");
+  console.log(profileQA ? "PROFILE SELF SERVICE BROWSER QA PASSED (disposable project only)." : "ADMIN VERIFICATION BROWSER QA PASSED (disposable project only).");
   console.log(`Non-secret screenshots: ${screenshots}`);
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Disposable browser QA failed."); process.exitCode = 1;

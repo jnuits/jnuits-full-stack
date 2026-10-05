@@ -196,7 +196,7 @@ export default async function AdminPage() {
       ? admin
           .from("profile_update_requests")
           .select(
-            "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, member_type)"
+            "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members!profile_update_requests_member_id_fkey(full_name, jnuits_id, email, member_type)"
           )
           .eq("request_type", "workplace_update")
           .neq("status", "pending")

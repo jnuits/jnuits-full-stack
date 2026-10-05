@@ -51,6 +51,7 @@ function parseProfilePayload(payload: unknown) {
     return {
       departmentCode: null,
       facebookUrl: null,
+      studentId: null, batchNo: null, graduationYear: null,
       fullName: null,
       linkedinUrl: null,
       newEmail: null,
@@ -63,6 +64,9 @@ function parseProfilePayload(payload: unknown) {
   const record = payload as Record<string, unknown>;
 
   return {
+    studentId: typeof record.studentId === "string" ? record.studentId : null,
+    batchNo: typeof record.batchNo === "number" ? record.batchNo : null,
+    graduationYear: typeof record.graduationYear === "number" ? record.graduationYear : null,
     departmentCode:
       typeof record.departmentCode === "string" && record.departmentCode.trim()
         ? record.departmentCode.trim().toLowerCase()
@@ -121,7 +125,7 @@ export function ProfileChangeRequestsPanel({
       {requests.length === 0 ? (
         <EmptyState
           title="No pending profile change requests"
-          description="The moderated profile queue is empty. When members request name, phone, or social link edits, they will appear here."
+          description="The moderated profile queue is empty. When members request identity or academic record corrections, they will appear here."
         />
       ) : (
         requests.map((request) => {
@@ -161,6 +165,7 @@ export function ProfileChangeRequestsPanel({
                       <h3>Requested full name</h3>
                       <p>{payload.fullName || member?.full_name || "No change"}</p>
                     </div>
+                    {[["University student ID", payload.studentId], ["Batch", payload.batchNo], ["Graduation year", payload.graduationYear]].map(([label, value]) => value != null ? <div className="route-tile" key={String(label)}><h3>{label}</h3><p>{value}</p></div> : null)}
                     <div className="route-tile">
                       <h3>Requested phone</h3>
                       <p>{payload.phone || member?.phone || "No change"}</p>

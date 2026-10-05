@@ -162,7 +162,7 @@ export async function ProfileScreen({
 
           <div className="portal-identity-banner">
             <AvatarUploadField
-              canUpload={canMutateProfile}
+              canUpload={false}
               compact
               currentUrl={member.avatar_secure_url ?? null}
               displayName={member.full_name}
@@ -172,6 +172,7 @@ export async function ProfileScreen({
             />
             <div className="portal-identity-banner__info">
               <h2 className="portal-identity-banner__name">{member.full_name}</h2>
+              {canMutateProfile ? <Link href="/portal/profile/edit">Unlock profile editing to change your photo</Link> : null}
               <div className="portal-identity-banner__meta">
                 <span>{snapshot.departmentName ?? "Department pending"}</span>
                 <span aria-hidden>·</span>

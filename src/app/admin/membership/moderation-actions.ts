@@ -13,6 +13,8 @@ import { revalidatePublicCommitteeProjection } from "@/lib/committee/revalidatio
 import { isActiveDepartmentCode } from "@/lib/departments.server";
 import { getAppBaseUrl } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { reviewWorkplaceRequest } from "@/lib/admin/workplace";
+import { asFlexibleClient } from "@/lib/supabase/flexible";
 import {
   DEFAULT_INVITATION_EXPIRY_DAYS,
   generateInvitationCode,
@@ -24,10 +26,6 @@ import {
   normalizeJnuitsIdForCreation,
 } from "@/lib/members/jnuits-id";
 import { buildClaimProfileUrl } from "@/lib/members/claim-url";
-import {
-  getWorkplacePayloadEntries,
-  parseWorkplaceUpdatePayload,
-} from "@/lib/members/workplace-payload";
 import { sendEmail } from "@/lib/notifications/send-email";
 import {
   buildMemberInvitationEmail,
@@ -593,272 +591,35 @@ export async function reissueMemberInvitation(formData: FormData) {
   redirect("/admin#invitations");
 }
 
-export async function approveWorkplaceUpdateRequest(formData: FormData) {
-  const auth = await requireAdminPermission("admin.membership.manage", {
-    fallbackPath: "/admin/dashboard",
-  });
-  const actorUserId = auth.user?.id;
-
-  if (!actorUserId) {
-    redirect("/login");
-  }
-
-  const parsed = updateRequestModerationSchema.safeParse(
-    pickFormFields(formData, ["requestId", "reviewNote"])
-  );
-
+async function moderateLegacyWorkplaceRequest(formData: FormData, decision: "approved" | "rejected") {
+  const auth = await requireAdminPermission("admin.membership.manage", { fallbackPath: "/admin/workplace" });
+  if (!auth.user?.id) redirect("/login");
+  const parsed = updateRequestModerationSchema.safeParse(pickFormFields(formData, ["requestId", "reviewNote"]));
   if (!parsed.success) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Workplace approval failed",
-      message:
-        parsed.error.issues[0]?.message ||
-        "The workplace request identifier is missing.",
-    });
-    redirect("/admin#workplace");
+    await setAdminFlash({ tone: "error", title: "Workplace review failed", message: "Provide a valid workplace request and review note." });
+    redirect("/admin/workplace");
   }
-
-  const { requestId, reviewNote } = parsed.data;
-
-  const admin = createAdminClient();
-  const requestResult = await loadPendingProfileUpdateRequest(requestId);
-  const request = requestResult.data as ProfileUpdateRequestRow | null;
-
-  if (requestResult.error || !request) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Workplace approval failed",
-      message: "The selected workplace update request could not be loaded.",
-    });
-    redirect("/admin#workplace");
+  try {
+    const result = await reviewWorkplaceRequest({ admin: createAdminClient(), actorUserId: auth.user.id, decision, requestId: parsed.data.requestId, reviewNote: parsed.data.reviewNote });
+    revalidatePath("/admin");
+    revalidatePath("/admin/workplace");
+    revalidatePath("/portal/profile");
+    revalidatePath("/portal/profile/edit");
+    revalidatePath("/members");
+    revalidatePublicCommitteeProjection();
+    await setAdminFlash({ tone: "success", title: `Workplace request ${decision}`, message: `${result.memberName}'s workplace request was ${decision}.` });
+  } catch (error) {
+    await setAdminFlash({ tone: "error", title: "Workplace review failed", message: getSafeAdminActionErrorMessage(error, { context: "workplace.legacyReview", fallback: "The workplace request could not be reviewed. Refresh and try again." }) });
   }
+  redirect("/admin/workplace");
+}
 
-  if (request.request_type !== "workplace_update") {
-    await setAdminFlash({
-      tone: "error",
-      title: "Unsupported request type",
-      message: "Only workplace update requests can be moderated from this queue.",
-    });
-    redirect("/admin#workplace");
-  }
-
-  if (request.status !== "pending") {
-    await setAdminFlash({
-      tone: "error",
-      title: "Request already processed",
-      message: "This workplace request has already been moderated.",
-    });
-    redirect("/admin#workplace");
-  }
-
-  const payload = parseWorkplaceUpdatePayload(request.payload);
-  const payloadEntries = getWorkplacePayloadEntries(request.payload);
-
-  if (payloadEntries.length === 0) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Workplace approval failed",
-      message: "This request does not contain any valid workplace fields.",
-    });
-    redirect("/admin#workplace");
-  }
-
-  const { data: member } = await admin
-    .from("members")
-    .select("id, full_name, jnuits_id")
-    .eq("id", request.member_id)
-    .maybeSingle();
-
-  if (!member) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Workplace approval failed",
-      message: "The member linked to this request could not be found.",
-    });
-    redirect("/admin#workplace");
-  }
-
-  const nowIso = new Date().toISOString();
-
-  const { error: memberError } = await admin
-    .from("members")
-    .update({
-      current_organization: payload.currentOrganization,
-      designation: payload.designation,
-      work_location: payload.workLocation,
-      linkedin_url: payload.linkedinUrl,
-      website_url: payload.websiteUrl,
-      professional_visibility: payload.professionalVisibility,
-      updated_at: nowIso,
-    })
-    .eq("id", member.id);
-
-  if (memberError) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Workplace approval failed",
-      message: safeLegacyAdminError(memberError, "member.update", "The member profile could not be updated."),
-    });
-    redirect("/admin#workplace");
-  }
-
-  const { error: requestError } = await admin
-    .from("profile_update_requests")
-    .update({
-      status: "approved",
-      review_note: reviewNote || null,
-      reviewed_at: nowIso,
-      reviewed_by_user_id: actorUserId,
-      updated_at: nowIso,
-    })
-    .eq("id", request.id);
-
-  if (requestError) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Workplace approval failed",
-      message: safeLegacyAdminError(requestError, "profileRequest.update", "The profile request could not be updated."),
-    });
-    redirect("/admin#workplace");
-  }
-
-  await admin.from("membership_lifecycle_events").insert({
-    member_id: member.id,
-    event_type: "workplace_update_approved",
-    summary: "A moderated workplace update request was approved.",
-    created_by_user_id: actorUserId,
-    metadata: {
-      requestId: request.id,
-      updatedFields: payloadEntries.map((entry) => entry.key),
-    },
-  });
-
-  await admin.from("audit_events").insert({
-    actor_user_id: actorUserId,
-    action: "member.workplace_update_request_approved",
-    entity_type: "profile_update_request",
-    entity_id: request.id,
-    metadata: {
-      memberId: member.id,
-      jnuitsId: member.jnuits_id,
-      updatedFields: payloadEntries,
-      reviewNote: reviewNote || null,
-    },
-  });
-
-  revalidatePath("/admin");
-  revalidatePath("/profile");
-  revalidatePath("/profile/edit");
-  revalidatePublicCommitteeProjection();
-  await setAdminFlash({
-    tone: "success",
-    title: "Workplace request approved",
-    message: `${member.full_name}'s workplace profile has been updated.`,
-    jnuitsId: member.jnuits_id,
-  });
-  redirect("/admin#workplace");
+export async function approveWorkplaceUpdateRequest(formData: FormData) {
+  return moderateLegacyWorkplaceRequest(formData, "approved");
 }
 
 export async function rejectWorkplaceUpdateRequest(formData: FormData) {
-  const auth = await requireAdminPermission("admin.membership.manage", {
-    fallbackPath: "/admin/dashboard",
-  });
-  const actorUserId = auth.user?.id;
-
-  if (!actorUserId) {
-    redirect("/login");
-  }
-
-  const parsed = updateRequestModerationSchema.safeParse(
-    pickFormFields(formData, ["requestId", "reviewNote"])
-  );
-
-  if (!parsed.success) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Workplace rejection failed",
-      message:
-        parsed.error.issues[0]?.message ||
-        "The workplace request identifier is missing.",
-    });
-    redirect("/admin#workplace");
-  }
-
-  const { requestId, reviewNote } = parsed.data;
-
-  const admin = createAdminClient();
-  const requestResult = await loadPendingProfileUpdateRequest(requestId);
-  const request = requestResult.data as ProfileUpdateRequestRow | null;
-
-  if (requestResult.error || !request) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Workplace rejection failed",
-      message: "The selected workplace update request could not be loaded.",
-    });
-    redirect("/admin#workplace");
-  }
-
-  if (request.status !== "pending") {
-    await setAdminFlash({
-      tone: "error",
-      title: "Request already processed",
-      message: "This workplace request has already been moderated.",
-    });
-    redirect("/admin#workplace");
-  }
-
-  const { data: member } = await admin
-    .from("members")
-    .select("id, full_name, jnuits_id")
-    .eq("id", request.member_id)
-    .maybeSingle();
-
-  const nowIso = new Date().toISOString();
-
-  const { error } = await admin
-    .from("profile_update_requests")
-    .update({
-      status: "rejected",
-      review_note: reviewNote || null,
-      reviewed_at: nowIso,
-      reviewed_by_user_id: actorUserId,
-      updated_at: nowIso,
-    })
-    .eq("id", request.id);
-
-  if (error) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Workplace rejection failed",
-      message: safeLegacyAdminError(error, "legacy.update", "The admin operation could not be completed."),
-    });
-    redirect("/admin#workplace");
-  }
-
-  await admin.from("audit_events").insert({
-    actor_user_id: actorUserId,
-    action: "member.workplace_update_request_rejected",
-    entity_type: "profile_update_request",
-    entity_id: request.id,
-    metadata: {
-      memberId: request.member_id,
-      jnuitsId: member?.jnuits_id || null,
-      reviewNote: reviewNote || null,
-    },
-  });
-
-  revalidatePath("/admin");
-  revalidatePath("/profile/edit");
-  await setAdminFlash({
-    tone: "success",
-    title: "Workplace request rejected",
-    message: member
-      ? `${member.full_name}'s request has been marked as rejected.`
-      : "The workplace request has been marked as rejected.",
-    jnuitsId: member?.jnuits_id,
-  });
-  redirect("/admin#workplace");
+  return moderateLegacyWorkplaceRequest(formData, "rejected");
 }
 
 export async function approveProfileChangeRequest(formData: FormData) {
@@ -977,7 +738,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
     !fullName &&
     !phone &&
     !linkedinUrl &&
-    !websiteUrl
+    !websiteUrl && !payload.studentId && !payload.batchNo && !payload.graduationYear
   ) {
     await setAdminFlash({
       tone: "error",
@@ -1232,80 +993,16 @@ export async function approveProfileChangeRequest(formData: FormData) {
     redirect("/admin#profile-requests");
   }
 
-  const changedFields = [
-    fullName ? "full_name" : null,
-    departmentCode ? "department_code" : null,
-    facebookUrl ? "facebook_url" : null,
-    phone ? "phone" : null,
-    linkedinUrl ? "linkedin_url" : null,
-    websiteUrl ? "website_url" : null,
-  ].filter((value): value is string => Boolean(value));
-
-  const { error: memberError } = await admin
-    .from("members")
-    .update({
-      department_code: departmentCode || member.department_code,
-      facebook_url: facebookUrl || member.facebook_url,
-      full_name: fullName || member.full_name,
-      linkedin_url: linkedinUrl || member.linkedin_url,
-      phone: phone || member.phone,
-      updated_at: nowIso,
-      website_url: websiteUrl || member.website_url,
-    })
-    .eq("id", member.id);
-
-  if (memberError) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Profile approval failed",
-      message: safeLegacyAdminError(memberError, "member.update", "The member profile could not be updated."),
-    });
-    redirect("/admin#profile-requests");
-  }
-
-  const { error: requestError } = await admin
-    .from("profile_update_requests")
-    .update({
-      review_note: reviewNote || null,
-      reviewed_at: nowIso,
-      reviewed_by_user_id: actorUserId,
-      status: "approved",
-      updated_at: nowIso,
-    })
-    .eq("id", request.id);
-
-  if (requestError) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Profile approval failed",
-      message: safeLegacyAdminError(requestError, "profileRequest.update", "The profile request could not be updated."),
-    });
-    redirect("/admin#profile-requests");
-  }
-
-  await admin.from("membership_lifecycle_events").insert({
-    member_id: member.id,
-    event_type: "profile_change_approved",
-    summary: "A moderated profile change request was approved.",
-    created_by_user_id: actorUserId,
-    metadata: {
-      changedFields,
-      requestId: request.id,
-    },
+  const result = await asFlexibleClient(admin).rpc("review_member_profile_update", {
+    p_request_id: request.id, p_actor_user_id: actorUserId, p_decision: "approved", p_review_note: reviewNote || "",
   });
-
-  await admin.from("audit_events").insert({
-    actor_user_id: actorUserId,
-    action: "member.profile_change_request_approved",
-    entity_type: "profile_update_request",
-    entity_id: request.id,
-    metadata: {
-      changedFields,
-      jnuitsId: member.jnuits_id,
-      memberId: member.id,
-      reviewNote: reviewNote || null,
-    },
-  });
+  if (result.error || !result.data) {
+    await setAdminFlash({ tone: "error", title: "Profile approval failed", message: result.error?.code === "PT409"
+      ? "A newer direct edit supersedes this request. Reject it or ask the member to resubmit."
+      : "The profile request could not be approved. Reload the queue and try again." });
+    redirect("/admin/profile-changes");
+  }
+  const changedFields = result.data.changedFields as string[];
 
   revalidatePath("/admin");
   revalidatePublicCommitteeProjection();
@@ -1313,8 +1010,7 @@ export async function approveProfileChangeRequest(formData: FormData) {
   revalidatePath("/profile/edit");
   revalidatePath("/portal/profile");
   revalidatePath("/portal/profile/edit");
-  revalidatePath("/portal/profile");
-  revalidatePath("/portal/profile/edit");
+  revalidatePath("/admin/profile-changes");
   await setAdminFlash({
     tone: "success",
     title: "Profile request approved",
@@ -1399,44 +1095,26 @@ export async function rejectProfileChangeRequest(formData: FormData) {
     .eq("id", request.member_id)
     .maybeSingle();
 
-  const nowIso = new Date().toISOString();
-
-  const { error } = await admin
-    .from("profile_update_requests")
-    .update({
-      review_note: reviewNote || null,
-      reviewed_at: nowIso,
-      reviewed_by_user_id: actorUserId,
-      status: "rejected",
-      updated_at: nowIso,
-    })
-    .eq("id", request.id);
-
-  if (error) {
-    await setAdminFlash({
-      tone: "error",
-      title: "Profile rejection failed",
-      message: safeLegacyAdminError(error, "legacy.update", "The admin operation could not be completed."),
-    });
-    redirect("/admin#profile-requests");
+  if (!["profile_change", "email_change", "jnuits_id_change"].includes(request.request_type)) {
+    await setAdminFlash({ tone: "error", title: "Unsupported request", message: "Use the dedicated queue to review this request." });
+    redirect("/admin/profile-changes");
   }
-
-  await admin.from("audit_events").insert({
-    actor_user_id: actorUserId,
-    action: "member.profile_change_request_rejected",
-    entity_type: "profile_update_request",
-    entity_id: request.id,
-    metadata: {
-      jnuitsId: member?.jnuits_id || null,
-      memberId: request.member_id,
-      reviewNote: reviewNote || null,
-    },
-  });
+  const nowIso = new Date().toISOString();
+  const rejection = request.request_type === "profile_change"
+    ? await asFlexibleClient(admin).rpc("review_member_profile_update", { p_request_id: request.id, p_actor_user_id: actorUserId, p_decision: "rejected", p_review_note: reviewNote || "" })
+    : await admin.from("profile_update_requests").update({ review_note: reviewNote || null, reviewed_at: nowIso, reviewed_by_user_id: actorUserId, status: "rejected", updated_at: nowIso }).eq("id", request.id).eq("status", "pending").select("id").maybeSingle();
+  if (rejection.error || !rejection.data) {
+    await setAdminFlash({ tone: "error", title: "Profile rejection failed", message: "This request has already been processed or could not be rejected. Refresh and try again." });
+    redirect("/admin/profile-changes");
+  }
+  if (request.request_type !== "profile_change") {
+    await admin.from("audit_events").insert({ actor_user_id: actorUserId, action: "member.profile_change_request_rejected", entity_type: "profile_update_request", entity_id: request.id, metadata: { jnuitsId: member?.jnuits_id || null, memberId: request.member_id, reviewNote: reviewNote || null } });
+  }
 
   revalidatePath("/admin");
   revalidatePath("/profile/edit");
   revalidatePath("/portal/profile/edit");
-  revalidatePath("/portal/profile/edit");
+  revalidatePath("/admin/profile-changes");
   await setAdminFlash({
     tone: "success",
     title: "Profile request rejected",
