@@ -87,8 +87,8 @@ test.describe("disposable profile self-service and review integration", () => {
       expect(saved.request().postDataJSON()).toEqual({ phone: "", currentOrganization: "New Direct Workplace" });
       await expect.poll(async () => (await fixture("profile_state")).organization).toBe("New Direct Workplace");
       expect((await fixture("profile_state")).phone).toBeNull();
-      expect((await context.request.post(`${baseURL}/api/profile/direct`, { headers, data: { fullName: "Forbidden Identity" } })).status()).toBe(400);
-      expect((await context.request.post(`${baseURL}/api/portal/workplace-requests`, { headers, data: { currentOrganization: "Legacy Submission" } })).status()).toBe(410);
+      expect(await page.evaluate(async () => (await fetch("/api/profile/direct", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullName: "Forbidden Identity" }) })).status)).toBe(400);
+      expect(await page.evaluate(async () => (await fetch("/api/portal/workplace-requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentOrganization: "Legacy Submission" }) })).status)).toBe(410);
       expect(await fixture("profile_conflict")).toEqual({ code: "PT409", status: 409 });
       await adminPage.goto(`${baseURL}/admin/workplace`, { waitUntil: "networkidle" });
       await adminPage.getByRole("button", { name: "Review Synthetic Profile Alumni's workplace request", exact: true }).first().click();
@@ -103,7 +103,11 @@ test.describe("disposable profile self-service and review integration", () => {
       await page.getByLabel("University student ID", { exact: true }).fill("ST-NEW");
       await page.getByLabel("Batch", { exact: true }).fill("18");
       await page.getByLabel("Graduation year", { exact: true }).fill("2027");
+      const identityResponse = page.waitForResponse(response => response.url().endsWith("/api/profile/change-requests") && response.request().method() === "POST");
       await page.getByRole("button", { name: "Submit profile change" }).click();
+      const identitySubmitted = await identityResponse;
+      expect(identitySubmitted.status()).toBe(201);
+      expect(identitySubmitted.request().postDataJSON()).toEqual({ requestType: "profile_change", studentId: "ST-NEW", batchNo: 18, graduationYear: 2027 });
       await expect.poll(async () => (await fixture("profile_state")).requests.filter((item: { type: string; status: string }) => item.type === "profile_change" && item.status === "pending").length).toBe(1);
       expect((await fixture("profile_state")).studentId).toBe("ST-OLD");
       await adminPage.goto(`${baseURL}/admin/profile-changes`, { waitUntil: "networkidle" });

@@ -43,3 +43,12 @@ Execution evidence and the focused review are kept in the ignored `.superpowers/
 ## Follow-up boundary
 
 The older remaining-work register in the primary checkout stays open. Real newsletter delivery, Task 7 remote MFA/email acceptance, provider CAPTCHA/CSP compatibility, production performance, provider-owned default ACLs, backups/recovery, media coverage, and release cleanup must each obtain their own evidence. Resume those items only after this patch is verified in production. Preserve the existing ledgers/worktrees and `backup/pre-ai-it-fest-2026`.
+
+## Verified release checkpoint
+
+- Application source and SQL: `e716a609aafdea76ee00326fc61270f760896683`; full suite 2,037 tests across 311 files passed.
+- Clean replay of all 117 migrations, profile/permission assertions and compile lint passed. Lint, typecheck, access/UI/dependency/order and immutable SQL checks passed.
+- Production-mode Chromium acceptance passed with fictional accounts: full workplace/academic decisions, password unlock and denial, immediate routine saves, clearing and field boundaries, permanent stale-request conflict and explicit rejection. Three viewports in both actual themes passed keyboard/focus and overflow checks. Twelve sanitized screenshots are preserved in the ignored execution ledger.
+- The fixture configuration explicitly permits only HTTP loopback Auth/app and disables Sentry. The real deployment validator remains unchanged. This evidence does not certify live CAPTCHA or mailbox providers.
+- Supabase migration `20261005165555` is applied; hosted SQL SHA-256 is byte-identical to the committed SQL. See [migration receipt](2026-10-05-profile-migration-receipt.json). Do not apply it again. Browser execution of all three profile functions is denied; existing public RLS and privilege checks remain intact.
+- PR [#169](https://github.com/jnuits/jnuits-full-stack/pull/169) is pending final-head checks and normal merge. Production deployment is not yet verified; defer old-plan execution until its actual SHA includes this patch.

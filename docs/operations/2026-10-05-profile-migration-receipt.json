@@ -1,0 +1,25 @@
+{
+  "projectId": "fsirdkjgrcocowxqjhjg",
+  "sourceCommit": "e716a609aafdea76ee00326fc61270f760896683",
+  "verifiedAt": "2026-10-05 16:57:53 UTC",
+  "migrations": [
+    {
+      "version": "20261005165555",
+      "name": "profile_self_service_and_atomic_review",
+      "statement_count": 1,
+      "sql_bytes": 14318,
+      "sql_md5": "a0b09ad252fc61f17fe33b8be91717a6",
+      "sql_sha256": "6a8ae017cb8bd11516ab5a3c8478ea16679d173495eb8effaebdde1e63b64c74",
+      "originalVersion": "20261005154500"
+    }
+  ],
+  "security": {
+    "publicTablesWithoutRls": 0,
+    "prohibitedEffectiveBrowserPrivileges": 0,
+    "profileRpcBrowserExecution": false,
+    "profileRpcServiceExecution": true,
+    "profileRpcSearchPath": "",
+    "profileRpcSecurityDefiner": true
+  },
+  "scope": "Function definitions and execution ACLs only; no real request was decided or real role changed."
+}

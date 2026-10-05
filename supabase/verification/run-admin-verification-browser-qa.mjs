@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import { join, sep } from "node:path";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import { disableReplayCatalogCache } from "./configure-bootstrap-replay.mjs";
 
 // Only creates its own isolated, unlinked project. There is deliberately no
@@ -82,7 +83,7 @@ try {
   const admin = createClient(status.API_URL, status.SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   // Mirror existing hosted explicit exposure. Never grant browser RBAC/proof
   // table writes; authorization RPC ACLs remain exactly as migrated.
-  sql("grant select on all tables in schema public to service_role; update public.security_settings set admin_totp_enforced=false where id;");
+  sql("grant select on all tables in schema public to service_role; grant insert,update on public.profile_update_requests to service_role; grant insert on public.audit_events to service_role; update public.security_settings set admin_totp_enforced=false where id;");
   for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"]] : [])]) {
     const email = `qa-${name}-${runId}@local.invalid`, password = `Qa!${randomBytes(18).toString("base64url")}`;
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
@@ -172,8 +173,13 @@ try {
   if (profileQA) {
     env.NODE_ENV = "production";
     console.log("Building the real production application for profile acceptance.");
-    const validation = spawnSync(process.execPath, [join(repo, "scripts/validate-env.mjs"), "--production"], { cwd: repo, env, encoding: "utf8" });
-    assert.equal(validation.status, 0, "Disposable production build configuration failed validation.");
+    const { validateEnv } = await import(pathToFileURL(join(repo, "scripts/validate-env.mjs")).href);
+    const validation = validateEnv(env, { production: true });
+    // Exactly three isolated-fixture exceptions: HTTP loopback Auth/app and
+    // disabled Sentry delivery. The deployment validator is never weakened.
+    assert.deepEqual(validation.missing, ["NEXT_PUBLIC_SENTRY_DSN"]);
+    assert.deepEqual(validation.invalid, ["NEXT_PUBLIC_SUPABASE_URL must be a valid https URL.", "APP_BASE_URL must be a valid https URL."]);
+    console.log("Fixture-only config exceptions: HTTP loopback and disabled Sentry; deployment validation unchanged.");
     const build = spawn(process.execPath, [join(repo, "node_modules/next/dist/bin/next"), "build"], { cwd: repo, env, stdio: ["ignore", "pipe", "pipe"] });
     build.stdout.on("data", capture); build.stderr.on("data", capture);
     assert.equal(await new Promise(resolve => build.once("exit", resolve)), 0, `Disposable production build failed. ${diagnostics}`);
