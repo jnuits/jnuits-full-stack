@@ -1,0 +1,168 @@
+{
+  "projectId": "fsirdkjgrcocowxqjhjg",
+  "verifiedAt": "2026-10-05T05:55:29Z",
+  "sourceCommit": "de3ad675e6a04619e63a48c51984fc3c6b7a6c4e",
+  "productionReadinessRun": 37269359080,
+  "migrations": [
+    {
+      "version": "20261005054954",
+      "name": "audit_content_query_summaries",
+      "statement_count": 1,
+      "sql_bytes": 1732,
+      "sql_sha256": "44e62d33d4c0d7dc5592f50403c7aae6c1f0d00d918552b7858562ec4b434f35",
+      "sql_md5": "6d191937d07c87b156d0a154efda145d",
+      "originalVersion": "20261004171611"
+    },
+    {
+      "version": "20261005055016",
+      "name": "audit_newsletter_double_opt_in",
+      "statement_count": 1,
+      "sql_bytes": 9980,
+      "sql_sha256": "0e1d477893cc7b21a296ce6b8527a366f73117779f3e123dcb5ae792dd8cfdd1",
+      "sql_md5": "0f99392d6e7b6e5aa0522893449764dd",
+      "originalVersion": "20261004171614"
+    },
+    {
+      "version": "20261005055358",
+      "name": "audit_newsletter_delivery_fk_index",
+      "statement_count": 1,
+      "sql_bytes": 189,
+      "sql_sha256": "0d0f19b2d94d917fe48c1703f5ad58a8cab64c718e8bf292078bd295d101a1fe",
+      "sql_md5": "44defa3155618eb4dcc2960ad121c32d",
+      "reason": "Forward correction for delivery-event foreign-key index found by post-DDL advisor; original newsletter SQL unchanged."
+    }
+  ],
+  "verification": {
+    "indexes": [
+      {
+        "name": "content_posts_admin_notice_archive_idx",
+        "ready": true,
+        "valid": true
+      },
+      {
+        "name": "content_posts_public_blog_archive_idx",
+        "ready": true,
+        "valid": true
+      },
+      {
+        "name": "newsletter_confirmation_attempts_idx",
+        "ready": true,
+        "valid": true
+      },
+      {
+        "name": "newsletter_delivery_events_token_idx",
+        "valid": true,
+        "ready": true
+      }
+    ],
+    "functions": [
+      {
+        "anon": false,
+        "name": "get_admin_notice_summary",
+        "config": [
+          "search_path=\"\""
+        ],
+        "service": true,
+        "authenticated": false,
+        "service_guard": null,
+        "security_definer": false
+      },
+      {
+        "anon": true,
+        "name": "get_public_blog_categories",
+        "config": [
+          "search_path=\"\""
+        ],
+        "service": true,
+        "authenticated": true,
+        "service_guard": null,
+        "security_definer": false
+      },
+      {
+        "anon": false,
+        "name": "newsletter_store",
+        "config": [
+          "search_path=\"\""
+        ],
+        "service": true,
+        "authenticated": false,
+        "service_guard": true,
+        "security_definer": true
+      }
+    ],
+    "private_tables": [
+      {
+        "rls": true,
+        "name": "newsletter_confirmation_tokens",
+        "forbidden_direct_grants": 0
+      },
+      {
+        "rls": true,
+        "name": "newsletter_delivery_events",
+        "forbidden_direct_grants": 0
+      },
+      {
+        "rls": true,
+        "name": "newsletter_subscriptions",
+        "forbidden_direct_grants": 0
+      }
+    ]
+  },
+  "publicDmlUnchanged": true,
+  "publicDmlComparisons": 852,
+  "publicTables": 71,
+  "publicTablesWithoutRls": 0,
+  "prohibitedBrowserGrants": 0,
+  "hostedMigrationCount": 116,
+  "supportedCleanReplay": "116 migrations; permission/RLS/newsletter consent and concurrent transaction assertions; database-function lint passed",
+  "advisors": {
+    "security": [
+      {
+        "name": "rls_enabled_no_policy",
+        "level": "INFO",
+        "count": 29,
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy"
+      },
+      {
+        "name": "authenticated_security_definer_function_executable",
+        "level": "WARN",
+        "count": 21,
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable"
+      },
+      {
+        "name": "auth_leaked_password_protection",
+        "level": "WARN",
+        "count": 1,
+        "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection"
+      }
+    ],
+    "performance": [
+      {
+        "name": "unindexed_foreign_keys",
+        "level": "INFO",
+        "count": 24,
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys"
+      },
+      {
+        "name": "no_primary_key",
+        "level": "INFO",
+        "count": 1,
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0004_no_primary_key"
+      },
+      {
+        "name": "unused_index",
+        "level": "INFO",
+        "count": 152,
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index"
+      },
+      {
+        "name": "multiple_permissive_policies",
+        "level": "WARN",
+        "count": 18,
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies"
+      }
+    ]
+  },
+  "advisorInterpretation": "Three private RLS tables deliberately expose no direct DML or browser policy; service-only guarded RPC. Four new valid indexes initially report unused. Unindexed foreign keys returned to pre-rollout 24; all existing warning categories/counts unchanged.",
+  "evidenceBoundary": "SQL hashes prove exact content of these three stored hosted statements. Version/name parity alone does not attest earlier historical SQL content."
+}

@@ -3,9 +3,9 @@ import { buildContentSecurityPolicy, buildSecurityHeaders } from "./http-headers
 
 describe("security headers", () => {
   it("omits unsafe-eval from production CSP", () => {
-    const csp = buildContentSecurityPolicy({ allowUnsafeEval: false });
+    const csp = buildContentSecurityPolicy({ allowUnsafeEval: false, nonce: "fixture-nonce" });
 
-    expect(csp).toContain("script-src 'self' 'unsafe-inline'");
+    expect(csp).toContain("'nonce-fixture-nonce' 'strict-dynamic'");
     expect(csp).not.toContain("'unsafe-eval'");
     expect(csp).toContain("https://challenges.cloudflare.com");
     expect(csp).toContain("https://api.pwnedpasswords.com");
@@ -24,5 +24,6 @@ describe("security headers", () => {
     expect(headerMap.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
     expect(headerMap.get("Strict-Transport-Security")).toContain("max-age=63072000");
     expect(headerMap.has("X-Powered-By")).toBe(false);
+    expect(headerMap.has("Content-Security-Policy")).toBe(false);
   });
 });

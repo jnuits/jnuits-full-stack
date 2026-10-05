@@ -155,8 +155,8 @@ async function resolveAdminMfaRedirect(
   return mfaState.ok ? null : mfaState.redirectTo;
 }
 
-export async function updateSession(request: NextRequest) {
-  const requestHeaders = new Headers(request.headers);
+export async function updateSession(request: NextRequest, forwardedHeaders?: Headers) {
+  const requestHeaders = new Headers(forwardedHeaders ?? request.headers);
   requestHeaders.set(
     "x-jnuits-return-to",
     `${request.nextUrl.pathname}${request.nextUrl.search}`
@@ -186,6 +186,8 @@ export async function updateSession(request: NextRequest) {
             request.cookies.set(name, value);
           });
 
+          // RequestCookies mutates the original Cookie header during refresh.
+          requestHeaders.set("cookie", request.headers.get("cookie") ?? "");
           supabaseResponse = NextResponse.next({
             request: {
               headers: requestHeaders,

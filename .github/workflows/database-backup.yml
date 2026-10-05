@@ -1,0 +1,49 @@
+name: Encrypted database backup
+on:
+  schedule:
+    # 01:30 Asia/Dhaka; the owner enables this after provisioning private settings.
+    - cron: '30 19 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: jnuits-database-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.BACKUP_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    environment: database-backups
+    env:
+      BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      BACKUP_DB_SSL_ROOT_CERT: ${{ secrets.BACKUP_DB_SSL_ROOT_CERT }}
+      BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+      BACKUP_DRIVE_FOLDER_ID: ${{ vars.BACKUP_DRIVE_FOLDER_ID }}
+      BACKUP_DRIVE_ALLOWED_PERMISSION_IDS: ${{ vars.BACKUP_DRIVE_ALLOWED_PERMISSION_IDS }}
+      BACKUP_DRIVE_AUTH_MODE: ${{ vars.BACKUP_DRIVE_AUTH_MODE }}
+      BACKUP_DRIVE_OAUTH_CLIENT_ID: ${{ secrets.BACKUP_DRIVE_OAUTH_CLIENT_ID }}
+      BACKUP_DRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.BACKUP_DRIVE_OAUTH_CLIENT_SECRET }}
+      BACKUP_DRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.BACKUP_DRIVE_OAUTH_REFRESH_TOKEN }}
+      BACKUP_DRIVE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.BACKUP_DRIVE_SERVICE_ACCOUNT_EMAIL }}
+      BACKUP_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.BACKUP_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+    steps:
+      - name: Checkout protected main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.14.1
+      - name: Install distro-verified public-key encryption tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes age
+      - name: Create and verify encrypted offsite recovery point
+        run: node scripts/backups/run.mjs > "$RUNNER_TEMP/backup-completion.json"
+      - name: Retain sanitized completion evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: database-backup-completion
+          path: ${{ runner.temp }}/backup-completion.json
+          retention-days: 30
+          if-no-files-found: error

@@ -97,7 +97,7 @@ export default async function MembersPage({
   const { counters, facets, filters, members, pagination } = directory;
 
   return (
-    <main className="shell py-10">
+    <div className="shell py-10">
       <section aria-labelledby="members-page-title" className="border-b border-[var(--line)] pb-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
@@ -124,7 +124,7 @@ export default async function MembersPage({
               className="secondary-button"
               href="/membership-form"
             >
-              Check application status
+              Membership onboarding
             </Link>
           </div>
         </div>
@@ -202,6 +202,6 @@ export default async function MembersPage({
           totalPages={pagination.totalPages}
         />
       </section>
-    </main>
+    </div>
   );
 }

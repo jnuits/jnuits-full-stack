@@ -3,6 +3,7 @@ import { Mail, Phone } from "lucide-react";
 import { SiteBrand } from "@/components/layout/site-brand";
 import { brandProfile } from "@/lib/branding";
 import { getFooterContent } from "@/lib/content/site-singletons";
+import { NewsletterSubscribeForm } from "@/components/newsletter/newsletter-subscribe-form";
 import {
   publicFooterNavigation,
   publicPolicyNavigation,
@@ -222,45 +223,7 @@ export async function SiteFooter() {
           <p className="mt-3 text-sm leading-7 text-white/70">
             Get updates about events, notices, and member opportunities.
           </p>
-          <form
-            action="/api/contact/submit"
-            className="site-footer-newsletter"
-            method="post"
-          >
-            <input name="name" type="hidden" value="Newsletter subscriber" />
-            <input name="category" type="hidden" value="general" />
-            <input
-              name="subject"
-              type="hidden"
-              value="Newsletter subscription request"
-            />
-            <input
-              name="message"
-              type="hidden"
-              value="Please add this email address to the JnU IT Society newsletter list."
-            />
-            <label className="sr-only" htmlFor="footer-newsletter-email">
-              Email address
-            </label>
-            <input
-              autoComplete="email"
-              id="footer-newsletter-email"
-              name="email"
-              placeholder="you@example.com"
-              required
-              type="email"
-            />
-            <div className="site-footer-newsletter__trap" aria-hidden="true">
-              <label htmlFor="footer-newsletter-website">Website</label>
-              <input
-                autoComplete="off"
-                id="footer-newsletter-website"
-                name="website"
-                tabIndex={-1}
-              />
-            </div>
-            <button type="submit">Subscribe</button>
-          </form>
+          <NewsletterSubscribeForm siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""} />
         </div>
       </div>
     </footer>

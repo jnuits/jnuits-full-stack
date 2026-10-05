@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
@@ -10,16 +11,53 @@ import {
   LinkIcon,
   Paperclip,
 } from "lucide-react";
+import { brandProfile } from "@/lib/branding";
 import {
   formatDisplayDate,
   getPublishedNoticeByIdentifier,
   getPublishedNotices,
 } from "@/lib/content/public-content";
+import { getAppBaseUrl } from "@/lib/env";
 import { NoticeMarkdown } from "@/components/notices/notice-markdown";
 import { NoticePermalinkCopy } from "@/components/notices/notice-permalink-copy";
 import { NoticeShareActions } from "@/components/notices/notice-share-actions";
 
 export const revalidate = 60;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const notice = await getPublishedNoticeByIdentifier(slug);
+
+  if (!notice) {
+    return {
+      title: "Notice not found",
+    };
+  }
+
+  const description =
+    notice.summary || "Official notice from Jagannath University IT Society.";
+  const canonicalPath = `/notices/${notice.slug}`;
+
+  return {
+    alternates: {
+      canonical: canonicalPath,
+    },
+    description,
+    openGraph: {
+      description,
+      publishedTime: notice.publishedAt,
+      siteName: brandProfile.shortName,
+      title: notice.title,
+      type: "article",
+      url: `${getAppBaseUrl()}${canonicalPath}`,
+    },
+    title: `${notice.title} | ${brandProfile.shortName}`,
+  };
+}
 
 function categoryTone(category: string) {
   const normalized = category.toLowerCase();
@@ -93,7 +131,7 @@ export default async function NoticeDetailPage({
   );
 
   return (
-    <main className="notices-page">
+    <div className="notices-page">
       <div className="shell notices-detail-shell">
         <Link className="notice-detail__back" href="/notices">
           <ArrowLeft aria-hidden="true" size={15} />
@@ -220,6 +258,6 @@ export default async function NoticeDetailPage({
           )}
         </nav>
       </div>
-    </main>
+    </div>
   );
 }

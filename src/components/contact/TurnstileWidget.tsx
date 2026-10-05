@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNonce } from "@/components/security/nonce-provider";
 import {
   removeTurnstileWidget,
   renderTurnstileWidget,
@@ -22,6 +23,7 @@ declare global {
 }
 
 export function TurnstileWidget({ onSuccess, onError, onExpired }: TurnstileWidgetProps) {
+  const nonce = useNonce();
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
   const disabled = !siteKey || siteKey === "your_site_key_here";
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -79,6 +81,7 @@ export function TurnstileWidget({ onSuccess, onError, onExpired }: TurnstileWidg
   return (
     <div className="mt-2" suppressHydrationWarning>
       <Script
+        nonce={nonce}
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
         strategy="lazyOnload"
         onError={() => callbacksRef.current.onError?.()}

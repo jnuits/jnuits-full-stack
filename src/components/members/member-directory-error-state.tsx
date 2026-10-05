@@ -7,7 +7,7 @@ export function MemberDirectoryErrorState() {
   const router = useRouter();
 
   return (
-    <main className="shell py-16">
+    <div className="shell py-16">
       <section className="error-state" role="alert">
         <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300">
           <AlertTriangle size={24} aria-hidden="true" />
@@ -23,6 +23,6 @@ export function MemberDirectoryErrorState() {
           Try again
         </button>
       </section>
-    </main>
+    </div>
   );
 }

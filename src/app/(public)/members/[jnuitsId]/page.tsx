@@ -43,12 +43,12 @@ export default async function MemberProfilePage({
   }
 
   return (
-    <main className="profile-page">
+    <div className="profile-page">
       <Link className="back-link" href={getBackHref(sp.from)}>
         ← Back to directory
       </Link>
 
       <MemberProfileCard member={member} />
-    </main>
+    </div>
   );
 }

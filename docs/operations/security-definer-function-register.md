@@ -150,3 +150,7 @@ Before altering any entry:
 The advisor warnings for the approved helpers should remain visible as a
 review reminder until Supabase supports a documented per-function suppression
 mechanism. Do not hide them by weakening the portal's RLS model.
+
+## Newsletter double opt-in (audit remediation)
+
+The forward audit_newsletter_double_opt_in migration creates public.newsletter_store(text,jsonb), SECURITY DEFINER with an empty search_path, fully qualified private tables and an explicit invoking-role service_role check. EXECUTE is revoked from PUBLIC/anon/authenticated and granted only to service_role; all three private tables enable RLS and deny direct privileges even to the browser/service roles. Payloads cannot select an Auth actor or role. Token hashes, atomic resend quotas, row-locked synchronization leases, successful provider completion and irreversible suppression enforce the lifecycle. Rollback SQL and focused API/provider tests verify the boundary. Hosted application and verification remain pending the coordinated release; do not infer application from local replay. See docs/operations/newsletter.md.

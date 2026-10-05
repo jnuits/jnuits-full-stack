@@ -1,0 +1,52 @@
+# Encrypted database backups and isolated recovery
+
+Status: code and disposable rehearsal validated; production scheduling, credentials, private-folder verification, successful offsite recovery points and measured production recovery remain OPEN until the owner provisions and accepts them. Targets are 24-hour RPO, four-hour RTO and 30-day retention. No billing/provider upgrade is required or performed.
+
+## Owner setup
+
+Create a dedicated private backup folder. Select owner-consented OAuth for My Drive, or a dedicated service account for a folder in an existing private Shared Drive. Service accounts have no storage quota and cannot own My Drive uploads. No Workspace/billing upgrade or domain-wide user delegation is performed. Do not reuse the application exports folder. Review the folder AND its ancestors/shared-drive membership; list only approved user/group permission IDs in the allowlist. Public/anyone, domain-wide and non-allowlisted access cause a refusal. Drive permissions are inspected through the selected dedicated backup identity; it has no access to application data outside owner-provisioned resources. Folder sharing is never changed by the workflow.
+
+For My Drive, use a dedicated owner-controlled backup Google identity and an owner-created OAuth client with the Drive scope (https://www.googleapis.com/auth/drive). The owner completes the consent/offline-access flow privately and provisions its refresh token directly in GitHub environment secrets; never print it or use application/export credentials. Configure a durable consent setup: an external app left in Testing normally expires refresh tokens after seven days for Drive access. Revoke/rotate credentials through the owner if needed. The script exchanges the refresh token only at Google''s token endpoint, requires enough lifetime for the bounded job, and never delegates a user through a service-account subject.
+
+For service_account mode, use a folder in an already available private Shared Drive and grant the dedicated service account the required upload/delete and ACL-inspection access. The script refuses My Drive folders in this mode. Inspect inherited Shared Drive membership as well as folder ancestors. If no Shared Drive exists, use the OAuth option; do not upgrade billing or configure domain-wide impersonation to make backups work.
+Generate an age X25519 identity on your private operator machine using age-keygen. Store the private identity offline or in your own recovery vault, outside this repository, application environments and CI. Test recovery access with a second owner-controlled copy. Only its public age1 recipient belongs in CI. Do not paste either identity material or connection credentials into chat.
+
+Provision GitHub's database-backups environment, restrict it to protected main, and set these privately:
+
+- Secrets: BACKUP_DATABASE_URL (dedicated direct/session connection to fsirdkjgrcocowxqjhjg on port5432/database postgres), BACKUP_DB_SSL_ROOT_CERT (provider's public SSL root certificate PEM). For BACKUP_DRIVE_AUTH_MODE=oauth, provision BACKUP_DRIVE_OAUTH_CLIENT_ID, BACKUP_DRIVE_OAUTH_CLIENT_SECRET and BACKUP_DRIVE_OAUTH_REFRESH_TOKEN. For service_account, provision BACKUP_DRIVE_SERVICE_ACCOUNT_EMAIL and BACKUP_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY.
+- Environment variables: BACKUP_DRIVE_AUTH_MODE (oauth or service_account), BACKUP_AGE_RECIPIENT (public recipient), BACKUP_DRIVE_FOLDER_ID and BACKUP_DRIVE_ALLOWED_PERMISSION_IDS (comma-separated IDs, including the selected backup identity and every approved inherited member).
+- Repository variable BACKUP_ENABLED=true only AFTER a manually dispatched backup and restore acceptance pass. Leave it absent while configuring. The workflow is restricted to main and runs nightly at01:30 Asia/Dhaka; GitHub cron timing is not a guaranteed deadline. Monitor failed/missed jobs and timestamps in private completion receipts so a delay beyond24hours is treated as an RPO breach. Do not configure per-run approval gates that indefinitely stall the nightly job.
+
+The connection must read all required relations, large objects and role metadata without RLS filtering. Prefer a dedicated credential/role where the provider supports complete backup access; do not weaken browser RLS or widen application credentials to make a dump pass. The script verifies the project/host, uses verify-full TLS with the supplied CA, and passes database secrets through child environment variables, never command-line URLs. PostgreSQL17.6 matches the verified hosted major version; the client image is pinned by digest. Reassess the pinned client after any owner-approved database upgrade.
+
+## Recovery-point contents and retention
+
+The workflow streams a full custom-format PostgreSQL dump and a separate roles-without-passwords dump directly into age encryption. Only ciphertext is written/uploaded. A resumable Drive upload uses bounded8MiB chunks and retry/status acknowledgments; size and provider MD5 must match, and SHA-256 ciphertext checksums are recorded. Completion receipt is written only after both encrypted objects pass verification. Its sanitized timestamps/checksums are retained in CI and the private folder. A failure during retention may still leave a valid private receipt: inspect it before deciding whether a new recovery point exists.
+
+Full database coverage includes non-system schema/data, Auth tables, private consent/verification state, RLS/ACLs, sequences, large objects and migration receipts. Role password hashes, platform encryption roots/signing keys, OAuth/SMTP/provider settings, application secrets and external media bytes require separate owner-controlled recovery. Never store the private decryption identity with the ciphertext or in CI. Preserve platform Vault/column-encryption roots separately if those features are used; a SQL dump alone does not restore their decryption capability.
+
+Retention removes only complete, positively marked workflow sets older than30days in this exact folder/project. Names, UUID, managedBy/project/type properties, SHA-256 metadata and all three objects must match; unrelated, malformed and incomplete sets are preserved for operator inspection. The latest complete recovery point is always retained, even during an outage. No public exports or user files are deleted.
+
+The first manual workflow_dispatch is allowed on protected main while BACKUP_ENABLED is absent/false; only the nightly schedule depends on that enable flag. Keep the schedule disabled until the manual offsite recovery and restore acceptance succeeds.
+
+## Monthly operator-run isolated rehearsal
+
+Download a completed database.dump.age, roles.sql.age and its receipt privately. Use an operator shell with production DATABASE_URL/PG connection settings, Supabase secrets, Resend keys and CI settings absent. Run:
+
+```text
+node scripts/backups/rehearse.mjs --database <ciphertext-dump-path> --roles <ciphertext-roles-path> --receipt <receipt-path> --identity <owner-private-identity-path>
+```
+
+The tool accepts no database URL. It checks project/image/ciphertext checksums, decrypts locally into a private temporary directory, starts a uniquely marked disposable PostgreSQL container with network=none and no exposed ports, disables cron job execution, verifies isolation, restores roles and the full archive into jnuits_restore, and records aggregate Auth/table/migration/RLS checks and elapsed recovery time. No application, queue worker, SMTP or provider connection runs. Restored SQL executes only inside that container. Private identity material is never copied into it. Only the tool's exact container/scratch directory is eligible for cleanup.
+
+Record the sanitized output and a monthly operator sign-off. Compare its actual seconds with14400; retain failures and remediate them before claiming RTO. Additionally compare source snapshot expectations, privileged/RLS behavior and required extensions with the restored target. This automated initial proof is insufficient to authorize a production cutover; provider-managed roots, environment settings and media recovery must also be rehearsed. Never point the rehearsal at production to save time.
+
+The local disposable fixture completed encryption/decryption/restore in6seconds with one fictional Auth user, one migration receipt, one RLS-enabled public table, zero network access and no outbound mail. It validates the tooling, not production data size, four-hour production recovery or live Drive acceptance. Developers can repeat it with Docker and age using node scripts/backups/recovery-fixture.mjs; fixture keys are generated temporarily and removed, never reused as production identities.
+
+## Media inventory and operator acceptance
+
+Inventory Supabase Storage bucket/object counts and total metadata bytes, Cloudinary asset counts/versions and any external certificate/gallery/event attachments separately. Define owner-controlled object export/recovery and independently confirm expected bytes can be restored. Database dumps contain storage metadata, not the object contents. Do not publish file names or personal documents in evidence.
+
+Before marking enabled: verify folder/ancestor ACLs, manually complete an encrypted offsite upload, retrieve it independently, verify checksums, decrypt with the owner-held key, rehearse restoration, and record actual production-sized restore time and coverage. Review the last30days of scheduled completion receipts monthly. The owner must supply/perform these steps; local mocks are not production evidence.
+
+Sources: [PostgreSQL pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html), [Supabase backup/restore](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore), [Supabase storage limitations](https://supabase.com/docs/guides/platform/backups), [age](https://github.com/FiloSottile/age), [Drive resumable uploads](https://developers.google.com/workspace/drive/api/guides/manage-uploads) and [Drive permissions](https://developers.google.com/workspace/drive/api/reference/rest/v3/permissions), [service-account storage limits](https://developers.google.com/workspace/drive/api/guides/about-shareddrives) and [OAuth refresh-token expiration](https://developers.google.com/identity/protocols/oauth2#expiration).

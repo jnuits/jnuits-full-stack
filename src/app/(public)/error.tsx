@@ -15,7 +15,7 @@ export default function PublicError({
   }, [error]);
 
   return (
-    <main className="shell flex min-h-[60vh] flex-col items-center justify-center py-16 text-center">
+    <div className="shell flex min-h-[60vh] flex-col items-center justify-center py-16 text-center">
       <p className="text-xs font-semibold uppercase tracking-widest text-primary/70">
         Something went wrong
       </p>
@@ -41,6 +41,6 @@ export default function PublicError({
           Back to homepage
         </Link>
       </div>
-    </main>
+    </div>
   );
 }

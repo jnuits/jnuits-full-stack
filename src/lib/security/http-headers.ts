@@ -4,10 +4,12 @@ export type SecurityHeader = {
 };
 
 export function buildContentSecurityPolicy({
+  nonce,
   allowUnsafeEval = process.env.NODE_ENV !== "production",
-}: { allowUnsafeEval?: boolean } = {}) {
+}: { nonce: string; allowUnsafeEval?: boolean }) {
+  if (!/^[A-Za-z0-9+/_-]+={0,2}$/.test(nonce)) throw new Error("Invalid CSP nonce.");
   const scriptSrc = [
-    "script-src 'self' 'unsafe-inline'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     allowUnsafeEval ? "'unsafe-eval'" : "",
     "https://challenges.cloudflare.com",
   ]
@@ -31,7 +33,6 @@ export function buildContentSecurityPolicy({
 }
 
 export function buildSecurityHeaders({
-  allowUnsafeEval = process.env.NODE_ENV !== "production",
   // HSTS must not depend on the hosting platform: any production build
   // (Vercel or self-hosted) enforces HTTPS-only transport.
   includeHsts =
@@ -42,10 +43,6 @@ export function buildSecurityHeaders({
   includeHsts?: boolean;
 } = {}): SecurityHeader[] {
   return [
-    {
-      key: "Content-Security-Policy",
-      value: buildContentSecurityPolicy({ allowUnsafeEval }),
-    },
     {
       key: "X-Content-Type-Options",
       value: "nosniff",

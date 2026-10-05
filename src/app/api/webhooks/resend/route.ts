@@ -89,6 +89,18 @@ export async function POST(request: Request) {
         ? eventRegistration.data[0]
         : eventRegistration.data;
     }
+    if (!result?.tracked) {
+      const newsletter = await admin.rpc("newsletter_store", {
+        p_action: "webhook",
+        p_payload: {
+          event_id: event.eventId, message_id: event.providerMessageId,
+          event_type: event.type, occurred_at: event.createdAt,
+          delivery_status: DELIVERY_STATUS_BY_EVENT_TYPE[event.type] ?? null,
+        },
+      });
+      if (newsletter.error) throw new Error("Delivery webhook ledger write failed.");
+      result = newsletter.data;
+    }
     return NextResponse.json({
       duplicate: Boolean(result?.duplicate),
       received: true,

@@ -161,12 +161,10 @@ export default async function NoticesPage({
       label: notices.totalItems === 1 ? "Published notice" : "Published notices",
       value: notices.totalItems,
     },
-    { label: "Drafts", value: 0 },
-    { label: "Archived", value: 0 },
   ];
 
   return (
-    <main className="notices-page">
+    <div className="notices-page">
       <section className="notices-hero">
         <div className="shell notices-hero__inner">
           <span className="notices-eyebrow">Notices & decisions</span>
@@ -355,6 +353,6 @@ export default async function NoticesPage({
           </nav>
         ) : null}
       </section>
-    </main>
+    </div>
   );
 }

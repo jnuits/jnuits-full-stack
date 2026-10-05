@@ -2,7 +2,7 @@ import { MemberCardSkeletonGrid } from "@/components/members/member-card-skeleto
 
 export default function MembersLoading() {
   return (
-    <main className="shell py-10">
+    <div className="shell py-10">
       <section className="border-b border-[var(--line)] pb-8">
         <div className="max-w-3xl">
           <div className="member-skeleton-shimmer h-12 w-3/4 rounded-lg" />
@@ -21,6 +21,6 @@ export default function MembersLoading() {
       <section className="mt-8">
         <MemberCardSkeletonGrid />
       </section>
-    </main>
+    </div>
   );
 }

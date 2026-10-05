@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNonce } from "@/components/security/nonce-provider";
 import {
   removeTurnstileWidget,
   renderTurnstileWidget,
@@ -36,6 +37,7 @@ function resolveWidgetSize(width: number): TurnstileWidgetSize {
 }
 
 export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }: TurnstileFieldProps) {
+  const nonce = useNonce();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
   const widgetSizeRef = useRef<TurnstileWidgetSize | null>(null);
@@ -134,6 +136,7 @@ export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }
       <Script
         async
         defer
+        nonce={nonce}
         onLoad={() => {
           setScriptReady(true);
         }}

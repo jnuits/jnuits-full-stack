@@ -116,7 +116,7 @@ export default async function CommitteeTermPage({
   const positionGroups = groupCommitteeAssignmentsByPosition(term.assignments);
 
   return (
-    <main className="shell py-12">
+    <div className="shell py-12">
       <section className="glass-card overflow-hidden px-6 py-8 sm:px-8">
         <Link className="queue-link" href="/committee">
           ← Back to committee archive
@@ -177,6 +177,6 @@ export default async function CommitteeTermPage({
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }

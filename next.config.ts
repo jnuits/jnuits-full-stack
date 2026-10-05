@@ -29,6 +29,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/members/join",
+        destination: "/membership-form",
+        permanent: false,
+      },
+      {
         source: "/memberDirectory",
         destination: "https://memberlistjnuits.vercel.app/",
         permanent: false, // true দিলে ব্রাউজার এটা ক্যাশ করে রাখবে (308 redirect)। প্রয়োজন হলে false দিতে পারেন।

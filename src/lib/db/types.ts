@@ -4458,6 +4458,7 @@ export type Database = {
         Returns: string
       }
       format_jnuits_id: { Args: { raw_id: string }; Returns: string }
+      get_admin_notice_summary: { Args: never; Returns: Json }
       get_event_registration_counts: {
         Args: { p_event_ids: string[] }
         Returns: {
@@ -4492,6 +4493,7 @@ export type Database = {
         }
         Returns: Json
       }
+      get_public_blog_categories: { Args: never; Returns: string[] }
       has_permission: {
         Args: { requested_permission: string }
         Returns: boolean
@@ -4524,6 +4526,10 @@ export type Database = {
           p_lifecycle_status: string
         }
         Returns: string
+      }
+      newsletter_store: {
+        Args: { p_action: string; p_payload: Json }
+        Returns: Json
       }
       normalize_jnuits_id: { Args: { raw_id: string }; Returns: string }
       preview_bulk_membership_operation: {

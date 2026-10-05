@@ -290,14 +290,18 @@ export default async function HomePage() {
               {homepageContent.hero.subheading}
             </p>
             <div className="hp-button-row hp-hero-buttons">
-              <a
+              <Link
                 className="hp-button hp-button--primary"
-                href="https://forms.gle/s7Eizcv1VyM9mSL27"
-                rel="noopener noreferrer"
-                target="_blank"
+                href={homepageContent.hero.primaryCTA.href}
               >
-                Be a Member 2026
-              </a>
+                {homepageContent.hero.primaryCTA.label}
+              </Link>
+              <Link
+                className="hp-button hp-button--outline"
+                href={homepageContent.hero.secondaryCTA.href}
+              >
+                {homepageContent.hero.secondaryCTA.label}
+              </Link>
             </div>
           </div>
         </div>

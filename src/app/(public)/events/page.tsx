@@ -308,9 +308,9 @@ function UpcomingNotificationCard({ className = "" }: { className?: string }) {
           competitions, and member activities.
         </p>
       </div>
-      <Link className="primary-button event-upcoming-card__notify" href="#footer-newsletter-email">
+      <a className="primary-button event-upcoming-card__notify" href="#footer-newsletter-email">
         Notify me →
-      </Link>
+      </a>
     </aside>
   );
 }
