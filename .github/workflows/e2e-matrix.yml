@@ -70,6 +70,7 @@ jobs:
       - name: Run browser matrix
         env:
           JNUITS_PUBLIC_BROWSER_FIXTURES: "1"
+          JNUITS_CONTENT_BROWSER_FIXTURES: "1"
           NODE_OPTIONS: --import=./e2e/fixtures/public-database.mjs
         run: npm run test:e2e:matrix
 

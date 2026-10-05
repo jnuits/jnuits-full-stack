@@ -8,7 +8,7 @@ export default async function PublicLayout({
 }) {
   return (
     <>
-      <a href="#main-content" className="public-skip-link">
+      <a href="#main-content" className="public-skip-link" tabIndex={0}>
         Skip to main content
       </a>
       <SiteHeader />

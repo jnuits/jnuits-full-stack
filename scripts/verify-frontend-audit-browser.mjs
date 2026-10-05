@@ -59,10 +59,11 @@ async function probeBrowserEngines() {
 
   for (const candidate of candidates) {
     try {
-      const instance = await candidate.launcher.launch({ headless: true });
+      const launchOptions = { headless: true, ...(candidate.name === "chromium" && process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) };
+      const instance = await candidate.launcher.launch(launchOptions);
       const version = instance.version();
       await instance.close();
-      available.push({ name: candidate.name, version, launcher: candidate.launcher });
+      available.push({ name: candidate.name, version, launcher: candidate.launcher, launchOptions });
     } catch (err) {
       unavailable.push({
         name: candidate.name,
@@ -113,21 +114,29 @@ async function createTestingPage(browser, options = {}) {
     }, colorScheme);
   }
 
+  if (process.env.JNUITS_PUBLIC_BROWSER_FIXTURES === "1") {
+    if (!["localhost", "127.0.0.1", "[::1]"].includes(new URL(BASE_URL).hostname)) {
+      await context.close();
+      throw new Error("Synthetic CAPTCHA fixtures require a local test server.");
+    }
   await page.route("https://challenges.cloudflare.com/turnstile/v0/api.js*", (route) =>
     route.fulfill({
       contentType: "application/javascript",
       body: 'window.turnstile={render:function(el,options){setTimeout(function(){options.callback?.("QA.DUMMY.TOKEN")},0);return "qa-widget"},remove:function(){},reset:function(){}};',
     })
   );
+  }
   return { context, page };
 }
 
 async function runVerification() {
   console.log("=== Starting Strict Automated Quality-Gate Verification ===");
 
-  const gitSha = getGitSha();
-  const buildId = getBuildId();
-  const buildMode = process.env.NODE_ENV || "production";
+  const sourceGitSha = getGitSha();
+  const localBuildId = getBuildId();
+  const gitSha = process.env.TESTED_COMMIT_SHA || "unverified-server-revision";
+  const buildId = process.env.TESTED_BUILD_ID || "unverified-server-build";
+  const buildMode = process.env.TESTED_BUILD_MODE || "unverified";
 
   console.log(`Git Revision: ${gitSha}`);
   console.log(`Build ID:     ${buildId}`);
@@ -143,6 +152,10 @@ async function runVerification() {
   }
   console.log(`  ✔ Server responded with HTTP ${serverProbe.status}`);
   console.log(`  ✔ Server CSP has nonce: ${serverProbe.hasNonce}, strict-dynamic: ${serverProbe.hasStrictDynamic}\n`);
+
+  if (serverProbe.status !== 200 || !serverProbe.hasNonce || !serverProbe.hasStrictDynamic) {
+    throw new Error("Target must serve HTTP 200 with a nonce and strict-dynamic CSP.");
+  }
 
   // Probe browser engines
   console.log("Probing browser engine availability...");
@@ -165,6 +178,9 @@ async function runVerification() {
       gitSha,
       buildId,
       buildMode,
+      sourceGitSha,
+      localBuildId,
+      syntheticProviderFixtures: process.env.JNUITS_PUBLIC_BROWSER_FIXTURES === "1",
       targetUrl: BASE_URL,
       os: process.platform,
       nodeVersion: process.version,
@@ -191,7 +207,7 @@ async function runVerification() {
     console.log(`Testing with Browser Engine: ${engine.name} (${engine.version})`);
     console.log(`======================================================`);
 
-    const browser = await engine.launcher.launch({ headless: true });
+    const browser = await engine.launcher.launch(engine.launchOptions);
 
     try {
       // -----------------------------------------------------------------------
@@ -245,7 +261,6 @@ async function runVerification() {
 
         const footerInput = eventPage.locator("#footer-newsletter-email");
         const isInputVisible = await footerInput.isVisible();
-        await footerInput.focus();
         const isInputFocused = await footerInput.evaluate((el) => document.activeElement === el);
 
         if (!isInputVisible || !isInputFocused) {
@@ -260,7 +275,6 @@ async function runVerification() {
         await eventAnchor.first().focus();
         const isAnchorFocused = await eventAnchor.first().evaluate((el) => document.activeElement === el);
         await eventPage.keyboard.press("Enter");
-        await footerInput.focus();
         const isInputKeyboardFocused = await footerInput.evaluate((el) => document.activeElement === el);
 
         if (!isAnchorFocused || !isInputKeyboardFocused) {
@@ -369,7 +383,7 @@ async function runVerification() {
             // Keyboard Tab and Enter activation test on desktop
             if (vp.name === "desktop-1280" && theme === "light") {
               const skipLinkLoc = page.locator("a.public-skip-link");
-              await skipLinkLoc.focus();
+              await page.keyboard.press("Tab");
               const isSkipLinkFocused = await skipLinkLoc.evaluate((el) => document.activeElement === el);
 
               if (!isSkipLinkFocused) {
@@ -448,19 +462,18 @@ async function runVerification() {
             });
 
             // If dark theme requested, verify dark class or data-theme applied
-            if (theme === "dark") {
-              const hasDarkAttr = themeDetails.htmlDataTheme === "dark" || themeDetails.htmlClass.includes("dark");
-              if (!hasDarkAttr) {
+            const themePass = themeDetails.htmlDataTheme === theme;
+            if (!themePass) {
                 const msg = `FAILED Theme Assertion [${engine.name} | ${route.path} | ${vp.name} | ${theme}]: data-theme=${themeDetails.htmlDataTheme}, class=${themeDetails.htmlClass}`;
                 console.error(`  ✖ ${msg}`);
                 report.failures.push(msg);
-              }
             }
 
             // Capture screenshot for visual evidence
             const screenshotName = `${engine.name}-${route.name}-${vp.name}-${theme}.png`;
             const screenshotPath = path.join(OUTPUT_DIR, screenshotName);
             await page.screenshot({ path: screenshotPath, fullPage: false });
+            report.results.screenshots.push({ browser: engine.name, route: route.name, viewport: vp.name, theme, file: screenshotName });
 
             report.results.landmarks.push({
               browser: engine.name,
@@ -476,7 +489,7 @@ async function runVerification() {
               pageErrors: pageErrors.length,
               hydrationErrors: hydrationErrors.length,
               screenshot: screenshotName,
-              pass: status < 400 && landmarkPass && skipLinkPass && overflowPass && allCspViolations.length === 0 && pageErrors.length === 0 && hydrationErrors.length === 0,
+              pass: status < 400 && themePass && landmarkPass && skipLinkPass && overflowPass && allCspViolations.length === 0 && pageErrors.length === 0 && hydrationErrors.length === 0,
             });
 
             await context.close();
