@@ -5,6 +5,7 @@ const fixture={BACKUP_DATABASE_URL:"postgresql://postgres:fixture@db.fsirdkjgrco
 describe("backup and restore operator configuration",()=>{
  it("refuses incomplete configuration, application-export reuse and private recovery keys",()=>{
   expect(()=>backupConfiguration(fixture)).not.toThrow();
+  expect(backupConfiguration({...fixture,BACKUP_DRIVE_AUTH_MODE:"oauth",BACKUP_DRIVE_SERVICE_ACCOUNT_EMAIL:"",BACKUP_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY:"",BACKUP_DRIVE_OAUTH_CLIENT_ID:"fixture-client",BACKUP_DRIVE_OAUTH_CLIENT_SECRET:"fixture-secret",BACKUP_DRIVE_OAUTH_REFRESH_TOKEN:"fixture-refresh"}).authMode).toBe("oauth");
   for(const env of [{...fixture,BACKUP_DATABASE_URL:""},{...fixture,GOOGLE_DRIVE_EXPORTS_FOLDER_ID:"private-folder"},{...fixture,BACKUP_AGE_IDENTITY:"private-recovery-key"},{...fixture,BACKUP_DRIVE_ALLOWED_PERMISSION_IDS:",,,"}])expect(()=>backupConfiguration(env)).toThrow();
  });
  it("refuses CI and inherited production/database/mail connections for isolated restore",()=>{

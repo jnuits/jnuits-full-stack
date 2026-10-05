@@ -1,4 +1,4 @@
-import {createSign,randomUUID} from "node:crypto";
+import {randomUUID} from "node:crypto";
 import {spawn} from "node:child_process";
 import {mkdtemp,writeFile,rm,realpath} from "node:fs/promises";
 import {tmpdir} from "node:os";
@@ -7,26 +7,17 @@ import {pipeline} from "node:stream/promises";
 import {pathToFileURL} from "node:url";
 import {PROJECT,POSTGRES_IMAGE,parseBackupConnection} from "./policy.mjs";
 import {createBackupDrive} from "./drive.mjs";
-const required=["BACKUP_DATABASE_URL","BACKUP_DB_SSL_ROOT_CERT","BACKUP_AGE_RECIPIENT","BACKUP_DRIVE_FOLDER_ID","BACKUP_DRIVE_ALLOWED_PERMISSION_IDS","BACKUP_DRIVE_SERVICE_ACCOUNT_EMAIL","BACKUP_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY"];
+import {driveAuthentication,backupDriveToken} from "./authentication.mjs";
+const required=["BACKUP_DATABASE_URL","BACKUP_DB_SSL_ROOT_CERT","BACKUP_AGE_RECIPIENT","BACKUP_DRIVE_FOLDER_ID","BACKUP_DRIVE_ALLOWED_PERMISSION_IDS"];
 export function backupConfiguration(env){
  for(const name of required)if(!env[name]?.trim())throw new Error("Missing backup setting: "+name);
  if(!/^age1[a-z0-9]{58}$/.test(env.BACKUP_AGE_RECIPIENT))throw new Error("A public age encryption recipient is required.");
  if(env.BACKUP_AGE_RECIPIENT.includes("SECRET")||env.AGE_SECRET_KEY||env.BACKUP_AGE_IDENTITY)throw new Error("Private recovery keys must remain outside backup CI.");
  if(env.GOOGLE_DRIVE_EXPORTS_FOLDER_ID===env.BACKUP_DRIVE_FOLDER_ID)throw new Error("The backup folder must be separate from application exports.");
  if(!env.BACKUP_DRIVE_ALLOWED_PERMISSION_IDS.split(",").some(value=>value.trim()))throw new Error("Backup permission allowlist must not be empty.");
- return {connection:parseBackupConnection(env.BACKUP_DATABASE_URL),recipient:env.BACKUP_AGE_RECIPIENT,folder:env.BACKUP_DRIVE_FOLDER_ID,allowedPermissions:new Set(env.BACKUP_DRIVE_ALLOWED_PERMISSION_IDS.split(",").map(value=>value.trim()).filter(Boolean))};
+ return {authMode:driveAuthentication(env),connection:parseBackupConnection(env.BACKUP_DATABASE_URL),recipient:env.BACKUP_AGE_RECIPIENT,folder:env.BACKUP_DRIVE_FOLDER_ID,allowedPermissions:new Set(env.BACKUP_DRIVE_ALLOWED_PERMISSION_IDS.split(",").map(value=>value.trim()).filter(Boolean))};
 }
 function minimalEnvironment(){return Object.fromEntries(["PATH","SystemRoot","TEMP","TMP","HOME","USERPROFILE","DOCKER_HOST","DOCKER_CONTEXT"].filter(name=>process.env[name]).map(name=>[name,process.env[name]]));}
-export async function serviceAccountToken(env){
- const now=Math.floor(Date.now()/1000);
- const encoded=value=>Buffer.from(JSON.stringify(value)).toString("base64url");
- const unsigned=encoded({alg:"RS256",typ:"JWT"})+"."+encoded({iss:env.BACKUP_DRIVE_SERVICE_ACCOUNT_EMAIL,scope:"https://www.googleapis.com/auth/drive",aud:"https://oauth2.googleapis.com/token",iat:now,exp:now+3600});
- const signer=createSign("RSA-SHA256");signer.update(unsigned);signer.end();
- const assertion=unsigned+"."+signer.sign(env.BACKUP_DRIVE_SERVICE_ACCOUNT_PRIVATE_KEY.replaceAll("\\n","\n"),"base64url");
- const response=await fetch("https://oauth2.googleapis.com/token",{method:"POST",redirect:"error",signal:AbortSignal.timeout(15000),headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion})});
- if(!response.ok)throw new Error("Backup Drive authentication unavailable.");const data=await response.json();
- if(typeof data.access_token!=="string")throw new Error("Backup Drive authentication unavailable.");return data.access_token;
-}
 function completion(child,label,onDiagnostic){
  let warnings=0;child.stderr?.on("data",chunk=>{warnings+=chunk.length;onDiagnostic?.(chunk.toString());});
  return new Promise((accept,reject)=>{child.once("error",()=>reject(new Error(label+" unavailable.")));child.once("exit",code=>code===0&&warnings===0?accept():reject(new Error(label+" failed; private diagnostics were withheld.")));});
@@ -53,7 +44,7 @@ export async function runBackup(env=process.env){
  const temporary=await mkdtemp(join(tmpdir(),"jnuits-encrypted-backup-"));
  try{
   const rootCertificate=join(temporary,"root.crt");await writeFile(rootCertificate,env.BACKUP_DB_SSL_ROOT_CERT,{mode:0o600});
-  const drive=createBackupDrive({token:await serviceAccountToken(env),folder:config.folder,allowedPermissions:config.allowedPermissions});
+  const drive=createBackupDrive({token:await backupDriveToken(env),requireSharedDrive:config.authMode==="service_account",folder:config.folder,allowedPermissions:config.allowedPermissions});
   await drive.assertPrivateFolder();
   const objects=[];
   for(const type of ["database","roles"]){

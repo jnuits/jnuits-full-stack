@@ -8,7 +8,7 @@ export async function fileDigests(path){
  for await(const chunk of createReadStream(path)){sha.update(chunk);md5.update(chunk);size+=chunk.length;}
  return {sha256:sha.digest("hex"),md5:md5.digest("hex"),size};
 }
-export function createBackupDrive({token,folder,allowedPermissions,fetchImpl=fetch,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))}){
+export function createBackupDrive({token,folder,allowedPermissions,requireSharedDrive=false,fetchImpl=fetch,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))}){
  if(!/^[A-Za-z0-9_-]+$/.test(folder))throw new Error("Invalid backup folder.");
  async function request(url,init={}){
   if(new URL(url).origin!=="https://www.googleapis.com")throw new Error("Untrusted Drive upload location.");
@@ -31,8 +31,9 @@ export function createBackupDrive({token,folder,allowedPermissions,fetchImpl=fet
   const pending=[folder],seen=new Set();
   while(pending.length){
    const id=pending.pop();if(seen.has(id))continue;seen.add(id);if(seen.size>32)throw new Error("Unverifiable folder ancestry.");
-   const info=await json(API+"/files/"+encodeURIComponent(id)+"?supportsAllDrives=true&fields=id,mimeType,parents,trashed");
+   const info=await json(API+"/files/"+encodeURIComponent(id)+"?supportsAllDrives=true&fields=id,mimeType,parents,trashed,driveId");
    if(info.trashed||info.mimeType!=="application/vnd.google-apps.folder")throw new Error("Backup target is not a private folder.");
+   if(id===folder && requireSharedDrive && !info.driveId)throw new Error("Service-account backups require a private Shared Drive folder.");
    const permissions=await pages("/files/"+encodeURIComponent(id)+"/permissions?supportsAllDrives=true&pageSize=100&fields=nextPageToken,permissions(id,type,deleted)","permissions");
    assertPrivatePermissions(permissions,allowedPermissions);pending.push(...(info.parents??[]));
   }
@@ -59,11 +60,12 @@ export function createBackupDrive({token,folder,allowedPermissions,fetchImpl=fet
      if(++failures>5)throw new Error("Drive upload retry limit exceeded.");
      await sleep(Math.min(30000,1000*2**failures));
      response=await request(location,{method:"PUT",headers:{"Content-Range":"bytes */"+digest.size,"Content-Length":"0"}});
-    }else failures=0;
+    }
     if(response.status===308){
      const range=response.headers.get("range");const next=range?Number(range.match(/^bytes=0-(\d+)$/)?.[1])+1:0;
      if(!Number.isSafeInteger(next)||next<0||next>digest.size||next<offset)throw new Error("Invalid resumable upload acknowledgment.");
      if(next===offset && ++failures>5)throw new Error("Drive upload made no progress.");
+     if(next>offset)failures=0;
      offset=next;
     }else if(response.ok){finished=await response.json();offset=digest.size;}
     else throw new Error("Drive upload unavailable.");
