@@ -12,6 +12,9 @@ async function fixtureCaptcha(page: Page) {
 }
 
 test("newsletter consent, pending, readable error, retry focus and generic acceptance", async ({ page }) => {
+  // Linux WebKit can spend over 20 seconds in native scroll/actionability checks.
+  // Keep each assertion bounded while allowing both complete submit/retry flows.
+  test.setTimeout(60_000);
   await fixtureCaptcha(page);
   let complete!: () => void;
   const pending = new Promise<void>(resolve => { complete = resolve; });
@@ -80,7 +83,8 @@ test("event newsletter anchors transfer focus through pointer and keyboard activ
   await fixtureCaptcha(page);
   for (const interaction of ["pointer","keyboard"]) {
     await page.goto("/events",{waitUntil:"domcontentloaded"});
-    const anchor=page.locator('a[href="#footer-newsletter-email"]').first();
+    const anchor=page.locator('a[href="#footer-newsletter-email"]:visible');
+    await expect(anchor).toHaveCount(1);
     if (interaction==="pointer") await anchor.click();
     else { await anchor.focus(); await page.keyboard.press("Enter"); }
     await expect(page.locator("#footer-newsletter-email")).toBeFocused();
