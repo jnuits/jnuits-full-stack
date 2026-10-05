@@ -639,11 +639,11 @@ export const fallbackPublicEvents: EventPreview[] = [
 
 export const fallbackPublicNotices: NoticePreview[] = [
   {
-    title: "Membership onboarding and status support",
+    title: "Membership onboarding and support",
     category: "Membership",
     publishedAt: "2026-04-08",
     summary:
-      "New public intake is closed. Existing applicants can check status while invitation and claim support remains active.",
+      "Public intake cycles are announced per committee session. Membership onboarding, invitation claims, and member support remain available.",
     delivery: "Read route ready",
     href: "/membership-form",
   },
