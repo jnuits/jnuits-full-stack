@@ -20,12 +20,11 @@ export function ProfileChangeRequestForm({
   currentValues: {
     departmentCode: string | null;
     email: string | null;
-    facebookUrl: string | null;
     fullName: string;
     jnuitsId: string;
-    linkedinUrl: string | null;
-    phone: string | null;
-    websiteUrl: string | null;
+    studentId: string | null;
+    batchNo: number | null;
+    graduationYear: number | null;
   };
   departments: DepartmentOption[];
   initialRequests: ProfileChangeRequest[];
@@ -41,45 +40,50 @@ export function ProfileChangeRequestForm({
     setError(null);
     setMessage(null);
 
-    const response = await fetch("/api/profile/change-requests", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const response = await fetch("/api/profile/change-requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-    const body = (await response.json().catch(() => null)) as
-      | {
-          data?: ProfileChangeRequest;
-          message?: string;
-        }
-      | null;
+      const body = (await response.json().catch(() => null)) as
+        | {
+            data?: ProfileChangeRequest;
+            message?: string;
+          }
+        | null;
 
-    if (!response.ok || !body?.data) {
-      setError(body?.message || "Unable to submit profile change request.");
-      setPending(false);
-      return;
-    }
+      if (!response.ok || !body?.data) {
+        setError(body?.message || "Unable to submit profile change request.");
+        setPending(false);
+        return;
+      }
 
-    setRequests((current) => [body.data as ProfileChangeRequest, ...current]);
-    setMessage(
-      body.message ||
-        "Profile change request submitted. An operator will review it before any identity field is changed."
-    );
-    setPending(false);
+      setRequests((current) => [body.data as ProfileChangeRequest, ...current]);
+      setMessage(
+        body.message ||
+          "Profile change request submitted. An operator will review it before any identity field is changed."
+      );
+    } catch { setError("Unable to reach the server. Please retry your request."); }
+    finally { setPending(false); }
   }
 
   async function handleProfileSubmit(formData: FormData) {
-    await submitRequest({
-      requestType: "profile_change",
+    const identity = {
+      fullName: String(formData.get("fullName") || "").trim(),
       departmentCode: String(formData.get("departmentCode") || "").trim(),
-      facebookUrl: String(formData.get("facebookUrl") || "").trim() || undefined,
-      fullName: String(formData.get("fullName") || "").trim() || undefined,
-      linkedinUrl: String(formData.get("linkedinUrl") || "").trim() || undefined,
-      phone: String(formData.get("phone") || "").trim() || undefined,
-      websiteUrl: String(formData.get("websiteUrl") || "").trim() || undefined,
-    });
+      studentId: String(formData.get("studentId") || "").trim(),
+      batchNo: String(formData.get("batchNo") || "").trim(),
+      graduationYear: String(formData.get("graduationYear") || "").trim(),
+    };
+    const changes = Object.fromEntries(Object.entries(identity)
+      .filter(([key, value]) => value && value !== String(currentValues[key as keyof typeof currentValues] ?? ""))
+      .map(([key, value]) => [key, key === "batchNo" || key === "graduationYear" ? Number(value) : value]));
+    if (!Object.keys(changes).length) { setMessage("No identity fields changed."); return; }
+    await submitRequest({ requestType: "profile_change", ...changes });
   }
 
   async function handleEmailSubmit(formData: FormData) {
@@ -112,8 +116,7 @@ export function ProfileChangeRequestForm({
         </div>
 
         <p className="profile-edit-copy">
-          Changes to your name, phone, social links, login email, and JnUITS ID
-          are reviewed by an operator before they apply to your member record.
+          Changes to your name, university student ID, department, batch, graduation year, email and JnUITS ID require admin approval. Email changes also require verification of the current and new addresses.
         </p>
 
         <form
@@ -130,49 +133,9 @@ export function ProfileChangeRequestForm({
               autoComplete="name"
             />
           </label>
-          <label className="input-label" htmlFor="pcr-phone">
-            Phone
-            <input
-              id="pcr-phone"
-              defaultValue={currentValues.phone || ""}
-              name="phone"
-              type="tel"
-              autoComplete="tel"
-            />
-          </label>
-          <label className="input-label" htmlFor="pcr-linkedin-url">
-            LinkedIn URL
-            <input
-              id="pcr-linkedin-url"
-              defaultValue={currentValues.linkedinUrl || ""}
-              name="linkedinUrl"
-              type="url"
-              autoComplete="url"
-              placeholder="https://linkedin.com/in/..."
-          />
-        </label>
-        <label className="input-label" htmlFor="pcr-facebook-url">
-          Facebook URL
-          <input
-            autoComplete="url"
-            defaultValue={currentValues.facebookUrl || ""}
-            id="pcr-facebook-url"
-            name="facebookUrl"
-            placeholder="https://facebook.com/..."
-            type="url"
-          />
-        </label>
-        <label className="input-label" htmlFor="pcr-website-url">
-            Website URL
-            <input
-              id="pcr-website-url"
-              defaultValue={currentValues.websiteUrl || ""}
-              name="websiteUrl"
-              type="url"
-              autoComplete="url"
-              placeholder="https://your-site.example"
-            />
-          </label>
+          <label className="input-label" htmlFor="pcr-student-id">University student ID<input id="pcr-student-id" name="studentId" defaultValue={currentValues.studentId ?? ""} maxLength={80} /></label>
+          <label className="input-label" htmlFor="pcr-batch">Batch<input id="pcr-batch" name="batchNo" type="number" min={1} max={999} defaultValue={currentValues.batchNo ?? ""} /></label>
+          <label className="input-label" htmlFor="pcr-graduation-year">Graduation year<input id="pcr-graduation-year" name="graduationYear" type="number" min={1950} max={2100} defaultValue={currentValues.graduationYear ?? ""} /></label>
           <label className="input-label profile-edit-span-2" htmlFor="pcr-department">
             Department
             <select

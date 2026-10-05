@@ -5,7 +5,8 @@ import { DirectProfileEditForm } from "@/components/portal/direct-profile-edit-f
 import { PortalShell } from "@/components/portal/portal-shell";
 import { ProfileChangeRequestForm } from "@/components/portal/profile-change-request-form";
 import { StepUpVerificationForm } from "@/components/portal/step-up-verification-form";
-import { WorkplaceRequestForm } from "@/components/portal/workplace-request-form";
+import { WorkplaceRequestHistory } from "@/components/portal/workplace-request-form";
+import { AvatarUploadField } from "@/components/profile/avatar-upload-field";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { requirePortalUser } from "@/lib/auth/session";
 import { isStepUpActiveForUser } from "@/lib/auth/step-up";
@@ -106,49 +107,35 @@ export async function ProfileEditScreen() {
             <>
               <DirectProfileEditForm
                 currentValues={{
-                  departmentCode: member.department_code ?? null,
                   facebookUrl: member.facebook_url ?? null,
-                  fullName: member.full_name,
                   linkedinUrl: member.linkedin_url,
                   phone: member.phone,
+                  currentOrganization: member.current_organization,
+                  designation: member.designation,
+                  workLocation: member.work_location,
+                  professionalVisibility: member.professional_visibility,
                   websiteUrl: member.website_url,
                 }}
-                departments={departments}
                 stepUpActive
               />
+
+              <AvatarUploadField canUpload currentUrl={member.avatar_secure_url ?? null} displayName={member.full_name} targetId={member.id} targetType="member" showLegacyAvatar={false} />
 
               <ProfileChangeRequestForm
                 currentValues={{
                   departmentCode: member.department_code ?? null,
                   email: member.email,
-                  facebookUrl: member.facebook_url ?? null,
                   fullName: member.full_name,
                   jnuitsId: displayJnuitsId,
-                  linkedinUrl: member.linkedin_url,
-                  phone: member.phone,
-                  websiteUrl: member.website_url,
+                  studentId: member.student_id ?? null,
+                  batchNo: member.batch_no,
+                  graduationYear: member.graduation_year ?? null,
                 }}
                 departments={departments}
                 initialRequests={snapshot.profileChangeRequests}
               />
 
-              <WorkplaceRequestForm
-                currentValues={{
-                  currentOrganization: member.current_organization,
-                  designation: member.designation,
-                  facebookUrl: member.facebook_url ?? null,
-                  linkedinUrl: member.linkedin_url,
-                  professionalVisibility: member.professional_visibility,
-                  websiteUrl: member.website_url,
-                  workLocation: member.work_location,
-                }}
-                initialRequests={snapshot.workplaceRequests}
-                lifecycleStatus={member.lifecycle_status ?? snapshot.access.lifecycleStatus}
-                memberType={member.member_type}
-                portalAccessStatus={
-                  member.portal_access_status ?? snapshot.access.portalAccessStatus
-                }
-              />
+              <WorkplaceRequestHistory initialRequests={snapshot.workplaceRequests} />
             </>
           )}
         </div>

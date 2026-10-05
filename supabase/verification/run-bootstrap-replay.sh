@@ -327,6 +327,9 @@ docker_run cp \
 docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
   -f /tmp/jnuits-replay/assert-admin-verification.sql
 
+docker_run cp "$(to_native "$repo_root/supabase/verification/assert-profile-self-service.sql")" "$db_container:/tmp/jnuits-replay/assert-profile-self-service.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/jnuits-replay/assert-profile-self-service.sql
+
 SCRATCH_ACK=DISPOSABLE_SCRATCH node "$repo_root/supabase/verification/run-admin-verification-concurrency.mjs" "$db_container"
 
 docker_run cp \

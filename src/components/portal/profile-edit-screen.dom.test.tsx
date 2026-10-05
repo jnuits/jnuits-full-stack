@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -111,6 +111,20 @@ beforeEach(() => {
 });
 
 describe("ProfileEditScreen", () => {
+  it("separates immediate routine edits from approval-required academic identity", async () => {
+    mocks.isStepUpActiveForUser.mockReturnValue(true);
+    const { container } = render(await ProfileEditScreen());
+    const direct = container.querySelector("#direct-profile-edit-form")!;
+    expect(within(direct as HTMLElement).queryByLabelText(/full name/i)).not.toBeInTheDocument();
+    expect(within(direct as HTMLElement).queryByLabelText(/department/i)).not.toBeInTheDocument();
+    expect(within(direct as HTMLElement).getByLabelText(/current organization/i)).toBeInTheDocument();
+    const identity = container.querySelector("#profile-change-form")!;
+    expect(within(identity as HTMLElement).getByLabelText(/university student id/i)).toBeInTheDocument();
+    expect(within(identity as HTMLElement).getByLabelText(/^batch/i)).toBeInTheDocument();
+    expect(within(identity as HTMLElement).getByLabelText(/graduation year/i)).toBeInTheDocument();
+    expect(within(identity as HTMLElement).queryByLabelText(/^phone/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /submit workplace/i })).not.toBeInTheDocument();
+  });
   it("shows only the password unlock while profile editing is locked", async () => {
     mocks.isStepUpActiveForUser.mockReturnValue(false);
 

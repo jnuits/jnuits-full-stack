@@ -198,7 +198,7 @@ export default async function AdminDecisionsPage({
     admin
       .from("profile_update_requests")
       .select(
-        "id, request_type, status, requested_at, review_note, reviewed_at, members(full_name, jnuits_id, email)"
+        "id, request_type, status, requested_at, review_note, reviewed_at, members!profile_update_requests_member_id_fkey(full_name, jnuits_id, email)"
       )
       .neq("status", "pending")
       .order("reviewed_at", { ascending: false })

@@ -12,6 +12,7 @@ import {
   buildWorkplaceRequestDecisionEmail,
 } from "@/lib/notifications/email-builders";
 import { sendEmail } from "@/lib/notifications/send-email";
+import { SafeAdminActionError } from "@/lib/admin/action-error";
 import { logServerError } from "@/lib/errors/api-error";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -44,7 +45,7 @@ const WORKPLACE_SELECT =
   "id, full_name, email, jnuits_id, user_id, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility";
 
 const REQUEST_SELECT =
-  "id, member_id, request_type, payload, status, requested_at, members(id, full_name, email, jnuits_id, user_id, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility)";
+  "id, member_id, request_type, payload, status, requested_at, members!profile_update_requests_member_id_fkey(id, full_name, email, jnuits_id, user_id, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility)";
 
 function memberFromRequest(
   request: WorkplaceRequest & { members?: WorkplaceMember | WorkplaceMember[] | null }
@@ -183,82 +184,21 @@ export async function reviewWorkplaceRequest(options: {
   const payload = normalizeWorkplacePayload(request.payload);
   const entries = getWorkplacePayloadEntries(payload);
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && options.decision === "approved") {
     throw new Error("This request does not contain any workplace fields.");
   }
 
-  const nowIso = new Date().toISOString();
-  const previousSnapshot = workplaceSnapshot(member);
-  const appliedSnapshot =
-    options.decision === "approved"
-      ? {
-          ...previousSnapshot,
-          ...payload,
-        }
-      : {};
-
-  if (options.decision === "approved") {
-    const { error: memberError } = await flexibleAdmin
-      .from("members" as string)
-      .update(buildMemberUpdate(payload, previousSnapshot))
-      .eq("id", member.id);
-
-    if (memberError) {
-      throw new Error(memberError.message);
-    }
-  }
-
-  const { error: requestError } = await flexibleAdmin
-    .from("profile_update_requests" as string)
-    .update({
-      applied_payload_snapshot: appliedSnapshot,
-      decision_reason: options.reviewNote || null,
-      previous_payload_snapshot: previousSnapshot,
-      review_note: options.reviewNote || null,
-      reviewed_at: nowIso,
-      reviewed_by_user_id: options.actorUserId,
-      status: options.decision,
-      updated_at: nowIso,
-    })
-    .eq("id", request.id);
-
-  if (requestError) {
-    throw new Error(requestError.message);
-  }
-
-  await flexibleAdmin.from("membership_lifecycle_events" as string).insert({
-    created_by_user_id: options.actorUserId,
-    event_type:
-      options.decision === "approved"
-        ? "workplace_update_approved"
-        : "workplace_update_rejected",
-    member_id: member.id,
-    metadata: {
-      requestId: request.id,
-      reviewNote: options.reviewNote || null,
-      updatedFields: entries.map((entry) => entry.key),
-    },
-    summary:
-      options.decision === "approved"
-        ? "A moderated workplace update request was approved."
-        : "A moderated workplace update request was rejected.",
+  const result = await flexibleAdmin.rpc("review_member_profile_update", {
+    p_request_id: request.id,
+    p_actor_user_id: options.actorUserId,
+    p_decision: options.decision,
+    p_review_note: options.reviewNote || "",
   });
-
-  await persistWorkplaceAudit(options.admin, {
-    action:
-      options.decision === "approved"
-        ? "member.workplace_update_request_approved"
-        : "member.workplace_update_request_rejected",
-    actorUserId: options.actorUserId,
-    entityId: request.id,
-    entityType: "profile_update_request",
-    metadata: {
-      memberId: member.id,
-      reviewNote: options.reviewNote || null,
-      updatedFields: entries.map((entry) => entry.key),
-    },
-  });
-
+  if (result.error) {
+    if (result.error.code === "40001") throw new SafeAdminActionError("A newer direct edit supersedes this request. Reject it or ask the member to resubmit.");
+    logServerError("workplace atomic review", result.error);
+    throw new Error("Workplace request could not be reviewed. Reload the queue and try again.");
+  }
   await notifyMember({
     email: member.email,
     html: buildWorkplaceRequestDecisionEmail({
@@ -422,31 +362,12 @@ export async function cancelWorkplaceRequest(options: {
     throw new Error("Only pending workplace requests can be cancelled.");
   }
 
-  const nowIso = new Date().toISOString();
-  const { error: updateError } = await flexibleAdmin
-    .from("profile_update_requests" as string)
-    .update({
-      decision_reason: "Cancelled by requester",
-      metadata: { cancelledAt: nowIso, cancelledByUserId: options.userId },
-      review_note: "Cancelled by requester",
-      reviewed_at: nowIso,
-      status: "cancelled",
-      updated_at: nowIso,
-    })
-    .eq("id", request.id);
-
-  if (updateError) {
-    logServerError("workplace cancel status update", updateError);
-    throw new Error(
-      "This workplace request could not be cancelled right now. Please try again."
-    );
-  }
-
-  await persistWorkplaceAudit(options.admin, {
-    action: "member.workplace_update_request_cancelled",
-    actorUserId: options.userId,
-    entityId: request.id,
-    entityType: "profile_update_request",
-    metadata: { memberId: member.id },
+  const { error: cancelError } = await flexibleAdmin.rpc("cancel_member_workplace_update", {
+    p_request_id: request.id,
+    p_user_id: options.userId,
   });
+  if (cancelError) {
+    logServerError("workplace cancellation", cancelError);
+    throw new Error("This request is no longer pending or could not be cancelled. Refresh and try again.");
+  }
 }

@@ -78,8 +78,8 @@ describe("public committee projection revalidation", () => {
     );
     const workplaceApproval = sourceSection(
       moderation,
-      "export async function approveWorkplaceUpdateRequest",
-      "export async function rejectWorkplaceUpdateRequest"
+      "async function moderateLegacyWorkplaceRequest",
+      "export async function approveWorkplaceUpdateRequest"
     );
     const profileApproval = sourceSection(
       moderation,

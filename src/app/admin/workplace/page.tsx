@@ -138,7 +138,7 @@ export default async function WorkplacePage({
   let requestsQuery = flexibleAdmin
     .from("profile_update_requests" as string)
     .select(
-      "id, member_id, payload, requested_at, reviewed_at, review_note, status, members(id, full_name, jnuits_id, email, member_type, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility)",
+      "id, member_id, payload, requested_at, reviewed_at, review_note, status, members!profile_update_requests_member_id_fkey(id, full_name, jnuits_id, email, member_type, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility)",
       { count: "exact" }
     )
     .eq("request_type", "workplace_update");
@@ -169,7 +169,7 @@ export default async function WorkplacePage({
     flexibleAdmin
       .from("profile_update_requests" as string)
       .select(
-        "id, member_id, payload, requested_at, reviewed_at, review_note, status, members(id, full_name, jnuits_id, email, member_type, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility)"
+        "id, member_id, payload, requested_at, reviewed_at, review_note, status, members!profile_update_requests_member_id_fkey(id, full_name, jnuits_id, email, member_type, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility)"
       )
       .eq("request_type", "workplace_update")
       .neq("status", "pending")
@@ -206,6 +206,10 @@ export default async function WorkplacePage({
       .not("current_organization", "is", null)
       .lt("updated_at", staleCutoff.toISOString()),
   ]);
+
+  if ([requestsResult, historyResult, directoryResult, pendingCountResult, approvedCountResult, rejectedCountResult, publicCountResult, privateCountResult, staleCountResult].some((result) => result.error)) {
+    throw new Error("Workplace requests could not be loaded. Please reload or try again later.");
+  }
 
   const requestRows = (requestsResult.data || []) as WorkplaceRequestRecord[];
   const directoryRows = (directoryResult.data || []) as WorkplaceMemberRecord[];

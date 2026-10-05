@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), permission: vi.fn(), read: vi.fn(), rpc: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), permission: vi.fn(), read: vi.fn(), rpc: vi.fn(), stepUp: vi.fn() }));
+vi.mock("next/headers", () => ({ cookies: async () => ({}) }));
+vi.mock("@/lib/auth/step-up", () => ({ isStepUpActiveForUser: mocks.stepUp }));
 vi.mock("@/lib/auth/session", async (original) => ({ ...await original<typeof import("@/lib/auth/session")>(), getAuthContext: mocks.auth, hasPermission: mocks.permission }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.rpc, from: () => ({ select: () => ({ eq: () => ({ maybeSingle: mocks.read }) }) }) }) }));
 vi.mock("@/lib/supabase/flexible", () => ({ asFlexibleClient: (client: unknown) => client }));
@@ -7,7 +9,11 @@ import { authorizeAvatarTarget } from "./avatar-access";
 const id = "11111111-1111-4111-8111-111111111111";
 const current = { id, user_id: "owner", lifecycle_status: "current", portal_access_status: "active", current_membership_path_status: "open" };
 describe("member avatar lifecycle authorization", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.auth.mockResolvedValue({ user: { id: "owner" }, roles: ["member"] }); mocks.permission.mockResolvedValue(false); mocks.read.mockResolvedValue({ data: current, error: null }); mocks.rpc.mockResolvedValue({ data: { status: "reconciled", transitioned: 0 }, error: null }); });
+  beforeEach(() => { vi.clearAllMocks(); mocks.stepUp.mockReturnValue(true); mocks.auth.mockResolvedValue({ user: { id: "owner" }, roles: ["member"] }); mocks.permission.mockResolvedValue(false); mocks.read.mockResolvedValue({ data: current, error: null }); mocks.rpc.mockResolvedValue({ data: { status: "reconciled", transitioned: 0 }, error: null }); });
+  it("requires current-password unlock for a member's own photo", async () => {
+    mocks.stepUp.mockReturnValue(false);
+    expect(await authorizeAvatarTarget("member", id)).toMatchObject({ ok: false, status: 403 });
+  });
   it("allows an active current member with an open path to upload their own photo", async () => {
     expect(await authorizeAvatarTarget("member", id)).toMatchObject({ ok: true, target: { targetId: id } });
   });

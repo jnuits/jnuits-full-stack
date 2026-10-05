@@ -12,6 +12,7 @@ import { disableReplayCatalogCache } from "./configure-bootstrap-replay.mjs";
 // --db-url, --linked, existing workdir or hosted-credentials argument.
 assert.equal(process.argv.length, 2, "Remote database/workdir arguments are forbidden.");
 assert.ok(!process.env.ADMIN_VERIFICATION_QA_WORKDIR && !process.env.SUPABASE_DB_URL, "External projects are forbidden.");
+const profileQA = process.env.PROFILE_SELF_SERVICE_QA === "DISPOSABLE_SCRATCH";
 const repo = realpathSync(process.cwd());
 const root = join(repo, ".replay-scratch"); mkdirSync(root, { recursive: true });
 const scratch = mkdtempSync(join(root, "replay.admin-"));
@@ -82,14 +83,16 @@ try {
   // Mirror existing hosted explicit exposure. Never grant browser RBAC/proof
   // table writes; authorization RPC ACLs remain exactly as migrated.
   sql("grant select on all tables in schema public to service_role; update public.security_settings set admin_totp_enforced=false where id;");
-  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"]]) {
+  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"]] : [])]) {
     const email = `qa-${name}-${runId}@local.invalid`, password = `Qa!${randomBytes(18).toString("base64url")}`;
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     assert.ok(!created.error && created.data.user, "Synthetic account creation failed.");
     const userId = uuid(created.data.user.id);
     const adminCode = `JNUITS-ADMIN-QA-${name.toUpperCase()}`;
-    const profileId = uuid(sql(`insert into public.admin_profiles(user_id,admin_code,display_name,is_active,status) values('${userId}','${adminCode}','Synthetic ${name === "target" ? "Target" : name}',true,'active') returning id;`).split(/\r?\n/)[0]);
-    sql(`insert into public.rbac_user_platform_roles(user_id,role_id,scope,note) select '${userId}',id,'admin','Disposable fixture' from public.rbac_platform_roles where code='${role}' and scope='admin';`);
+    const profileId = name === "profile"
+      ? uuid(sql(`insert into public.members(user_id,jnuits_id,full_name,email,member_type,lifecycle_status,portal_access_status,student_id,batch_no,graduation_year,current_organization,phone,professional_visibility) values('${userId}','JnUITS-2099961','Synthetic Profile Alumni','${email}','alumni','alumni','active','ST-OLD',17,2026,'Original Workplace','01700000000','private') returning id;`).split(/\r?\n/)[0])
+      : uuid(sql(`insert into public.admin_profiles(user_id,admin_code,display_name,is_active,status) values('${userId}','${adminCode}','Synthetic ${name === "target" ? "Target" : name}',true,'active') returning id;`).split(/\r?\n/)[0]);
+    sql(`insert into public.rbac_user_platform_roles(user_id,role_id,scope,note) select '${userId}',id,'${name === "profile" ? "portal" : "admin"}','Disposable fixture' from public.rbac_platform_roles where code='${role}' and scope='${name === "profile" ? "portal" : "admin"}';`);
     const cookies = [];
     const session = createServerClient(status.API_URL, status.ANON_KEY, { cookies: { getAll: () => cookies, setAll: values => { for (const value of values) { const index = cookies.findIndex(cookie => cookie.name === value.name); if (index >= 0) cookies.splice(index, 1); cookies.push(value); } } } });
     assert.ok(!(await session.auth.signInWithPassword({ email, password })).error, "Synthetic sign-in failed.");
@@ -121,7 +124,9 @@ try {
       let result; const action = request.url.slice(1);
       const roleIntent = { operation: "admin.role.change", payload: { adminProfileId: accounts.get("target").profileId, roleCode: "admin", confirmation: accounts.get("target").adminCode } };
       if (action === "account") { assert.ok(account); result = { cookies: account.cookies.map(({ name, value }) => ({ name, value })), userId: account.userId, password: account.password, factorId: account.factorId }; }
-      else if (action === "transport") { assert.ok([...accounts.values()].some(item => item.email === body.to)); const code = body.html.match(/<code\b[^>]*>\s*([0-9]{6})\s*<\/code>/)?.[1]; assert.ok(code); mail.set(body.to, code); result = { id: "disposable-transport" }; }
+      else if (action === "transport") { assert.ok([...accounts.values()].some(item => item.email === body.to)); const code = body.html.match(/<code\b[^>]*>\s*([0-9]{6})\s*<\/code>/)?.[1]; if (code) mail.set(body.to, code); result = { id: "disposable-transport" }; }
+      else if (action === "profile_state") { assert.ok(profileQA); const id = uuid(accounts.get("profile").profileId); result = jsonSql(`select json_build_object('organization',m.current_organization,'phone',m.phone,'studentId',m.student_id,'batch',m.batch_no,'graduationYear',m.graduation_year,'requests',(select coalesce(json_agg(json_build_object('id',q.id,'type',q.request_type,'status',q.status)),'[]') from public.profile_update_requests q where q.member_id=m.id)) from public.members m where m.id='${id}';`); }
+      else if (action === "workplace_request") { assert.ok(profileQA); assert.ok(["Initial Requested Workplace","Obsolete Workplace"].includes(body.organization)); const id = uuid(accounts.get("profile").profileId); result = { id: uuid(sql(`insert into public.profile_update_requests(member_id,request_type,status,payload,requested_at) values('${id}','workplace_update','pending',jsonb_build_object('currentOrganization','${body.organization}'),clock_timestamp()+interval '10 years') returning id;`).split(/\r?\n/)[0]) }; }
       else if (action === "email") { assert.ok(account && mail.has(account.email)); result = { code: mail.get(account.email) }; }
       else if (action === "totp") { assert.ok(account?.secret); result = { code: totp(account.secret) }; }
       else if (action === "setup_totp") {
@@ -171,11 +176,11 @@ try {
   delete env.NODE_OPTIONS;
   Object.assign(env, { PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3127", PLAYWRIGHT_NO_COPY_PROMPT: "1", ADMIN_VERIFICATION_QA_SCREENSHOTS: screenshots, NODE_ENV: "test" });
   console.log("Running real Next/Supabase browser integration; transport does not certify mailbox delivery.");
-  const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", "e2e/admin-verification.spec.ts", "--project=chromium", "--workers=1", "--output", join(screenshots, "playwright-output"), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
+  const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", profileQA ? "e2e/profile-self-service.spec.ts" : "e2e/admin-verification.spec.ts", "--project=chromium", "--workers=1", "--output", join(screenshots, "playwright-output"), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
   const code = await new Promise(resolve => child.once("exit", resolve));
   if (code !== 0) console.error(`Redacted disposable Next diagnostics: ${diagnostics}`);
   assert.equal(code, 0, "Disposable admin verification browser suite failed.");
-  console.log("ADMIN VERIFICATION BROWSER QA PASSED (disposable project only).");
+  console.log(profileQA ? "PROFILE SELF SERVICE BROWSER QA PASSED (disposable project only)." : "ADMIN VERIFICATION BROWSER QA PASSED (disposable project only).");
   console.log(`Non-secret screenshots: ${screenshots}`);
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Disposable browser QA failed."); process.exitCode = 1;

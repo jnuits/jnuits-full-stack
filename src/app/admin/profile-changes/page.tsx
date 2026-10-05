@@ -20,8 +20,8 @@ type ProfileChangeRequestRecord = {
   reviewed_at: string | null;
   status: string;
   members?:
-    | { department_code?: string | null; email?: string | null; facebook_url?: string | null; full_name?: string | null; jnuits_id?: string | null; phone?: string | null; linkedin_url?: string | null; website_url?: string | null }
-    | { department_code?: string | null; email?: string | null; facebook_url?: string | null; full_name?: string | null; jnuits_id?: string | null; phone?: string | null; linkedin_url?: string | null; website_url?: string | null }[]
+    | { department_code?: string | null; email?: string | null; facebook_url?: string | null; full_name?: string | null; jnuits_id?: string | null; phone?: string | null; linkedin_url?: string | null; website_url?: string | null; student_id?: string | null; batch_no?: number | null; graduation_year?: number | null }
+    | { department_code?: string | null; email?: string | null; facebook_url?: string | null; full_name?: string | null; jnuits_id?: string | null; phone?: string | null; linkedin_url?: string | null; website_url?: string | null; student_id?: string | null; batch_no?: number | null; graduation_year?: number | null }[]
     | null;
 };
 
@@ -33,6 +33,7 @@ function resolveMember<T>(value: T | T[] | null | undefined): T | null {
 function parseProfilePayload(payload: unknown) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return {
+      studentId: null, batchNo: null, graduationYear: null,
       fullName: null,
       departmentCode: null,
       facebookUrl: null,
@@ -45,6 +46,9 @@ function parseProfilePayload(payload: unknown) {
   }
   const r = payload as Record<string, unknown>;
   return {
+    studentId: typeof r.studentId === "string" ? r.studentId : null,
+    batchNo: typeof r.batchNo === "number" ? r.batchNo : null,
+    graduationYear: typeof r.graduationYear === "number" ? r.graduationYear : null,
     fullName: typeof r.fullName === "string" && r.fullName.trim() ? r.fullName.trim() : null,
     departmentCode: typeof r.departmentCode === "string" && r.departmentCode.trim() ? r.departmentCode.trim().toLowerCase() : null,
     facebookUrl: typeof r.facebookUrl === "string" && r.facebookUrl.trim() ? r.facebookUrl.trim() : null,
@@ -77,7 +81,7 @@ export default async function ProfileChangesPage() {
     admin
       .from("profile_update_requests")
       .select(
-        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members(full_name, jnuits_id, email, phone, department_code, facebook_url, linkedin_url, website_url)"
+        "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members!profile_update_requests_member_id_fkey(full_name, jnuits_id, email, phone, department_code, student_id, batch_no, graduation_year, facebook_url, linkedin_url, website_url)"
       )
       .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
       .eq("status", "pending")
@@ -85,7 +89,7 @@ export default async function ProfileChangesPage() {
       .limit(20),
     admin
       .from("profile_update_requests")
-      .select("id, member_id, request_type, requested_at, reviewed_at, status, members(full_name, jnuits_id)")
+      .select("id, member_id, request_type, requested_at, reviewed_at, status, members!profile_update_requests_member_id_fkey(full_name, jnuits_id)")
       .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
       .neq("status", "pending")
       .order("reviewed_at", { ascending: false })
@@ -102,6 +106,8 @@ export default async function ProfileChangesPage() {
       .eq("status", "pending"),
     getActiveDepartmentOptions(),
   ]);
+
+  if ([pendingResult, recentResult, countResult, pendingWorkplaceCountResult].some((result) => result.error)) throw new Error("Profile requests could not be loaded. Please try again.");
 
   const pending = (pendingResult.data || []) as ProfileChangeRequestRecord[];
   const recent = (recentResult.data || []) as ProfileChangeRequestRecord[];
@@ -184,7 +190,7 @@ export default async function ProfileChangesPage() {
         {pending.length === 0 ? (
           <EmptyState
             title="No pending profile change requests"
-            description="When members request name, phone, or social link edits from the portal, they will appear here."
+            description="When members request identity or academic record corrections from the portal, they will appear here."
           />
         ) : (
           <div className="grid gap-4">
@@ -217,6 +223,7 @@ export default async function ProfileChangesPage() {
                           <span>{payload.fullName}</span>
                         </div>
                       )}
+                      {[["University student ID", payload.studentId], ["Batch", payload.batchNo], ["Graduation year", payload.graduationYear]].map(([label, value]) => value != null ? <div className="admin-diff-box__item" key={String(label)}><span className="admin-diff-box__key">{label}</span><span>{value}</span></div> : null)}
                       {payload.phone && (
                         <div className="admin-diff-box__item">
                           <span className="admin-diff-box__key">Phone</span>
@@ -259,12 +266,13 @@ export default async function ProfileChangesPage() {
                           <span className="truncate text-xs">{payload.websiteUrl}</span>
                         </div>
                       )}
-                      {!payload.fullName && !payload.departmentCode && !payload.phone && !payload.facebookUrl && !payload.linkedinUrl && !payload.websiteUrl && !payload.newEmail && !payload.newJnuitsId && (
+                      {!payload.studentId && !payload.batchNo && !payload.graduationYear && !payload.fullName && !payload.departmentCode && !payload.phone && !payload.facebookUrl && !payload.linkedinUrl && !payload.websiteUrl && !payload.newEmail && !payload.newJnuitsId && (
                         <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>No specific field changes detected</p>
                       )}
                     </div>
                     <div className="admin-diff-box">
                       <p className="admin-diff-box__label">Current member data</p>
+                      {[["University student ID", member?.student_id], ["Batch", member?.batch_no], ["Graduation year", member?.graduation_year]].map(([label, value]) => <div className="admin-diff-box__item" key={String(label)}><span className="admin-diff-box__key">{label}</span><span>{value ?? "Not set"}</span></div>)}
                       <div className="admin-diff-box__item">
                         <span className="admin-diff-box__key">Name on record</span>
                         <span>{member?.full_name || "—"}</span>
