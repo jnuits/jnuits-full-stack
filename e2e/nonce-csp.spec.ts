@@ -22,7 +22,7 @@ test("dynamic HTML scripts share the response nonce and hydrate without CSP viol
   expect(allNonces.length).toBeGreaterThan(0);expect(allNonces.every(value=>value===nonce)).toBe(true);
   await page.locator('.public-skip-link').focus();await page.keyboard.press("Enter");await expect(page.locator("#main-content")).toBeFocused();
   await expect.poll(()=>page.evaluate(()=>document.documentElement.dataset.theme)).toMatch(/light|dark/);
-  await page.locator('a[href="/about"]').first().click();await expect(page).toHaveURL(/\/about/,{timeout:20000});
+  await page.locator('a[href="/about"]:visible').first().click();await expect(page).toHaveURL(/\/about/,{timeout:20000});
   expect(await page.evaluate(()=>(window as unknown as {cspViolations:string[]}).cspViolations)).toEqual([]);
   expect(errors).toEqual([]);
 });

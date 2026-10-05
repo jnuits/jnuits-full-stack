@@ -8,11 +8,11 @@ describe("encrypted backup Drive transport",()=>{
   const dir=await mkdtemp(join(tmpdir(),"jnuits-backup-test-"));directories.push(dir);
   const path=join(dir,"fixture.age"),bytes=Buffer.alloc(8*1024*1024+128*1024,42);
   Buffer.from("age-encryption.org/v1\n").copy(bytes);await writeFile(path,bytes);
-  let metadata,attempts=0;const bodies=[];
+  let metadata,attempts=0,probes=0;const bodies=[];
   const fetch=vi.fn(async(url,init)=>{
    if(init.method==="POST"){metadata=JSON.parse(init.body);return new Response("",{headers:{location:"https://www.googleapis.com/upload/drive/v3/files?upload_id=fixture"}});}
    if(init.method==="PUT"){
-    if(init.headers["Content-Length"]==="0")return new Response(null,{status:308,headers:{range:"bytes=0-8388607"}});
+    if(init.headers["Content-Length"]==="0"){ if(++probes===1)return new Response(null,{status:503});return new Response(null,{status:308,headers:{range:"bytes=0-8388607"}}); }
     bodies.push(Buffer.from(init.body));
     if(++attempts===1)return new Response(null,{status:503});
     return Response.json({id:"file-fixture"});
@@ -20,7 +20,7 @@ describe("encrypted backup Drive transport",()=>{
    return Response.json({id:"file-fixture",size:String(bytes.length),md5Checksum:createHash("md5").update(bytes).digest("hex"),parents:["private-folder"],appProperties:metadata.appProperties});
   });
   const file=await createBackupDrive(options(fetch)).upload(path,{backupId:"11111111-1111-4111-8111-111111111111",type:"database"});
-  expect(file.bytes).toBe(bytes.length);
+  expect(file.bytes).toBe(bytes.length);expect(probes).toBe(2);
   expect(bodies.map(body=>body.length)).toEqual([8*1024*1024,128*1024]);
   expect(Buffer.concat(bodies).equals(bytes)).toBe(true);
  });

@@ -2,16 +2,31 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ rows: [] as Record<string, unknown>[], requests: [] as { select: string; start?: number; end?: number; head?: boolean }[] }));
 function query() {
   const filters: [string, unknown][] = [];
+  let searchPattern: RegExp | undefined;
   const request = { select: "", start: undefined as number|undefined, end: undefined as number|undefined, head: false };
   state.requests.push(request);
   const builder = {
     select(value: string, options?: { head?: boolean }) { request.select = value; request.head = Boolean(options?.head); return builder; },
     eq(field: string, value: unknown) { filters.push([field,value]); return builder; },
     ilike(field: string, value: string) { filters.push([field,value.toLowerCase()]); return builder; },
+    or(value: string) {
+      const quoted = value.match(/^slug\.ilike\."((?:\\.|[^"\\])*)"/);
+      if (!quoted) throw new Error("Unexpected test OR filter.");
+      const sqlPattern = quoted[1].replace(/\\(.)/g, "$1");
+      let regex = "^";
+      for (let index=0; index<sqlPattern.length; index++) {
+        const char=sqlPattern[index];
+        if(char==="\\") regex+=sqlPattern[++index]?.replace(/[.*+?^${}()|[\]\\]/g,"\\$&") || "";
+        else if(char==="%") regex+=".*";
+        else if(char==="_") regex+=".";
+        else regex+=char.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+      }
+      searchPattern=new RegExp(regex+"$","i");return builder;
+    },
     order() { return builder; },
     range(start: number,end: number) { request.start=start;request.end=end;return builder; },
     then(resolve: (value: unknown) => unknown) {
-      const rows = state.rows.filter(row => filters.every(([field,value]) => String(row[field]).toLowerCase() === String(value).toLowerCase()));
+      const rows = state.rows.filter(row => (!searchPattern || searchPattern.test(String(row.title))) && filters.every(([field,value]) => String(row[field]).toLowerCase() === String(value).toLowerCase()));
       return Promise.resolve({ data: request.head ? null : rows.slice(request.start ?? 0, request.end === undefined ? undefined : request.end+1), count: rows.length, error: (request.start || 0)>2147483647 ? { message: "Offset outside PostgreSQL integer range" } : null }).then(resolve);
     },
   };
@@ -35,6 +50,15 @@ function rows(type: string, length: number) {
 }
 beforeEach(() => { state.requests = []; });
 describe("bounded content archives", () => {
+  it("keeps percent, underscore and backslash searches literal through PostgREST quoting", async () => {
+    state.rows = [
+      {...rows("notice",1)[0],title:"literal 100%_done\\path"},
+      {...rows("notice",1)[0],id:"2",title:"literal 100ABCDEdonepath"},
+    ];
+    const result = await getAdminNoticesDashboard({query:"100%_done\\path"});
+    expect(result.totalItems).toBe(1);
+    expect(result.items.map(item=>item.title)).toEqual(["literal 100%_done\\path"]);
+  });
   it("makes posts beyond24 reachable and filters category before pagination", async () => {
     state.rows = rows("blog", 40);
     const result = await getPublishedBlogArchive({ page: 2, category: "Tutorial" });

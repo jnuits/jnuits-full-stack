@@ -124,8 +124,9 @@ export async function getAdminNoticesDashboard(
     if (category === "notice") request = request.or("category.is.null,category.ilike.Notice");
     else if (category) request = request.ilike("category",category.replace(/[%_\\]/g,"\\$&"));
     if (search) {
-      const escaped = search.replace(/[\\%_]/g,"\\$&").replace(/"/g,'\\"');
-      const pattern = '"%' + escaped + '%"';
+      const sqlPattern = "%" + search.replace(/[\\%_]/g,"\\$&") + "%";
+      // PostgREST quoted values consume escapes before SQL LIKE parses them.
+      const pattern = JSON.stringify(sqlPattern);
       request = request.or(["slug","title","category","summary","body","cta_href"].map(column => column+".ilike."+pattern).join(","));
     }
     return request.order("published_at",{ ascending:false, nullsFirst:false })

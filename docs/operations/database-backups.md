@@ -27,6 +27,8 @@ Full database coverage includes non-system schema/data, Auth tables, private con
 
 Retention removes only complete, positively marked workflow sets older than30days in this exact folder/project. Names, UUID, managedBy/project/type properties, SHA-256 metadata and all three objects must match; unrelated, malformed and incomplete sets are preserved for operator inspection. The latest complete recovery point is always retained, even during an outage. No public exports or user files are deleted.
 
+The first manual workflow_dispatch is allowed on protected main while BACKUP_ENABLED is absent/false; only the nightly schedule depends on that enable flag. Keep the schedule disabled until the manual offsite recovery and restore acceptance succeeds.
+
 ## Monthly operator-run isolated rehearsal
 
 Download a completed database.dump.age, roles.sql.age and its receipt privately. Use an operator shell with production DATABASE_URL/PG connection settings, Supabase secrets, Resend keys and CI settings absent. Run:

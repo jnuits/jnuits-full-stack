@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   backup:
-    if: github.ref == 'refs/heads/main' && vars.BACKUP_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.BACKUP_ENABLED == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 55
     environment: database-backups

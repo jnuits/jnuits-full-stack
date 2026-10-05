@@ -11,6 +11,7 @@ describe("backup and restore operator configuration",()=>{
  it("refuses CI and inherited production/database/mail connections for isolated restore",()=>{
   expect(()=>validateRehearsalEnvironment({})).not.toThrow();
   expect(()=>validateRehearsalEnvironment({DOCKER_HOST:"ssh://production.example"})).toThrow();
+  expect(()=>validateRehearsalEnvironment({DOCKER_HOST:"npipe:////./pipe/docker_engine",DOCKER_CONTEXT:"remote-production"})).toThrow();
   for(const key of ["CI","BACKUP_DATABASE_URL","DATABASE_URL","SUPABASE_SECRET_KEY","RESEND_NEWSLETTER_API_KEY","PGHOST"]){expect(()=>validateRehearsalEnvironment({[key]:"configured"})).toThrow();}
  });
  it("preserves archived role changes and quoted role names while tolerating pre-existing image roles",()=>{

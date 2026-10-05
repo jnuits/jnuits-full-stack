@@ -59,7 +59,12 @@ export function createBackupDrive({token,folder,allowedPermissions,requireShared
     if(!response||response.status===429||response.status>=500){
      if(++failures>5)throw new Error("Drive upload retry limit exceeded.");
      await sleep(Math.min(30000,1000*2**failures));
-     response=await request(location,{method:"PUT",headers:{"Content-Range":"bytes */"+digest.size,"Content-Length":"0"}});
+     for(;;){
+      try{response=await request(location,{method:"PUT",headers:{"Content-Range":"bytes */"+digest.size,"Content-Length":"0"}});}catch{response=null;}
+      if(response && response.status!==429 && response.status<500)break;
+      if(++failures>5)throw new Error("Drive upload retry limit exceeded.");
+      await sleep(Math.min(30000,1000*2**failures));
+     }
     }
     if(response.status===308){
      const range=response.headers.get("range");const next=range?Number(range.match(/^bytes=0-(\d+)$/)?.[1])+1:0;
