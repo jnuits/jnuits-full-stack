@@ -124,27 +124,15 @@ describe("Blog archive page (F7)", () => {
     ).toBeInTheDocument();
   });
 
-  it("falls back gracefully to getPublishedBlogs pagination when getPublishedBlogArchive is unavailable", async () => {
-    // When getPublishedBlogArchive rejects or is not called (fallback flow)
-    mockGetPublishedBlogArchive.mockImplementationOnce(() => {
-      throw new Error("unsupported");
-    });
+  it("bubbles backend query failure to let the error boundary catch it", async () => {
+    mockGetPublishedBlogArchive.mockRejectedValueOnce(
+      new Error("The blog archive could not be loaded.")
+    );
 
-    // Instead, let's pass a mock that returns undefined or we can test when dynamicFn is undefined
-    mockGetPublishedBlogArchive.mockResolvedValueOnce({
-      items: mockBlogs.slice(0, 24),
-      categories: ["Activities", "Tech"],
-      page: 1,
-      pageSize: 24,
-      totalItems: 30,
-      totalPages: 2,
-    });
-
-    const ui = await BlogsPage({
-      searchParams: Promise.resolve({ page: "1" }),
-    });
-    render(ui);
-
-    expect(screen.getByText("Blog Post 1")).toBeInTheDocument();
+    await expect(
+      BlogsPage({
+        searchParams: Promise.resolve({ page: "1" }),
+      })
+    ).rejects.toThrow("The blog archive could not be loaded.");
   });
 });

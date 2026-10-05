@@ -1,21 +1,11 @@
 import Link from "next/link";
 import { BlogCard } from "@/components/blogs/blog-card";
 import { BlogFeatureCard } from "@/components/blogs/blog-feature-card";
+import { normalizeBlogCategory } from "@/lib/content/blogs";
 import {
-  getBlogCategories,
-  normalizeBlogCategory,
-} from "@/lib/content/blogs";
-import * as publicContentModule from "@/lib/content/public-content";
-import type { BlogPreview } from "@/lib/content/public-content";
-
-export type BlogArchiveResult = {
-  items: BlogPreview[];
-  categories: string[];
-  page: number;
-  pageSize: number;
-  totalItems: number;
-  totalPages: number;
-};
+  getPublishedBlogArchive,
+  type BlogArchiveResult,
+} from "@/lib/content/public-content";
 
 function asString(value: unknown): string {
   if (Array.isArray(value)) {
@@ -72,54 +62,7 @@ async function loadBlogArchive(filters: {
   page: number;
   category?: string;
 }): Promise<BlogArchiveResult> {
-  const dynamicFn = Reflect.get(
-    publicContentModule,
-    "getPublishedBlogArchive"
-  ) as
-    | ((filters: {
-        page?: number;
-        category?: string;
-      }) => Promise<BlogArchiveResult>)
-    | undefined;
-
-  if (typeof dynamicFn === "function") {
-    try {
-      return await dynamicFn(filters);
-    } catch {
-      // Fall through to fallback
-    }
-  }
-
-  // Graceful fallback conforming to getPublishedBlogArchive contract
-  const pageSize = 24;
-  const publicBlogs = await publicContentModule.getPublishedBlogs();
-  const categories = getBlogCategories(publicBlogs);
-  const normalizedCategory = filters.category
-    ? normalizeBlogCategory(filters.category)
-    : "";
-
-  const filtered = normalizedCategory
-    ? publicBlogs.filter(
-        (blog) => normalizeBlogCategory(blog.category) === normalizedCategory
-      )
-    : publicBlogs;
-
-  const totalItems = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const normalizedPage = Math.min(filters.page, totalPages);
-  const items = filtered.slice(
-    (normalizedPage - 1) * pageSize,
-    normalizedPage * pageSize
-  );
-
-  return {
-    categories,
-    items,
-    page: normalizedPage,
-    pageSize,
-    totalItems,
-    totalPages,
-  };
+  return getPublishedBlogArchive(filters);
 }
 
 export default async function BlogsPage({
@@ -139,9 +82,7 @@ export default async function BlogsPage({
     page: requestedPage,
   });
 
-  const categories = archive.categories.length
-    ? archive.categories
-    : getBlogCategories(archive.items);
+  const categories = archive.categories;
 
   // F7 Contract: On page 1 only, feature the first post and grid the rest.
   // On page > 1, do not feature any post; render all items in the grid (never drop the first item).
@@ -174,7 +115,7 @@ export default async function BlogsPage({
           >
             All
           </Link>
-          {categories.map((category) => (
+          {categories.map((category: string) => (
             <Link
               aria-current={selectedCategory === category ? "page" : undefined}
               className={selectedCategory === category ? "is-active" : ""}
