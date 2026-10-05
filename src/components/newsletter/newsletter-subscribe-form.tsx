@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { TurnstileField } from "@/components/auth/turnstile-field";
+
+// Keep the server and hydration snapshots inert; client input is enabled only
+// after React can capture changes, so late hydration cannot erase typed email.
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 type NewsletterSubscribeFormProps = {
   siteKey?: string;
@@ -12,6 +18,11 @@ const defaultSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 export function NewsletterSubscribeForm({ siteKey: siteKeyProp }: NewsletterSubscribeFormProps = {}) {
   const siteKey = siteKeyProp ?? defaultSiteKey;
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot
+  );
   const emailInputRef = useRef<HTMLInputElement | null>(null);
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
@@ -137,7 +148,7 @@ export function NewsletterSubscribeForm({ siteKey: siteKeyProp }: NewsletterSubs
       </label>
       <input
         autoComplete="email"
-        disabled={status === "submitting"}
+        disabled={!hydrated || status === "submitting"}
         id="footer-newsletter-email"
         name="email"
         onChange={(e) => setEmail(e.target.value)}
@@ -164,7 +175,7 @@ export function NewsletterSubscribeForm({ siteKey: siteKeyProp }: NewsletterSubs
         <input
           checked={consent}
           className="mt-0.5 size-3.5 shrink-0 rounded border-white/30 text-[var(--brand-blue)] focus:ring-[var(--brand-gold)]"
-          disabled={status === "submitting"}
+          disabled={!hydrated || status === "submitting"}
           id="footer-newsletter-consent"
           onChange={(e) => setConsent(e.target.checked)}
           required
@@ -215,7 +226,7 @@ export function NewsletterSubscribeForm({ siteKey: siteKeyProp }: NewsletterSubs
 
       <button
         className={status === "submitting" || !consent ? "opacity-60 cursor-not-allowed" : ""}
-        disabled={status === "submitting" || !consent}
+        disabled={!hydrated || status === "submitting" || !consent}
         type="submit"
       >
         {status === "submitting" ? "Subscribing…" : "Subscribe"}

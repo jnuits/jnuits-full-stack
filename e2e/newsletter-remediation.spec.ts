@@ -98,3 +98,27 @@ test("the public skip link receives first Tab and focuses the main landmark", as
   await page.keyboard.press("Enter");
   await expect(page.locator("main#main-content")).toBeFocused();
 });
+
+test("newsletter controls wait for hydration and retain the entered email", async ({ page }) => {
+  await fixtureCaptcha(page);
+  let release!: () => void;
+  const scripts = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/_next/static/**/*.js", async route => {
+    await scripts;
+    await route.continue();
+  });
+  await page.goto("/", { waitUntil: "commit" });
+  const email = page.locator("#footer-newsletter-email");
+  const consent = page.locator("#footer-newsletter-consent");
+  try {
+    await expect(email).toBeVisible();
+    await expect(email).toBeDisabled();
+    await expect(consent).toBeDisabled();
+    await expect(page.locator('footer button[type="submit"]')).toBeDisabled();
+  } finally { release(); }
+  await expect(email).toBeEnabled();
+  await expect(consent).toBeEnabled();
+  await email.fill("audit@example.test");
+  await consent.check();
+  await expect(email).toHaveValue("audit@example.test");
+});

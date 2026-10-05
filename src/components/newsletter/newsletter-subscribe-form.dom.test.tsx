@@ -1,3 +1,4 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +12,14 @@ describe("NewsletterSubscribeForm", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it("keeps newsletter controls disabled in server HTML until hydration can capture input", () => {
+    const html = renderToStaticMarkup(<NewsletterSubscribeForm siteKey="" />);
+    const document = new DOMParser().parseFromString(html, "text/html");
+    expect(document.querySelector<HTMLInputElement>("#footer-newsletter-email")?.disabled).toBe(true);
+    expect(document.querySelector<HTMLInputElement>("#footer-newsletter-consent")?.disabled).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
   });
 
   it("renders email input with id='footer-newsletter-email' and unchecked consent", () => {

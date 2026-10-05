@@ -8,6 +8,8 @@ Codex validated the actual AGY diff and artifacts. The follow-up removes the mis
 
 The stricter integration gate exposed focus failures that AGY's explicit input.focus() calls had hidden. Event newsletter links now use native fragment anchors; the public skip link has explicit tabindex=0. Actual pointer, Enter and first-Tab browser regressions cover these changes. Tests use disposable providers and the reserved example.supabase.co endpoint, never production subscription mutations or CAPTCHA bypass.
 
+This integration also prevents delayed hydration from erasing newsletter input. Email, consent and submit controls remain disabled in server HTML and through initial hydration, then enable once React can capture changes. A server-render regression and browser checks with JavaScript held back reproduce the former behavior and validate the correction.
+
 ## Findings and implementation status
 
 | Finding / hardening | Implementation | Separate outstanding acceptance |
@@ -30,15 +32,17 @@ The stricter integration gate exposed focus failures that AGY's explicit input.f
 
 ## Validation and evidence limits
 
-Local integrated unit/component suite: 2008 tests across 309 files pass. All 27 focused browser cases and 144 strict shell checks pass across Chromium, Firefox and WebKit; the latter cover eight routes, three viewport sizes and both actual themes. Lint, typecheck, production build, access/UI audits, dependency checks and immutable SQL/order/replay checks passed at their recorded revisions. SQL replay covers 115 migrations, real newsletter transaction concurrency and permission/RLS contexts. The pending SQL bytes have not changed during frontend integration.
+Local integrated unit/component suite: 2009 tests across 309 files pass. All 50 focused browser cases and 144 strict shell checks pass across Chromium, Firefox and WebKit; the latter cover eight routes, three viewport sizes and both actual themes. Lint, typecheck, production build, access/UI audits, dependency checks and immutable SQL/order/replay checks passed at their recorded revisions. SQL replay covers 115 migrations, real newsletter transaction concurrency and permission/RLS contexts. The pending SQL bytes have not changed during frontend integration.
 
 AGY's 96 shell checks cover Chromium and WebKit with synthetic CAPTCHA. Its metadata named the base revision while changes were uncommitted; Codex does not use that base SHA as proof of a tested final server. The revised gate separates source HEAD/local build artifacts from explicitly attested server revision/build ID, rejects missing nonce CSP, checks both themes and fails actual focus/runtime/overflow assertions.
 
-Codex adds browser cases for consent/pending/error/retry/accepted newsletter UI, all confirmation results without GET mutations, focus transfer, first-Tab skip navigation and older blog/category navigation. All fixture evidence is labelled; it does not prove live CAPTCHA, email delivery, Resend synchronization or authenticated remote acceptance.
+Codex adds browser cases for delayed hydration, consent/pending/error/retry/accepted newsletter UI, all confirmation results without GET mutations, focus transfer, first-Tab skip navigation and older blog/category navigation. All fixture evidence is labelled; it does not prove live CAPTCHA, email delivery, Resend synchronization or authenticated remote acceptance.
 
 The broader Linux matrix on integrated AGY revision 64c133f succeeded (run 37259685580), including the two previously failing WebKit CSP cases. Earlier failed runs are historical evidence, not green checks. The final release revision must independently pass Quality Gate, Diff Check and the manually dispatched full browser matrix before merge. Protected preproduction mutation rehearsals and owner-configured backup runs are operational workflows, not PR release checks; do not execute them against real accounts merely to obtain a green badge. Production Readiness is a main-only read-only workflow and may run after release rollout.
 
 The single independent new-backend review and its correction pass are complete. Corrections pin a verified local restore daemon, permit the first protected manual backup while nightly scheduling is disabled, preserve literal notice search through PostgREST quoting and bound transient upload status retries. No repeated independent whole-branch review is requested.
+
+The main-only read-only Production Readiness run 37263686760 passed configuration, access/UI audits, dependency checks and public runtime probes, then failed while linking Supabase: the protected GitHub Production SUPABASE_ACCESS_TOKEN was rejected as Unauthorized. The owner chose to update it later. Keep the main merge and the two new hosted migrations pending until the credential is renewed and this non-Vercel workflow passes; working Supabase-plugin access does not substitute for a green GitHub check.
 
 ## Hosted rollout and open operations
 
