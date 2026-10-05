@@ -223,7 +223,7 @@ export async function SiteFooter() {
           <p className="mt-3 text-sm leading-7 text-white/70">
             Get updates about events, notices, and member opportunities.
           </p>
-          <NewsletterSubscribeForm />
+          <NewsletterSubscribeForm siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""} />
         </div>
       </div>
     </footer>

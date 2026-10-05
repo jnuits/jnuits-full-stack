@@ -4,9 +4,14 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { TurnstileField } from "@/components/auth/turnstile-field";
 
-const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+type NewsletterSubscribeFormProps = {
+  siteKey?: string;
+};
 
-export function NewsletterSubscribeForm() {
+const defaultSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+
+export function NewsletterSubscribeForm({ siteKey: siteKeyProp }: NewsletterSubscribeFormProps = {}) {
+  const siteKey = siteKeyProp ?? defaultSiteKey;
   const emailInputRef = useRef<HTMLInputElement | null>(null);
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
@@ -111,8 +116,8 @@ export function NewsletterSubscribeForm() {
       >
         <p className="font-semibold text-emerald-100">Check your email</p>
         <p className="mt-1 text-emerald-200/90">
-          If this email is eligible, a confirmation link has been sent. Please check your
-          inbox to confirm your subscription.
+          If this email is eligible, confirmation instructions will arrive in your inbox or spam
+          folder. If you recently submitted a request or are already subscribed, no duplicate message is sent.
         </p>
         <button
           className="mt-3 text-xs font-semibold text-white underline underline-offset-2 hover:text-white/80"
