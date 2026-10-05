@@ -32,7 +32,7 @@ This integration also prevents delayed hydration from erasing newsletter input. 
 
 ## Validation and evidence limits
 
-Local integrated unit/component suite: 2009 tests across 309 files pass. All 50 focused browser cases and 144 strict shell checks pass across Chromium, Firefox and WebKit; the latter cover eight routes, three viewport sizes and both actual themes. Lint, typecheck, production build, access/UI audits, dependency checks and immutable SQL/order/replay checks passed at their recorded revisions. SQL replay covers 115 migrations, real newsletter transaction concurrency and permission/RLS contexts. The pending SQL bytes have not changed during frontend integration.
+Local integrated unit/component suite: 2009 tests across 309 files pass. All 50 focused browser cases and 144 strict shell checks pass across Chromium, Firefox and WebKit; the latter cover eight routes, three viewport sizes and both actual themes. Lint, typecheck, production build, access/UI audits, dependency checks and immutable SQL/order/replay checks passed at their recorded revisions. The final supported clean SQL replay covers 116 migrations, real newsletter transaction concurrency and permission/RLS contexts. The pending SQL bytes have not changed during frontend integration.
 
 AGY's 96 shell checks cover Chromium and WebKit with synthetic CAPTCHA. Its metadata named the base revision while changes were uncommitted; Codex does not use that base SHA as proof of a tested final server. The revised gate separates source HEAD/local build artifacts from explicitly attested server revision/build ID, rejects missing nonce CSP, checks both themes and fails actual focus/runtime/overflow assertions.
 
@@ -42,13 +42,17 @@ The broader Linux matrix on integrated AGY revision 64c133f succeeded (run 37259
 
 The single independent new-backend review and its correction pass are complete. Corrections pin a verified local restore daemon, permit the first protected manual backup while nightly scheduling is disabled, preserve literal notice search through PostgREST quoting and bound transient upload status retries. No repeated independent whole-branch review is requested.
 
-The main-only read-only Production Readiness run 37263686760 passed configuration, access/UI audits, dependency checks and public runtime probes, then failed while linking Supabase: the protected GitHub Production SUPABASE_ACCESS_TOKEN was rejected as Unauthorized. The owner chose to update it later. Keep the main merge and the two new hosted migrations pending until the credential is renewed and this non-Vercel workflow passes; working Supabase-plugin access does not substitute for a green GitHub check.
+The owner renewed the protected GitHub Production SUPABASE_ACCESS_TOKEN. Main-only read-only Production Readiness [37269359080](https://github.com/jnuits/jnuits-full-stack/actions/runs/37269359080) passed on pre-release main e67281d, including Supabase linking, migration parity and metadata security evidence. The Codex Supabase plugin connection independently remains valid; no reconnect was required. The earlier Unauthorized run remains historical evidence. Final reconciled release-head checks and post-merge readiness remain required.
 
 ## Hosted rollout and open operations
 
 Pre-release hosted evidence: 113 migrations, latest 20261004161020, public tables without RLS 0 and prohibited effective browser privileges 0. The security migration and the three original verification migrations are already applied; never replay them.
 
-The two reviewed forward migrations are content query summaries and newsletter double opt-in. Their initial committed versions are 20261004171611 and 20261004171614. Apply once through the Supabase plugin after checks pass, reconcile assigned versions without changing SQL, record raw receipt hashes and verify hosted grants/objects/parity before application deployment.
+Applied once through the Supabase plugin: 20261005054954_audit_content_query_summaries and 20261005055016_audit_newsletter_double_opt_in. Their former release-only filenames were 20261004171611 and 20261004171614; reconciliation changed no SQL bytes. Hosted statement SHA-256 and MD5 match the reviewed Git blobs. Post-DDL advice identified an uncovered delivery-event token foreign key; after clean replay, the separate forward 20261005055358_audit_newsletter_delivery_fk_index was applied and verified. The original applied newsletter SQL remains unchanged.
+
+Hosted state is now 116 migrations. All 71 public tables retain RLS; prohibited effective browser privileges remain zero. All 852 public role/table/DML comparisons are unchanged. The three new private tables have RLS and no direct anon/authenticated/service-role privileges. Newsletter mutation is limited to the service-only, guarded, empty-search-path RPC; public category and service-only notice summaries retain their intended invoker scopes. All four new indexes are valid. See [sanitized hosted SQL receipts](2026-10-05-audit-migration-receipts.json).
+
+The advisor's existing warning categories/counts are unchanged. Three new private tables intentionally have no direct RLS policies; the service-only RPC is their access boundary. New unused-index notices reflect the four newly created indexes. The new unindexed foreign-key notice was resolved; the previous 24 remain separately scoped. Supabase-admin-owned defaults still require the supported owner/provider procedure.
 
 Production currently serves READY 56daa010c2b6436b52ca0fa73e0b95b0f55839fd. A main merge is not evidence that the alias contains the release. Verify the alias SHA and use the owner's supported process if Vercel collaboration configuration blocks deployment.
 
