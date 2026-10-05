@@ -26,7 +26,11 @@ test("dynamic HTML scripts share the response nonce and hydrate without CSP viol
   await page.getByRole("button",{name:"Toggle color theme",exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>document.documentElement.dataset.theme)).not.toBe(initialTheme);
   await page.evaluate(()=>{(window as unknown as {nonceNavigationMarker:string}).nonceNavigationMarker="hydrated";});
-  await page.locator('a[href="/about"]:visible').first().click();await expect(page).toHaveURL(/\/about/,{timeout:20000});
+  const menuButton=page.getByRole("button",{name:"Open navigation menu",exact:true});
+  const mobileMenu=await menuButton.isVisible();
+  if(mobileMenu)await menuButton.click();
+  const navigation=page.getByRole("navigation",{name:mobileMenu?"Mobile navigation":"Primary navigation",exact:true});
+  await navigation.locator('a[href="/about"]').click();await expect(page).toHaveURL(/\/about/,{timeout:20000});
   expect(await page.evaluate(()=>(window as unknown as {cspViolations:string[]}).cspViolations)).toEqual([]);
   expect(await page.evaluate(()=>(window as unknown as {nonceNavigationMarker?:string}).nonceNavigationMarker)).toBe("hydrated");
   expect(errors).toEqual([]);
