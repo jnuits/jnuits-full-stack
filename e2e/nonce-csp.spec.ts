@@ -9,7 +9,7 @@ test("dynamic HTML scripts share the response nonce and hydrate without CSP viol
       (window as unknown as {cspViolations:string[]}).cspViolations.push(event.effectiveDirective+":"+event.blockedURI);
     });
   });
-  const response=await page.goto("/");
+  const response=await page.goto("/",{waitUntil:"domcontentloaded"});
   expect(response?.status()).toBe(200);
   const csp=response!.headers()["content-security-policy"];
   const nonce=csp.match(/'nonce-([^']+)'/)?.[1];
@@ -22,8 +22,13 @@ test("dynamic HTML scripts share the response nonce and hydrate without CSP viol
   expect(allNonces.length).toBeGreaterThan(0);expect(allNonces.every(value=>value===nonce)).toBe(true);
   await page.locator('.public-skip-link').focus();await page.keyboard.press("Enter");await expect(page.locator("#main-content")).toBeFocused();
   await expect.poll(()=>page.evaluate(()=>document.documentElement.dataset.theme)).toMatch(/light|dark/);
+  const initialTheme=await page.evaluate(()=>document.documentElement.dataset.theme);
+  await page.getByRole("button",{name:"Toggle color theme",exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.dataset.theme)).not.toBe(initialTheme);
+  await page.evaluate(()=>{(window as unknown as {nonceNavigationMarker:string}).nonceNavigationMarker="hydrated";});
   await page.locator('a[href="/about"]:visible').first().click();await expect(page).toHaveURL(/\/about/,{timeout:20000});
   expect(await page.evaluate(()=>(window as unknown as {cspViolations:string[]}).cspViolations)).toEqual([]);
+  expect(await page.evaluate(()=>(window as unknown as {nonceNavigationMarker?:string}).nonceNavigationMarker)).toBe("hydrated");
   expect(errors).toEqual([]);
 });
 
@@ -47,7 +52,7 @@ test("unnonced parser-inserted scripts are blocked by the production policy",asy
     const response=await route.fetch();
     await route.fulfill({response,body:(await response.text()).replace("</body>","<script>window.untrustedScriptRan=true</script></body>")});
   });
-  await page.goto("/");
+  await page.goto("/",{waitUntil:"domcontentloaded"});
   await expect.poll(()=>page.evaluate(()=>(window as unknown as {blockedInline:boolean}).blockedInline)).toBe(true);
   expect(await page.evaluate(()=>(window as unknown as {untrustedScriptRan?:boolean}).untrustedScriptRan)).toBeUndefined();
 });

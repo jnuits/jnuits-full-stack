@@ -6,9 +6,12 @@ import {join,resolve,sep} from "node:path";
 import {pathToFileURL} from "node:url";
 import {PROJECT,POSTGRES_IMAGE} from "./policy.mjs";
 import {fileDigests} from "./drive.mjs";
+function localDockerEndpoint(value){
+ return typeof value==="string" && (/^unix:\/\/\/[^?#\r\n]+$/.test(value) || /^npipe:\/{4}\.\/pipe\/[^?#\r\n]+$/i.test(value));
+}
 export function validateRehearsalEnvironment(env){
  if(env.DOCKER_HOST && env.DOCKER_CONTEXT)throw new Error("Conflicting Docker host/context settings are not accepted for restoration.");
- if(env.DOCKER_HOST && !/^(?:unix|npipe):\/\//.test(env.DOCKER_HOST))throw new Error("A local Docker daemon is required for private isolated restoration.");
+ if(env.DOCKER_HOST && !localDockerEndpoint(env.DOCKER_HOST))throw new Error("A local Docker daemon is required for private isolated restoration.");
  if(env.CI||["BACKUP_DATABASE_URL","DATABASE_URL","PGHOST","PGPASSWORD","PGSERVICE","SUPABASE_SECRET_KEY","RESEND_API_KEY","RESEND_NEWSLETTER_API_KEY"].some(key=>env[key]))throw new Error("Run the restore rehearsal locally with production connection and outbound-service credentials absent.");
 }
 function command(executable,args,{capture=false,environment=process.env}={}){
@@ -24,7 +27,7 @@ export function tolerateExistingRoles(sql){
 export async function rehearse({database,roles,receipt,identity},env=process.env){
  validateRehearsalEnvironment(env);
  const endpoint=env.DOCKER_HOST??JSON.parse(await command("docker",["context","inspect","--format","{{json .Endpoints.docker.Host}}"],{capture:true,environment:env}));
- if(!/^(?:unix|npipe):\/\//.test(endpoint))throw new Error("Remote Docker contexts are not accepted for restoration.");
+ if(!localDockerEndpoint(endpoint))throw new Error("Remote Docker contexts are not accepted for restoration.");
  const pinnedEnvironment={...env,DOCKER_HOST:endpoint};delete pinnedEnvironment.DOCKER_CONTEXT;
  const run=(executable,args,options={})=>command(executable,args,{...options,environment:pinnedEnvironment});
  if(!database||!roles||!receipt||!identity)throw new Error("Supply database/roles ciphertext, completion receipt and a local identity file.");
