@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { installFixtureTelemetry } from "./fixtures/telemetry";
+
+test.beforeEach(async ({ context, baseURL }) => {
+  await installFixtureTelemetry(context, { baseURL, dsn: process.env.NEXT_PUBLIC_SENTRY_DSN });
+});
 
 test("dynamic HTML scripts share the response nonce and hydrate without CSP violations", async ({page})=>{
   const errors:string[]=[];
@@ -44,9 +49,9 @@ test("separate documents never reuse a nonce",async({request})=>{
   expect(first).toBeTruthy();expect(first).not.toBe("injected");expect(first).not.toBe(second);
 });
 
-test("unnonced parser-inserted scripts are blocked by the production policy",async({page})=>{
+test("unnonced parser-inserted scripts are blocked by the production policy",async({page,baseURL})=>{
   test.setTimeout(60000);
-  await page.route("**/",async route=>{
+  await page.route(new URL("/",baseURL).href,async route=>{
     const response=await route.fetch();
     const nonce=response.headers()["content-security-policy"]?.match(/'nonce-([^']+)'/)?.[1];
     expect(nonce).toBeTruthy();

@@ -389,7 +389,7 @@ jobs:
           JNUITS_PUBLIC_BROWSER_FIXTURES: "1"
           JNUITS_CONTENT_BROWSER_FIXTURES: "1"
           NODE_OPTIONS: --import=./e2e/fixtures/public-database.mjs
-        run: npx playwright test e2e/smoke.spec.ts e2e/nonce-csp.spec.ts
+        run: npx playwright test e2e/smoke.spec.ts e2e/nonce-csp.spec.ts e2e/telemetry-fixture.spec.ts
 
       - name: Upload Playwright traces
         if: failure()
