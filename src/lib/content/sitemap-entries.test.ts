@@ -26,7 +26,7 @@ describe("public detail sitemap projection", () => {
     state.projects=[{slug:"live-project",status:"active",updated_at:"2026-01-03T00:00:00.000Z"},{slug:"old-project",status:"archived"}];
     const entries=await getPublicContentSitemapEntries();
     expect(entries).toHaveLength(1103);
-    expect(entries).toContainEqual({path:"/blog/article-1100",updatedAt:"2026-01-02T00:00:00.000Z"});
+    expect(entries).toContainEqual({path:"/blogs/article-1100",updatedAt:"2026-01-02T00:00:00.000Z"});
     expect(entries).toContainEqual({path:"/notices/article-1101",updatedAt:"2026-01-02T00:00:00.000Z"});
     expect(entries.some(entry=>entry.path.includes("secret")||entry.path.includes("old-project"))).toBe(false);
     expect(state.ranges.every(([,a,b])=>b-a===499)).toBe(true);
@@ -35,7 +35,13 @@ describe("public detail sitemap projection", () => {
     state.posts=["good","good","../bad","evil/route","x?y","x#y","%2froute",""].map(slug=>({slug,content_type:"blog",status:"published",updated_at:"not-a-date"}));
     state.projects=[{slug:"বাংলা",status:"completed",updated_at:"2026-01-03T00:00:00.000Z"}];
     const entries=await getPublicContentSitemapEntries();
-    expect(entries).toEqual([{path:"/blog/good"},{path:"/projects/"+encodeURIComponent("বাংলা"),updatedAt:"2026-01-03T00:00:00.000Z"}]);
+    expect(entries).toEqual([{path:"/blogs/good"},{path:"/projects/"+encodeURIComponent("বাংলা"),updatedAt:"2026-01-03T00:00:00.000Z"}]);
+  });
+  it("publishes Bengali article URLs under the existing blogs detail route", async () => {
+    state.posts=[{slug:"বাংলা-প্রযুক্তি",content_type:"blog",status:"published"}];
+    expect(await getPublicContentSitemapEntries()).toEqual([
+      {path:"/blogs/"+encodeURIComponent("বাংলা-প্রযুক্তি")}
+    ]);
   });
   it("fails rather than returning an apparently complete partial sitemap", async () => {
     state.fail=true;

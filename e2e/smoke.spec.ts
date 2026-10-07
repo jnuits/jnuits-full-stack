@@ -143,8 +143,8 @@ test.describe("public and auth smoke", () => {
     await expectNoRuntimeError(page);
   });
 
-  test("keyboard navigation reaches public controls and login fields", async ({ page }) => {
-    await page.goto("/");
+  test("keyboard navigation reaches public controls", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
 
     const firstFocusable = page.locator("a, button, input, select, textarea").first();
     await firstFocusable.focus();
@@ -163,15 +163,14 @@ test.describe("public and auth smoke", () => {
       await nextSlide.focus();
       await expect(nextSlide).toBeFocused();
     }
-
-    await page.goto("/admin/login");
-    await page.getByRole("textbox", { name: /email/i }).focus();
-    await page.keyboard.press("Tab");
-    await expect(page.getByLabel(/password/i)).toBeFocused();
-
-    await page.goto("/portal/login");
-    await page.getByRole("textbox", { name: /email/i }).focus();
-    await page.keyboard.press("Tab");
-    await expect(page.getByLabel(/password/i)).toBeFocused();
   });
+
+  for (const portal of ["admin", "portal"]) {
+    test(`keyboard navigation reaches ${portal} login fields`, async ({ page }) => {
+      await page.goto(`/${portal}/login`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("textbox", { name: /email/i }).focus();
+      await page.keyboard.press("Tab");
+      await expect(page.getByLabel(/password/i)).toBeFocused();
+    });
+  }
 });

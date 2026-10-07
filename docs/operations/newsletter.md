@@ -8,7 +8,7 @@ In Resend, create a dedicated newsletter Segment and a public Topic whose defaul
 
 Confirm APP_BASE_URL is the intended HTTPS origin, the existing production Turnstile site/secret configuration is valid, and RATE_LIMIT_SECRET_SALT enables the existing durable limiter. Configure the existing signed Resend webhook for delivery, failed, bounced and complained events. Retain its existing signing secret; this release adds a fourth isolated delivery ledger without replacing membership/event/invitation ledgers. Never place keys or consenting mailbox addresses in this document or public evidence.
 
-The reviewed forward migrations must precede application deployment together: audit_content_query_summaries and audit_newsletter_double_opt_in. These remain unapplied until coordinated release checks pass. Keep nullable provider identifiers out of frontend configuration. Missing provider configuration returns a generic unavailable state and cannot activate a subscription.
+The reviewed forward migrations were applied once before the application release: audit_content_query_summaries (`20261005054954`), audit_newsletter_double_opt_in (`20261005055016`), and the delivery-event index (`20261005055358`). Their SQL receipts are recorded in [the migration receipt file](2026-10-05-audit-migration-receipts.json). Do not apply them again when configuring delivery. Keep nullable provider identifiers out of frontend configuration. Missing provider configuration returns a generic unavailable state and cannot activate a subscription.
 
 ## Provider behavior and limits
 
