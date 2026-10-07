@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { installFixtureTelemetry } from "./fixtures/telemetry";
+
+test.beforeEach(async ({ context, baseURL }) => {
+  await installFixtureTelemetry(context, { baseURL, dsn: process.env.NEXT_PUBLIC_SENTRY_DSN });
+});
 
 test("dynamic HTML scripts share the response nonce and hydrate without CSP violations", async ({page})=>{
   const errors:string[]=[];
