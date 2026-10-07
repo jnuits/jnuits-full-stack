@@ -46,17 +46,17 @@ test("separate documents never reuse a nonce",async({request})=>{
 
 test("unnonced parser-inserted scripts are blocked by the production policy",async({page})=>{
   test.setTimeout(60000);
-  await page.addInitScript(()=>{
-    (window as unknown as {blockedInline:boolean}).blockedInline=false;
-    document.addEventListener("securitypolicyviolation",event=>{
-      if(event.effectiveDirective.startsWith("script-src") && event.blockedURI==="inline") (window as unknown as {blockedInline:boolean}).blockedInline=true;
-    });
-  });
   await page.route("**/",async route=>{
     const response=await route.fetch();
-    await route.fulfill({response,body:(await response.text()).replace("</body>","<script>window.untrustedScriptRan=true</script></body>")});
+    const nonce=response.headers()["content-security-policy"]?.match(/'nonce-([^']+)'/)?.[1];
+    expect(nonce).toBeTruthy();
+    const body=await response.text();
+    expect(body).toContain("</body>");
+    // The permitted parser-inserted control must run after the blocked candidate.
+    // This proves non-execution without relying on WebKit's violation-event timing.
+    await route.fulfill({response,body:body.replace("</body>",`<script>window.untrustedScriptRan=true</script><script nonce="${nonce}">window.allowedControlScriptRan=true</script></body>`)});
   });
   await page.goto("/",{waitUntil:"domcontentloaded"});
-  await expect.poll(()=>page.evaluate(()=>(window as unknown as {blockedInline:boolean}).blockedInline)).toBe(true);
+  await expect.poll(()=>page.evaluate(()=>(window as unknown as {allowedControlScriptRan?:boolean}).allowedControlScriptRan)).toBe(true);
   expect(await page.evaluate(()=>(window as unknown as {untrustedScriptRan?:boolean}).untrustedScriptRan)).toBeUndefined();
 });

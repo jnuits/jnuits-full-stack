@@ -29,7 +29,7 @@ export async function getPublicContentSitemapEntries(): Promise<PublicContentSit
       .order("id", { ascending: true }).range(offset, offset + PAGE_SIZE - 1);
     if (error || !data) throw new Error("Sitemap content could not be loaded.");
     for (const row of data) {
-      add(canonicalPath(row.content_type === "blog" ? "/blog" : "/notices", row.slug),
+      add(canonicalPath(row.content_type === "blog" ? "/blogs" : "/notices", row.slug),
         modificationDate(row.updated_at, row.published_at, row.created_at));
     }
     if (data.length < PAGE_SIZE) break;
