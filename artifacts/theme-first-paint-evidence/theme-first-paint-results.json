@@ -1,0 +1,717 @@
+{
+  "timestamp": "2026-10-08T03:26:29.697Z",
+  "testedCommit": "codex/audit-theme-first-paint",
+  "productionBaseUrl": "http://127.0.0.1:3100",
+  "htmlVerification": {
+    "cspHeader": "default-src 'self'; base-uri 'self'; frame-ancestors 'self'; object-src 'none'; script-src 'self' 'nonce-EWJKefqhbj50Iph0pc+Od3zRPJZB336Y' 'strict-dynamic' https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://res.cloudinary.com; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://api.pwnedpasswords.com https://challenges.cloudflare.com https://*.sentry.io; frame-src 'self' https://challenges.cloudflare.com https://www.google.com; form-action 'self'",
+    "nonce": "EWJKefqhbj50Iph0pc+Od3zRPJZB336Y",
+    "headScriptVerified": true
+  },
+  "metrics": {
+    "totalProbes": 24,
+    "passedProbes": 24,
+    "failedProbes": 0,
+    "themePassRate": "100.0%",
+    "foitFlashesObserved": 0,
+    "cspViolationsObserved": 0,
+    "pageErrorsObserved": 0
+  },
+  "matrixResults": [
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "stored-dark",
+      "description": "User with stored dark preference visits page",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14116,
+        "hydratedMs": 14139
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_desktop_stored-dark.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "stored-dark-delayed-hydration",
+      "description": "Delayed hydration probe (chunks +300ms) verifying 0ms initial dark paint",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14086,
+        "hydratedMs": 14107
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_desktop_stored-dark-delayed-hydration.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "stored-light",
+      "description": "User with stored light preference visits page",
+      "expectedTheme": "light",
+      "preHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.0032 -0.0876784 -1.21138)"
+      },
+      "postHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.0032 -0.0876784 -1.21138)",
+        "ariaPressed": "false"
+      },
+      "timing": {
+        "domContentLoadedMs": 14110,
+        "hydratedMs": 14128
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_desktop_stored-light.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "system-dark",
+      "description": "First-time visitor with system dark theme (no stored preference)",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14112,
+        "hydratedMs": 14134
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_desktop_system-dark.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "system-light",
+      "description": "First-time visitor with system light theme (no stored preference)",
+      "expectedTheme": "light",
+      "preHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.0032 -0.0876784 -1.21138)"
+      },
+      "postHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.0032 -0.0876784 -1.21138)",
+        "ariaPressed": "false"
+      },
+      "timing": {
+        "domContentLoadedMs": 14113,
+        "hydratedMs": 14149
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_desktop_system-light.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "storage-denied-dark",
+      "description": "Privacy/restricted mode: storage access throws SecurityError, falls back to system dark",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14121,
+        "hydratedMs": 14139
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_desktop_storage-denied-dark.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "stored-dark",
+      "description": "User with stored dark preference visits page",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14111,
+        "hydratedMs": 14139
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_mobile_stored-dark.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "stored-dark-delayed-hydration",
+      "description": "Delayed hydration probe (chunks +300ms) verifying 0ms initial dark paint",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14126,
+        "hydratedMs": 14303
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_mobile_stored-dark-delayed-hydration.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "stored-light",
+      "description": "User with stored light preference visits page",
+      "expectedTheme": "light",
+      "preHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.0032 -0.0876784 -1.21138)"
+      },
+      "postHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.0032 -0.0876784 -1.21138)",
+        "ariaPressed": "false"
+      },
+      "timing": {
+        "domContentLoadedMs": 14114,
+        "hydratedMs": 14136
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_mobile_stored-light.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "system-dark",
+      "description": "First-time visitor with system dark theme (no stored preference)",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14090,
+        "hydratedMs": 14115
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_mobile_system-dark.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "system-light",
+      "description": "First-time visitor with system light theme (no stored preference)",
+      "expectedTheme": "light",
+      "preHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.0032 -0.0876784 -1.21138)"
+      },
+      "postHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.0032 -0.0876784 -1.21138)",
+        "ariaPressed": "false"
+      },
+      "timing": {
+        "domContentLoadedMs": 14115,
+        "hydratedMs": 14140
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_mobile_system-light.png"
+    },
+    {
+      "browser": "chromium",
+      "browserVersion": "149.0.7827.55",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "storage-denied-dark",
+      "description": "Privacy/restricted mode: storage access throws SecurityError, falls back to system dark",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14119,
+        "hydratedMs": 14143
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/chromium_mobile_storage-denied-dark.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "stored-dark",
+      "description": "User with stored dark preference visits page",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14145,
+        "hydratedMs": 14462
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_desktop_stored-dark.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "stored-dark-delayed-hydration",
+      "description": "Delayed hydration probe (chunks +300ms) verifying 0ms initial dark paint",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14100,
+        "hydratedMs": 14413
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_desktop_stored-dark-delayed-hydration.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "stored-light",
+      "description": "User with stored light preference visits page",
+      "expectedTheme": "light",
+      "preHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.003197 -0.087678 -1.21138)"
+      },
+      "postHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.003197 -0.087678 -1.21138)",
+        "ariaPressed": "false"
+      },
+      "timing": {
+        "domContentLoadedMs": 14108,
+        "hydratedMs": 14277
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_desktop_stored-light.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "system-dark",
+      "description": "First-time visitor with system dark theme (no stored preference)",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14119,
+        "hydratedMs": 14411
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_desktop_system-dark.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "system-light",
+      "description": "First-time visitor with system light theme (no stored preference)",
+      "expectedTheme": "light",
+      "preHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.003197 -0.087678 -1.21138)"
+      },
+      "postHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.003197 -0.087678 -1.21138)",
+        "ariaPressed": "false"
+      },
+      "timing": {
+        "domContentLoadedMs": 14109,
+        "hydratedMs": 14267
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_desktop_system-light.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "desktop",
+      "viewportSize": "1280x800",
+      "scenario": "storage-denied-dark",
+      "description": "Privacy/restricted mode: storage access throws SecurityError, falls back to system dark",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14176,
+        "hydratedMs": 14444
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_desktop_storage-denied-dark.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "stored-dark",
+      "description": "User with stored dark preference visits page",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14105,
+        "hydratedMs": 14374
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_mobile_stored-dark.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "stored-dark-delayed-hydration",
+      "description": "Delayed hydration probe (chunks +300ms) verifying 0ms initial dark paint",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14122,
+        "hydratedMs": 14392
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_mobile_stored-dark-delayed-hydration.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "stored-light",
+      "description": "User with stored light preference visits page",
+      "expectedTheme": "light",
+      "preHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.003197 -0.087678 -1.21138)"
+      },
+      "postHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.003197 -0.087678 -1.21138)",
+        "ariaPressed": "false"
+      },
+      "timing": {
+        "domContentLoadedMs": 14108,
+        "hydratedMs": 14284
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_mobile_stored-light.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "system-dark",
+      "description": "First-time visitor with system dark theme (no stored preference)",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14104,
+        "hydratedMs": 14390
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_mobile_system-dark.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "system-light",
+      "description": "First-time visitor with system light theme (no stored preference)",
+      "expectedTheme": "light",
+      "preHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.003197 -0.087678 -1.21138)"
+      },
+      "postHydration": {
+        "theme": "light",
+        "hasDarkClass": false,
+        "backgroundColor": "lab(98.003197 -0.087678 -1.21138)",
+        "ariaPressed": "false"
+      },
+      "timing": {
+        "domContentLoadedMs": 14113,
+        "hydratedMs": 14291
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_mobile_system-light.png"
+    },
+    {
+      "browser": "webkit",
+      "browserVersion": "26.5",
+      "viewport": "mobile",
+      "viewportSize": "375x812",
+      "scenario": "storage-denied-dark",
+      "description": "Privacy/restricted mode: storage access throws SecurityError, falls back to system dark",
+      "expectedTheme": "dark",
+      "preHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)"
+      },
+      "postHydration": {
+        "theme": "dark",
+        "hasDarkClass": true,
+        "backgroundColor": "lab(1.75842 0.74593 -4.11638)",
+        "ariaPressed": "true"
+      },
+      "timing": {
+        "domContentLoadedMs": 14121,
+        "hydratedMs": 14389
+      },
+      "foitDetected": false,
+      "cspViolations": [],
+      "pageErrors": [],
+      "themePass": true,
+      "screenshotPath": "screenshots/webkit_mobile_storage-denied-dark.png"
+    }
+  ]
+}
