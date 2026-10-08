@@ -11,7 +11,7 @@ export const THEME_STORAGE_KEY = "jnuits-theme";
  *    falls back gracefully to system color scheme.
  * 3. If stored value is absent or invalid, falls back to system color scheme via matchMedia.
  * 4. Synchronously sets data-theme attribute and .dark class on document.documentElement
- *    before first paint (0ms FOIT).
+ *    before body content is parsed.
  * 5. Uses server-provided request nonce to strictly comply with production strict-dynamic CSP.
  * 6. Wrapped in fail-safe try/catch so exceptions can never halt HTML parsing.
  */
@@ -24,6 +24,7 @@ interface ThemeInitScriptProps {
 export function ThemeInitScript({ nonce }: ThemeInitScriptProps) {
   return (
     <script
+      id="jnuits-theme-init"
       nonce={nonce}
       dangerouslySetInnerHTML={{
         __html: THEME_INIT_SCRIPT,

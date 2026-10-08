@@ -5,10 +5,18 @@ import {
   ThemeToggle,
   resolveTheme,
   applyTheme,
+  subscribeToTheme,
 } from "./theme-toggle";
 
 describe("Theme resolution and ThemeToggle component", () => {
-  const originalLocalStorage = window.localStorage;
+  it("mounts and toggles when matchMedia is unavailable", () => {
+    window.matchMedia = vi.fn(() => { throw new Error("matchMedia unavailable"); });
+    render(<ThemeToggle />);
+    const button = screen.getByRole("button", { name: "Toggle color theme" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "true");
+  });
   let mockMatchMedia: (matches: boolean) => void;
 
   beforeEach(() => {
@@ -18,6 +26,7 @@ describe("Theme resolution and ThemeToggle component", () => {
 
     // Clear localStorage mock
     window.localStorage.clear();
+
 
     // Setup matchMedia mock
     let systemIsDark = false;
@@ -32,6 +41,10 @@ describe("Theme resolution and ThemeToggle component", () => {
       removeEventListener: (_ev: string, cb: () => void) => listeners.delete(cb),
       dispatchEvent: () => true,
     }));
+
+    const unsubscribe = subscribeToTheme(() => {});
+    window.dispatchEvent(new StorageEvent("storage", { key: "jnuits-theme" }));
+    unsubscribe();
 
     mockMatchMedia = (matches: boolean) => {
       systemIsDark = matches;
@@ -81,7 +94,7 @@ describe("Theme resolution and ThemeToggle component", () => {
   });
 
   it("handles storage read access being denied or throwing by falling back to system theme", () => {
-    vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("SecurityError: Access to Storage is denied");
     });
 
@@ -98,7 +111,7 @@ describe("Theme resolution and ThemeToggle component", () => {
     mockMatchMedia(false);
 
     // Mock setItem to throw (e.g. QuotaExceededError or permission denied)
-    vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("QuotaExceededError: storage is full or denied");
     });
 
@@ -159,6 +172,8 @@ describe("Theme resolution and ThemeToggle component", () => {
     document.documentElement.setAttribute("data-theme", "dark");
     document.documentElement.classList.add("dark");
 
+    const classToggle = vi.spyOn(document.documentElement.classList, "toggle");
+
     // Track every change to data-theme and classList
     const observedThemeMutations: Array<{ dataTheme: string | null; hasDarkClass: boolean }> = [];
     const observer = new MutationObserver(() => {
@@ -176,12 +191,17 @@ describe("Theme resolution and ThemeToggle component", () => {
     container.innerHTML = serverHtml;
     document.body.appendChild(container);
 
-    let root: any;
+    let root: ReturnType<typeof hydrateRoot> | undefined;
     await act(async () => {
       root = hydrateRoot(container, <ThemeToggle />);
     });
 
     observer.disconnect();
+
+    const hydrationToggleCalls = [...classToggle.mock.calls];
+    act(() => { root?.unmount(); });
+    document.body.removeChild(container);
+    expect(hydrationToggleCalls.filter(([name]) => name === "dark")).not.toContainEqual(["dark", false]);
 
     // Verify root document remained dark and was NEVER reset to light
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
@@ -192,12 +212,6 @@ describe("Theme resolution and ThemeToggle component", () => {
       expect(mutation.hasDarkClass).toBe(true);
     }
 
-    if (root) {
-      act(() => {
-        root.unmount();
-      });
-    }
-    document.body.removeChild(container);
   });
 
   it("handles system-theme changes consistently when no explicit preference is stored", () => {
@@ -237,7 +251,7 @@ describe("Theme resolution and ThemeToggle component", () => {
 
   it("handles React development remounts without state loss or listener leaks", () => {
     window.localStorage.setItem("jnuits-theme", "dark");
-    const { unmount } = render(<ThemeToggle />);
+    const { unmount } = render(<React.StrictMode><ThemeToggle /></React.StrictMode>);
     expect(screen.getByRole("button")).toHaveAttribute("aria-pressed", "true");
 
     // Simulate React StrictMode unmount and remount

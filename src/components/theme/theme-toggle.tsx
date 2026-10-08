@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useLayoutEffect, useSyncExternalStore } from "react";
 
 export const STORAGE_KEY = "jnuits-theme";
 export const THEME_CHANGE_EVENT = "jnuits-theme-change";
@@ -47,7 +47,12 @@ export function subscribeToTheme(callback: () => void) {
     return () => {};
   }
 
-  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  let mediaQuery: MediaQueryList | null = null;
+  try {
+    mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  } catch {
+    // Storage and document-local choices remain usable without media queries.
+  }
 
   const handleStorage = (event: StorageEvent) => {
     if (event.key === STORAGE_KEY || event.key === null) {
@@ -62,19 +67,19 @@ export function subscribeToTheme(callback: () => void) {
 
   window.addEventListener(THEME_CHANGE_EVENT, callback);
   window.addEventListener("storage", handleStorage);
-  if (typeof mediaQuery.addEventListener === "function") {
+  if (typeof mediaQuery?.addEventListener === "function") {
     mediaQuery.addEventListener("change", handleSystemChange);
-  } else if (typeof (mediaQuery as { addListener?: (fn: () => void) => void }).addListener === "function") {
-    (mediaQuery as { addListener: (fn: () => void) => void }).addListener(handleSystemChange);
+  } else if (typeof mediaQuery?.addListener === "function") {
+    mediaQuery.addListener(handleSystemChange);
   }
 
   return () => {
     window.removeEventListener(THEME_CHANGE_EVENT, callback);
     window.removeEventListener("storage", handleStorage);
-    if (typeof mediaQuery.removeEventListener === "function") {
+    if (typeof mediaQuery?.removeEventListener === "function") {
       mediaQuery.removeEventListener("change", handleSystemChange);
-    } else if (typeof (mediaQuery as { removeListener?: (fn: () => void) => void }).removeListener === "function") {
-      (mediaQuery as { removeListener: (fn: () => void) => void }).removeListener(handleSystemChange);
+    } else if (typeof mediaQuery?.removeListener === "function") {
+      mediaQuery.removeListener(handleSystemChange);
     }
   };
 }
@@ -146,8 +151,10 @@ export function ThemeToggle() {
     getServerThemeSnapshot,
   );
 
-  useEffect(() => {
-    applyTheme(theme);
+  useLayoutEffect(() => {
+    // The hydration snapshot is light; resolve the client preference again so
+    // it never overwrites the synchronous head bootstrap.
+    applyTheme(resolveTheme());
   }, [theme]);
 
   function toggleTheme() {

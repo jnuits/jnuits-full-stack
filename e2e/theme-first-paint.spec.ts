@@ -1,248 +1,254 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { installFixtureTelemetry } from "./fixtures/telemetry";
+
+interface ThemeState {
+  time: number;
+  theme: string | null;
+  dark: boolean;
+  background: string;
+}
+interface ThemeProbe {
+  frames: ThemeState[];
+  transitions: Array<{ previous: string | null; current: string | null }>;
+  paints: Array<{ name: string; time: number }>;
+  paintSupported: boolean;
+  violations: string[];
+}
+declare global {
+  interface Window {
+    themeProbe: ThemeProbe;
+    themeNavigationMarker?: boolean;
+  }
+}
 
 test.beforeEach(async ({ context, baseURL }) => {
   await installFixtureTelemetry(context, { baseURL, dsn: process.env.NEXT_PUBLIC_SENTRY_DSN });
 });
 
-test.describe("Theme first-paint FOIT elimination and CSP resilience", () => {
-  test("production HTML contains nonced ThemeInitScript matching CSP nonce with zero unnonced scripts", async ({ request }) => {
-    const response = await request.get("/", { headers: { accept: "text/html" } });
-    expect(response.status()).toBe(200);
-
-    const csp = response.headers()["content-security-policy"];
-    expect(csp).toBeTruthy();
-    const nonceMatch = csp.match(/'nonce-([^']+)'/);
-    expect(nonceMatch).toBeTruthy();
-    const responseNonce = nonceMatch![1];
-
-    const scriptSrcDirective = csp.split(";").find(dir => dir.trim().startsWith("script-src"))!;
-    expect(scriptSrcDirective).toContain("'strict-dynamic'");
-    expect(scriptSrcDirective).not.toMatch(/unsafe-inline|unsafe-eval/);
-
-    const html = await response.text();
-    // Verify script tag with nonce is present in <head>
-    const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-    expect(headMatch).toBeTruthy();
-    const headContent = headMatch![1];
-
-    expect(headContent).toContain(`nonce="${responseNonce}"`);
-    expect(headContent).toContain("jnuits-theme");
-    expect(headContent).toContain("data-theme");
-
-    // Verify no unnonced inline script exists anywhere in HTML
-    const inlineScriptRegex = /<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/gi;
-    let match;
-    while ((match = inlineScriptRegex.exec(html)) !== null) {
-      const attributes = match[1];
-      const scriptType = attributes.match(/type=["']([^"']+)["']/i)?.[1];
-      // JSON data scripts (e.g. application/json or ld+json) don't require nonces, JS executable scripts do
-      if (!scriptType || scriptType === "text/javascript" || scriptType === "module") {
-        expect(attributes).toContain(`nonce="${responseNonce}"`);
-      }
+async function holdClientScripts(page: Page) {
+  let release = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let blocked = 0;
+  await page.route("**/_next/static/**", async route => {
+    if (route.request().resourceType() === "script") {
+      blocked++;
+      await gate;
     }
+    await route.continue();
   });
+  return { release, blocked: () => blocked };
+}
 
-  test("stored dark theme applies before first paint and survives delayed hydration without light flash", async ({ page, baseURL }) => {
-    const pageErrors: string[] = [];
-    page.on("pageerror", (err) => pageErrors.push(err.message));
+async function captureHeldDocument(page: Page) {
+  // WebKit's fonts.ready can depend on document load, which is deliberately
+  // held by this fixture. Capture the rendered page without releasing chunks.
+  const previous = process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY;
+  process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
+  try {
+    return await page.screenshot();
+  } finally {
+    if (previous === undefined) delete process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY;
+    else process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = previous;
+  }
+}
 
-    // Install instrumentation prior to navigation
-    await page.addInitScript(() => {
-      // 1. Pre-seed stored dark theme (simulating returning dark mode visitor)
-      try {
-        window.localStorage.setItem("jnuits-theme", "dark");
-      } catch {}
-
-      // 2. Track CSP violations
-      (window as unknown as { cspViolations: string[] }).cspViolations = [];
-      document.addEventListener("securitypolicyviolation", (e) => {
-        (window as unknown as { cspViolations: string[] }).cspViolations.push(
-          `${e.effectiveDirective}:${e.blockedURI}`
-        );
-      });
-
-      // 3. Track every theme mutation on <html> from the earliest script execution
-      (window as unknown as { themeHistory: Array<{ theme: string | null; hasDark: boolean; timestamp: number }> }).themeHistory = [];
-      const record = () => {
-        const root = document.documentElement;
-        if (root) {
-          (window as unknown as { themeHistory: Array<{ theme: string | null; hasDark: boolean; timestamp: number }> }).themeHistory.push({
-            theme: root.getAttribute("data-theme"),
-            hasDark: root.classList.contains("dark"),
-            timestamp: performance.now(),
-          });
-        }
-      };
-      new MutationObserver(record).observe(document, {
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["data-theme", "class"],
-      });
-
-    });
-
-    // Artificially delay client JS chunks by 300ms to guarantee an observable pre-hydration window
-    await page.route("**/_next/static/chunks/**", async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await route.continue();
-    });
-
-    // Navigate to homepage with domcontentloaded wait
-    const response = await page.goto("/", { waitUntil: "domcontentloaded" });
-    expect(response?.status()).toBe(200);
-
-    // At DOMContentLoaded (before delayed client chunks finish executing):
-    // documentElement must ALREADY be dark!
-    const preHydrationTheme = await page.evaluate(() => ({
-      dataTheme: document.documentElement.getAttribute("data-theme"),
-      hasDarkClass: document.documentElement.classList.contains("dark"),
-      history: (window as unknown as { themeHistory: any[] }).themeHistory,
-    }));
-
-    expect(preHydrationTheme.dataTheme).toBe("dark");
-    expect(preHydrationTheme.hasDarkClass).toBe(true);
-
-    // Wait for full hydration (theme toggle button interactive)
-    const toggleButton = page.getByRole("button", { name: "Toggle color theme", exact: true });
-    await expect(toggleButton).toBeVisible();
-    await expect(toggleButton).toHaveAttribute("aria-pressed", "true");
-
-    // Post-hydration assertions
-    const postHydrationState = await page.evaluate(() => ({
-      dataTheme: document.documentElement.getAttribute("data-theme"),
-      hasDarkClass: document.documentElement.classList.contains("dark"),
-      history: (window as unknown as { themeHistory: any[] }).themeHistory,
-      cspViolations: (window as unknown as { cspViolations: string[] }).cspViolations,
-    }));
-
-    expect(postHydrationState.dataTheme).toBe("dark");
-    expect(postHydrationState.hasDarkClass).toBe(true);
-    expect(postHydrationState.cspViolations).toEqual([]);
-    expect(pageErrors).toEqual([]);
-
-    // Verify that data-theme was NEVER reset to "light" at any point during or after hydration
-    for (const entry of postHydrationState.history) {
-      if (entry.theme !== null) {
-        expect(entry.theme).not.toBe("light");
-      }
-    }
-  });
-
-  test("stored light theme applies before first paint and stays light", async ({ page }) => {
-    await page.addInitScript(() => {
-      try {
-        window.localStorage.setItem("jnuits-theme", "light");
-      } catch {}
-    });
-
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-
-    const themeState = await page.evaluate(() => ({
-      dataTheme: document.documentElement.getAttribute("data-theme"),
-      hasDarkClass: document.documentElement.classList.contains("dark"),
-    }));
-
-    expect(themeState.dataTheme).toBe("light");
-    expect(themeState.hasDarkClass).toBe(false);
-
-    const toggleButton = page.getByRole("button", { name: "Toggle color theme", exact: true });
-    await expect(toggleButton).toHaveAttribute("aria-pressed", "false");
-  });
-
-  test("falls back to system dark theme before first paint when no preference is stored", async ({ page }) => {
-    await page.emulateMedia({ colorScheme: "dark" });
-    await page.addInitScript(() => {
-      try {
-        window.localStorage.clear();
-      } catch {}
-    });
-
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-
-    const themeState = await page.evaluate(() => ({
-      dataTheme: document.documentElement.getAttribute("data-theme"),
-      hasDarkClass: document.documentElement.classList.contains("dark"),
-    }));
-
-    expect(themeState.dataTheme).toBe("dark");
-    expect(themeState.hasDarkClass).toBe(true);
-
-    const toggleButton = page.getByRole("button", { name: "Toggle color theme", exact: true });
-    await expect(toggleButton).toHaveAttribute("aria-pressed", "true");
-  });
-
-  test("gracefully falls back to system theme when storage access is denied (throwing SecurityError)", async ({ page }) => {
-    await page.emulateMedia({ colorScheme: "dark" });
-    await page.addInitScript(() => {
+async function instrument(page: Page, preference: string | null, denied = false) {
+  await page.addInitScript(({ preference, denied }) => {
+    // Child about:blank frames can inherit storage; they must not reseed a
+    // visitor preference or reset instrumentation in the main document.
+    if (window !== window.top) return;
+    if (denied) {
       Object.defineProperty(window, "localStorage", {
-        get() {
-          throw new DOMException("The operation is insecure.", "SecurityError");
-        },
+        get() { throw new DOMException("Storage denied", "SecurityError"); },
         configurable: true,
       });
+    } else if (preference === null) {
+      localStorage.removeItem("jnuits-theme");
+    } else {
+      localStorage.setItem("jnuits-theme", preference);
+    }
+    const probe: ThemeProbe = window.themeProbe = {
+      frames: [], transitions: [], paints: [],
+      paintSupported: typeof PerformanceObserver !== "undefined" &&
+        PerformanceObserver.supportedEntryTypes.includes("paint"),
+      violations: [],
+    };
+    document.addEventListener("securitypolicyviolation", event => {
+      probe.violations.push(event.effectiveDirective + ":" + event.blockedURI);
     });
-
-    const pageErrors: string[] = [];
-    page.on("pageerror", (err) => pageErrors.push(err.message));
-
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-
-    // Should fall back to system dark
-    const themeState = await page.evaluate(() => ({
-      dataTheme: document.documentElement.getAttribute("data-theme"),
-      hasDarkClass: document.documentElement.classList.contains("dark"),
-    }));
-
-    expect(themeState.dataTheme).toBe("dark");
-    expect(themeState.hasDarkClass).toBe(true);
-
-    // Toggle button should still be clickable and function via in-memory state
-    const toggleButton = page.getByRole("button", { name: "Toggle color theme", exact: true });
-    await expect(toggleButton).toBeVisible();
-    await toggleButton.click();
-
-    expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
-    expect(await page.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(false);
-
-    // No unhandled page errors thrown
-    expect(pageErrors).toEqual([]);
-  });
-
-  test("interactive toggle switches theme, persists to storage, and survives client navigation", async ({ page }) => {
-    test.setTimeout(60000);
-    await page.addInitScript(() => {
-      try {
-        if (!window.localStorage.getItem("jnuits-theme")) {
-          window.localStorage.setItem("jnuits-theme", "light");
+    const contentVisible = () => {
+      const main = document.querySelector("main");
+      return Boolean(main && main.getBoundingClientRect().height > 0);
+    };
+    const frame = () => {
+      if (contentVisible()) {
+        probe.frames.push({
+          time: performance.now(),
+          theme: document.documentElement.getAttribute("data-theme"),
+          dark: document.documentElement.classList.contains("dark"),
+          background: getComputedStyle(document.body).backgroundColor,
+        });
+      }
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    new MutationObserver(records => {
+      if (!contentVisible()) return;
+      // oldValue retains intermediate values even when React changes an
+      // attribute twice in one task and observers see only the final DOM.
+      for (const record of records) {
+        if (record.attributeName === "data-theme") {
+          probe.transitions.push({
+            previous: record.oldValue,
+            current: document.documentElement.getAttribute("data-theme"),
+          });
         }
-      } catch {}
+      }
+    }).observe(document, {
+      subtree: true, attributes: true, attributeOldValue: true,
+      attributeFilter: ["data-theme"],
     });
+    if (probe.paintSupported) {
+      new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) {
+          probe.paints.push({ name: entry.name, time: entry.startTime });
+        }
+      }).observe({ type: "paint", buffered: true });
+    }
+  }, { preference, denied });
+}
 
-    await page.goto("/", { waitUntil: "domcontentloaded" });
+test("production head bootstrap and executable scripts share the strict response nonce", async ({ request }) => {
+  const response = await request.get("/", { headers: { accept: "text/html" } });
+  expect(response.status()).toBe(200);
+  const csp = response.headers()["content-security-policy"];
+  const nonce = csp?.match(/'nonce-([^']+)'/)?.[1];
+  expect(nonce).toBeTruthy();
+  const scripts = csp.split(";").find(value => value.trim().startsWith("script-src"));
+  expect(scripts).toContain("'strict-dynamic'");
+  expect(scripts).not.toMatch(/unsafe-inline|unsafe-eval/);
+  const html = await response.text();
+  const head = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i)?.[1];
+  expect(head).toContain('id="jnuits-theme-init"');
+  const bootstrap = head?.match(/<script([^>]*)id="jnuits-theme-init"([^>]*)>/)?.[0];
+  expect(bootstrap).toContain(`nonce="${nonce}"`);
+  for (const script of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    const type = script[1].match(/type=["']([^"']+)["']/i)?.[1];
+    if (!type || type === "text/javascript" || type === "module") {
+      expect(script[1]).toContain(`nonce="${nonce}"`);
+    }
+  }
+});
 
-    const toggleButton = page.getByRole("button", { name: "Toggle color theme", exact: true });
-    await expect(toggleButton).toHaveAttribute("aria-pressed", "false");
+const cases = [
+  { name: "stored dark overrides system light", preference: "dark", system: "light", expected: "dark" },
+  { name: "stored light overrides system dark", preference: "light", system: "dark", expected: "light" },
+  { name: "system dark without storage", preference: null, system: "dark", expected: "dark" },
+  { name: "system light without storage", preference: null, system: "light", expected: "light" },
+  { name: "invalid stored value uses system dark", preference: "invalid", system: "dark", expected: "dark" },
+  { name: "denied storage uses system dark", preference: null, system: "dark", expected: "dark", denied: true },
+] as const;
 
-    // Click toggle
-    await toggleButton.click();
-    await expect(toggleButton).toHaveAttribute("aria-pressed", "true");
-    expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
-    expect(await page.evaluate(() => window.localStorage.getItem("jnuits-theme"))).toBe("dark");
+for (const scenario of cases) {
+  test(`visible frames use ${scenario.name} while hydration is held and after release`, async ({ page, browserName }, testInfo) => {
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.emulateMedia({ colorScheme: scenario.system });
+    await instrument(page, scenario.preference, "denied" in scenario);
+    const chunks = await holdClientScripts(page);
+    let pre: ThemeProbe;
+    try {
+      const response = await page.goto("/", { waitUntil: "commit" });
+      expect(response?.status()).toBe(200);
+      await page.waitForFunction(() => window.themeProbe.frames.length >= 3);
+      await expect.poll(chunks.blocked).toBeGreaterThan(0);
+      pre = await page.evaluate(() => window.themeProbe);
+      expect(pre.frames.every(frame => frame.theme === scenario.expected &&
+        frame.dark === (scenario.expected === "dark"))).toBe(true);
+      if (pre.paintSupported && browserName === "chromium") {
+        await page.waitForFunction(() => window.themeProbe.paints.some(entry => entry.name === "first-contentful-paint"));
+        pre = await page.evaluate(() => window.themeProbe);
+      }
+      const fcp = pre.paints.find(entry => entry.name === "first-contentful-paint");
+      if (fcp) {
+        expect(pre.frames.some(frame => frame.time <= fcp.time)).toBe(true);
+      } else {
+        testInfo.annotations.push({ type: "paint-api-limitation",
+          description: pre.paintSupported
+            ? "Engine advertises Paint Timing but no FCP entry was observable while client scripts were held; retained visible frames and screenshot."
+            : "Paint Timing unavailable; retained visible frames and screenshot while client scripts were held." });
+      }
+      await testInfo.attach("before-hydration", { body: await captureHeldDocument(page), contentType: "image/png" });
+      await testInfo.attach("pre-hydration-frames", {
+        body: JSON.stringify({ blockedClientScripts: chunks.blocked(), ...pre }), contentType: "application/json",
+      });
+    } finally {
+      chunks.release();
+    }
+    await page.waitForLoadState("load");
+    const button = page.getByRole("button", { name: "Toggle color theme", exact: true });
+    await expect(button).toHaveAttribute("aria-pressed", String(scenario.expected === "dark"));
+    const post = await page.evaluate(() => window.themeProbe);
+    expect(post.frames.every(frame => frame.theme === scenario.expected &&
+      frame.dark === (scenario.expected === "dark"))).toBe(true);
+    expect(post.transitions.every(change => change.previous === scenario.expected &&
+      change.current === scenario.expected)).toBe(true);
+    expect(post.violations).toEqual([]);
+    expect(errors).toEqual([]);
+    await testInfo.attach("after-hydration", { body: await page.screenshot(), contentType: "image/png" });
+    await testInfo.attach("hydration-receipt", { body: JSON.stringify(post), contentType: "application/json" });
 
-    // Client navigate to /about
-    const menuButton = page.getByRole("button", { name: "Open navigation menu", exact: true });
-    const mobileMenu = await menuButton.isVisible();
-    if (mobileMenu) await menuButton.click();
-    const navigation = page.getByRole("navigation", {
-      name: mobileMenu ? "Mobile navigation" : "Primary navigation",
-      exact: true,
-    });
-    await navigation.locator('a[href="/about"]').click();
-    await expect(page).toHaveURL(/\/about/, { timeout: 20000 });
-
-    // Theme remains dark on client navigation
-    expect(await page.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("dark");
-    expect(await page.evaluate(() => document.documentElement.classList.contains("dark"))).toBe(true);
+    await button.click();
+    await expect(button).toHaveAttribute("aria-pressed", String(scenario.expected !== "dark"));
+    expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe(
+      scenario.expected === "dark" ? "light" : "dark");
+    expect(errors).toEqual([]);
   });
+}
+
+test("negative control exposes the server light theme when the bootstrap is removed", async ({ page, baseURL }) => {
+  await instrument(page, "dark");
+  const chunks = await holdClientScripts(page);
+  await page.route(new URL("/", baseURL).href, async route => {
+    const response = await route.fetch();
+    const body = await response.text();
+    const withoutBootstrap = body.replace(/<script[^>]*id="jnuits-theme-init"[^>]*>[\s\S]*?<\/script>/, "");
+    expect(withoutBootstrap).not.toBe(body);
+    await route.fulfill({ response, body: withoutBootstrap });
+  });
+  try {
+    await page.goto("/", { waitUntil: "commit" });
+    await page.waitForFunction(() => window.themeProbe.frames.length >= 3);
+    await expect.poll(chunks.blocked).toBeGreaterThan(0);
+    const probe = await page.evaluate(() => window.themeProbe);
+    expect(probe.frames.some(frame => frame.theme === "light" && !frame.dark)).toBe(true);
+  } finally {
+    chunks.release();
+  }
+});
+
+test("toggle persists across client navigation when writes succeed or throw", async ({ page }) => {
+  test.setTimeout(60000);
+  await instrument(page, "light");
+  await page.goto("/");
+  const button = page.getByRole("button", { name: "Toggle color theme", exact: true });
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+  expect(await page.evaluate(() => localStorage.getItem("jnuits-theme"))).toBe("dark");
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => { throw new DOMException("Quota exceeded", "QuotaExceededError"); };
+  });
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "false");
+  expect(await page.evaluate(() => localStorage.getItem("jnuits-theme"))).toBe("dark");
+  await page.evaluate(() => { window.themeNavigationMarker = true; });
+  const menu = page.getByRole("button", { name: "Open navigation menu", exact: true });
+  const mobile = await menu.isVisible();
+  if (mobile) await menu.click();
+  await page.getByRole("navigation", { name: mobile ? "Mobile navigation" : "Primary navigation", exact: true })
+    .locator('a[href="/about"]').click();
+  await expect(page).toHaveURL(/\/about/);
+  expect(await page.evaluate(() => window.themeNavigationMarker)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe("light");
+  await expect(page.getByRole("button", { name: "Toggle color theme", exact: true })).toHaveAttribute("aria-pressed", "false");
 });

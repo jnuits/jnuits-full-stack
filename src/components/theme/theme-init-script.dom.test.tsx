@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import { THEME_INIT_SCRIPT, ThemeInitScript } from "./theme-init-script";
@@ -10,9 +10,10 @@ describe("ThemeInitScript and inline execution logic", () => {
     window.localStorage.clear();
   });
 
+  afterEach(() => { vi.restoreAllMocks(); });
+
   function executeThemeScript() {
     // Execute the exact string injected into <head>
-    // eslint-disable-next-line no-eval
     window.eval(THEME_INIT_SCRIPT);
   }
 
@@ -25,7 +26,7 @@ describe("ThemeInitScript and inline execution logic", () => {
     expect(script?.innerHTML).toContain("data-theme");
   });
 
-  it("proves the pre-fix failing state (light flash) when script is absent, and 0ms fix when script executes", () => {
+  it("changes the server light default synchronously when stored preference is dark", () => {
     // Stored preference is dark
     window.localStorage.setItem("jnuits-theme", "dark");
 
@@ -45,7 +46,7 @@ describe("ThemeInitScript and inline execution logic", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
   });
 
-  it("applies stored 'dark' preference to documentElement before first paint", () => {
+  it("applies stored 'dark' preference to documentElement synchronously", () => {
     window.localStorage.setItem("jnuits-theme", "dark");
     executeThemeScript();
 
@@ -54,7 +55,7 @@ describe("ThemeInitScript and inline execution logic", () => {
   });
 
 
-  it("applies stored 'light' preference to documentElement before first paint", () => {
+  it("applies stored 'light' preference to documentElement synchronously", () => {
     window.localStorage.setItem("jnuits-theme", "light");
     executeThemeScript();
 
@@ -88,7 +89,7 @@ describe("ThemeInitScript and inline execution logic", () => {
   });
 
   it("falls back to system theme when storage reads throw (e.g. storage denied)", () => {
-    vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("SecurityError: Access to Storage is denied");
     });
     window.matchMedia = vi.fn().mockReturnValue({ matches: true });
