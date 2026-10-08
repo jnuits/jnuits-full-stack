@@ -2,54 +2,93 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-const STORAGE_KEY = "jnuits-theme";
-const THEME_CHANGE_EVENT = "jnuits-theme-change";
+export const STORAGE_KEY = "jnuits-theme";
+export const THEME_CHANGE_EVENT = "jnuits-theme-change";
 
-type Theme = "light" | "dark";
+export type Theme = "light" | "dark";
 
-function resolveTheme(): Theme {
+let inMemoryThemeOverride: Theme | null = null;
+
+export function resolveTheme(): Theme {
   if (typeof window === "undefined") {
     return "light";
   }
 
-  const savedTheme = window.localStorage.getItem(STORAGE_KEY);
+  if (inMemoryThemeOverride === "light" || inMemoryThemeOverride === "dark") {
+    return inMemoryThemeOverride;
+  }
+
+  let savedTheme: string | null = null;
+  try {
+    savedTheme = window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    savedTheme = null;
+  }
 
   if (savedTheme === "light" || savedTheme === "dark") {
     return savedTheme;
   }
 
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  try {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  } catch {
+    return "light";
+  }
 }
 
-function getServerThemeSnapshot(): Theme {
+export function getServerThemeSnapshot(): Theme {
   return "light";
 }
 
-function subscribeToTheme(callback: () => void) {
+export function subscribeToTheme(callback: () => void) {
   if (typeof window === "undefined") {
     return () => {};
   }
 
   const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY || event.key === null) {
+      inMemoryThemeOverride = null;
+      callback();
+    }
+  };
+
+  const handleSystemChange = () => {
+    callback();
+  };
+
   window.addEventListener(THEME_CHANGE_EVENT, callback);
-  window.addEventListener("storage", callback);
-  mediaQuery.addEventListener("change", callback);
+  window.addEventListener("storage", handleStorage);
+  if (typeof mediaQuery.addEventListener === "function") {
+    mediaQuery.addEventListener("change", handleSystemChange);
+  } else if (typeof (mediaQuery as { addListener?: (fn: () => void) => void }).addListener === "function") {
+    (mediaQuery as { addListener: (fn: () => void) => void }).addListener(handleSystemChange);
+  }
 
   return () => {
     window.removeEventListener(THEME_CHANGE_EVENT, callback);
-    window.removeEventListener("storage", callback);
-    mediaQuery.removeEventListener("change", callback);
+    window.removeEventListener("storage", handleStorage);
+    if (typeof mediaQuery.removeEventListener === "function") {
+      mediaQuery.removeEventListener("change", handleSystemChange);
+    } else if (typeof (mediaQuery as { removeListener?: (fn: () => void) => void }).removeListener === "function") {
+      (mediaQuery as { removeListener: (fn: () => void) => void }).removeListener(handleSystemChange);
+    }
   };
 }
 
-function announceThemeChange() {
-  window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+export function announceThemeChange() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+  }
 }
 
-function applyTheme(theme: Theme) {
+export function applyTheme(theme: Theme) {
+  if (typeof document === "undefined") {
+    return;
+  }
   const root = document.documentElement;
   root.classList.toggle("dark", theme === "dark");
   root.dataset.theme = theme;
@@ -113,7 +152,12 @@ export function ThemeToggle() {
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
-    window.localStorage.setItem(STORAGE_KEY, nextTheme);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, nextTheme);
+      inMemoryThemeOverride = null;
+    } catch {
+      inMemoryThemeOverride = nextTheme;
+    }
     applyTheme(nextTheme);
     announceThemeChange();
   }

@@ -8,6 +8,7 @@ import {
 } from "next/font/google";
 import { brandProfile } from "@/lib/branding";
 import { NonceProvider } from "@/components/security/nonce-provider";
+import { ThemeInitScript } from "@/components/theme/theme-init-script";
 import "./globals.css";
 
 const bodyFont = Inter({
@@ -61,6 +62,9 @@ export default async function RootLayout({
       data-scroll-behavior="smooth"
       className={`${bodyFont.variable} ${monoFont.variable} ${serifFont.variable} ${bengaliFont.variable} h-full antialiased`}
     >
+      <head>
+        <ThemeInitScript nonce={nonce} />
+      </head>
       <body
         suppressHydrationWarning
         className="min-h-full bg-background text-foreground flex flex-col"
