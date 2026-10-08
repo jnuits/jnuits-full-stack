@@ -261,5 +261,3 @@ describe("Theme resolution and ThemeToggle component", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
   });
 });
-
-
