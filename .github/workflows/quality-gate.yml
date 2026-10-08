@@ -386,10 +386,22 @@ jobs:
       - name: Chromium, Firefox and WebKit release smoke
         env:
           PLAYWRIGHT_RELEASE_SMOKE: "1"
+          PLAYWRIGHT_JSON_OUTPUT_NAME: artifacts/reports/release-smoke.json
           JNUITS_PUBLIC_BROWSER_FIXTURES: "1"
           JNUITS_CONTENT_BROWSER_FIXTURES: "1"
           NODE_OPTIONS: --import=./e2e/fixtures/public-database.mjs
-        run: npx playwright test e2e/smoke.spec.ts e2e/nonce-csp.spec.ts e2e/telemetry-fixture.spec.ts
+        run: npx playwright test e2e/smoke.spec.ts e2e/nonce-csp.spec.ts e2e/telemetry-fixture.spec.ts e2e/theme-first-paint.spec.ts --reporter=github,json
+
+      - name: Upload release smoke evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-smoke-evidence
+          path: |
+            artifacts/reports/release-smoke.json
+            test-results/playwright/theme-first-paint-*
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload Playwright traces
         if: failure()
