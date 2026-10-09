@@ -31,6 +31,10 @@ test.beforeEach(async ({ context, page, baseURL }) => {
   });
 });
 
+function expectNoBlockedScripts(violations: string[]) {
+  expect(violations.filter(value => value.startsWith("enforce:script-src"))).toEqual([]);
+}
+
 test.afterEach(async ({ page }, info) => {
   const violations = await page.evaluate(() =>
     (window as unknown as { documentCspViolations?: string[] }).documentCspViolations ?? []
@@ -39,7 +43,7 @@ test.afterEach(async ({ page }, info) => {
   await info.attach("document-csp-violations", { body: JSON.stringify(violations), contentType: "application/json" });
   // Cloudflare can sample report-only monitoring policies; retain their events
   // as diagnostics. Enforced application/edge script blocking must still fail.
-  expect(violations.filter(value => value.startsWith("enforce:script-src"))).toEqual([]);
+  expectNoBlockedScripts(violations);
 });
 
 function trackErrors(page: Page) {
@@ -260,11 +264,14 @@ test("CSP diagnostics distinguish reporting from blocked execution", async ({ pa
   await page.goto(fixtureOrigin + "/report");
   expect(await scriptRan()).toBe(true);
   await expect.poll(diagnostics).toContain("report:script-src-elem:inline");
+  expectNoBlockedScripts(await diagnostics());
   await info.attach("fixture-report-only-csp", { body: JSON.stringify(await diagnostics()), contentType: "application/json" });
 
   await page.goto(fixtureOrigin + "/enforce");
   expect(await scriptRan()).toBe(false);
   await expect.poll(diagnostics).toContain("enforce:script-src-elem:inline");
+  const blocked = await diagnostics();
+  expect(() => expectNoBlockedScripts(blocked)).toThrow();
   await info.attach("fixture-enforced-csp", { body: JSON.stringify(await diagnostics()), contentType: "application/json" });
   // This controlled negative fixture intentionally blocks a script. A fresh
   // document restores the ordinary release guard after preserving its evidence.
