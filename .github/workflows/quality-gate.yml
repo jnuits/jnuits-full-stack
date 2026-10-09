@@ -333,6 +333,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
+      SENTRY_RELEASE: ${{ github.sha }}
+      PUBLIC_SMOKE_EXPECTED_SHA: ${{ github.sha }}
       APP_BASE_URL: https://jnuits.org.bd
       APP_MAC_SECRET: ci-placeholder-application-mac-secret-000000000000
       AUTH_CAPTCHA_REQUIRED: "true"
@@ -390,7 +392,7 @@ jobs:
           JNUITS_PUBLIC_BROWSER_FIXTURES: "1"
           JNUITS_CONTENT_BROWSER_FIXTURES: "1"
           NODE_OPTIONS: --import=./e2e/fixtures/public-database.mjs
-        run: npx playwright test e2e/smoke.spec.ts e2e/nonce-csp.spec.ts e2e/telemetry-fixture.spec.ts e2e/theme-first-paint.spec.ts --reporter=github,json
+        run: npx playwright test e2e/smoke.spec.ts e2e/nonce-csp.spec.ts e2e/telemetry-fixture.spec.ts e2e/theme-first-paint.spec.ts e2e/public-interactivity.spec.ts --reporter=github,json
 
       - name: Upload release smoke evidence
         if: always()

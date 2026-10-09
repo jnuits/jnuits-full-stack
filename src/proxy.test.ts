@@ -9,7 +9,7 @@ vi.mock("@supabase/ssr",()=>({createServerClient:(_url: string,_key: string,opti
 import { proxy } from "./proxy";
 function request(path="/",extra:Record<string,string>={}) {return new NextRequest("https://example.test"+path,{headers:{accept:"text/html","x-nonce":"attacker-nonce","content-security-policy":"script-src * 'unsafe-inline'",...extra}});}
 function forwarded(response:Response,key:string){return response.headers.get("x-middleware-request-"+key);}
-beforeEach(()=>{mocks.refresh=false;vi.stubEnv("NODE_ENV","production");});
+beforeEach(()=>{mocks.refresh=false;vi.stubEnv("NODE_ENV","production");vi.stubEnv("NEXT_PUBLIC_SENTRY_RELEASE", "");});
 describe("document CSP",()=>{
   it("overwrites spoofed headers with a matching nonce and production CSP",async()=>{
     const response=await proxy(request());const nonce=forwarded(response,"x-nonce");const csp=response.headers.get("content-security-policy")!;
@@ -17,7 +17,20 @@ describe("document CSP",()=>{
     expect(forwarded(response,"content-security-policy")).toBe(csp);expect(csp).toContain("'nonce-"+nonce+"'");
     const scripts=csp.split(";").find(value=>value.trim().startsWith("script-src"))!;
     expect(scripts).toContain("'strict-dynamic'");expect(scripts).not.toMatch(/unsafe-inline|unsafe-eval/);
-    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("cache-control")).toBe("private, no-store, no-transform");
+  });
+  it("prevents intermediaries from transforming nonced document scripts", async () => {
+    const response = await proxy(request("/certificates"));
+    expect(response.headers.get("cache-control")?.split(",").map(value => value.trim())).toContain("no-transform");
+  });
+  it("identifies the built Git revision without trusting request headers", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SENTRY_RELEASE", "a".repeat(40));
+    const response = await proxy(request("/", { "x-jnuits-release": "b".repeat(40) }));
+    expect(response.headers.get("x-jnuits-release")).toBe("a".repeat(40));
+  });
+  it("does not expose a custom non-SHA Sentry release value", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SENTRY_RELEASE", "custom-private-release-label");
+    expect((await proxy(request())).headers.get("x-jnuits-release")).toBeNull();
   });
   it("protects HTML detail slugs containing a dot",async()=>{
     const response=await proxy(request("/projects/release.v2"));expect(response.headers.get("content-security-policy")).toContain("strict-dynamic");

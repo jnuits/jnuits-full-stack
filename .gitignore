@@ -24,7 +24,8 @@
 admin-snapshots/
 /artifacts/portal-snapshots/
 /portal-snapshots/
-/artifacts/frontend-audit-evidence/
+/artifacts/frontend-audit-evidence*/
+/artifacts/theme-first-paint-evidence/
 
 # next.js
 /.next/
