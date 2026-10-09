@@ -203,6 +203,7 @@ export function NewsletterSubscribeForm({ siteKey: siteKeyProp }: NewsletterSubs
             name="captchaToken"
             onTokenChange={setCaptchaToken}
             siteKey={siteKey}
+            theme="dark"
           />
         </div>
       ) : null}

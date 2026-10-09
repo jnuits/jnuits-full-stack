@@ -217,3 +217,21 @@ for (const workspace of ["admin", "portal"]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("footer newsletter reserves standard CAPTCHA width without horizontal overflow", async ({ page }) => {
+  const errors = trackErrors(page);
+  await expectDocument(await page.goto("/certificates"));
+  const newsletter = page.locator("footer .site-footer-newsletter");
+  for (const width of [320, 640, 768, 1024, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await newsletter.scrollIntoViewIfNeeded();
+    await expect.poll(() => newsletter.evaluate(element => element.getBoundingClientRect().width),
+      { message: `The ${width}px footer must fit a 300px horizontal challenge` }
+    ).toBeGreaterThanOrEqual(300);
+    const bounds = await newsletter.boundingBox();
+    expect(bounds?.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  expect(errors).toEqual([]);
+});

@@ -9,6 +9,7 @@ import {
   resetTurnstileWidget,
   type TurnstileApi,
   type TurnstileWidgetSize,
+  type TurnstileWidgetTheme,
 } from "@/lib/security/turnstile-client";
 
 type TurnstileFieldProps = {
@@ -24,6 +25,7 @@ type TurnstileFieldProps = {
    */
   onTokenChange?: (token: string) => void;
   siteKey: string;
+  theme?: TurnstileWidgetTheme;
 };
 
 declare global {
@@ -36,7 +38,7 @@ function resolveWidgetSize(width: number): TurnstileWidgetSize {
   return width > 0 && width < 300 ? "compact" : "flexible";
 }
 
-export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }: TurnstileFieldProps) {
+export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey, theme = "auto" }: TurnstileFieldProps) {
   const nonce = useNonce();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
@@ -90,10 +92,11 @@ export function TurnstileField({ name = "captchaToken", onTokenChange, siteKey }
       onSuccess: setToken,
       size: nextSize,
       siteKey,
+      theme,
       turnstile: window.turnstile,
     });
     widgetSizeRef.current = nextSize;
-  }, [siteKey]);
+  }, [siteKey, theme]);
 
   useEffect(() => {
     renderWidget();
