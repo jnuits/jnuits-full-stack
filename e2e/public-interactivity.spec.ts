@@ -25,7 +25,8 @@ test.beforeEach(async ({ context, page, baseURL }) => {
     const observed = window as unknown as { documentCspViolations: string[] };
     observed.documentCspViolations = [];
     document.addEventListener("securitypolicyviolation", event => {
-      observed.documentCspViolations.push(event.effectiveDirective + ":" + event.blockedURI);
+      const disposition = event.disposition === "report" ? "report" : "enforce";
+      observed.documentCspViolations.push(disposition + ":" + event.effectiveDirective + ":" + event.blockedURI);
     });
   });
 });
@@ -36,9 +37,9 @@ test.afterEach(async ({ page }, info) => {
   ).catch(() => []);
   await info.attach("provider-frame-diagnostics", { body: JSON.stringify(providerDiagnostics.get(page) ?? []), contentType: "application/json" });
   await info.attach("document-csp-violations", { body: JSON.stringify(violations), contentType: "application/json" });
-  // Optional Vercel Toolbar frame violations are retained as evidence. Blocking
-  // application or edge-injected scripts must always fail the release check.
-  expect(violations.filter(value => value.startsWith("script-src"))).toEqual([]);
+  // Cloudflare can sample report-only monitoring policies; retain their events
+  // as diagnostics. Enforced application/edge script blocking must still fail.
+  expect(violations.filter(value => value.startsWith("enforce:script-src"))).toEqual([]);
 });
 
 function trackErrors(page: Page) {
@@ -234,4 +235,38 @@ test("footer newsletter reserves standard CAPTCHA width without horizontal overf
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
   expect(errors).toEqual([]);
+});
+
+test("CSP diagnostics distinguish reporting from blocked execution", async ({ page }, info) => {
+  const fixtureOrigin = "https://csp-fixture.invalid";
+  await page.route(fixtureOrigin + "/**", route => {
+    const reporting = new URL(route.request().url()).pathname === "/report";
+    return route.fulfill({
+      body: "<!doctype html><title>CSP fixture</title><script>window.cspDiagnosticScriptRan=true;</script>",
+      headers: {
+        "content-type": "text/html",
+        [reporting ? "content-security-policy-report-only" : "content-security-policy"]: "script-src 'none'",
+      },
+      status: 200,
+    });
+  });
+  const diagnostics = () => page.evaluate(() =>
+    (window as unknown as { documentCspViolations: string[] }).documentCspViolations
+  );
+  const scriptRan = () => page.evaluate(() =>
+    (window as unknown as { cspDiagnosticScriptRan?: boolean }).cspDiagnosticScriptRan === true
+  );
+
+  await page.goto(fixtureOrigin + "/report");
+  expect(await scriptRan()).toBe(true);
+  await expect.poll(diagnostics).toContain("report:script-src-elem:inline");
+  await info.attach("fixture-report-only-csp", { body: JSON.stringify(await diagnostics()), contentType: "application/json" });
+
+  await page.goto(fixtureOrigin + "/enforce");
+  expect(await scriptRan()).toBe(false);
+  await expect.poll(diagnostics).toContain("enforce:script-src-elem:inline");
+  await info.attach("fixture-enforced-csp", { body: JSON.stringify(await diagnostics()), contentType: "application/json" });
+  // This controlled negative fixture intentionally blocks a script. A fresh
+  // document restores the ordinary release guard after preserving its evidence.
+  await page.goto("about:blank");
 });
