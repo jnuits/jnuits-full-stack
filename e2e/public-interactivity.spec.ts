@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Response } from "@playwright/test";
+import { installFixtureTelemetry } from "./fixtures/telemetry";
 
 const providerDiagnostics = new WeakMap<Page, string[]>();
 
@@ -17,6 +18,9 @@ test.beforeEach(async ({ context, page, baseURL }) => {
     }
     await route.continue();
   });
+  // Only the exact dummy DSN on loopback gets a telemetry transport fixture.
+  // Actual production requests and application exceptions are never replaced.
+  await installFixtureTelemetry(context, { baseURL, dsn: process.env.NEXT_PUBLIC_SENTRY_DSN });
   await page.addInitScript(() => {
     const observed = window as unknown as { documentCspViolations: string[] };
     observed.documentCspViolations = [];
