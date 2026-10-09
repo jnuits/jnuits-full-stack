@@ -1,0 +1,66 @@
+name: Production Browser Smoke
+
+# No rebuild, application credentials, database access, or business submissions.
+# The public domain includes DNS/CDN changes that local CI cannot exercise.
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-browser-smoke
+  cancel-in-progress: true
+
+jobs:
+  public-interactions:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production' &&
+       github.event.deployment.creator.login == 'vercel[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_BASE_URL: https://jnuits.org.bd
+      PLAYWRIGHT_RELEASE_SMOKE: "1"
+      PLAYWRIGHT_JSON_OUTPUT_NAME: artifacts/reports/production-browser-smoke.json
+      PUBLIC_SMOKE_EXPECTED_SHA: ${{ github.event.deployment.sha || github.sha }}
+    steps:
+      - name: Require trusted manual ref
+        if: github.event_name == 'workflow_dispatch'
+        run: test "$GITHUB_REF" = "refs/heads/main"
+
+      # Run reviewed test code from main, not an event-supplied checkout or URL.
+      # The response release header separately identifies the served build.
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.14.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install browser engines
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Verify public production interactions
+        run: npx playwright test e2e/public-interactivity.spec.ts --reporter=github,json
+
+      - name: Upload production browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: production-browser-smoke-evidence
+          path: |
+            artifacts/reports/production-browser-smoke.json
+            test-results/playwright
+          if-no-files-found: warn
+          retention-days: 14

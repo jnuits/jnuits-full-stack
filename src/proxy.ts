@@ -25,8 +25,15 @@ export async function proxy(request: NextRequest) {
   const response = await updateSession(request, headers);
   if (csp) {
     response.headers.set("Content-Security-Policy", csp);
-    // Nonced HTML must not be shared or reused across document requests.
-    response.headers.set("Cache-Control", "private, no-store");
+    // Nonced HTML must not be cached or rewritten by an intermediary.
+    // Rocket Loader rewrites framework scripts and breaks strict-CSP hydration.
+    response.headers.set("Cache-Control", "private, no-store, no-transform");
+    // Next config embeds this public release at build time, so the domain smoke
+    // check can detect a stale deployment rather than trusting an event URL.
+    const release = process.env.NEXT_PUBLIC_SENTRY_RELEASE;
+    if (release && /^[a-f0-9]{40}$/i.test(release)) {
+      response.headers.set("X-JnUITS-Release", release);
+    }
   }
   return response;
 }
