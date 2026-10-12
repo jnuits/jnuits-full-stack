@@ -1,0 +1,19 @@
+# Scan first-party code, configuration, scripts and tests.
+# Ignore generated output, dependencies and private local configuration.
+.git/
+node_modules/
+.next/
+out/
+build/
+coverage/
+artifacts/
+test-results/
+playwright-report/
+.playwright-cli/
+.playwright-mcp/
+.superpowers/
+.agents/
+.vercel/
+.replay-scratch/
+.env*
+*.pem
