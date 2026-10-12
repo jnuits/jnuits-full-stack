@@ -1,7 +1,12 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+
+// Server-rendered filters stay inert until React can capture their first edit.
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 type GalleryArchiveFiltersProps = {
   categories: string[];
@@ -45,6 +50,11 @@ export function GalleryArchiveFilters({
   year,
   years,
 }: GalleryArchiveFiltersProps) {
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot
+  );
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -93,11 +103,12 @@ export function GalleryArchiveFilters({
   }, []);
 
   return (
-    <section className="gallery-filter-panel">
+    <section aria-busy={!hydrated || isPending} className="gallery-filter-panel">
       <div className="gallery-filter-panel__grid">
         <label className="input-label">
           Search albums
           <input
+            disabled={!hydrated}
             name="q"
             onChange={(event) => updateQuery(event.target.value)}
             placeholder="Search by event, caption, category, or year"
@@ -107,6 +118,7 @@ export function GalleryArchiveFilters({
         <label className="input-label">
           Year
           <select
+            disabled={!hydrated}
             name="year"
             onChange={(event) => updateFilter("year", event.target.value)}
             value={year}
@@ -122,6 +134,7 @@ export function GalleryArchiveFilters({
         <label className="input-label">
           Category
           <select
+            disabled={!hydrated}
             name="category"
             onChange={(event) => updateFilter("category", event.target.value)}
             value={category}
@@ -135,7 +148,7 @@ export function GalleryArchiveFilters({
           </select>
         </label>
         <div className="gallery-filter-panel__status" aria-live="polite">
-          {isPending ? "Updating archive..." : "Auto-filtering"}
+          {!hydrated ? "Loading filters..." : isPending ? "Updating archive..." : "Auto-filtering"}
         </div>
       </div>
     </section>
