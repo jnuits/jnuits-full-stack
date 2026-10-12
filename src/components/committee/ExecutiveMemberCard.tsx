@@ -169,9 +169,9 @@ export function ExecutiveMemberCard({
         aria-haspopup="dialog"
         aria-label={`View profile of ${assignment.displayName}, ${assignment.roleTitle}`}
         className={cn(
-          "group relative flex h-full w-full cursor-pointer select-none flex-col justify-between rounded-2xl border border-border bg-card transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+          "group relative flex h-full w-full cursor-pointer select-none flex-col justify-between rounded-2xl border border-border/80 bg-card transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg dark:border-border/60 dark:hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           featured
-            ? "border-primary/30 bg-gradient-to-b from-primary/[0.04] to-card p-5 sm:p-6 shadow-sm"
+            ? "border-primary/30 bg-gradient-to-b from-primary/[0.04] to-card p-5 sm:p-6 shadow-sm dark:border-primary/40"
             : "p-4 sm:p-5"
         )}
         onClick={openProfile}
@@ -185,8 +185,8 @@ export function ExecutiveMemberCard({
         <div>
           <p
             className={cn(
-              "mb-3 font-bold uppercase tracking-widest text-primary/70",
-              featured ? "text-[11px]" : "text-[10px]"
+              "line-clamp-2 font-semibold text-primary/80",
+              featured ? "mb-3 text-sm" : "mb-2 text-[13px]"
             )}
           >
             {assignment.roleTitle}
@@ -209,31 +209,31 @@ export function ExecutiveMemberCard({
             />
           </div>
 
-          <p
+          <h3
             className={cn(
-              "line-clamp-2 font-bold leading-tight text-foreground",
-              featured ? "text-base sm:text-lg" : "text-sm sm:text-base"
+              "font-semibold leading-snug text-foreground [text-wrap:pretty] break-words",
+              featured ? "text-lg sm:text-xl" : "text-base"
             )}
           >
             {assignment.displayName || "Unlinked member"}
-          </p>
+          </h3>
           {assignment.jnuitsId ? (
-            <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/60">
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
               {assignment.jnuitsId}
             </p>
           ) : null}
           {assignment.departmentName ? (
-            <p className="mt-1 truncate text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground [text-wrap:pretty]">
               {assignment.departmentName}
             </p>
           ) : null}
         </div>
 
-        <div className="mt-3 flex translate-y-1 items-center gap-1 border-t border-border/50 pt-3 opacity-100 transition-all duration-200 group-hover:translate-y-0 sm:opacity-0 sm:group-hover:opacity-100">
-          <span className="text-[11px] font-medium text-primary">
+        <div className="mt-3 flex translate-y-1 items-center gap-1 border-t border-border/50 pt-3 opacity-100 transition-all duration-200 group-hover:translate-y-0 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+          <span className="text-xs font-medium text-primary">
             View profile
           </span>
-          <ArrowRight aria-hidden="true" className="text-primary" size={11} />
+          <ArrowRight aria-hidden="true" className="text-primary" size={12} />
         </div>
       </article>
 
@@ -347,7 +347,7 @@ function MemberPreviewContent({
           src={assignment.avatarUrl}
         />
         <div className="min-w-0 flex-1 pt-0.5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">
+          <p className="text-xs font-semibold text-primary/80 line-clamp-2">
             {assignment.roleTitle}
           </p>
           <p className="mt-0.5 text-base font-bold leading-tight text-foreground">
@@ -437,7 +437,7 @@ function ProfilePreviewContent({
             </div>
 
             <div className="min-w-0 flex-1 pt-1">
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-primary/70">
+              <p className="mb-1 text-xs font-semibold text-primary/80">
                 {assignment.roleTitle}
               </p>
               <h3 className="text-xl font-bold leading-tight" id={titleId}>
