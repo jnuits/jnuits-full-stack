@@ -46,14 +46,13 @@ export function CommitteeHero({
             JnU IT Society Leadership
           </span>
 
-          <h1 className="mx-auto max-w-4xl text-5xl font-extrabold leading-[1.05] tracking-[-0.03em] text-foreground sm:text-6xl md:text-7xl">
-            Executive <br className="sm:hidden" />
-            Committee & Advisors
+          <h1 className="mx-auto max-w-5xl text-4xl font-extrabold leading-[1.08] tracking-[-0.03em] text-foreground [text-wrap:balance] sm:text-5xl md:text-6xl lg:text-7xl">
+            Executive Committee & Advisors
           </h1>
 
-          <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            Public leadership archive for JnU IT Society, separating
-            member-linked executive rosters from teacher advisor profiles.
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground [text-wrap:pretty] sm:text-xl">
+            Meet the elected students who lead JnU IT Society and the faculty
+            advisors who guide them.
           </p>
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -87,7 +86,7 @@ export function CommitteeHero({
               value={seatValue}
             />
             <HeroStat label="Current advisors" value={currentAdvisors} />
-            <HeroStat label="Archive terms" value={archivedTerms} last />
+            <HeroStat label="Committee terms" value={archivedTerms} last />
           </div>
         </div>
       </div>
