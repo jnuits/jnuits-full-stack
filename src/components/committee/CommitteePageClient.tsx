@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { AdvisorBoardSection } from "@/components/committee/AdvisorBoardSection";
-import { CommitteeDivider } from "@/components/committee/CommitteeDivider";
 import { CommitteeHero } from "@/components/committee/CommitteeHero";
 import { CommitteeTermSwitcher } from "@/components/committee/CommitteeTermSwitcher";
 import { FormerAdvisorsSection } from "@/components/committee/FormerAdvisorsSection";
@@ -32,10 +31,15 @@ export function CommitteePageClient({
 
   const handleAdvisorHistoryClick = () => {
     setFormerAdvisorsOpen(true);
+    const behavior: ScrollBehavior =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth";
     window.setTimeout(() => {
       document
         .getElementById("former-advisors")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        ?.scrollIntoView({ behavior, block: "start" });
     }, 50);
   };
 
@@ -48,26 +52,21 @@ export function CommitteePageClient({
         onAdvisorHistoryClick={handleAdvisorHistoryClick}
       />
 
-      <div className="shell">
-        <CommitteeDivider />
+      <div className="shell space-y-16 sm:space-y-20 md:space-y-24 pb-16 sm:pb-24">
         <CommitteeTermSwitcher
           assignmentsByTerm={assignmentsByTerm}
           defaultTermSlug={currentTerm?.slug || executiveTerms[0]?.slug || ""}
           terms={executiveTerms}
         />
 
-        <CommitteeDivider />
         <AdvisorBoardSection advisors={advisors} />
 
         {formerAdvisorsCount > 0 ? (
-          <>
-            <CommitteeDivider />
-            <FormerAdvisorsSection
-              advisors={advisors}
-              onOpenChange={setFormerAdvisorsOpen}
-              open={formerAdvisorsOpen}
-            />
-          </>
+          <FormerAdvisorsSection
+            advisors={advisors}
+            onOpenChange={setFormerAdvisorsOpen}
+            open={formerAdvisorsOpen}
+          />
         ) : null}
       </div>
     </>

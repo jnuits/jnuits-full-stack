@@ -349,6 +349,12 @@ docker_run exec "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c \
   "drop table if exists public._jnuits_replay_expectations;"
 
+docker_run cp \
+  "$(to_native "$repo_root/supabase/verification/assert-committee-speech.sql")" \
+  "$db_container:/tmp/jnuits-replay/assert-committee-speech.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
+  -f /tmp/jnuits-replay/assert-committee-speech.sql
+
 # Only these read-only CLI operations may retry a registry pull failure. Never
 # retry migration application or SQL assertions, and never publish partial types.
 run_local_read_with_pull_retry() {

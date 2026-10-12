@@ -52,7 +52,7 @@ jobs:
         run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Verify public production interactions
-        run: npx playwright test e2e/public-interactivity.spec.ts --reporter=github,json
+        run: npx playwright test e2e/public-interactivity.spec.ts e2e/committee.spec.ts --reporter=github,json
 
       - name: Upload production browser evidence
         if: always()

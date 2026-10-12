@@ -155,6 +155,7 @@ export function NewsletterSubscribeForm({ siteKey: siteKeyProp }: NewsletterSubs
         placeholder="you@example.com"
         ref={emailInputRef}
         required
+        suppressHydrationWarning
         type="email"
         value={email}
       />

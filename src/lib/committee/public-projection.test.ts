@@ -423,3 +423,22 @@ describe("public committee projection", () => {
     expect(projectPublicCommitteeDirectory(input).currentTerm?.termNumber).toBe(6);
   });
 });
+
+describe("public committee quotes", () => {
+  it("projects a published leadership quote without exposing internal notes", () => {
+    const input=makeInput();
+    input.assignments=input.assignments.map(row => ({ ...row, speech: row.id === "assignment-president" ? "Lead with care." : null, bio: "PRIVATE operator notes" }));
+    const publicRow=projectPublicCommitteeDirectory(input).currentTerm?.assignments.find(row => row.id === "assignment-president");
+    expect(publicRow).toHaveProperty("speech", "Lead with care.");
+    expect(publicRow).not.toHaveProperty("bio");
+    input.assignments=input.assignments.map(row => ({...row, is_public: false}));
+    expect(JSON.stringify(projectPublicCommitteeDirectory(input))).not.toContain("Lead with care.");
+  });
+  it("exposes an advisor's intentionally published speech and hides private advisors", () => {
+    const input=makeInput();
+    input.advisors=[{ advisor_jnuits_id:null, advisor_type:"main_advisor", avatar_secure_url:null, bio:"Profile biography", date_confidence:"verified", department:"University office", designation:"Vice-Chancellor", facebook_url:null, former_title:null, full_name:"Synthetic advisor", id:"advisor-1", is_current:true, is_public:true, jnu_profile_url:null, joined_on:null, left_on:null, linkedin_url:null, sort_order:0, speech:"Welcome to JnUITS.", status_note:null, tenure_display:null, title:null, website_url:null }];
+    expect(projectPublicCommitteeDirectory(input).advisors[0]).toMatchObject({speech:"Welcome to JnUITS.",sortOrder:0,department:"University office"});
+    input.advisors[0]!.is_public=false;
+    expect(projectPublicCommitteeDirectory(input).advisors).toEqual([]);
+  });
+});

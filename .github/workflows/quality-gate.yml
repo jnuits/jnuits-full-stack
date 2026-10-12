@@ -391,8 +391,9 @@ jobs:
           PLAYWRIGHT_JSON_OUTPUT_NAME: artifacts/reports/release-smoke.json
           JNUITS_PUBLIC_BROWSER_FIXTURES: "1"
           JNUITS_CONTENT_BROWSER_FIXTURES: "1"
+          JNUITS_COMMITTEE_BROWSER_FIXTURES: "1"
           NODE_OPTIONS: --import=./e2e/fixtures/public-database.mjs
-        run: npx playwright test e2e/smoke.spec.ts e2e/nonce-csp.spec.ts e2e/telemetry-fixture.spec.ts e2e/theme-first-paint.spec.ts e2e/public-interactivity.spec.ts --reporter=github,json
+        run: npx playwright test e2e/smoke.spec.ts e2e/nonce-csp.spec.ts e2e/telemetry-fixture.spec.ts e2e/theme-first-paint.spec.ts e2e/public-interactivity.spec.ts e2e/committee.spec.ts --reporter=github,json
 
       - name: Upload release smoke evidence
         if: always()
@@ -402,6 +403,7 @@ jobs:
           path: |
             artifacts/reports/release-smoke.json
             test-results/playwright/theme-first-paint-*
+            test-results/playwright/committee-*
           if-no-files-found: warn
           retention-days: 14
 

@@ -8,6 +8,7 @@ import { getSafeAdminActionErrorMessage } from "@/lib/admin/action-error";
 import { setAdminFlash } from "@/lib/admin/flash";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { revalidatePublicCommitteeProjection } from "@/lib/committee/revalidation";
+import { COMMITTEE_SPEECH_MAX_LENGTH, isCommitteeSpokespersonRole } from "@/lib/committee/speech";
 import { committeeTermPositionInputSchema } from "@/lib/committee/term-positions";
 import {
   normalizeAdvisorJnuitsId,
@@ -75,6 +76,7 @@ const committeeTermSchema = z.object({
 const committeeAssignmentSchema = z
   .object({
     assignmentId: z.string().trim().max(80).optional().default(""),
+    speech: z.string().trim().max(COMMITTEE_SPEECH_MAX_LENGTH).optional().nullable(),
     bio: z.string().trim().max(2500).optional().default(""),
     displayName: z.string().trim().max(180).optional().default(""),
     endsOn: z.string().trim().max(40).optional().default(""),
@@ -728,6 +730,7 @@ export async function saveCommitteeAssignment(formData: FormData) {
       "memberId",
       "publicTitleOverride",
       "roleId",
+      "speech",
       "sortOrder",
       "startsOn",
       "status",
@@ -755,6 +758,7 @@ export async function saveCommitteeAssignment(formData: FormData) {
     memberId,
     publicTitleOverride,
     roleId,
+    speech,
     sortOrder,
     startsOn,
     status,
@@ -807,7 +811,15 @@ export async function saveCommitteeAssignment(formData: FormData) {
     redirect("/admin/committee");
   }
 
+  if (speech && !isCommitteeSpokespersonRole(role.code)) {
+    await setAdminFlash({ tone: "error", title: "Committee assignment not saved", message: "Speech is available only for President and General Secretary." });
+    redirect("/admin/committee");
+  }
+
   const payload = {
+    ...((formData.has("speech") || !isCommitteeSpokespersonRole(role.code))
+      ? { speech: speech || null }
+      : {}),
     bio: bio || null,
     created_by_user_id: actorUserId,
     display_name: displayName || null,
@@ -1135,6 +1147,28 @@ export async function saveAdvisorProfile(formData: FormData) {
     title: advisorId ? "Advisor profile updated" : "Advisor profile created",
     message: `${fullName} is now saved in the advisor board.`,
   });
+  redirect("/admin/committee");
+}
+
+export async function archiveAdvisorProfile(formData: FormData) {
+  const actorUserId = await requireCommitteeAdmin();
+  const advisorId = asString(formData.get("advisorId"));
+  if (!z.uuid().safeParse(advisorId).success) {
+    await setAdminFlash({ tone: "error", title: "Advisor not archived", message: "Select a valid advisor profile." });
+    redirect("/admin/committee");
+  }
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("advisor_profiles")
+    .update({ is_current: false, is_public: false }).eq("id", advisorId)
+    .select("id, full_name").single();
+  if (error || !data) {
+    await setAdminFlash({ tone: "error", title: "Advisor not archived", message: safeCommitteeError(error, "archiveAdvisorProfile", "Unable to archive this advisor.") });
+    redirect("/admin/committee");
+  }
+  await admin.from("audit_events").insert({ actor_user_id: actorUserId, action: "committee.advisor_archived", entity_type: "advisor_profile", entity_id: data.id, metadata: { isCurrent: false, isPublic: false } });
+  revalidatePath("/admin/committee");
+  revalidatePublicCommitteeProjection();
+  await setAdminFlash({ tone: "success", title: "Advisor archived", message: "The advisor is removed from public board and history. Their profile and portal account are preserved. Edit visibility to restore publication." });
   redirect("/admin/committee");
 }
 

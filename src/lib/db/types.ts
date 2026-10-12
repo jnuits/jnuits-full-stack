@@ -739,6 +739,7 @@ export type Database = {
           rollover_source_assignment_id: string | null
           sort_order: number
           source: string
+          speech: string | null
           starts_on: string | null
           status: string
           term_id: string
@@ -760,6 +761,7 @@ export type Database = {
           rollover_source_assignment_id?: string | null
           sort_order?: number
           source?: string
+          speech?: string | null
           starts_on?: string | null
           status?: string
           term_id: string
@@ -781,6 +783,7 @@ export type Database = {
           rollover_source_assignment_id?: string | null
           sort_order?: number
           source?: string
+          speech?: string | null
           starts_on?: string | null
           status?: string
           term_id?: string
@@ -4282,6 +4285,10 @@ export type Database = {
         Args: { p_operation: string; p_payload: Json; p_proof: string }
         Returns: Json
       }
+      apply_member_self_profile_update: {
+        Args: { p_patch: Json; p_user_id: string }
+        Returns: Json
+      }
       approve_alumni_onboarding_case: {
         Args: {
           p_actor_user_id: string
@@ -4333,6 +4340,10 @@ export type Database = {
       can_manage_support_ticket: {
         Args: { target_ticket_id: string }
         Returns: boolean
+      }
+      cancel_member_workplace_update: {
+        Args: { p_request_id: string; p_user_id: string }
+        Returns: Json
       }
       check_in_event_registration: {
         Args: {
@@ -4690,6 +4701,15 @@ export type Database = {
           p_confirmation?: string
           p_expected_revision: number
           p_note?: string
+        }
+        Returns: Json
+      }
+      review_member_profile_update: {
+        Args: {
+          p_actor_user_id: string
+          p_decision: string
+          p_request_id: string
+          p_review_note?: string
         }
         Returns: Json
       }

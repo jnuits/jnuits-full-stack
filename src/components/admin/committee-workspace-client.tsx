@@ -29,11 +29,13 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { CommitteeLeadershipSpeechField } from "./committee-leadership-speech-field";
 import { Fragment, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type MouseEvent, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
   bulkUpdateCommitteeAssignments,
+  archiveAdvisorProfile,
   linkAdvisorAuthUser,
   removeCommitteeAssignment,
   saveAdvisorProfile,
@@ -92,6 +94,7 @@ export type CommitteeRoleClientRecord = {
 };
 
 export type CommitteeAssignmentClientRecord = {
+  speech: null | string;
   bio: null | string;
   displayName: null | string;
   email: null | string;
@@ -1634,6 +1637,7 @@ function AssignmentForm({
           <span className="text-xs normal-case tracking-normal text-muted-foreground">Term is set by the roster context. Change term from the roster section header.</span>
         </Field>
 
+        <CommitteeLeadershipSpeechField roleCode={selectedRole?.code} speech={assignment?.speech || null} />
         <MicroLabel>Status & Visibility</MicroLabel>
         <div className="grid gap-3 sm:grid-cols-2">
           <SwitchField
@@ -1682,7 +1686,7 @@ function AssignmentForm({
           <div className="grid gap-4 rounded-xl border border-border bg-muted/20 p-4 md:grid-cols-2">
             <Field>
               Display order
-              <PanelInput name="sortOrder" defaultValue={assignment?.sortOrder || 100} min={0} type="number" />
+              <PanelInput name="sortOrder" defaultValue={assignment?.sortOrder ?? 100} min={0} type="number" />
               <span className="text-xs normal-case tracking-normal text-muted-foreground">Lower numbers appear first within the same role group.</span>
             </Field>
             <div />
@@ -1701,7 +1705,7 @@ function AssignmentForm({
           </div>
         ) : (
           <>
-            <input name="sortOrder" type="hidden" value={assignment?.sortOrder || 100} />
+            <input name="sortOrder" type="hidden" value={assignment?.sortOrder ?? 100} />
             <input name="startsOn" type="hidden" value={assignment?.startsOn || ""} />
             <input name="endsOn" type="hidden" value={assignment?.endsOn || ""} />
             <input name="bio" type="hidden" value={assignment?.bio || ""} />
@@ -1728,7 +1732,9 @@ function AdvisorForm({
   const [avatarUrl, setAvatarUrl] = useState(advisor?.avatarSecureUrl || "");
   const [joinedOn, setJoinedOn] = useState(advisor?.joinedOn || "");
   const [leftOn, setLeftOn] = useState(advisor?.leftOn || "");
-  const computedTenure = advisor?.tenureDisplay || computeTenureDisplay(joinedOn, leftOn);
+  const datesUnchanged = joinedOn === (advisor?.joinedOn || "") && leftOn === (advisor?.leftOn || "");
+  const computedTenure = (datesUnchanged && advisor?.tenureDisplay) || computeTenureDisplay(joinedOn, leftOn);
+  const [confirmArchive, setConfirmArchive] = useState(false);
   const linkFormId = advisor ? `advisor-link-${advisor.id}` : "advisor-link-new";
   const avatarToneClass =
     advisorType === "main_advisor"
@@ -1911,7 +1917,7 @@ function AdvisorForm({
               <SwitchField defaultChecked={advisor?.isPublic ?? true} name="isPublic" offLabel="Hidden from public" onLabel="Public profile" />
               <Field>
                 Display order
-                <PanelInput name="sortOrder" defaultValue={advisor?.sortOrder || 100} min={0} type="number" />
+                <PanelInput name="sortOrder" defaultValue={advisor?.sortOrder ?? 100} min={0} type="number" />
                 <span className="text-xs normal-case tracking-normal text-muted-foreground">Lower numbers appear first.</span>
               </Field>
               <Field className="md:col-span-2">
@@ -2008,6 +2014,20 @@ function AdvisorForm({
           <GhostButton onClick={onCancel} type="button">Cancel</GhostButton>
         </div>
       </form>
+      {advisor ? (
+        <div className="border-t border-border px-5 py-4">
+          {confirmArchive ? (
+            <form action={archiveAdvisorProfile} className="space-y-3">
+              <input name="advisorId" type="hidden" value={advisor.id} />
+              <p className="text-sm text-muted-foreground">Remove this advisor from the public board and history? The profile and portal account will be preserved. Edit visibility to restore publication.</p>
+              <div className="flex flex-wrap gap-3">
+                <GhostSubmitButton>Confirm archive</GhostSubmitButton>
+                <GhostButton type="button" onClick={() => setConfirmArchive(false)}>Keep advisor</GhostButton>
+              </div>
+            </form>
+          ) : <GhostButton type="button" onClick={() => setConfirmArchive(true)}>Archive advisor</GhostButton>}
+        </div>
+      ) : null}
     </div>
   );
 }

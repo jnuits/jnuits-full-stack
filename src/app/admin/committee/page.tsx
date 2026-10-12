@@ -54,6 +54,7 @@ type RoleRecord = {
 };
 
 type AssignmentRecord = {
+  speech?: null | string;
   bio: null | string;
   committee_roles?: RoleRecord | RoleRecord[] | null;
   committee_terms?: { title?: null | string } | { title?: null | string }[] | null;
@@ -206,7 +207,7 @@ async function loadAssignments(
   const extended = await flexibleAdmin
     .from("committee_assignments" as string)
     .select(
-      "id, term_id, role_id, member_id, display_name, public_title_override, bio, sort_order, starts_on, ends_on, status, is_public, committee_roles(id, code, title, title_bn, role_group), committee_terms(title), members(full_name, jnuits_id, email, lifecycle_status, member_type)"
+      "id, term_id, role_id, member_id, display_name, public_title_override, bio, speech, sort_order, starts_on, ends_on, status, is_public, committee_roles(id, code, title, title_bn, role_group), committee_terms(title), members(full_name, jnuits_id, email, lifecycle_status, member_type)"
     )
     .in("term_id", termIds)
     .order("sort_order", { ascending: true });
@@ -311,6 +312,7 @@ function mapAssignment(assignment: AssignmentRecord): CommitteeAssignmentClientR
 
   return {
     bio: assignment.bio || null,
+    speech: assignment.speech || null,
     displayName: assignment.display_name || null,
     email: member?.email || null,
     endsOn: assignment.ends_on || null,
@@ -375,7 +377,7 @@ function mapAdvisor(advisor: AdvisorRecord): AdvisorProfileClientRecord {
     linkedinUrl: advisor.linkedin_url || null,
     phone: advisor.phone || null,
     publications: asStringList(advisor.publications),
-    sortOrder: advisor.sort_order || 100,
+    sortOrder: advisor.sort_order ?? 100,
     speech: advisor.speech || null,
     statusNote: advisor.status_note || null,
     tenureDisplay: advisor.tenure_display || null,
