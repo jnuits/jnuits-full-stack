@@ -25,10 +25,12 @@ test("committee keyboard tabs, advisor history and member dialog remain reachabl
   await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(card).toBeFocused();
 });
+// Each viewport retains the standard 30-second limit. Grouping three full
+// page loads and Axe audits made populated production data exceed one budget.
 for(const theme of ["light","dark"] as const){
-  test("committee quote rendering and responsive layout in "+theme,async({page}, info)=>{
-    await page.addInitScript(value=>localStorage.setItem("jnuits-theme",value),theme);
-    for(const width of [360,768,1280]){
+  for(const width of [360,768,1280]){
+    test("committee quote rendering and responsive layout in "+theme+" at "+width,async({page}, info)=>{
+      await page.addInitScript(value=>localStorage.setItem("jnuits-theme",value),theme);
       await page.setViewportSize({width,height:900}); await page.goto("/committee");
       await expect(page.locator("html")).toHaveAttribute("data-theme",theme);
       if (process.env.JNUITS_COMMITTEE_BROWSER_FIXTURES === "1") {
@@ -46,6 +48,6 @@ for(const theme of ["light","dark"] as const){
       });
       expect(violations).toEqual([]);
       await info.attach("committee-" + theme + "-" + width, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
-    }
-  });
+    });
+  }
 }
