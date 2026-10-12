@@ -169,10 +169,10 @@ export function ExecutiveMemberCard({
         aria-haspopup="dialog"
         aria-label={`View profile of ${assignment.displayName}, ${assignment.roleTitle}`}
         className={cn(
-          "group relative flex h-full w-full cursor-pointer select-none flex-col justify-between rounded-2xl border border-border/80 bg-card transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg dark:border-border/60 dark:hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          "group relative flex h-full w-full cursor-pointer select-none rounded-2xl border border-border/80 bg-card transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg dark:border-border/60 dark:hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           featured
-            ? "border-primary/30 bg-gradient-to-b from-primary/[0.04] to-card p-5 sm:p-6 shadow-sm dark:border-primary/40"
-            : "p-4 sm:p-5"
+            ? "flex-col sm:flex-row sm:items-center sm:justify-between border-primary/30 bg-gradient-to-r from-primary/[0.05] via-card to-card p-5 sm:p-6 shadow-sm dark:border-primary/40 gap-4"
+            : "flex-col justify-between p-4 sm:p-5"
         )}
         onClick={openProfile}
         onKeyDown={handleKeyDown}
@@ -182,20 +182,11 @@ export function ExecutiveMemberCard({
         role="button"
         tabIndex={0}
       >
-        <div>
-          <p
-            className={cn(
-              "line-clamp-2 font-semibold text-primary dark:text-primary",
-              featured ? "mb-3 text-sm" : "mb-2 text-[13px]"
-            )}
-          >
-            {assignment.roleTitle}
-          </p>
-
+        <div className={cn(featured ? "flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 min-w-0 flex-1" : "")}>
           <div
             className={cn(
-              "relative mb-3",
-              featured ? "size-16 sm:size-20" : "size-14"
+              "relative flex-shrink-0",
+              featured ? "size-16 sm:size-20" : "size-14 mb-3"
             )}
           >
             <MemberAvatarImage
@@ -209,31 +200,48 @@ export function ExecutiveMemberCard({
             />
           </div>
 
-          <h3
-            className={cn(
-              "font-semibold leading-snug text-foreground [text-wrap:pretty] break-words",
-              featured ? "text-lg sm:text-xl" : "text-base"
-            )}
-          >
-            {assignment.displayName || "Unlinked member"}
-          </h3>
-          {assignment.jnuitsId ? (
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {assignment.jnuitsId}
+          <div className="min-w-0 flex-1">
+            <p
+              className={cn(
+                "line-clamp-2 font-semibold text-primary dark:text-primary",
+                featured ? "mb-1 text-xs uppercase tracking-wider font-bold" : "mb-2 text-[13px]"
+              )}
+            >
+              {assignment.roleTitle}
             </p>
-          ) : null}
-          {assignment.departmentName ? (
-            <p className="mt-1 text-xs text-muted-foreground [text-wrap:pretty]">
-              {assignment.departmentName}
-            </p>
-          ) : null}
+            <h3
+              className={cn(
+                "font-bold leading-snug text-foreground [text-wrap:pretty] break-words",
+                featured ? "text-xl sm:text-2xl" : "text-base font-semibold"
+              )}
+            >
+              {assignment.displayName || "Unlinked member"}
+            </h3>
+            {assignment.jnuitsId ? (
+              <p className="mt-1 font-mono text-xs text-muted-foreground">
+                {assignment.jnuitsId}
+              </p>
+            ) : null}
+            {assignment.departmentName ? (
+              <p className="mt-1 text-xs text-muted-foreground [text-wrap:pretty]">
+                {assignment.departmentName}
+              </p>
+            ) : null}
+          </div>
         </div>
 
-        <div className="mt-3 flex translate-y-1 items-center gap-1 border-t border-border/50 pt-3 opacity-100 transition-all duration-200 group-hover:translate-y-0 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-          <span className="text-xs font-medium text-primary">
+        <div
+          className={cn(
+            "flex items-center gap-1.5 transition-all duration-200",
+            featured
+              ? "mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-border/50 flex-shrink-0"
+              : "mt-3 translate-y-1 border-t border-border/50 pt-3 opacity-100 group-hover:translate-y-0 group-focus-visible:translate-y-0 sm:opacity-0 sm:group-hover:opacity-100"
+          )}
+        >
+          <span className="text-xs font-semibold text-primary">
             View profile
           </span>
-          <ArrowRight aria-hidden="true" className="text-primary" size={12} />
+          <ArrowRight aria-hidden="true" className="text-primary transition-transform group-hover:translate-x-0.5" size={13} />
         </div>
       </div>
 

@@ -363,7 +363,7 @@ function TermRosterGrid({
               className={cn(
                 "flex motion-safe:animate-[jnuits-fade-rise_300ms_var(--motion-ease)_both]",
                 row.isFeatured
-                  ? "w-full max-w-sm sm:max-w-md justify-center"
+                  ? "w-full"
                   : "w-full sm:w-[calc((100%_-_1.5rem)/2)] lg:w-[calc((100%_-_3rem)/3)] max-w-sm"
               )}
               key={assignment.id}
