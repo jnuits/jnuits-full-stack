@@ -76,6 +76,8 @@ export function CommitteeTermSwitcher({
     const nextTerm = terms[nextIndex];
     if (nextTerm) {
       setActiveTermSlug(nextTerm.slug);
+      const nextTab = event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex];
+      nextTab?.focus({ preventScroll: true });
     }
   };
 

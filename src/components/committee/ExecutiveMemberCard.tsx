@@ -48,11 +48,7 @@ export function ExecutiveMemberCard({
   speech?: string | null;
   termTitle: string;
 }) {
-  const speech =
-    speechProp ??
-    (assignment as { bio?: string | null; speech?: string | null }).speech ??
-    (assignment as { bio?: string | null; speech?: string | null }).bio ??
-    null;
+  const speech = speechProp ?? assignment.speech;
   const cardRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -72,6 +68,7 @@ export function ExecutiveMemberCard({
   useEffect(() => {
     if (!profileOpen) return;
 
+    const trigger = cardRef.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
@@ -109,6 +106,7 @@ export function ExecutiveMemberCard({
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
     };
   }, [profileOpen]);
 

@@ -39,13 +39,13 @@ const PUBLIC_COMMITTEE_TERM_SELECT =
 const PUBLIC_COMMITTEE_POSITION_SELECT =
   "id, term_id, role_id, public_label, public_label_bn, role_group, priority, is_public, min_slots, max_slots, target_slots";
 const PUBLIC_COMMITTEE_ASSIGNMENT_SELECT =
-  "id, term_id, role_id, member_id, display_name, sort_order, status, is_public, public_title_override";
+  "id, term_id, role_id, member_id, display_name, speech, sort_order, status, is_public, public_title_override";
 const PUBLIC_COMMITTEE_ROLE_SELECT = "id, code";
 const PUBLIC_COMMITTEE_MEMBER_SELECT =
   "id, jnuits_id, full_name, department_code, avatar_secure_url, facebook_url, linkedin_url, website_url";
 const PUBLIC_COMMITTEE_DEPARTMENT_SELECT = "code, name";
 const PUBLIC_COMMITTEE_ADVISOR_SELECT =
-  "id, advisor_jnuits_id, advisor_type, full_name, title, former_title, department, designation, avatar_secure_url, bio, facebook_url, linkedin_url, website_url, jnu_profile_url, joined_on, left_on, tenure_display, date_confidence, status_note, is_current, is_public, sort_order";
+  "id, advisor_jnuits_id, advisor_type, full_name, title, former_title, department, designation, avatar_secure_url, bio, speech, facebook_url, linkedin_url, website_url, jnu_profile_url, joined_on, left_on, tenure_display, date_confidence, status_note, is_current, is_public, sort_order";
 
 type SupabasePageResult<T> = {
   data: T[] | null;

@@ -12,6 +12,7 @@ export type PublicCommitteeAssignment = {
   roleId: string;
   roleTitle: string;
   roleTitleBn: string | null;
+  speech: string | null;
   sortOrder: number;
   websiteUrl: string | null;
 };
@@ -51,6 +52,7 @@ export type PublicAdvisorProfile = {
   joinedOn: string | null;
   leftOn: string | null;
   linkedinUrl: string | null;
+  speech: string | null;
   sortOrder: number;
   statusNote: string | null;
   tenureDisplay: string | null;

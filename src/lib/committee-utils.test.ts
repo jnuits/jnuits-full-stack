@@ -28,6 +28,7 @@ function assignment(
     roleId: `role-${positionId}`,
     roleTitle,
     roleTitleBn: null,
+    speech: null,
     sortOrder: 1,
     websiteUrl: null,
   };

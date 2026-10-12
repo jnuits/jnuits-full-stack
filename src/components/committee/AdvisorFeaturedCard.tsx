@@ -63,8 +63,8 @@ export function AdvisorFeaturedCard({
   const style = TONE[tone];
   const displayName = formatAdvisorDisplayName(advisor);
   const tenure = formatAdvisorTenure(advisor);
-  const safeBio =
-    advisor.bio && !isInternalNote(advisor.bio) ? advisor.bio : null;
+  const quote = advisor.speech?.trim() || advisor.bio;
+  const safeBio = quote && !isInternalNote(quote) ? quote : null;
   const safeNote =
     advisor.statusNote && !isInternalNote(advisor.statusNote)
       ? advisor.statusNote

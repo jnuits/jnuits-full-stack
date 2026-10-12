@@ -1,3 +1,4 @@
+import { isCommitteeSpokespersonRole } from "./speech";
 import type { Tables } from "@/lib/db/types";
 import {
   formatAdvisorJnuitsIdForDisplay,
@@ -58,7 +59,7 @@ export type PublicCommitteeProjectionAssignmentRow = Pick<
   | "sort_order"
   | "status"
   | "term_id"
->;
+> & { speech?: string | null };
 
 export type PublicCommitteeProjectionRoleRow = Pick<
   Tables<"committee_roles">,
@@ -106,7 +107,7 @@ export type PublicCommitteeProjectionAdvisorRow = Pick<
   | "tenure_display"
   | "title"
   | "website_url"
->;
+> & { speech?: string | null };
 
 export type PublicCommitteeProjectionInput = {
   advisors: readonly PublicCommitteeProjectionAdvisorRow[];
@@ -145,6 +146,7 @@ function mapAdvisors(
         advisorType: asAdvisorType(advisor.advisor_type),
         avatarUrl: advisor.avatar_secure_url,
         bio: advisor.bio,
+        speech: advisor.speech?.trim() || null,
         dateConfidence:
           advisor.date_confidence === "estimated" ? "estimated" : "verified",
         department: advisor.department,
@@ -326,6 +328,7 @@ export function projectPublicCommitteeDirectory(
           roleTitle:
             assignment.public_title_override?.trim() || position.public_label,
           roleTitleBn: position.public_label_bn,
+          speech: isCommitteeSpokespersonRole(role.code) ? assignment.speech?.trim() || null : null,
           sortOrder: assignment.sort_order,
           websiteUrl: member?.website_url ?? null,
         } satisfies PublicCommitteeAssignment;

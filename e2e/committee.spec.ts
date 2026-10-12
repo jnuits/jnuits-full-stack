@@ -1,63 +1,51 @@
 import { expect, test } from "@playwright/test";
-
-test.describe("committee page interactive behaviors", () => {
-  test("renders hero, term switcher, advisors, and handles interactions", async ({
-    page,
-  }) => {
-    await page.goto("/committee", { waitUntil: "domcontentloaded" });
-
-    // Verify main landmarks
-    await expect(page.locator("h1")).toContainText(
-      /Executive.*Committee & Advisors/i
-    );
-
-    // Verify hero action buttons exist
-    const currentBtn = page.getByRole("button", { name: "Current Committee" });
-    const advisorBtn = page.getByRole("button", { name: "Advisor Board" });
-    const historyBtn = page.getByRole("button", {
-      name: "Advisor History",
-      exact: true,
-    });
-    await expect(currentBtn).toBeVisible();
-    await expect(advisorBtn).toBeVisible();
-    await expect(historyBtn).toBeVisible();
-
-    // Verify Advisor History expands disclosure
-    await historyBtn.click();
-    const formerSection = page.locator("#former-advisors");
-    await expect(formerSection).toBeVisible();
-
-    // Verify term switching
-    const termButtons = page.locator("#current-committee button, .committee-page button").filter({
-      hasText: /^\d+(st|nd|rd|th)/,
-    });
-    const termCount = await termButtons.count();
-    expect(termCount).toBeGreaterThan(0);
-
-    // If 5th term button exists, click it and ensure active state updates
-    const fifthPill = termButtons.filter({ hasText: /^5th/ });
-    if ((await fifthPill.count()) > 0) {
-      await fifthPill.first().click();
-      await expect(fifthPill.first()).toHaveAttribute("aria-selected", "true");
-    }
-
-    // Switch back to 7th term
-    const seventhPill = termButtons.filter({ hasText: /^7th/ });
-    if ((await seventhPill.count()) > 0) {
-      await seventhPill.first().click();
-      await expect(seventhPill.first()).toHaveAttribute("aria-selected", "true");
-
-      // Verify member cards exist in 7th term
-      const memberCards = page.locator("[role='button'][aria-haspopup='dialog']");
-      const cardCount = await memberCards.count();
-      if (cardCount > 0) {
-        const firstCard = memberCards.first();
-        await firstCard.click();
-        const dialog = page.locator("div[role='dialog']");
-        await expect(dialog).toBeVisible();
-        await page.keyboard.press("Escape");
-        await expect(dialog).not.toBeVisible();
-      }
-    }
+import axe from "axe-core";
+test.beforeEach(async({context, baseURL})=>{
+  await context.route("**/*", async route=>{
+    const request=route.request();
+    if(!["GET","HEAD","OPTIONS"].includes(request.method()) && new URL(request.url()).origin === new URL(baseURL!).origin && new URL(request.url()).pathname!=="/monitoring") { await route.abort(); throw new Error("Committee smoke must remain read-only"); }
+    await route.continue();
   });
 });
+test("committee keyboard tabs, advisor history and member dialog remain reachable",async({page})=>{
+  await page.goto("/committee");
+  await expect(page.getByRole("heading",{level:1})).toContainText(/Executive.*Committee & Advisors/i);
+  await expect(page.getByRole("main")).toHaveCount(1);
+  const tabs=page.getByRole("tablist",{name:"Committee terms"});
+  const first=tabs.getByRole("tab").first();
+  await first.focus(); await page.keyboard.press("End");
+  const last=tabs.getByRole("tab").last();
+  await expect(last).toBeFocused(); await expect(last).toHaveAttribute("aria-selected","true");
+  await page.keyboard.press("Home"); await expect(first).toHaveAttribute("aria-selected","true");
+  await page.getByRole("button",{name:"Advisor History",exact:true}).click();
+  await expect(page.locator("#former-advisors")).toBeVisible();
+  const card=page.locator('[role="button"][aria-haspopup="dialog"]').first();
+  await card.focus(); await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(card).toBeFocused();
+});
+for(const theme of ["light","dark"] as const){
+  test("committee quote rendering and responsive layout in "+theme,async({page}, info)=>{
+    await page.addInitScript(value=>localStorage.setItem("jnuits-theme",value),theme);
+    for(const width of [360,768,1280]){
+      await page.setViewportSize({width,height:900}); await page.goto("/committee");
+      await expect(page.locator("html")).toHaveAttribute("data-theme",theme);
+      if (process.env.JNUITS_COMMITTEE_BROWSER_FIXTURES === "1") {
+        await expect(page.locator("#current-committee blockquote").first()).toBeVisible();
+      }
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+        await Promise.all(document.getAnimations().filter(animation => animation.effect?.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})));
+      });
+      await page.evaluate(axe.source);
+      const violations = await page.evaluate(async () => {
+        const engine = (window as unknown as { axe: typeof axe }).axe;
+        return (await engine.run(document.querySelector("main")!, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } })).violations;
+      });
+      expect(violations).toEqual([]);
+      await info.attach("committee-" + theme + "-" + width, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+    }
+  });
+}
