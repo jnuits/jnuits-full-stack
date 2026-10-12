@@ -184,6 +184,37 @@ test("theme toggle and newsletter input remain interactive without submitting", 
 });
 
 
+test("gallery filters wait for scripts before accepting the first search", async ({ context, page, baseURL }) => {
+  const errors = trackErrors(page);
+  let releaseScripts!: () => void;
+  const scriptsReady = new Promise<void>(resolve => { releaseScripts = resolve; });
+  let heldScripts = 0;
+  await context.route(url => url.origin === new URL(baseURL!).origin &&
+    url.pathname.startsWith("/_next/static/") && url.pathname.endsWith(".js"), async route => {
+    heldScripts++;
+    await scriptsReady;
+    await route.continue();
+  });
+  const search = page.getByRole("textbox", { name: "Search albums", exact: true });
+  try {
+    const response = await page.goto("/gallery", { waitUntil: "commit" });
+    expect(response?.status()).toBe(200);
+    await expect(search).toBeVisible();
+    await expect(search).toBeDisabled();
+    await expect(page.getByRole("combobox", { name: "Year", exact: true })).toBeDisabled();
+    await expect(page.getByRole("combobox", { name: "Category", exact: true })).toBeDisabled();
+    expect(heldScripts).toBeGreaterThan(0);
+  } finally {
+    releaseScripts();
+  }
+  await expect(search).toBeEnabled();
+  await search.fill("smoke-first-search");
+  await expect(page).toHaveURL(/q=smoke-first-search/);
+  await expect(search).toHaveValue("smoke-first-search");
+  await expect(page.locator(".gallery-filter-panel__status")).toHaveText("Auto-filtering");
+  expect(errors).toEqual([]);
+});
+
 test("gallery search updates its route and settles the archive", async ({ page }) => {
   const errors = trackErrors(page);
   await expectDocument(await page.goto("/gallery"));
