@@ -246,7 +246,7 @@ async function createInvitationMember(
       lifecycle_status: isAlumniInvite ? "alumni" : "current",
       member_type: isAlumniInvite ? "alumni" : "current",
       portal_access_status: "active",
-      professional_visibility: "members-only",
+      professional_visibility: "public",
     })
     .select(MEMBER_INVITATION_SELECT)
     .single();

@@ -195,7 +195,7 @@ export function normalizeProfessionalVisibility(value) {
     return normalized;
   }
 
-  return "members-only";
+  return normalized ? "members-only" : "public";
 }
 
 export function normalizeJnuitsId(value) {
@@ -347,6 +347,7 @@ export function normalizeMemberRow(record) {
     maxUses: normalizePositiveInt(record.maxUses),
     memberType: normalizeMemberType(record.memberType),
     phone: clean(record.phone) || null,
+    professionalVisibilityProvided: Boolean(clean(record.professionalVisibility)),
     professionalVisibility: normalizeProfessionalVisibility(
       record.professionalVisibility
     ),

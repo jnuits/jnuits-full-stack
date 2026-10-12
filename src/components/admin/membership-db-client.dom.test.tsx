@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ComponentProps } from "react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { updateMemberProfileAction } from "@/app/admin/membership/profile-actions";
 import { MembershipDbClient, type ManagedMemberClientRecord } from "./membership-db-client";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
@@ -88,5 +89,64 @@ describe("cycle-free membership workspace", () => {
     expect(screen.getByLabelText("Bulk review note")).toHaveValue("Synthetic reviewed eligibility.");
     expect(screen.getByText("1 selected")).toBeInTheDocument();
     expect(screen.getByText(/selection changed.*close/i)).toBeInTheDocument();
+  });
+});
+
+
+describe("member editor and committee titles", () => {
+  beforeEach(() => {
+    vi.stubGlobal("IntersectionObserver", class { observe() {} disconnect() {} });
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+  it("opens an accessible editor for the selected member and restores focus on close", async () => {
+    const user = userEvent.setup();
+    renderMembership();
+    const trigger = screen.getByRole("button", { name: "Edit Fictional Member" });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: /edit fictional member/i });
+    expect(within(dialog).getByLabelText("Full name")).toHaveValue("Fictional Member");
+    await user.click(within(dialog).getByRole("button", { name: "Close member editor" }));
+    expect(screen.queryByRole("dialog", { name: /edit fictional member/i })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+  it("protects unsaved edits on close and Escape until discarded", async () => {
+    const user = userEvent.setup();
+    renderMembership();
+    await user.click(screen.getByRole("button", { name: "Edit Fictional Member" }));
+    const editor = within(screen.getByRole("dialog", { name: /edit fictional member/i }));
+    await user.clear(editor.getByLabelText("Full name"));
+    await user.type(editor.getByLabelText("Full name"), "Changed fictional name");
+    await user.click(screen.getByRole("button", { name: "Close member editor" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(within(screen.getByRole("dialog", { name: /edit fictional member/i })).getByLabelText("Full name")).toHaveValue("Changed fictional name");
+    fireEvent(screen.getByRole("dialog", { name: /edit fictional member/i }), new Event("cancel", { cancelable: true }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+  it("keeps an account draft after a profile save and blocks closing during the save", async () => {
+    const user = userEvent.setup();
+    let resolveSave!: (value: Awaited<ReturnType<typeof updateMemberProfileAction>>) => void;
+    vi.mocked(updateMemberProfileAction).mockReturnValue(new Promise((resolve) => { resolveSave = resolve; }));
+    renderMembership();
+    await user.click(screen.getByRole("button", { name: "Edit Fictional Member" }));
+    const editor = within(screen.getByRole("dialog", { name: /edit fictional member/i }));
+    await user.selectOptions(editor.getByLabelText("Lifecycle"), "alumni");
+    await user.clear(editor.getByLabelText("Full name"));
+    await user.type(editor.getByLabelText("Full name"), "Canonical fictional name");
+    await user.click(editor.getByRole("button", { name: "Save profile" }));
+    expect(editor.getByRole("button", { name: "Close member editor" })).toBeDisabled();
+    resolveSave({ ok: true, changedFields: ["full_name"], message: "Saved fictional profile", member: { id: member.id, fullName: "Canonical fictional name", email: member.email!, jnuitsId: member.jnuits_id, lifecycleStatus: member.lifecycle_status!, departmentCode: member.department_code, batchNo: member.batch_no, expectedUpdatedAt: "2026-10-12T00:00:00Z", joinedOn: member.joined_on, phone: member.phone, studentId: member.student_id, facebookUrl: null, linkedinUrl: null, websiteUrl: null } });
+    await waitFor(() => expect(editor.getByRole("button", { name: "Close member editor" })).toBeEnabled());
+    expect(editor.getByLabelText("Lifecycle")).toHaveValue("alumni");
+    expect(editor.getByLabelText("Full name")).toHaveValue("Canonical fictional name");
+    await user.click(editor.getByRole("button", { name: "Close member editor" }));
+    expect(screen.getByRole("alertdialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
+  });
+  it("shows committee office separately from the portal access role", () => {
+    renderMembership({ managedMembers: [{ ...member, currentCommitteeTitles: ["President"] } as ManagedMemberClientRecord] });
+    expect(screen.getByText("President")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Member" })).toBeInTheDocument();
   });
 });

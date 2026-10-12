@@ -14,6 +14,10 @@ import { disableReplayCatalogCache } from "./configure-bootstrap-replay.mjs";
 assert.equal(process.argv.length, 2, "Remote database/workdir arguments are forbidden.");
 assert.ok(!process.env.ADMIN_VERIFICATION_QA_WORKDIR && !process.env.SUPABASE_DB_URL, "External projects are forbidden.");
 const profileQA = process.env.PROFILE_SELF_SERVICE_QA === "DISPOSABLE_SCRATCH";
+const memberEditorQA = process.env.MEMBER_EDITOR_QA === "DISPOSABLE_SCRATCH";
+assert.ok(!memberEditorQA || profileQA, "Member editor QA requires the isolated profile fixtures.");
+const memberEditorProject = process.env.MEMBER_EDITOR_QA_PROJECT;
+assert.ok(!memberEditorProject || (memberEditorQA && ["chromium", "firefox", "webkit"].includes(memberEditorProject)), "Only known disposable editor browser projects are allowed.");
 const repo = realpathSync(process.cwd());
 const root = join(repo, ".replay-scratch"); mkdirSync(root, { recursive: true });
 const scratch = mkdtempSync(join(root, "replay.admin-"));
@@ -22,7 +26,8 @@ const runId = randomBytes(6).toString("hex");
 const projectId = `jnuits-admin-qa-${runId}`;
 const dbContainer = `supabase_db_${projectId}`;
 const bridgeToken = randomBytes(32).toString("base64url");
-const screenshots = mkdtempSync(join(tmpdir(), "jnuits-admin-qa-"));
+const screenshots = memberEditorQA ? join(repo, "artifacts/reports/member-editor-browser") : mkdtempSync(join(tmpdir(), "jnuits-admin-qa-"));
+mkdirSync(screenshots, { recursive: true });
 const require = createRequire(join(repo, "package.json"));
 const { createClient } = require("@supabase/supabase-js");
 const { createServerClient } = require("@supabase/ssr");
@@ -84,6 +89,9 @@ try {
   // Mirror existing hosted explicit exposure. Never grant browser RBAC/proof
   // table writes; authorization RPC ACLs remain exactly as migrated.
   sql("grant select on all tables in schema public to service_role; grant insert,update on public.profile_update_requests to service_role; grant insert on public.audit_events to service_role; update public.security_settings set admin_totp_enforced=false where id;");
+  // Hosted service_role UPDATE on members was independently verified; mirror it
+  // only in this isolated editor fixture. Browser grants and RLS stay unchanged.
+  if (memberEditorQA) sql("grant update on public.members to service_role;");
   for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"]] : [])]) {
     const email = `qa-${name}-${runId}@local.invalid`, password = `Qa!${randomBytes(18).toString("base64url")}`;
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
@@ -191,9 +199,10 @@ try {
   for (let attempt = 0; attempt < 120; attempt++) { if (next.exitCode !== null) break; try { const response = await fetch("http://127.0.0.1:3127/admin/login", { signal: AbortSignal.timeout(5000) }); if (response.status < 500) { ready = true; break; } } catch {} await new Promise(resolve => setTimeout(resolve, 500)); }
   assert.ok(ready, `Disposable Next.js server not ready. ${diagnostics}`);
   delete env.NODE_OPTIONS;
+  if (memberEditorQA) env.PLAYWRIGHT_RELEASE_SMOKE = "1";
   Object.assign(env, { PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3127", PLAYWRIGHT_NO_COPY_PROMPT: "1", ADMIN_VERIFICATION_QA_SCREENSHOTS: screenshots, NODE_ENV: "test" });
   console.log("Running real Next/Supabase browser integration; transport does not certify mailbox delivery.");
-  const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", profileQA ? "e2e/profile-self-service.spec.ts" : "e2e/admin-verification.spec.ts", "--project=chromium", "--workers=1", "--output", join(screenshots, "playwright-output"), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
+  const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", memberEditorQA ? "e2e/member-editor.spec.ts" : profileQA ? "e2e/profile-self-service.spec.ts" : "e2e/admin-verification.spec.ts", ...(memberEditorQA ? memberEditorProject ? [`--project=${memberEditorProject}`] : [] : ["--project=chromium"]), "--workers=1", "--output", join(screenshots, "playwright-output"), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
   const code = await new Promise(resolve => child.once("exit", resolve));
   if (code !== 0) console.error(`Redacted disposable Next diagnostics: ${diagnostics}`);
   assert.equal(code, 0, "Disposable admin verification browser suite failed.");

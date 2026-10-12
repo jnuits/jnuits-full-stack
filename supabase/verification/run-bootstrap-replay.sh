@@ -407,6 +407,12 @@ docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP
 
 SCRATCH_ACK=DISPOSABLE_SCRATCH node "$repo_root/supabase/verification/run-newsletter-concurrency.mjs" "$db_container"
 
+docker_run cp \
+  "$(to_native "$repo_root/supabase/verification/assert-member-directory-visibility.sql")" \
+  "$db_container:/tmp/jnuits-replay/assert-member-directory-visibility.sql"
+docker_run exec "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+  -f /tmp/jnuits-replay/assert-member-directory-visibility.sql
+
 if [[ "$generate_types" -eq 1 ]]; then
   generated_types="$scratch_dir/generated-db-types.ts"
   printf 'Generating TypeScript types from the disposable local stack.\n'

@@ -161,7 +161,12 @@ export function MemberDirectoryCard({ member }: { member: MemberDirectoryEntry }
             {member.fullName}
           </h3>
           <div className="mt-1">
+            <div className="flex flex-wrap justify-center gap-1.5">
             <StatusBadge memberType={member.memberType} />
+            {(member.currentCommitteeTitles || []).map((title) => (
+              <span className="member-committee-title" key={title} title="Current committee position">{title}</span>
+            ))}
+          </div>
           </div>
           <button
             aria-label={`Copy member ID ${displayJnuitsId}`}

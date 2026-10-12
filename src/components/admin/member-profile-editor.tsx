@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Save } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useLayoutEffect, useState, useTransition } from "react";
 
 import { updateMemberProfileAction } from "@/app/admin/membership/profile-actions";
 import type { MemberProfileActionMember } from "@/app/admin/membership/profile-actions";
@@ -25,10 +25,14 @@ export function MemberProfileEditor({
   departmentOptions,
   member,
   onSaved,
+  onDirtyChange,
+  onPendingChange,
 }: {
   departmentOptions: readonly MemberDepartmentOption[];
   member: MemberProfileEditorRecord;
   onSaved?: (member: MemberProfileActionMember) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const [fullName, setFullName] = useState(member.fullName);
   const [departmentCode, setDepartmentCode] = useState(member.departmentCode || "");
@@ -46,6 +50,10 @@ export function MemberProfileEditor({
   }>(null);
   const [isPending, startTransition] = useTransition();
   const headingId = `member-profile-heading-${member.id}`;
+
+  const dirty = fullName !== member.fullName || departmentCode !== (member.departmentCode || "") || batchNo !== editableBatchCode(member.batchNo) || joinedOn !== (member.joinedOn || "") || phone !== (member.phone || "") || studentId !== (member.studentId || "") || facebookUrl !== (member.facebookUrl || "") || linkedinUrl !== (member.linkedinUrl || "") || websiteUrl !== (member.websiteUrl || "") || Boolean(auditNote.trim());
+  useLayoutEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  useLayoutEffect(() => { onPendingChange?.(isPending); }, [isPending, onPendingChange]);
 
   function submit() {
     setFeedback(null);
@@ -70,6 +78,15 @@ export function MemberProfileEditor({
           return;
         }
         setFeedback({ message: result.message, tone: "success" });
+        setFullName(result.member.fullName);
+        setDepartmentCode(result.member.departmentCode || "");
+        setBatchNo(editableBatchCode(result.member.batchNo));
+        setJoinedOn(result.member.joinedOn || "");
+        setPhone(result.member.phone || "");
+        setStudentId(result.member.studentId || "");
+        setFacebookUrl(result.member.facebookUrl || "");
+        setLinkedinUrl(result.member.linkedinUrl || "");
+        setWebsiteUrl(result.member.websiteUrl || "");
         setAuditNote("");
         onSaved?.(result.member);
       } catch {
