@@ -142,6 +142,19 @@ export type PublicCommitteeRosterRow = {
   key: string;
 };
 
+function isSpokespersonPosition(group: PublicCommitteePositionGroup): boolean {
+  if (group.assignments.length === 0) return false;
+  const first = group.assignments[0];
+  const code = first?.roleCode?.toLowerCase().trim() || "";
+  const label = (group.label || first?.roleTitle || "").toLowerCase().trim();
+
+  const isPresident = code === "president" || label === "president";
+  const isGeneralSecretary =
+    code === "general-secretary" || label === "general secretary";
+
+  return isPresident || isGeneralSecretary;
+}
+
 export function buildCommitteeRosterRows(
   groups: readonly PublicCommitteePositionGroup[]
 ): PublicCommitteeRosterRow[] {
@@ -164,7 +177,14 @@ export function buildCommitteeRosterRows(
   for (const group of groups) {
     if (group.assignments.length === 0) continue;
 
-    if (group.assignments.length >= 2) {
+    if (isSpokespersonPosition(group)) {
+      flushPending();
+      rows.push({
+        assignments: [...group.assignments],
+        isFeatured: true,
+        key: group.key,
+      });
+    } else if (group.assignments.length >= 2) {
       flushPending();
       rows.push({
         assignments: [...group.assignments],

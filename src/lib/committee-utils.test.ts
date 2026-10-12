@@ -202,6 +202,42 @@ describe("buildCommitteeRosterRows", () => {
 
     expect(rows).toHaveLength(6);
   });
+
+  it("gives General Secretary a dedicated featured row even when followed by a single-person role", () => {
+    const list = [
+      assignment("1", "pos-p", "president", "President"),
+      assignment("2", "pos-vp", "vice-president", "Vice President"),
+      assignment("3", "pos-vp", "vice-president", "Vice President"),
+      assignment("4", "pos-gs", "general-secretary", "General Secretary"),
+      assignment(
+        "5",
+        "pos-ags",
+        "assistant-general-secretary",
+        "Assistant General Secretary"
+      ),
+      assignment("6", "pos-org", "organizing-secretary", "Organizing Secretary"),
+    ];
+
+    const groups = groupCommitteeAssignmentsByPosition(list);
+    const rows = buildCommitteeRosterRows(groups);
+
+    // Row 0: President (1 card, featured)
+    expect(rows[0]?.isFeatured).toBe(true);
+    expect(rows[0]?.assignments[0]?.roleCode).toBe("president");
+
+    // Row 1: Vice Presidents (2 cards, not featured)
+    expect(rows[1]?.isFeatured).toBe(false);
+    expect(rows[1]?.assignments).toHaveLength(2);
+
+    // Row 2: General Secretary (1 card, featured dedicated row)
+    expect(rows[2]?.isFeatured).toBe(true);
+    expect(rows[2]?.assignments).toHaveLength(1);
+    expect(rows[2]?.assignments[0]?.roleCode).toBe("general-secretary");
+
+    // Row 3: Remaining single roles combined
+    expect(rows[3]?.isFeatured).toBe(false);
+    expect(rows[3]?.assignments).toHaveLength(2);
+  });
 });
 
 describe("committee source guards and page order", () => {
