@@ -135,3 +135,49 @@ export function groupCommitteeAssignmentsByPosition(
 
   return groups;
 }
+
+export type PublicCommitteeRosterRow = {
+  assignments: PublicCommitteeAssignment[];
+  isFeatured: boolean;
+  key: string;
+};
+
+export function buildCommitteeRosterRows(
+  groups: readonly PublicCommitteePositionGroup[]
+): PublicCommitteeRosterRow[] {
+  const rows: PublicCommitteeRosterRow[] = [];
+  let pendingSingleAssignments: PublicCommitteeAssignment[] = [];
+  let pendingGroupKeys: string[] = [];
+
+  const flushPending = () => {
+    if (pendingSingleAssignments.length === 0) return;
+    const isFeatured = pendingSingleAssignments.length === 1;
+    rows.push({
+      assignments: pendingSingleAssignments,
+      isFeatured,
+      key: pendingGroupKeys.join("-"),
+    });
+    pendingSingleAssignments = [];
+    pendingGroupKeys = [];
+  };
+
+  for (const group of groups) {
+    if (group.assignments.length === 0) continue;
+
+    if (group.assignments.length >= 2) {
+      flushPending();
+      rows.push({
+        assignments: [...group.assignments],
+        isFeatured: false,
+        key: group.key,
+      });
+    } else {
+      pendingSingleAssignments.push(...group.assignments);
+      pendingGroupKeys.push(group.key);
+    }
+  }
+
+  flushPending();
+
+  return rows;
+}

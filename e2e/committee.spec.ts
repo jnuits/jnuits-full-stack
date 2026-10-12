@@ -38,14 +38,14 @@ test.describe("committee page interactive behaviors", () => {
     const fifthPill = termButtons.filter({ hasText: /^5th/ });
     if ((await fifthPill.count()) > 0) {
       await fifthPill.first().click();
-      await expect(fifthPill.first()).toHaveAttribute("aria-pressed", "true");
+      await expect(fifthPill.first()).toHaveAttribute("aria-selected", "true");
     }
 
     // Switch back to 7th term
     const seventhPill = termButtons.filter({ hasText: /^7th/ });
     if ((await seventhPill.count()) > 0) {
       await seventhPill.first().click();
-      await expect(seventhPill.first()).toHaveAttribute("aria-pressed", "true");
+      await expect(seventhPill.first()).toHaveAttribute("aria-selected", "true");
 
       // Verify member cards exist in 7th term
       const memberCards = page.locator("article[role='button']");

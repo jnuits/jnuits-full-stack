@@ -37,10 +37,12 @@ type PreviewPosition = {
 
 export function ExecutiveMemberCard({
   assignment,
+  featured,
   isCurrent,
   termTitle,
 }: {
   assignment: PublicCommitteeAssignment;
+  featured?: boolean;
   isCurrent: boolean;
   termTitle: string;
 }) {
@@ -166,7 +168,12 @@ export function ExecutiveMemberCard({
       <article
         aria-haspopup="dialog"
         aria-label={`View profile of ${assignment.displayName}, ${assignment.roleTitle}`}
-        className="group relative cursor-pointer select-none rounded-2xl border border-border bg-card p-4 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        className={cn(
+          "group relative flex h-full w-full cursor-pointer select-none flex-col justify-between rounded-2xl border border-border bg-card transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+          featured
+            ? "border-primary/30 bg-gradient-to-b from-primary/[0.04] to-card p-5 sm:p-6 shadow-sm"
+            : "p-4 sm:p-5"
+        )}
         onClick={openProfile}
         onKeyDown={handleKeyDown}
         onMouseEnter={handleMouseEnter}
@@ -175,38 +182,52 @@ export function ExecutiveMemberCard({
         role="button"
         tabIndex={0}
       >
-        <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-primary/60">
-          {assignment.roleTitle}
-        </p>
+        <div>
+          <p
+            className={cn(
+              "mb-3 font-bold uppercase tracking-widest text-primary/70",
+              featured ? "text-[11px]" : "text-[10px]"
+            )}
+          >
+            {assignment.roleTitle}
+          </p>
 
-        <div className="relative mb-3 size-14">
-          <MemberAvatarImage
-            alt={assignment.displayName}
-            className="size-14 rounded-xl"
-            name={assignment.displayName}
-            src={assignment.avatarUrl}
-          />
-          {isCurrent ? (
-            <span
-              aria-hidden="true"
-              className="absolute -bottom-1 -right-1 size-4 rounded-full border-2 border-background bg-emerald-500"
+          <div
+            className={cn(
+              "relative mb-3",
+              featured ? "size-16 sm:size-20" : "size-14"
+            )}
+          >
+            <MemberAvatarImage
+              alt={assignment.displayName}
+              className={cn(
+                "rounded-xl",
+                featured ? "size-16 sm:size-20" : "size-14"
+              )}
+              name={assignment.displayName}
+              src={assignment.avatarUrl}
             />
+          </div>
+
+          <p
+            className={cn(
+              "line-clamp-2 font-bold leading-tight text-foreground",
+              featured ? "text-base sm:text-lg" : "text-sm sm:text-base"
+            )}
+          >
+            {assignment.displayName || "Unlinked member"}
+          </p>
+          {assignment.jnuitsId ? (
+            <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/60">
+              {assignment.jnuitsId}
+            </p>
+          ) : null}
+          {assignment.departmentName ? (
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {assignment.departmentName}
+            </p>
           ) : null}
         </div>
-
-        <p className="line-clamp-2 text-sm font-bold leading-tight text-foreground">
-          {assignment.displayName || "Unlinked member"}
-        </p>
-        {assignment.jnuitsId ? (
-          <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/60">
-            {assignment.jnuitsId}
-          </p>
-        ) : null}
-        {assignment.departmentName ? (
-          <p className="mt-1 truncate text-xs text-muted-foreground">
-            {assignment.departmentName}
-          </p>
-        ) : null}
 
         <div className="mt-3 flex translate-y-1 items-center gap-1 border-t border-border/50 pt-3 opacity-100 transition-all duration-200 group-hover:translate-y-0 sm:opacity-0 sm:group-hover:opacity-100">
           <span className="text-[11px] font-medium text-primary">

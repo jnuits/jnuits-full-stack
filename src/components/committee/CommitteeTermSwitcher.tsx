@@ -22,6 +22,7 @@ import type {
   PublicCommitteeTerm,
 } from "@/lib/committee/public-contracts";
 import {
+  buildCommitteeRosterRows,
   formatCommitteeDate,
   formatCommitteeDateRange,
   groupCommitteeAssignmentsByPosition,
@@ -52,6 +53,31 @@ export function CommitteeTermSwitcher({
   const activeTerm =
     terms.find((term) => term.slug === activeTermSlug) || terms[0] || null;
   const assignments = activeTerm ? assignmentsByTerm[activeTerm.slug] || [] : [];
+
+  const handleTablistKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!activeTerm) return;
+    const currentIndex = terms.findIndex((term) => term.slug === activeTerm.slug);
+    if (currentIndex === -1) return;
+
+    let nextIndex = currentIndex;
+    if (event.key === "ArrowRight") {
+      nextIndex = (currentIndex + 1) % terms.length;
+    } else if (event.key === "ArrowLeft") {
+      nextIndex = (currentIndex - 1 + terms.length) % terms.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = terms.length - 1;
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    const nextTerm = terms[nextIndex];
+    if (nextTerm) {
+      setActiveTermSlug(nextTerm.slug);
+    }
+  };
 
   useEffect(() => {
     const pillRow = pillRowRef.current;
@@ -116,48 +142,58 @@ export function CommitteeTermSwitcher({
 
         <div className="relative -mb-1 mt-5">
           <div
+            aria-label="Committee terms"
             className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            onKeyDown={handleTablistKeyDown}
             ref={pillRowRef}
+            role="tablist"
           >
-            {terms.map((term) => {
-              const isActive = term.slug === activeTerm.slug;
-              const termNumber = term.termNumber || terms.length;
+            <div className="flex w-max mx-auto gap-2">
+              {terms.map((term) => {
+                const isActive = term.slug === activeTerm.slug;
+                const termNumber = term.termNumber || terms.length;
 
-              return (
-                <button
-                  aria-pressed={isActive}
-                  className={cn(
-                    "inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                    isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "border border-border bg-muted/60 text-muted-foreground hover:border-border/80 hover:bg-muted hover:text-foreground"
-                  )}
-                  key={term.slug}
-                  onClick={() => setActiveTermSlug(term.slug)}
-                  ref={isActive ? activeTabRef : null}
-                  type="button"
-                >
-                  <span className="font-black">
-                    {termNumber}
-                    {ordinalSuffix(termNumber)}
-                  </span>
-                  {term.isCurrent ? (
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        "size-1.5 rounded-full bg-emerald-400",
-                        isActive && "animate-pulse"
-                      )}
-                    />
-                  ) : null}
-                  {term.dateConfidence !== "verified" && !term.isCurrent ? (
-                    <span className="text-[9px] font-bold text-amber-500">
-                      ~
+                return (
+                  <button
+                    aria-controls={`term-panel-${term.slug}`}
+                    aria-selected={isActive}
+                    className={cn(
+                      "inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "border border-border bg-muted/60 text-muted-foreground hover:border-border/80 hover:bg-muted hover:text-foreground"
+                    )}
+                    id={`term-tab-${term.slug}`}
+                    key={term.slug}
+                    onClick={() => setActiveTermSlug(term.slug)}
+                    ref={isActive ? activeTabRef : null}
+                    role="tab"
+                    tabIndex={isActive ? 0 : -1}
+                    type="button"
+                  >
+                    <span className="font-black">
+                      {termNumber}
+                      {ordinalSuffix(termNumber)}
                     </span>
-                  ) : null}
-                </button>
-              );
-            })}
+                    {term.isCurrent ? (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "size-1.5 rounded-full bg-emerald-400",
+                          isActive && "animate-pulse"
+                        )}
+                      />
+                    ) : null}
+                    {term.dateConfidence !== "verified" && !term.isCurrent ? (
+                      <span className="text-[9px] font-bold text-amber-500">
+                        <span aria-hidden="true">~</span>
+                        <span className="sr-only"> (estimated dates)</span>
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           {canScrollTerms ? (
             <span
@@ -186,7 +222,7 @@ export function CommitteeTermSwitcher({
               </MetaChip>
               {activeTerm.dateConfidence !== "verified" ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/60 px-2.5 py-0.5 text-[10px] font-medium text-amber-600 dark:border-amber-700/40 dark:text-amber-400">
-                  ~ Estimated dates
+                  <span aria-hidden="true">~</span> estimated dates
                 </span>
               ) : null}
             </div>
@@ -203,8 +239,11 @@ export function CommitteeTermSwitcher({
       </div>
 
       <div
+        aria-labelledby={`term-tab-${activeTerm.slug}`}
         className="animate-[jnuits-fade-rise_260ms_var(--motion-ease)_both]"
+        id={`term-panel-${activeTerm.slug}`}
         key={activeTerm.slug}
+        role="tabpanel"
       >
         {assignments.length === 0 ? (
           <TermEmptyState term={activeTerm} />
@@ -309,36 +348,39 @@ function TermRosterGrid({
     () => groupCommitteeAssignmentsByPosition(assignments),
     [assignments]
   );
+  const rows = useMemo(() => buildCommitteeRosterRows(groups), [groups]);
 
   return (
-    <div className="mt-8 space-y-10">
-      {groups.map((group) => (
-          <div key={group.key}>
-            <div className="mb-6 flex items-center gap-4">
-              <div className="h-px flex-1 bg-border/60" />
-              <span className="flex-shrink-0 px-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
-                {group.label}
-              </span>
-              <div className="h-px flex-1 bg-border/60" />
+    <div className="mt-8 space-y-8 sm:space-y-10">
+      {rows.map((row) => (
+        <div
+          className={cn(
+            "flex flex-wrap justify-center gap-4 sm:gap-6",
+            row.isFeatured ? "my-2" : ""
+          )}
+          key={row.key}
+        >
+          {row.assignments.map((assignment, index) => (
+            <div
+              className={cn(
+                "flex animate-[jnuits-fade-rise_300ms_var(--motion-ease)_both]",
+                row.isFeatured
+                  ? "w-full max-w-sm sm:max-w-md justify-center"
+                  : "w-full sm:w-[calc((100%_-_1.5rem)/2)] lg:w-[calc((100%_-_3rem)/3)] max-w-sm"
+              )}
+              key={assignment.id}
+              style={{ animationDelay: `${index * 40}ms` }}
+            >
+              <ExecutiveMemberCard
+                assignment={assignment}
+                featured={row.isFeatured}
+                isCurrent={isCurrent}
+                termTitle={termTitle}
+              />
             </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {group.assignments.map((assignment, index) => (
-                <div
-                  className="animate-[jnuits-fade-rise_300ms_var(--motion-ease)_both]"
-                  key={assignment.id}
-                  style={{ animationDelay: `${index * 40}ms` }}
-                >
-                  <ExecutiveMemberCard
-                    assignment={assignment}
-                    isCurrent={isCurrent}
-                    termTitle={termTitle}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
