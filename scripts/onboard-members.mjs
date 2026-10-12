@@ -193,6 +193,9 @@ async function main() {
       work_location: row.workLocation,
     };
 
+    // A missing CSV visibility must not overwrite an existing privacy choice.
+    if (existingMember && !row.professionalVisibilityProvided) delete payload.professional_visibility;
+
     let memberId = existingMember?.id || null;
     let invitationCode = null;
     let invitationFailed = false;

@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { loadCurrentPublicCommitteeTitles } from "@/lib/committee/current-titles.server";
 import type { Tables } from "@/lib/db/types";
 import { isDirectoryVerifiedForUser } from "@/lib/auth/directory-verification";
 import {
@@ -78,6 +79,7 @@ type NormalizedDirectoryQuery = {
 };
 
 export type MemberDirectoryEntry = {
+  currentCommitteeTitles?: string[];
   id: string;
   jnuitsId: string;
   fullName: string;
@@ -446,9 +448,12 @@ export async function getPublicMemberDirectory(
     throw new Error("Unable to load members directory facets.");
   }
 
-  const members = ((membersResult.data || []) as MemberDirectoryRow[]).map((member) =>
+  const members: MemberDirectoryEntry[] = ((membersResult.data || []) as MemberDirectoryRow[]).map((member) =>
     mapDirectoryMember(member, viewer)
   );
+
+  const currentTitles = await loadCurrentPublicCommitteeTitles(members.map((member) => member.id));
+  for (const member of members) member.currentCommitteeTitles = currentTitles.get(member.id) || [];
 
   const facetCounts = new Map<string, number>();
   for (const row of (facetResult.data || []) as MemberDirectoryFacetRow[]) {

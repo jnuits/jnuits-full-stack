@@ -650,7 +650,7 @@ async function commitBulkRow(options: {
         member_type: data.memberType,
         phone: data.phone || null,
         portal_access_status: data.portalAccessStatus,
-        professional_visibility: "members-only",
+        professional_visibility: "public",
       })
       .select("id")
       .single();

@@ -18,6 +18,7 @@ import {
   reviewMemberAccountRequestAction,
   saveMemberOperationsAction,
 } from "@/app/admin/membership/actions";
+import { MemberEditorDialog } from "@/components/admin/member-editor-dialog";
 import { MemberProfileEditor } from "@/components/admin/member-profile-editor";
 import { IntakeWorkspace } from "@/components/admin/onboarding/intake-workspace";
 import { runBoundedTasks } from "@/lib/async/bounded-concurrency";
@@ -39,6 +40,7 @@ export type InvitationBatchClientRecord = {
 };
 
 export type ManagedMemberClientRecord = {
+  currentCommitteeTitles?: string[];
   avatar_secure_url: null | string;
   batch_no: null | number;
   currentPortalRole: "alumni" | "alumni_ambassador" | "executive" | "member";
@@ -725,6 +727,7 @@ function MemberOperationsSection({
                         <MemberTableAvatar member={member} />
                         <span>
                           <strong>{member.full_name}</strong>
+                          {member.currentCommitteeTitles?.length ? <span className="membership-committee-title">{member.currentCommitteeTitles.join(" · ")}</span> : null}
                           <small>
                             {member.displayJnuitsId} · {member.email || "No email"}
                           </small>
@@ -843,7 +846,7 @@ function MemberOperationsSection({
       {editingMember ? (
         <ManagedMemberCard
           departmentOptions={departmentOptions}
-          key={`${editingMember.id}:${editingMember.updated_at}`}
+          key={editingMember.id}
           member={editingMember}
           onClose={() => setEditingMemberId(null)}
           onSaved={(updatedMember) => {
@@ -938,6 +941,8 @@ function ManagedMemberCard({
   onSaved: (member: ManagedMemberClientRecord) => void;
   portalRoleOptions: PortalRoleOptionClientRecord[];
 }) {
+  const [profileDirty, setProfileDirty] = useState(false);
+  const [profilePending, setProfilePending] = useState(false);
   const [lifecycle, setLifecycle] = useState(getMemberLifecycle(member));
   const [portalAccess, setPortalAccess] = useState(getMemberPortalAccess(member));
   const [portalRole, setPortalRole] = useState(member.currentPortalRole);
@@ -982,15 +987,14 @@ function ManagedMemberCard({
           updatePortalRole: roleDirty,
         });
         setSaveState("saved");
-        window.setTimeout(() => {
-          onSaved({
-            ...member,
-            currentPortalRole: portalRole,
-            lifecycle_status: lifecycle,
-            portal_access_status: portalAccess,
-          });
-          onClose();
-        }, 1800);
+        setLifecycleNote("");
+        setRoleNote("");
+        onSaved({
+          ...member,
+          currentPortalRole: portalRole,
+          lifecycle_status: lifecycle,
+          portal_access_status: portalAccess,
+        });
       } catch (saveError) {
         setSaveState("idle");
         setError(saveError instanceof Error ? saveError.message : "Unable to save member changes.");
@@ -1031,20 +1035,18 @@ function ManagedMemberCard({
   }
 
   return (
-    <div className="membership-inline-editor">
-      <div className="membership-inline-editor__header">
-        <span>
-          <strong>{member.full_name}</strong>
-          <small>
-            {member.displayJnuitsId} · {member.email || "No email"}
-          </small>
-        </span>
-        <button className="ghost-button" onClick={onClose} type="button">
-          <X aria-hidden="true" size={13} />
-          Close
-        </button>
-      </div>
+    <MemberEditorDialog
+      dirty={profileDirty || lifecycleDirty || roleDirty}
+      email={member.email}
+      memberName={member.full_name}
+      membershipId={member.displayJnuitsId}
+      onClose={onClose}
+      pending={isPending || profilePending || saveState === "saving"}
+    >
+      {(requestClose) => <div className="membership-inline-editor">
       <MemberProfileEditor
+        onDirtyChange={setProfileDirty}
+        onPendingChange={setProfilePending}
         departmentOptions={departmentOptions}
         member={{
           batchNo: member.batch_no,
@@ -1149,7 +1151,7 @@ function ManagedMemberCard({
           <button
             className="primary-button"
             data-state={saveState}
-            disabled={!canSave || isPending || saveState === "saving"}
+            disabled={!canSave || isPending || profilePending || saveState === "saving"}
             onClick={save}
             type="button"
           >
@@ -1161,16 +1163,17 @@ function ManagedMemberCard({
               "Save changes"
             )}
           </button>
-          <button className="ghost-button" onClick={onClose} type="button">
+          <button className="ghost-button" onClick={requestClose} disabled={isPending || profilePending} type="button">
             Cancel
           </button>
         </div>
-        <button className="admin-btn admin-btn--danger" onClick={revokeAccess} type="button">
+        <button className="admin-btn admin-btn--danger" disabled={isPending || profilePending || profileDirty} onClick={revokeAccess} type="button">
           {revokeConfirming ? "Click again to confirm" : "Revoke access"}
         </button>
       </div>
       {error ? <p className="membership-inline-editor__error">{error}</p> : null}
-    </div>
+    </div>}
+    </MemberEditorDialog>
   );
 }
 

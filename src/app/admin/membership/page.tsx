@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { loadCurrentPublicCommitteeTitles } from "@/lib/committee/current-titles.server";
 import { requireAdminPermission } from "@/lib/auth/session";
 
 import {
@@ -250,8 +251,10 @@ export default async function AdminMembershipPage({
       )
   );
 
+  const currentTitles = await loadCurrentPublicCommitteeTitles(rawManagedMembers.map((member) => member.id));
   const managedMembers: ManagedMemberClientRecord[] = rawManagedMembers.map((member) => ({
     ...member,
+    currentCommitteeTitles: currentTitles.get(member.id) || [],
     currentPortalRole: member.user_id
       ? activePortalRoleByUserId.get(member.user_id) || "member"
       : "member",
