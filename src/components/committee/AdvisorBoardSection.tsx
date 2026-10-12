@@ -1,7 +1,12 @@
 import { GraduationCap } from "lucide-react";
 
+import { AdvisorCompactCard } from "@/components/committee/AdvisorCompactCard";
 import { AdvisorFeaturedCard } from "@/components/committee/AdvisorFeaturedCard";
 import type { PublicAdvisorProfile } from "@/lib/committee/public-contracts";
+
+function cn(...classes: Array<false | null | string | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export function AdvisorBoardSection({
   advisors,
@@ -9,40 +14,77 @@ export function AdvisorBoardSection({
   advisors: PublicAdvisorProfile[];
 }) {
   const currentAdvisors = advisors.filter((advisor) => advisor.isCurrent);
+  const chiefAdvisors = currentAdvisors.filter(
+    (advisor) => advisor.advisorType === "main_advisor"
+  );
+  const moderators = currentAdvisors.filter(
+    (advisor) => advisor.advisorType === "moderator_mentor"
+  );
+  const honorableAdvisors = currentAdvisors.filter(
+    (advisor) => advisor.advisorType === "honorable_advisor"
+  );
+
+  const featuredAdvisorsCount = chiefAdvisors.length + moderators.length;
 
   return (
     <section id="advisor-board">
-      <div className="mx-auto max-w-3xl text-center">
+      <div className="max-w-3xl">
         <p className="text-xs font-semibold uppercase tracking-widest text-primary dark:text-primary">
           Advisor board
         </p>
         <h2 className="mt-2 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-          Advisor Board
+          Advisors and mentor support
         </h2>
-        <p className="mt-3 text-lg leading-relaxed text-muted-foreground [text-wrap:balance]">
-          Faculty members who guide the society and mentor each committee.
+        <p className="mt-3 text-lg leading-relaxed text-muted-foreground">
+          Teacher advisors are maintained separately from student and alumni
+          member records. Their public service history follows advisor joining
+          and leaving dates, not executive committee terms. Advisors are not
+          members and hold independent advisor portal IDs.
         </p>
       </div>
 
       {currentAdvisors.length > 0 ? (
-        <div className="mt-10 flex flex-wrap justify-center gap-6">
-          {currentAdvisors.map((advisor) => {
-            const tone =
-              advisor.advisorType === "main_advisor"
-                ? "chief"
-                : advisor.advisorType === "moderator_mentor"
-                  ? "moderator"
-                  : "honorable";
-            return (
-              <div
-                className="w-full sm:w-[calc((100%_-_1.5rem)/2)] lg:w-[calc((100%_-_3rem)/3)]"
-                key={advisor.id}
-              >
-                <AdvisorFeaturedCard advisor={advisor} tone={tone} />
+        <>
+          {featuredAdvisorsCount > 0 && (
+            <div
+              className={cn(
+                "mt-10 grid gap-6",
+                featuredAdvisorsCount === 1
+                  ? "max-w-2xl grid-cols-1"
+                  : "grid-cols-1 lg:grid-cols-2"
+              )}
+            >
+              {chiefAdvisors.map((advisor) => (
+                <AdvisorFeaturedCard
+                  advisor={advisor}
+                  key={advisor.id}
+                  tone="chief"
+                />
+              ))}
+              {moderators.map((advisor) => (
+                <AdvisorFeaturedCard
+                  advisor={advisor}
+                  key={advisor.id}
+                  tone="moderator"
+                />
+              ))}
+            </div>
+          )}
+
+          {honorableAdvisors.length > 0 ? (
+            <div className="mt-14">
+              <p className="mb-5 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.15em] text-amber-700 dark:text-amber-300">
+                <span className="h-px w-5 bg-amber-400" />
+                Honorable Advisor
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {honorableAdvisors.map((advisor) => (
+                  <AdvisorCompactCard advisor={advisor} key={advisor.id} />
+                ))}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          ) : null}
+        </>
       ) : (
         <div className="mt-10 rounded-3xl border border-dashed border-border/60 bg-muted/20 px-8 py-16 text-center">
           <GraduationCap

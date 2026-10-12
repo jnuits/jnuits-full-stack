@@ -38,7 +38,7 @@ export function AdvisorCompactCard({
         </p>
       ) : null}
       {advisor.advisorJnuitsId ? (
-        <p className="mt-2 font-mono text-xs text-muted-foreground/60">
+        <p className="mt-2 font-mono text-xs text-muted-foreground">
           {advisor.advisorJnuitsId}
         </p>
       ) : null}
@@ -61,7 +61,8 @@ export function AdvisorCompactCard({
             target="_blank"
           >
             <ExternalLink aria-hidden="true" size={10} />
-            JnU Profile
+            <span>JnU Profile</span>
+            <span className="sr-only">(opens in new tab)</span>
           </a>
         ) : null}
       </div>
@@ -84,9 +85,8 @@ function AdvisorAvatar({ advisor }: { advisor: PublicAdvisorProfile }) {
 
   return (
     <div
-      aria-label={`${displayName} advisor portrait`}
-      className={cn("flex items-center justify-center", className)}
-      role="img"
+      aria-hidden="true"
+      className={cn("flex items-center justify-center font-bold", className)}
     >
       {getInitials(displayName)}
     </div>

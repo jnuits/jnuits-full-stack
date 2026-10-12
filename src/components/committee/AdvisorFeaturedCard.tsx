@@ -190,6 +190,14 @@ function AdvisorAvatar({
           {getInitials(displayName)}
         </div>
       )}
+      {advisor.isCurrent ? (
+        <span
+          aria-hidden="true"
+          className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border-2 border-background bg-emerald-500"
+        >
+          <span className="size-2 rounded-full bg-white" />
+        </span>
+      ) : null}
     </div>
   );
 }
