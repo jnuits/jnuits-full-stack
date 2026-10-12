@@ -4,6 +4,10 @@ import { AdvisorCompactCard } from "@/components/committee/AdvisorCompactCard";
 import { AdvisorFeaturedCard } from "@/components/committee/AdvisorFeaturedCard";
 import type { PublicAdvisorProfile } from "@/lib/committee/public-contracts";
 
+function cn(...classes: Array<false | null | string | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
 export function AdvisorBoardSection({
   advisors,
 }: {
@@ -20,10 +24,12 @@ export function AdvisorBoardSection({
     (advisor) => advisor.advisorType === "honorable_advisor"
   );
 
+  const featuredAdvisorsCount = chiefAdvisors.length + moderators.length;
+
   return (
     <section id="advisor-board">
       <div className="max-w-3xl">
-        <p className="text-xs font-semibold uppercase tracking-widest text-primary/70">
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary dark:text-primary">
           Advisor board
         </p>
         <h2 className="mt-2 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
@@ -39,8 +45,15 @@ export function AdvisorBoardSection({
 
       {currentAdvisors.length > 0 ? (
         <>
-          {(chiefAdvisors.length > 0 || moderators.length > 0) && (
-            <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {featuredAdvisorsCount > 0 && (
+            <div
+              className={cn(
+                "mt-10 grid gap-6",
+                featuredAdvisorsCount === 1
+                  ? "max-w-2xl grid-cols-1"
+                  : "grid-cols-1 lg:grid-cols-2"
+              )}
+            >
               {chiefAdvisors.map((advisor) => (
                 <AdvisorFeaturedCard
                   advisor={advisor}

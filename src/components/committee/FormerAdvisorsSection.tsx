@@ -66,36 +66,41 @@ export function FormerAdvisorsSection({
   return (
     <section id="former-advisors">
       <div className="rounded-3xl border border-border bg-card shadow-sm">
-        <button
-          aria-expanded={isOpen}
-          className="flex w-full items-start justify-between gap-4 px-5 py-6 text-left transition hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:px-7"
-          onClick={() => setOpen(!isOpen)}
-          type="button"
-        >
-          <span className="min-w-0">
-            <span className="text-xs font-semibold uppercase tracking-widest text-primary/70">
-              Former advisors
+        <h2>
+          <button
+            aria-controls="former-advisors-panel"
+            aria-expanded={isOpen}
+            className="flex w-full items-start justify-between gap-4 px-5 py-6 text-left transition hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:px-7"
+            onClick={() => setOpen(!isOpen)}
+            type="button"
+          >
+            <span className="min-w-0">
+              <span className="text-xs font-semibold uppercase tracking-widest text-primary dark:text-primary">
+                Former advisors
+              </span>
+              <span className="mt-2 block text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                Advisor history
+              </span>
+              <span className="mt-3 block max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+                Faculty who previously served as Chief Advisor, Moderator / Mentor
+                or Honorable Advisor.
+              </span>
             </span>
-            <span className="mt-2 block text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Advisor history
+            <span className="mt-1 inline-flex size-10 flex-shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
+              <ChevronDown
+                aria-hidden="true"
+                className={cn("transition-transform", isOpen && "rotate-180")}
+                size={17}
+              />
             </span>
-            <span className="mt-3 block max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-              Chronological history of former Chief Advisors and
-              Moderators/Mentors, and Honorable Advisors, preserved separately
-              from EC terms.
-            </span>
-          </span>
-          <span className="mt-1 inline-flex size-10 flex-shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
-            <ChevronDown
-              aria-hidden="true"
-              className={cn("transition-transform", isOpen && "rotate-180")}
-              size={17}
-            />
-          </span>
-        </button>
+          </button>
+        </h2>
 
         {isOpen ? (
-          <div className="border-t border-border/60 px-5 pb-7 pt-2 sm:px-7">
+          <div
+            className="border-t border-border/60 px-5 pb-7 pt-2 sm:px-7"
+            id="former-advisors-panel"
+          >
             {GROUPS.map((group) => {
               const groupAdvisors = formerAdvisors
                 .filter((advisor) => advisor.advisorType === group.type)

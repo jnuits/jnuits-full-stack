@@ -28,7 +28,8 @@ export function CommitteePageSkeleton() {
 
       <div>
         <SkeletonBlock className="mb-8 h-12 w-64 rounded-xl" />
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <SkeletonBlock className="h-56 rounded-3xl" />
           <SkeletonBlock className="h-56 rounded-3xl" />
           <SkeletonBlock className="h-56 rounded-3xl" />
         </div>
