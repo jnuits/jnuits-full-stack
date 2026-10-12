@@ -232,7 +232,7 @@ export function CommitteeTermSwitcher({
             className="inline-flex min-h-11 flex-shrink-0 items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             href={`/committee/${activeTerm.slug}`}
           >
-            Open term page
+            View term details
             <ArrowUpRight aria-hidden="true" size={13} />
           </Link>
         </div>
@@ -240,7 +240,7 @@ export function CommitteeTermSwitcher({
 
       <div
         aria-labelledby={`term-tab-${activeTerm.slug}`}
-        className="animate-[jnuits-fade-rise_260ms_var(--motion-ease)_both]"
+        className="motion-safe:animate-[jnuits-fade-rise_260ms_var(--motion-ease)_both]"
         id={`term-panel-${activeTerm.slug}`}
         key={activeTerm.slug}
         role="tabpanel"
@@ -286,19 +286,16 @@ function TermEmptyState({ term }: { term: PublicCommitteeTerm }) {
           The {term.title} roster will be published soon
         </h3>
         <p className="mx-auto mt-3 max-w-lg text-base leading-relaxed text-muted-foreground">
-          The committee term is configured and verified
           {term.electionDate
-            ? ` with election date ${formatCommitteeDate(term.electionDate)}`
-            : ""}
-          . The public roster will be published once member-linked executive
-          assignments are imported and validated.
+            ? `Results were announced on ${formatCommitteeDate(term.electionDate)}. The roster will appear here once it's published.`
+            : "The roster will appear here once it's published."}
         </p>
         <div className="mt-8 flex justify-center">
           <Link
             className="inline-flex min-h-11 items-center justify-center rounded-full border border-border bg-card px-5 text-sm font-semibold text-foreground transition hover:border-primary/40 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             href={`/committee/${term.slug}`}
           >
-            Open term shell
+            View term details
           </Link>
         </div>
         <p className="mt-6 text-xs text-muted-foreground/60">
@@ -353,17 +350,18 @@ function TermRosterGrid({
   return (
     <div className="mt-8 space-y-8 sm:space-y-10">
       {rows.map((row) => (
-        <div
+        <ul
           className={cn(
             "flex flex-wrap justify-center gap-4 sm:gap-6",
             row.isFeatured ? "my-2" : ""
           )}
           key={row.key}
+          role="list"
         >
           {row.assignments.map((assignment, index) => (
-            <div
+            <li
               className={cn(
-                "flex animate-[jnuits-fade-rise_300ms_var(--motion-ease)_both]",
+                "flex motion-safe:animate-[jnuits-fade-rise_300ms_var(--motion-ease)_both]",
                 row.isFeatured
                   ? "w-full max-w-sm sm:max-w-md justify-center"
                   : "w-full sm:w-[calc((100%_-_1.5rem)/2)] lg:w-[calc((100%_-_3rem)/3)] max-w-sm"
@@ -377,9 +375,9 @@ function TermRosterGrid({
                 isCurrent={isCurrent}
                 termTitle={termTitle}
               />
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       ))}
     </div>
   );
