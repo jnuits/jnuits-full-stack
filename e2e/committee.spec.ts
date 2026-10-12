@@ -48,7 +48,7 @@ test.describe("committee page interactive behaviors", () => {
       await expect(seventhPill.first()).toHaveAttribute("aria-selected", "true");
 
       // Verify member cards exist in 7th term
-      const memberCards = page.locator("article[role='button']");
+      const memberCards = page.locator("[role='button'][aria-haspopup='dialog']");
       const cardCount = await memberCards.count();
       if (cardCount > 0) {
         const firstCard = memberCards.first();

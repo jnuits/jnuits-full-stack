@@ -13,7 +13,7 @@ export function AdvisorBoardSection({
   return (
     <section id="advisor-board">
       <div className="mx-auto max-w-3xl text-center">
-        <p className="text-xs font-semibold uppercase tracking-widest text-primary/70">
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary dark:text-primary">
           Advisor board
         </p>
         <h2 className="mt-2 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">

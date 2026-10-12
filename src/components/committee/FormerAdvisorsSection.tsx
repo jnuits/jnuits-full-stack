@@ -75,7 +75,7 @@ export function FormerAdvisorsSection({
             type="button"
           >
             <span className="min-w-0">
-              <span className="text-xs font-semibold uppercase tracking-widest text-primary/70">
+              <span className="text-xs font-semibold uppercase tracking-widest text-primary dark:text-primary">
                 Former advisors
               </span>
               <span className="mt-2 block text-3xl font-bold tracking-tight text-foreground sm:text-4xl">

@@ -122,7 +122,7 @@ export function CommitteeTermSwitcher({
   if (!activeTerm) {
     return (
       <section id="current-committee">
-        <p className="text-xs font-semibold uppercase tracking-widest text-primary/70">
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary dark:text-primary">
           Executive Committee
         </p>
         <h2 className="mt-2 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
@@ -136,7 +136,7 @@ export function CommitteeTermSwitcher({
   return (
     <section id="current-committee" className="scroll-mt-24">
       <div className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-7">
-        <p className="text-xs font-semibold uppercase tracking-widest text-primary/70">
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary dark:text-primary">
           Executive Committee
         </p>
 
@@ -279,7 +279,7 @@ function TermEmptyState({ term }: { term: PublicCommitteeTerm }) {
     return (
       <div className="mt-10 rounded-3xl border border-dashed border-border/60 bg-gradient-to-b from-muted/30 to-muted/10 px-8 py-20 text-center">
         <PodiumSeal />
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-primary/70">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-primary dark:text-primary">
           Roster Pending
         </p>
         <h3 className="mx-auto max-w-2xl text-2xl font-bold text-foreground">

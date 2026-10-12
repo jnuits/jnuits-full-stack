@@ -46,7 +46,7 @@ export function ExecutiveMemberCard({
   isCurrent: boolean;
   termTitle: string;
 }) {
-  const cardRef = useRef<HTMLElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -156,7 +156,7 @@ export function ExecutiveMemberCard({
     setProfileOpen(true);
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       openProfile();
@@ -165,7 +165,7 @@ export function ExecutiveMemberCard({
 
   return (
     <>
-      <article
+      <div
         aria-haspopup="dialog"
         aria-label={`View profile of ${assignment.displayName}, ${assignment.roleTitle}`}
         className={cn(
@@ -185,7 +185,7 @@ export function ExecutiveMemberCard({
         <div>
           <p
             className={cn(
-              "line-clamp-2 font-semibold text-primary/80",
+              "line-clamp-2 font-semibold text-primary dark:text-primary",
               featured ? "mb-3 text-sm" : "mb-2 text-[13px]"
             )}
           >
@@ -235,7 +235,7 @@ export function ExecutiveMemberCard({
           </span>
           <ArrowRight aria-hidden="true" className="text-primary" size={12} />
         </div>
-      </article>
+      </div>
 
       {hoverPreviewVisible
         ? createPortal(
@@ -347,7 +347,7 @@ function MemberPreviewContent({
           src={assignment.avatarUrl}
         />
         <div className="min-w-0 flex-1 pt-0.5">
-          <p className="text-xs font-semibold text-primary/80 line-clamp-2">
+          <p className="text-xs font-semibold text-primary dark:text-primary line-clamp-2">
             {assignment.roleTitle}
           </p>
           <p className="mt-0.5 text-base font-bold leading-tight text-foreground">
@@ -437,7 +437,7 @@ function ProfilePreviewContent({
             </div>
 
             <div className="min-w-0 flex-1 pt-1">
-              <p className="mb-1 text-xs font-semibold text-primary/80">
+              <p className="mb-1 text-xs font-semibold text-primary dark:text-primary">
                 {assignment.roleTitle}
               </p>
               <h3 className="text-xl font-bold leading-tight" id={titleId}>
