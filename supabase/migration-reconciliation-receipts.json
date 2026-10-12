@@ -1,0 +1,12 @@
+[
+  {
+    "oldPath": "supabase/migrations/20261012080601_committee_leadership_speech.sql",
+    "newPath": "supabase/migrations/20261012090254_committee_leadership_speech.sql",
+    "projectId": "fsirdkjgrcocowxqjhjg",
+    "hostedVersion": "20261012090254",
+    "sha256": "d6073983009444598eb87c149ed0ad26d67296d43fdbae96fce5672953d08fae",
+    "gitBlob": "b0f56892aaa5ee4ca5530616f12f627d15980c9a",
+    "verifiedAt": "2026-10-12T09:04:00Z",
+    "verification": "Hosted schema_migrations.statements joined by LF equals the committed Git SQL payload byte-for-byte; 119 versions; records/grants/policies unchanged."
+  }
+]
