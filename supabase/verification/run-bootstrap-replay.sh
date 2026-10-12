@@ -277,6 +277,13 @@ docker_run exec "$db_container" \
   -f /tmp/jnuits-replay/assert-bootstrap-replay.sql
 
 docker_run cp \
+  "$(to_native "$repo_root/supabase/verification/assert-committee-role-retirement.sql")" \
+  "$db_container:/tmp/jnuits-replay/assert-committee-role-retirement.sql"
+docker_run exec "$db_container" \
+  psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
+  -f /tmp/jnuits-replay/assert-committee-role-retirement.sql
+
+docker_run cp \
   "$(to_native "$repo_root/supabase/verification/assert-member-intake-publish.sql")" \
   "$db_container:/tmp/jnuits-replay/assert-member-intake-publish.sql"
 docker_run exec "$db_container" \
