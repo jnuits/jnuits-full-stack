@@ -24,7 +24,6 @@ describe("ChangePasswordForm", () => {
 
     render(
       <ChangePasswordForm
-        captcha={{ required: false, siteKey: "" }}
         username="member@example.test"
       />
     );
@@ -40,6 +39,7 @@ describe("ChangePasswordForm", () => {
       screen.getByLabelText(/confirm new password/i),
       "River-Cedar-Glass-2046!"
     );
+    expect(screen.getByRole("button", { name: /update password/i })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: /update password/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -48,7 +48,6 @@ describe("ChangePasswordForm", () => {
     const payload = JSON.parse(String(options?.body));
 
     expect(payload).toEqual({
-      captchaToken: "",
       confirmPassword: "River-Cedar-Glass-2046!",
       currentPassword: "Current-pass-2046!",
       password: "River-Cedar-Glass-2046!",

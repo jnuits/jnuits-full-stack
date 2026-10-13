@@ -2,7 +2,6 @@ import { ChangePasswordForm } from "@/components/portal/change-password-form";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { requirePortalIdentity } from "@/lib/auth/session";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
-import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
 import { KeyRound } from "lucide-react";
 
 export async function ChangePasswordScreen() {
@@ -41,7 +40,6 @@ export async function ChangePasswordScreen() {
         </div>
         <div className="portal-section__body">
           <ChangePasswordForm
-            captcha={getAuthCaptchaUiConfig()}
             username={user?.email}
           />
         </div>

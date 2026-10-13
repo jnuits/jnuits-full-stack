@@ -1,7 +1,9 @@
 import { expect, test, type Page, type Response } from "@playwright/test";
 import { installFixtureTelemetry } from "./fixtures/telemetry";
+import { trackDocumentErrors } from "./fixtures/document-errors";
 
 const providerDiagnostics = new WeakMap<Page, string[]>();
+const documentErrors = new WeakMap<Page, ReturnType<typeof trackDocumentErrors>>();
 
 test.beforeEach(async ({ context, page, baseURL }) => {
   providerDiagnostics.set(page, []);
@@ -40,24 +42,25 @@ test.afterEach(async ({ page }, info) => {
     (window as unknown as { documentCspViolations?: string[] }).documentCspViolations ?? []
   ).catch(() => []);
   await info.attach("provider-frame-diagnostics", { body: JSON.stringify(providerDiagnostics.get(page) ?? []), contentType: "application/json" });
+  await info.attach("retired-document-prefetch-diagnostics", { body: JSON.stringify(documentErrors.get(page)?.retirementDiagnostics ?? []), contentType: "application/json" });
   await info.attach("document-csp-violations", { body: JSON.stringify(violations), contentType: "application/json" });
   // Cloudflare can sample report-only monitoring policies; retain their events
   // as diagnostics. Enforced application/edge script blocking must still fail.
   expectNoBlockedScripts(violations);
 });
 
-function trackErrors(page: Page) {
-  const errors: string[] = [];
-  page.on("pageerror", error => {
+function trackErrors(page: Page, browserName = "") {
+  const tracker = trackDocumentErrors(page, browserName, error => {
     // WebKit reports this provider iframe same-origin denial as a pageerror.
     // Preserve it separately; this public suite does not certify real CAPTCHA.
     if (/^\/challenges\.cloudflare\.com" from accessing a frame with origin "https:\/\/jnuits\.org\.bd"\. Protocols, domains, and ports must match\.$/.test(error.message)) {
       providerDiagnostics.get(page)?.push(error.message);
-    } else {
-      errors.push(error.message);
+      return true;
     }
+    return false;
   });
-  return errors;
+  documentErrors.set(page, tracker);
+  return tracker.errors;
 }
 
 async function expectDocument(response: Response | null) {
@@ -142,8 +145,8 @@ test("mobile hamburger and both submenus work through repeated open and close", 
   expect(errors).toEqual([]);
 });
 
-test("certificate field and local validation survive client navigation and reload", async ({ page }) => {
-  const errors = trackErrors(page);
+test("certificate field and local validation survive client navigation and reload", async ({ page, browserName }) => {
+  const errors = trackErrors(page, browserName);
   await page.setViewportSize({ width: 1280, height: 900 });
   await expectDocument(await page.goto("/"));
   await page.evaluate(() => { (window as unknown as { navigationProof: boolean }).navigationProof = true; });
@@ -156,7 +159,12 @@ test("certificate field and local validation survive client navigation and reloa
   await expect(input).toBeVisible();
   await page.getByRole("button", { name: "Verify", exact: true }).click();
   await expect(page.locator(".certificate-result-card[role=alert]")).toContainText("Enter a valid certificate ID.");
-  await expectDocument(await page.reload());
+  // Check the outgoing document's CSP before retirement; the afterEach guard
+  // checks the new document. Reload itself must still work immediately.
+  expectNoBlockedScripts(await page.evaluate(() =>
+    (window as unknown as { documentCspViolations: string[] }).documentCspViolations
+  ));
+  await expectDocument(await documentErrors.get(page)!.reload());
   await expect(input).toBeVisible();
   await page.getByRole("button", { name: "Verify", exact: true }).click();
   await expect(page.locator(".certificate-result-card[role=alert]")).toBeVisible();
@@ -242,6 +250,7 @@ for (const workspace of ["admin", "portal"]) {
   test(workspace + " login inputs render and accept edits without signing in", async ({ page }) => {
     const errors = trackErrors(page);
     await expectDocument(await page.goto("/" + workspace + "/login"));
+    await expect(page.locator('input[name="captchaToken"]'), "Public login must retain CAPTCHA").toHaveCount(1);
     const email = page.getByRole("textbox", { name: /email/i });
     const password = page.getByLabel(/password/i);
     await expect(email).toBeVisible();

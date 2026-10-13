@@ -2,26 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { getAuthContext } from "@/lib/auth/session";
-import { buildPasswordSignInPayload } from "@/lib/auth/password-sign-in";
 import { buildStepUpCookie, getStepUpCookieName } from "@/lib/auth/step-up";
 import {
-  getSupabasePublishableKey,
+  getSupabaseAdminKey,
   getSupabaseUrl,
 } from "@/lib/supabase/config";
 import { checkRateLimitForApi, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { rateLimitError } from "@/lib/errors/api-error";
 import { withApiGuard } from "@/lib/security/with-api-guard";
-import { isCaptchaRequired } from "@/lib/security/captcha";
 
 const requestSchema = z.object({
-  captchaToken: z.string().trim().optional().default(""),
   currentPassword: z.string().min(8),
 });
 
 async function handlePost(request: NextRequest) {
   const auth = await getAuthContext();
 
-  if (!auth.user?.email) {
+  if (!auth.user?.id || !auth.user.email) {
     return NextResponse.json(
       { message: "Sign in with your claimed member account first." },
       { status: 401 }
@@ -45,33 +42,32 @@ async function handlePost(request: NextRequest) {
     );
   }
 
-  if (isCaptchaRequired() && !parsed.data.captchaToken) {
-    return NextResponse.json(
-      { message: "Complete the verification challenge." },
-      { status: 400 }
-    );
-  }
-
+  // Only a validated signed-in user reaches this per-request server client.
+  // The trusted key bypasses public-login CAPTCHA; the current password is
+  // still checked by Auth, and only the session's own identity can unlock.
   const ephemeral = createSupabaseClient(
     getSupabaseUrl(),
-    getSupabasePublishableKey(),
+    getSupabaseAdminKey(),
     {
       auth: {
         autoRefreshToken: false,
+        detectSessionInUrl: false,
         persistSession: false,
       },
     }
   );
 
   const { data, error } = await ephemeral.auth.signInWithPassword(
-    buildPasswordSignInPayload({
-      captchaToken: parsed.data.captchaToken,
+    {
       email: auth.user.email,
       password: parsed.data.currentPassword,
-    })
+    }
   );
 
   if (error || data.user?.id !== auth.user.id) {
+    if (data.user) {
+      await ephemeral.auth.signOut({ scope: "local" });
+    }
     return NextResponse.json(
       { message: "Current password verification failed." },
       { status: 403 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { TurnstileField } from "@/components/auth/turnstile-field";
 import { createClient } from "@/utils/supabase/client";
 import { adminOperationRegistry } from "@/lib/auth/admin-verification/operations";
 import { adminVerificationUiMessage, emailChallengeResponse, requestAdminVerification, verificationDecisionResponse, verificationProofResponse } from "@/lib/auth/admin-verification/client";
@@ -20,8 +19,6 @@ export function AdminVerificationDialog({ intent, onVerified, onCancel }: {
   const [code, setCode] = useState(""); const [password, setPassword] = useState("");
   const [challengeId, setChallengeId] = useState(""); const [factorId, setFactorId] = useState("");
   const [resendAt, setResendAt] = useState(0);
-  const [captcha, setCaptcha] = useState({ required: true, siteKey: "" });
-  const [captchaToken, setCaptchaToken] = useState(""); const [captchaRevision, setCaptchaRevision] = useState(0);
   const title = useId();
   const roleOperation = adminOperationRegistry[intent.operation].kind === "admin_role";
 
@@ -36,7 +33,6 @@ export function AdminVerificationDialog({ intent, onVerified, onCancel }: {
       setPhase("choice"); setEmailAllowed(false); return;
     }
     setEmailAllowed(!roleOperation && decision.methods.includes("email"));
-    setCaptcha(result.value.captcha ?? { required: true, siteKey: "" });
     setPhase(decision.methods.includes("password") && roleOperation ? "password" : "choice");
   }
 
@@ -90,8 +86,8 @@ export function AdminVerificationDialog({ intent, onVerified, onCancel }: {
   }
   async function verifyPassword() {
     if (!password) { setError("Enter your current password."); return; }
-    const result = await requestAdminVerification({ action: "password_verify", intent, password, captchaToken }, verificationProofResponse);
-    setPassword(""); setCaptchaToken(""); setCaptchaRevision(value => value + 1);
+    const result = await requestAdminVerification({ action: "password_verify", intent, password }, verificationProofResponse);
+    setPassword("");
     if (!mounted.current) return;
     if (!result.ok) { setError(adminVerificationUiMessage(result.code)); return; }
     if (Date.parse(result.value.expiresAt) <= Date.now()) { setError(adminVerificationUiMessage("verification_expired")); return; }
@@ -120,9 +116,7 @@ export function AdminVerificationDialog({ intent, onVerified, onCancel }: {
     </form> : null}
     {phase === "password" ? <form className="grid gap-4" onSubmit={event => { event.preventDefault(); void work(verifyPassword); }}>
       <label className="input-label">Current password<input autoFocus autoComplete="current-password" type="password" value={password} required disabled={pending} onChange={event => setPassword(event.target.value)} /></label>
-      {captcha.required && captcha.siteKey ? <TurnstileField key={captchaRevision} siteKey={captcha.siteKey} onTokenChange={setCaptchaToken} /> : null}
-      {captcha.required && !captcha.siteKey ? <p role="alert">Account verification is temporarily unavailable. Contact an administrator.</p> : null}
-      <button className="primary-button" disabled={pending || (captcha.required && !captchaToken)} type="submit">{pending ? "Verifying…" : "Verify password and continue"}</button>
+      <button className="primary-button" disabled={pending} type="submit">{pending ? "Verifying…" : "Verify password and continue"}</button>
     </form> : null}
     {phase === "setup" ? <AdminMFASetup onVerified={() => void work(prepare)} /> : null}
     {error ? <p role="alert" className="text-sm text-[var(--brand-rust)]">{error}</p> : null}

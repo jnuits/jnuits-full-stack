@@ -27,7 +27,7 @@ describe("admin verification dialog", () => {
   });
   it("rechecks policy after actual TOTP and requires role password without replacing the session", async () => {
     const fetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, value: { decision: { status: "required", methods: ["totp"] } } }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, value: { decision: { status: "required", methods: ["password"] }, captcha: { required: false, siteKey: "" } } }) });
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, value: { decision: { status: "required", methods: ["password"] }, captcha: { required: true, siteKey: "" } } }) });
     vi.stubGlobal("fetch", fetch);
     mocks.factors.mockResolvedValue({ data: { totp: [{ id: "factor-qa", status: "verified" }] }, error: null });
     mocks.challenge.mockResolvedValue({ data: { id: "challenge-qa" }, error: null });
@@ -38,6 +38,8 @@ describe("admin verification dialog", () => {
     await user.type(await screen.findByLabelText("Authenticator code"), "123456");
     await user.click(screen.getByRole("button", { name: "Verify and continue" }));
     await waitFor(() => expect(screen.getByLabelText("Current password")).toBeEnabled());
+    expect(screen.getByRole("button", { name: "Verify password and continue" })).toBeEnabled();
+    expect(screen.queryByText(/verification is temporarily unavailable/i)).not.toBeInTheDocument();
     expect(mocks.verify).toHaveBeenCalledWith({ factorId: "factor-qa", challengeId: "challenge-qa", code: "123456" });
     expect(verified).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("Email code")).not.toBeInTheDocument();
@@ -52,7 +54,7 @@ describe("admin verification dialog", () => {
     await user.tab({ shift: true }); expect(last).toHaveFocus();
   });
   it("clears password and releases pending after a rejected password challenge", async () => {
-    const fetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, value: { decision: { status: "required", methods: ["password"] }, captcha: { required: false, siteKey: "" } } }) })
+    const fetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, value: { decision: { status: "required", methods: ["password"] }, captcha: { required: true, siteKey: "" } } }) })
       .mockResolvedValueOnce({ ok: false, json: async () => ({ ok: false, code: "password_invalid" }) });
     vi.stubGlobal("fetch", fetch); const verified = vi.fn(); const user = userEvent.setup();
     render(<AdminVerificationDialog intent={{ operation: "admin.role.remove", payload }} onCancel={vi.fn()} onVerified={verified} />);

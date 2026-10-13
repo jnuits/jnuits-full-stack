@@ -75,6 +75,12 @@ try {
     return line;
   }).join("\n");
   if (!/^\[auth.hook.custom_access_token\]/m.test(config)) config += '\n[auth.hook.custom_access_token]\nenabled = true\nuri = "pg-functions://postgres/public/jnuits_custom_access_token_hook"\n';
+  {
+    // Public Auth keeps native CAPTCHA enabled. This is a newly-created local
+    // project with Cloudflare's documented testing secret, never hosted config.
+    assert.ok(!/^\[auth.captcha\]/m.test(config));
+    config += '\n[auth.captcha]\nenabled = true\nprovider = "turnstile"\nsecret = "1x0000000000000000000000000000000AA"\n';
+  }
   writeFileSync(configPath, config);
   const migrations = join(scratch, "supabase", "migrations"); mkdirSync(migrations, { recursive: true });
   copyFileSync(join(repo, "supabase/verification/baseline/20260608092959_restore_rls_auto_enable.sql"), join(migrations, "20260608092959_restore_rls_auto_enable.sql"));
@@ -103,7 +109,9 @@ try {
       : uuid(sql(`insert into public.admin_profiles(user_id,admin_code,display_name,is_active,status) values('${userId}','${adminCode}','Synthetic ${name === "target" ? "Target" : name}',true,'active') returning id;`).split(/\r?\n/)[0]);
     sql(`insert into public.rbac_user_platform_roles(user_id,role_id,scope,note) select '${userId}',id,'${name === "profile" ? "portal" : "admin"}','Disposable fixture' from public.rbac_platform_roles where code='${role}' and scope='${name === "profile" ? "portal" : "admin"}';`);
     const cookies = [];
-    const session = createServerClient(status.API_URL, status.ANON_KEY, { cookies: { getAll: () => cookies, setAll: values => { for (const value of values) { const index = cookies.findIndex(cookie => cookie.name === value.name); if (index >= 0) cookies.splice(index, 1); cookies.push(value); } } } });
+    // Trusted fixture seeding bypasses CAPTCHA; after sign-in, requests use
+    // the synthetic user's JWT. Application browser clients stay publishable.
+    const session = createServerClient(status.API_URL, status.SERVICE_ROLE_KEY, { cookies: { getAll: () => cookies, setAll: values => { for (const value of values) { const index = cookies.findIndex(cookie => cookie.name === value.name); if (index >= 0) cookies.splice(index, 1); cookies.push(value); } } } });
     assert.ok(!(await session.auth.signInWithPassword({ email, password })).error, "Synthetic sign-in failed.");
     const account = { email, password, userId, profileId, adminCode, cookies, session };
     if (["voluntary", "super"].includes(name)) {
@@ -116,7 +124,14 @@ try {
       if (name === "voluntary") assert.ok(!(await session.auth.signInWithPassword({ email, password })).error, "Synthetic AAL1 sign-in failed.");
     }
     const claims = await session.auth.getClaims(); assert.ok(!claims.error && claims.data.claims.jnuits_role_version >= 0, "Real claim hook not configured.");
+    assert.equal(claims.data.claims.role, "authenticated", "Fixtures must use a user JWT, not a service role.");
     account.sessionId = uuid(claims.data.claims.session_id); accounts.set(name, account);
+    if (name === "never") {
+      const publicAuth = createClient(status.API_URL, status.ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+      const rejected = await publicAuth.auth.signInWithPassword({ email, password });
+      assert.equal(rejected.error?.code, "captcha_failed", "Native public Auth must still require CAPTCHA.");
+      console.log("Native public Auth rejected a CAPTCHA-free login; trusted synthetic seeding succeeded.");
+    }
   }
   for (let index = 0; index < 4; index++) {
     const memberId = uuid(sql(`insert into public.members(jnuits_id,full_name,joined_on,lifecycle_status,portal_access_status) values('JNUITS-209987${index}','Synthetic review member ${index}','2023-01-01','former','frozen') returning id;`).split(/\r?\n/)[0]);
@@ -134,6 +149,18 @@ try {
       const roleIntent = { operation: "admin.role.change", payload: { adminProfileId: accounts.get("target").profileId, roleCode: "admin", confirmation: accounts.get("target").adminCode } };
       if (action === "account") { assert.ok(account); result = { cookies: account.cookies.map(({ name, value }) => ({ name, value })), userId: account.userId, password: account.password, factorId: account.factorId }; }
       else if (action === "transport") { assert.ok([...accounts.values()].some(item => item.email === body.to)); const code = body.html.match(/<code\b[^>]*>\s*([0-9]{6})\s*<\/code>/)?.[1]; if (code) mail.set(body.to, code); result = { id: "disposable-transport" }; }
+      else if (action === "profile_password_state") {
+        assert.ok(profileQA && typeof body.password === "string" && body.password.length < 256);
+        const profile = accounts.get("profile");
+        const verify = async password => {
+          const client = createClient(status.API_URL, status.SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+          const checked = await client.auth.signInWithPassword({ email: profile.email, password });
+          const matches = !checked.error && checked.data.user?.id === profile.userId;
+          if (checked.data.user) await client.auth.signOut({ scope: "local" });
+          return matches;
+        };
+        result = { newPasswordAccepted: await verify(body.password), oldPasswordRejected: !(await verify(profile.password)) };
+      }
       else if (action === "profile_state") { assert.ok(profileQA); const id = uuid(accounts.get("profile").profileId); result = jsonSql(`select json_build_object('organization',m.current_organization,'phone',m.phone,'studentId',m.student_id,'batch',m.batch_no,'graduationYear',m.graduation_year,'requests',(select coalesce(json_agg(json_build_object('id',q.id,'type',q.request_type,'status',q.status)),'[]') from public.profile_update_requests q where q.member_id=m.id)) from public.members m where m.id='${id}';`); }
       else if (action === "profile_conflict") { assert.ok(profileQA); const id = uuid(accounts.get("profile").profileId); const requestId = uuid(sql(`select id from public.profile_update_requests where member_id='${id}' and request_type='workplace_update' and status='pending' limit 1;`)); const value = await admin.rpc("review_member_profile_update", { p_request_id: requestId, p_actor_user_id: accounts.get("never").userId, p_decision: "approved", p_review_note: "Synthetic conflict check" }); result = { code: value.error?.code, status: value.status }; }
       else if (action === "workplace_request") { assert.ok(profileQA); assert.ok(["Initial Requested Workplace","Obsolete Workplace"].includes(body.organization)); const id = uuid(accounts.get("profile").profileId); result = { id: uuid(sql(`insert into public.profile_update_requests(member_id,request_type,status,payload,requested_at) values('${id}','workplace_update','pending',jsonb_build_object('currentOrganization','${body.organization}'),clock_timestamp()+interval '10 years') returning id;`).split(/\r?\n/)[0]) }; }
@@ -202,10 +229,17 @@ try {
   if (memberEditorQA) env.PLAYWRIGHT_RELEASE_SMOKE = "1";
   Object.assign(env, { PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3127", PLAYWRIGHT_NO_COPY_PROMPT: "1", ADMIN_VERIFICATION_QA_SCREENSHOTS: screenshots, NODE_ENV: "test" });
   console.log("Running real Next/Supabase browser integration; transport does not certify mailbox delivery.");
-  const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", memberEditorQA ? "e2e/member-editor.spec.ts" : profileQA ? "e2e/profile-self-service.spec.ts" : "e2e/admin-verification.spec.ts", ...(memberEditorQA ? memberEditorProject ? [`--project=${memberEditorProject}`] : [] : ["--project=chromium"]), "--workers=1", "--output", join(screenshots, "playwright-output"), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
-  const code = await new Promise(resolve => child.once("exit", resolve));
-  if (code !== 0) console.error(`Redacted disposable Next diagnostics: ${diagnostics}`);
-  assert.equal(code, 0, "Disposable admin verification browser suite failed.");
+  // Reuse this isolated stack/build for private password acceptance before the
+  // editor matrix. Each suite has its own browser context and artifact folder.
+  const suites = memberEditorQA
+    ? [["e2e/admin-verification.spec.ts", ["--project=chromium"]], ["e2e/profile-self-service.spec.ts", ["--project=chromium"]], ["e2e/member-editor.spec.ts", memberEditorProject ? [`--project=${memberEditorProject}`] : []]]
+    : [[profileQA ? "e2e/profile-self-service.spec.ts" : "e2e/admin-verification.spec.ts", ["--project=chromium"]]];
+  for (const [index, [spec, projects]] of suites.entries()) {
+    const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", spec, ...projects, "--workers=1", "--output", join(screenshots, `playwright-output-${index}`), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
+    const code = await new Promise(resolve => child.once("exit", resolve));
+    if (code !== 0) console.error(`Redacted disposable Next diagnostics: ${diagnostics}`);
+    assert.equal(code, 0, `Disposable browser suite failed: ${spec}`);
+  }
   console.log(profileQA ? "PROFILE SELF SERVICE BROWSER QA PASSED (disposable project only)." : "ADMIN VERIFICATION BROWSER QA PASSED (disposable project only).");
   console.log(`Non-secret screenshots: ${screenshots}`);
 } catch (error) {

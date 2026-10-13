@@ -6,7 +6,6 @@ import { parseAdminOperationIntent } from "@/lib/auth/admin-verification/operati
 import { getAdminReadProofCookieName } from "@/lib/auth/admin-verification/read-cookie";
 import { getRequestIp } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
-import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
 import type { AdminOperationIntent } from "@/lib/auth/admin-verification/types";
 
 export const runtime = "nodejs";
@@ -20,6 +19,7 @@ const schema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("prepare"), intent: intentSchema }),
   z.strictObject({ action: z.literal("email_send"), intent: intentSchema }),
   z.strictObject({ action: z.literal("email_verify"), challengeId: z.uuid(), code: z.string().regex(/^\d{6}$/) }),
+  // Accept an ignored legacy token for open tabs from the previous release.
   z.strictObject({ action: z.literal("password_verify"), intent: intentSchema, password: z.string().min(1).max(4096), captchaToken: z.string().trim().max(8192).default("") }),
 ]);
 function statusFor(code: string) {
@@ -45,9 +45,9 @@ async function handlePost(request: NextRequest) {
     const intent = input.intent as AdminOperationIntent;
     const result = input.action === "prepare" ? await prepareAdminVerification(intent)
       : input.action === "email_send" ? await requestAdminEmailVerification(intent, ip)
-      : await verifyAdminRolePassword(intent, input.password, input.captchaToken, ip);
+      : await verifyAdminRolePassword(intent, input.password, ip);
     if (input.action === "prepare" && result.ok && "decision" in result.value) {
-      return NextResponse.json({ ok: true, value: { ...result.value, captcha: getAuthCaptchaUiConfig() } });
+      return NextResponse.json({ ok: true, value: { ...result.value, captcha: { required: false, siteKey: "" } } });
     }
     return NextResponse.json(result, { status: result.ok ? 200 : statusFor(result.code) });
   } catch { return NextResponse.json({ ok: false, code: "verification_unavailable" }, { status: 503 }); }
