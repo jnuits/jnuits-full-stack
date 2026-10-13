@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { ConfirmSubmitButton } from "@/components/admin/confirm-submit-button";
 import { CommitteeLeadershipSpeechField } from "./committee-leadership-speech-field";
 import { Fragment, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type MouseEvent, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
@@ -1256,8 +1257,7 @@ function AdvisorHiddenFields({ advisor, nextPublic }: { advisor: AdvisorProfileC
       <input name="statusNote" type="hidden" value={advisor.statusNote || ""} />
       <input name="tenureDisplay" type="hidden" value={advisor.tenureDisplay || ""} />
       <input name="title" type="hidden" value={advisor.title || ""} />
-      <input name="userId" type="hidden" value={advisor.userId || ""} />
-      <input name="websiteUrl" type="hidden" value={advisor.websiteUrl || ""} />
+        <input name="websiteUrl" type="hidden" value={advisor.websiteUrl || ""} />
       <input name="workExperience" type="hidden" value={advisor.workExperience.join("\n")} />
     </>
   );
@@ -1287,6 +1287,8 @@ function DrawerPanel({
     firstFocusable?.focus();
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
+      // A portalled confirmation owns its keyboard events, not this drawer.
+      if (!(event.target instanceof Element) || event.target.closest('[role="dialog"]') !== panelNode) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onClose();
@@ -1727,13 +1729,15 @@ function AssignmentForm({
 function AdvisorForm({
   advisor,
   departmentOptions = [],
+  initialTab = "profile",
   onCancel,
 }: {
   advisor: AdvisorProfileClientRecord | null;
   departmentOptions?: readonly MemberDepartmentOption[];
+  initialTab?: "profile" | "access";
   onCancel: () => void;
 }) {
-  const [activePanel, setActivePanel] = useState<"access" | "content" | "profile">("profile");
+  const [activePanel, setActivePanel] = useState<"access" | "content" | "profile">(initialTab);
   const [advisorType, setAdvisorType] = useState(advisor?.advisorType || "honorable_advisor");
   const [avatarUrl, setAvatarUrl] = useState(advisor?.avatarSecureUrl || "");
   const [joinedOn, setJoinedOn] = useState(advisor?.joinedOn || "");
@@ -1857,13 +1861,11 @@ function AdvisorForm({
                   <option value="honorable_advisor">● Honorable Advisor</option>
                 </PanelSelect>
               </Field>
-              <Field>
-                Auth user ID
-                <PanelInput name="userId" defaultValue={advisor?.userId || ""} placeholder="Optional linked auth user" />
-                <span className="text-xs normal-case tracking-normal text-muted-foreground">
-                  This links to a Supabase Auth account - it is NOT a member account. Advisors do not have membership cycle records.
-                </span>
-              </Field>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs font-semibold">Portal access</p>
+                <p className="mt-1 text-xs text-muted-foreground">{advisor?.userId ? "A portal account is already linked." : "No portal account is linked."} Manage linking in the Access tab.</p>
+                <GhostButton className="mt-2" onClick={() => setActivePanel("access")} type="button">Open Access settings</GhostButton>
+              </div>
               <Field>
                 Title
                 <PanelInput name="title" defaultValue={advisor?.title || ""} placeholder="Professor Dr." />
@@ -2014,7 +2016,7 @@ function AdvisorForm({
                     type="email"
                   />
                 </Field>
-                <GhostSubmitButton form={linkFormId}>Link auth user</GhostSubmitButton>
+                <ConfirmSubmitButton form={linkFormId} className="h-9 rounded-lg border border-border px-3 text-sm" title="Link advisor portal account?" confirmLabel="Link account" description="This links the existing account with the entered email to this advisor profile and grants advisor portal access. It does not grant admin access.">Link auth user</ConfirmSubmitButton>
                 <p className="text-xs normal-case tracking-normal text-muted-foreground md:col-span-2">
                   Looks up an existing Supabase Auth user by email and links them to this advisor profile for portal routing.
                 </p>
@@ -2164,6 +2166,8 @@ export function CommitteeWorkspaceClient({
   const [selectedTermId, setSelectedTermId] = useState<string | null>(initialTermId);
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
   const [editingAdvisorId, setEditingAdvisorId] = useState<string | null>(null);
+  const [editingAdvisorInitialTab, setEditingAdvisorInitialTab] = useState<"profile" | "access">("profile");
+  const advisorTriggerRef = useRef<HTMLElement | null>(null);
   const [advisorSearch, setAdvisorSearch] = useState("");
   const [advisorTypeFilter, setAdvisorTypeFilter] = useState("");
   const [advisorStatusFilter, setAdvisorStatusFilter] = useState("");
@@ -2338,11 +2342,31 @@ export function CommitteeWorkspaceClient({
     });
   }
 
+  function openAdvisor(id: string, tab: "profile" | "access") {
+    setEditingAdvisorId(id);
+    setEditingAdvisorInitialTab(tab);
+    setShowNewAdvisor(false);
+    setActionMenu(null);
+  }
+  function openNewAdvisor() {
+    advisorTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setEditingAdvisorId(null);
+    setEditingAdvisorInitialTab("profile");
+    setShowNewAdvisor(true);
+    setActionMenu(null);
+  }
+  function closeAdvisorEditor() {
+    setEditingAdvisorId(null);
+    setShowNewAdvisor(false);
+    advisorTriggerRef.current?.focus();
+  }
+
   function openActionMenu(
     event: MouseEvent<HTMLButtonElement>,
     kind: "advisor" | "term",
     id: string
   ) {
+    if (kind === "advisor") advisorTriggerRef.current = event.currentTarget;
     const rect = event.currentTarget.getBoundingClientRect();
     const width = 192;
 
@@ -2751,7 +2775,7 @@ export function CommitteeWorkspaceClient({
                   <Info className="size-3.5" aria-hidden="true" />
                   Advisors are not members · Managed separately from Membership DB
                 </span>
-                <PrimaryButton onClick={() => { setShowNewAdvisor(true); setEditingAdvisorId(null); }} type="button"><Plus className="size-3.5" /> Add advisor</PrimaryButton>
+                <PrimaryButton onClick={openNewAdvisor} type="button"><Plus className="size-3.5" /> Add advisor</PrimaryButton>
               </>
             }
             id="committee-advisors"
@@ -2759,8 +2783,8 @@ export function CommitteeWorkspaceClient({
             title="Teacher advisor profiles"
           >
             <div className="grid items-stretch gap-4 md:grid-cols-3">
-              <AdvisorFeatureCard advisor={currentChiefAdvisor} icon={GraduationCap} label="Current Chief Advisor" onAdd={() => setShowNewAdvisor(true)} />
-              <AdvisorFeatureCard advisor={currentModerator} icon={ShieldCheck} label="Current Moderator/Mentor" onAdd={() => setShowNewAdvisor(true)} />
+              <AdvisorFeatureCard advisor={currentChiefAdvisor} icon={GraduationCap} label="Current Chief Advisor" onAdd={openNewAdvisor} />
+              <AdvisorFeatureCard advisor={currentModerator} icon={ShieldCheck} label="Current Moderator/Mentor" onAdd={openNewAdvisor} />
               <article className="flex min-h-[112px] items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
                 <span className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
                   <Archive aria-hidden="true" className="size-4" />
@@ -2804,7 +2828,7 @@ export function CommitteeWorkspaceClient({
             <TableCard>
               {advisors.length === 0 ? (
                 <EmptyPanel
-                  action={<PrimaryButton onClick={() => setShowNewAdvisor(true)} type="button"><Plus className="size-3.5" /> Add advisor</PrimaryButton>}
+                  action={<PrimaryButton onClick={openNewAdvisor} type="button"><Plus className="size-3.5" /> Add advisor</PrimaryButton>}
                   description="Create advisor profiles for the chief advisor, moderator/mentor, and honorable advisors."
                   icon={GraduationCap}
                   title="No advisor profiles yet"
@@ -3197,11 +3221,7 @@ export function CommitteeWorkspaceClient({
               <>
                 <button
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  onClick={() => {
-                    setEditingAdvisorId(menuAdvisor.id);
-                    setShowNewAdvisor(false);
-                    setActionMenu(null);
-                  }}
+                  onClick={() => openAdvisor(menuAdvisor.id, "profile")}
                   role="menuitem"
                   type="button"
                 >
@@ -3209,28 +3229,17 @@ export function CommitteeWorkspaceClient({
                 </button>
                 <button
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  onClick={() => {
-                    setEditingAdvisorId(menuAdvisor.id);
-                    setShowNewAdvisor(false);
-                    setActionMenu(null);
-                  }}
+                  onClick={() => openAdvisor(menuAdvisor.id, "access")}
                   role="menuitem"
                   type="button"
                 >
                   <UserCheck className="size-3.5" aria-hidden="true" /> Invite/link portal user
                 </button>
-                <button
+                {menuAdvisor.isPublic ? <a
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  onClick={() => {
-                    setEditingAdvisorId(menuAdvisor.id);
-                    setShowNewAdvisor(false);
-                    setActionMenu(null);
-                  }}
-                  role="menuitem"
-                  type="button"
-                >
-                  <Eye className="size-3.5" aria-hidden="true" /> View public profile
-                </button>
+                  href={menuAdvisor.isCurrent ? "/committee#advisor-board" : "/committee#former-advisors"}
+                  target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => setActionMenu(null)}
+                ><Eye className="size-3.5" aria-hidden="true" /> View public profile</a> : <button type="button" role="menuitem" disabled className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm text-muted-foreground" title="This advisor profile is private."><Eye className="size-3.5" aria-hidden="true" /> View public profile</button>}
               </>
             ) : null}
           </div>
@@ -3261,19 +3270,15 @@ export function CommitteeWorkspaceClient({
 
       {selectedAdvisor || showNewAdvisor ? (
         <DrawerPanel
-          onClose={() => {
-            setEditingAdvisorId(null);
-            setShowNewAdvisor(false);
-          }}
+          onClose={closeAdvisorEditor}
           title={selectedAdvisor ? "Edit Advisor Profile" : "Create Advisor Profile"}
         >
           <AdvisorForm
+            key={`${selectedAdvisor?.id || "new-advisor"}:${editingAdvisorInitialTab}`}
+            initialTab={editingAdvisorInitialTab}
             advisor={selectedAdvisor}
             departmentOptions={departmentOptions}
-            onCancel={() => {
-              setEditingAdvisorId(null);
-              setShowNewAdvisor(false);
-            }}
+            onCancel={closeAdvisorEditor}
           />
         </DrawerPanel>
       ) : null}

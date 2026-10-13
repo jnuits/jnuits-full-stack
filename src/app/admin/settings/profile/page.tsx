@@ -1,7 +1,7 @@
-import { redirect } from "next/navigation";
+import AdminProfilesPage from "@/app/admin/admin-profiles/page";
 
-export const metadata = { title: "Admin Profile Settings | JnUITS" };
+export const metadata = { title: "My Admin Profile | JnUITS" };
 
-export default function AdminProfileSettingsPage() {
-  redirect("/admin/admin-profiles?tab=self&profile=me");
+export default async function AdminProfileSettingsPage() {
+  return AdminProfilesPage({ searchParams: Promise.resolve({ tab: "self", profile: "me" }) });
 }

@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
@@ -24,11 +25,12 @@ export default async function PagesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireAdminPermission("cms.pages.manage", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
   const resolved = await searchParams;
-  const editSlug = typeof resolved.edit === "string" ? resolved.edit : "";
+  const editSlug = typeof resolved.edit === "string" && ["home", "about", "contact", "footer"].includes(resolved.edit) ? resolved.edit : "home";
 
   const pagesResult = await admin
     .from("content_pages")
@@ -107,7 +109,7 @@ export default async function PagesPage({
       {/* Form */}
       <section>
         <p className="admin-section-label">{selected ? `Editing: ${selected.slug}` : "Create / update page singleton"}</p>
-        <PageSingletonEditor key={selected?.slug || "new"} selected={selected} />
+        <PageSingletonEditor key={`${editSlug}:${selected?.updated_at || "new"}`} selected={selected} initialSlug={editSlug} />
       </section>
     </div>
   );

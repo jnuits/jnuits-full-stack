@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import Link from "next/link";
 import { BarChart2, FileText, RefreshCcw, ShieldCheck } from "lucide-react";
 import { generateReconciliationSnapshot } from "@/app/admin/reports/actions";
@@ -16,6 +17,7 @@ type OperatorReportRow = {
 };
 
 export default async function AdminReconcilePage() {
+  await requireAdminPermission("admin.reconcile.manage", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const [snapshot, reportsResult] = await Promise.all([
     buildOperationalSnapshot(admin),

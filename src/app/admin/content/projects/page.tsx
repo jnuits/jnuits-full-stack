@@ -1,16 +1,17 @@
+import { hasPermission, requireAdminPermission } from "@/lib/auth/session";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
 import {
-  createProject,
-  updateProject,
   deleteProject,
   saveDeveloperProfile,
 } from "@/app/admin/content/actions";
 import { getAllProjectsForAdmin } from "@/lib/content/projects";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmSubmitButton } from "@/components/admin/confirm-submit-button";
+import { ProjectEditor } from "@/components/admin/project-editor";
+import type { BlogMediaOption } from "@/components/admin/blog-media-select";
 import { FolderOpen, User } from "lucide-react";
 
 type DeveloperRecord = {
@@ -26,7 +27,7 @@ type DeveloperRecord = {
   updated_at: string;
 };
 
-type MediaAssetOption = { id: string; title: string | null; public_id: string; media_kind: string };
+type MediaAssetOption = BlogMediaOption;
 
 export const metadata = { title: "Projects — Admin | JnUITS" };
 
@@ -35,6 +36,8 @@ export default async function ProjectsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireAdminPermission("cms.projects.manage", { fallbackPath: "/admin/dashboard" });
+  const canUpload = await hasPermission("cms.media.manage");
   const admin = createAdminClient();
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
@@ -49,7 +52,7 @@ export default async function ProjectsPage({
       .select("id, name, role, focus, bio, status, is_lead, sort_order, media_asset_id, updated_at")
       .order("sort_order", { ascending: true })
       .limit(20),
-    admin.from("media_assets").select("id, title, public_id, media_kind").order("created_at", { ascending: false }).limit(50),
+    admin.from("media_assets").select("id, title, public_id, media_kind, secure_url, thumbnail_url, alt_text").is("deleted_at", null).eq("is_public", true).order("created_at", { ascending: false }).limit(50),
   ]);
 
   const projects = projectsData || [];
@@ -140,64 +143,7 @@ export default async function ProjectsPage({
       <section>
         <p className="admin-section-label">{selectedProject ? `Editing: ${selectedProject.title}` : "Create new project"}</p>
         <div className="admin-review-card">
-          <form action={selectedProject ? updateProject : createProject} className="grid gap-4">
-            {selectedProject && <input type="hidden" name="projectId" value={selectedProject.id} />}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="input-label sm:col-span-2">
-                Title
-                <input defaultValue={selectedProject?.title || ""} name="title" placeholder="Project name" required />
-              </label>
-              <label className="input-label">
-                Slug
-                <input defaultValue={selectedProject?.slug || ""} name="slug" placeholder="generated-if-empty" />
-              </label>
-              <label className="input-label">
-                Tech stack (comma-separated)
-                <input defaultValue={selectedProject?.techStack?.join(", ") || ""} name="techStack" placeholder="Next.js, Supabase, ..." />
-              </label>
-              <label className="input-label sm:col-span-2">
-                Summary
-                <textarea defaultValue={selectedProject?.description || ""} name="description" placeholder="Project description" rows={4} />
-              </label>
-              <label className="input-label">
-                Live URL
-                <input defaultValue={selectedProject?.demoUrl || ""} name="demoUrl" placeholder="https://..." />
-              </label>
-              <label className="input-label">
-                Repo URL
-                <input defaultValue={selectedProject?.githubUrl || ""} name="githubUrl" placeholder="https://github.com/..." />
-              </label>
-              <label className="input-label">
-                Status
-                <select defaultValue={selectedProject?.status || "draft"} name="status">
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </label>
-              <label className="input-label">
-                Sort order
-                <input defaultValue={100} name="sortOrder" type="number" />
-              </label>
-              <label className="input-label">
-                Cover image (media asset)
-                <select defaultValue="" name="mediaAssetId">
-                  <option value="">No media</option>
-                  {media.map((a) => (
-                    <option key={a.id} value={a.id}>{a.title || a.public_id}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button className="admin-btn admin-btn--primary" type="submit">
-                {selectedProject ? "Update project" : "Save project"}
-              </button>
-              {selectedProject && (
-                <Link href="/admin/content/projects" className="admin-btn admin-btn--ghost">Clear editor</Link>
-              )}
-            </div>
-          </form>
+          <ProjectEditor key={selectedProject?.id || "new"} project={selectedProject} assets={media.filter(asset => asset.media_kind === "image" && asset.secure_url)} canUpload={canUpload} />
         </div>
       </section>
 
@@ -259,7 +205,7 @@ export default async function ProjectsPage({
               </label>
               <label className="input-label">
                 Sort order
-                <input defaultValue={selectedDev?.sort_order || 100} name="sortOrder" type="number" />
+                <input defaultValue={selectedDev?.sort_order ?? 100} name="sortOrder" type="number" />
               </label>
               <label className="input-label">
                 Is lead?
@@ -272,6 +218,7 @@ export default async function ProjectsPage({
                 Media asset
                 <select defaultValue={selectedDev?.media_asset_id || ""} name="mediaAssetId">
                   <option value="">No photo</option>
+                  {selectedDev?.media_asset_id && !media.some(asset => asset.id === selectedDev.media_asset_id) ? <option value={selectedDev.media_asset_id}>Keep current media</option> : null}
                   {media.map((a) => (
                     <option key={a.id} value={a.id}>{a.title || a.public_id}</option>
                   ))}

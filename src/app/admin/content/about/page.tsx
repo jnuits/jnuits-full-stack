@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 
 import { saveAboutPageContent } from "@/app/admin/content/about/actions";
@@ -22,6 +23,7 @@ function getYear(value: string) {
 }
 
 export default async function AdminAboutContentPage() {
+  await requireAdminPermission("cms.pages.manage", { fallbackPath: "/admin/dashboard" });
   const [aboutContent, cookieStore] = await Promise.all([
     getAboutContent(),
     cookies(),

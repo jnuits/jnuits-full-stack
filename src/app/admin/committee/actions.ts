@@ -120,7 +120,6 @@ const advisorProfileSchema = z.object({
   statusNote: z.string().trim().max(1200).optional().default(""),
   tenureDisplay: z.string().trim().max(180).optional().default(""),
   title: z.string().trim().max(80).optional().default(""),
-  userId: z.string().trim().max(80).optional().default(""),
   websiteUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
   workExperience: z.string().trim().max(6000).optional().default(""),
 });
@@ -1030,7 +1029,6 @@ export async function saveAdvisorProfile(formData: FormData) {
       "statusNote",
       "tenureDisplay",
       "title",
-      "userId",
       "websiteUrl",
       "workExperience",
     ])
@@ -1071,7 +1069,6 @@ export async function saveAdvisorProfile(formData: FormData) {
     statusNote,
     tenureDisplay,
     title,
-    userId,
     websiteUrl,
     workExperience,
   } = parsed.data;
@@ -1083,7 +1080,7 @@ export async function saveAdvisorProfile(formData: FormData) {
     advisor_type: advisorType,
     avatar_secure_url: avatarSecureUrl || null,
     bio: bio || null,
-    created_by_user_id: actorUserId,
+    ...(advisorId ? {} : { created_by_user_id: actorUserId }),
     date_confidence: dateConfidence,
     department: department || null,
     designation: designation || null,
@@ -1104,7 +1101,6 @@ export async function saveAdvisorProfile(formData: FormData) {
     status_note: statusNote || null,
     tenure_display: tenureDisplay || null,
     title: title || null,
-    user_id: userId || null,
     website_url: websiteUrl || null,
     work_experience: listToJson(workExperience),
   };
@@ -1136,7 +1132,6 @@ export async function saveAdvisorProfile(formData: FormData) {
       advisorJnuitsId: resolvedAdvisorJnuitsId,
       isCurrent,
       isPublic,
-      userId: userId || null,
     },
   });
 

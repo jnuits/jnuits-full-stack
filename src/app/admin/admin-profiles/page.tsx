@@ -799,6 +799,8 @@ export default async function AdminProfilesPage({
   const canManageAdminRoles = await hasPermission("admin.roles.manage_admin");
   const resolvedSearchParams = await searchParams;
   const filters = parseAdminProfileFilters(resolvedSearchParams);
+  const selfOnly = filters.tab === "self";
+  const canViewDirectory = await hasPermission("admin.admin_profiles.manage");
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
   const {
@@ -817,6 +819,7 @@ export default async function AdminProfilesPage({
     actorUserId,
     canManageAdminRoles,
     filters,
+    scope: selfOnly ? "self" : "management",
   });
   const detailProfile = filters.tab === "self" ? actorProfile : selectedProfile;
 
@@ -824,15 +827,15 @@ export default async function AdminProfilesPage({
     <div className="grid gap-8">
       <div className="admin-page-header">
         <div>
-          <p className="admin-page-header__breadcrumb">Admin / Admin Accounts</p>
-          <h1 className="admin-page-header__title">Admin Identity &amp; Access</h1>
+          <p className="admin-page-header__breadcrumb">{selfOnly ? "Settings / My Profile" : "Admin / Admin Accounts"}</p>
+          <h1 className="admin-page-header__title">{selfOnly ? "My admin profile" : "Admin Identity & Access"}</h1>
           <p className="admin-page-header__desc">
-            Private admin metadata, invitations, lifecycle state, and governed role changes.
+            {selfOnly ? "Manage your own admin profile and review your recent account activity." : "Private admin metadata, invitations, lifecycle state, and governed role changes."}
           </p>
         </div>
-        <span className="status-pill">
+        {!selfOnly ? <span className="status-pill">
           {filteredProfiles.length} of {profiles.length} shown
-        </span>
+        </span> : null}
       </div>
 
       {flash ? (
@@ -847,13 +850,14 @@ export default async function AdminProfilesPage({
         </section>
       ) : null}
 
-      <MetricsGrid stats={stats} />
+      {!selfOnly ? <MetricsGrid stats={stats} /> : null}
 
       <nav className="admin-editor-tabs" aria-label="Admin account views">
         <div className="admin-editor-tabs__list" role="tablist">
           <TabLink active={filters.tab === "self"} href={tabHref(filters, "self")}>
             My profile
           </TabLink>
+          {canViewDirectory ? <>
           <TabLink active={filters.tab === "directory"} href={tabHref(filters, "directory")}>
             Directory
           </TabLink>
@@ -863,6 +867,7 @@ export default async function AdminProfilesPage({
           <TabLink active={filters.tab === "access"} href={tabHref(filters, "access")}>
             Access changes
           </TabLink>
+          </> : null}
         </div>
       </nav>
 

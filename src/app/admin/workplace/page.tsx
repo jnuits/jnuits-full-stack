@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import {
   WorkplaceWorkspaceClient,
   type WorkplaceDirectoryMember,
@@ -122,6 +123,7 @@ export default async function WorkplacePage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requireAdminPermission("admin.membership.manage", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const flexibleAdmin = asFlexibleClient(admin);
   const resolvedSearchParams = await searchParams;

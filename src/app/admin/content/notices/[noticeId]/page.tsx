@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import {
@@ -14,6 +15,7 @@ export default async function NoticeEditorPage({
 }: {
   params: Promise<{ noticeId: string }>;
 }) {
+  await requireAdminPermission("cms.notices.manage", { fallbackPath: "/admin/dashboard" });
   const { noticeId } = await params;
   const [{ notice }, cookieStore] = await Promise.all([
     getNoticeEditorData(noticeId),

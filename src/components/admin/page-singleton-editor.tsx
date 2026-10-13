@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Eye, Save } from "lucide-react";
 import { saveContentPage } from "@/app/admin/content/actions";
 
@@ -12,10 +13,12 @@ type ContentPageRecord = {
   status: string;
   summary: string | null;
   title: string;
+  updated_at: string;
 };
 
 type PageSingletonEditorProps = {
   selected: ContentPageRecord | null;
+  initialSlug?: string;
 };
 
 function asObject(value: unknown) {
@@ -114,9 +117,10 @@ function initialFooterFields(body: Record<string, unknown>) {
   };
 }
 
-export function PageSingletonEditor({ selected }: PageSingletonEditorProps) {
+export function PageSingletonEditor({ selected, initialSlug = "home" }: PageSingletonEditorProps) {
+  const router = useRouter();
   const body = useMemo(() => asObject(selected?.body), [selected?.body]);
-  const [slug, setSlug] = useState(selected?.slug || "home");
+  const slug = selected?.slug || initialSlug;
   const [status, setStatus] = useState(selected?.status || "draft");
   const [title, setTitle] = useState(selected?.title || "");
   const [eyebrow, setEyebrow] = useState(selected?.eyebrow || "");
@@ -197,12 +201,15 @@ export function PageSingletonEditor({ selected }: PageSingletonEditorProps) {
 
   return (
     <div className="admin-review-card">
+      <p className="mb-4 text-sm text-[var(--muted-foreground)]">This editor preserves dedicated content and checks for newer edits before saving.</p>
+      {slug === "home" ? <Link className="queue-link mb-4 inline-flex" href="/admin/content/slider">Manage the full Slider collection</Link> : null}
       <form action={saveContentPage} className="grid gap-5">
         <input name="bodyJson" type="hidden" value={bodyJson} />
+        <input name="expectedUpdatedAt" type="hidden" value={selected?.updated_at || ""} />
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="input-label">
             Page
-            <select name="slug" onChange={(event) => setSlug(event.target.value)} value={slug}>
+            <select name="slug" onChange={(event) => router.push(`/admin/content/pages?edit=${encodeURIComponent(event.target.value)}`)} value={slug}>
               <option value="home">Home</option>
               <option value="contact">Contact</option>
               <option value="footer">Footer</option>

@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
@@ -136,6 +137,7 @@ export default async function AdminCertificatesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireAdminPermission("admin.certificates.manage", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const cookieStore = await cookies();
   const flash = parseAdminFlash(

@@ -22,3 +22,15 @@ describe("admin protected read routing", () => {
     expect(getAdminRouteAccess("/admin/membership")).not.toHaveProperty("readOperation");
   });
 });
+
+
+describe("admin profile route separation", () => {
+  it("permits the canonical own profile without settings/account-management permission", () => {
+    expect(getAdminRouteAccess("/admin/settings/profile").requiredPermission).toBeNull();
+  });
+  it("keeps legacy self bookmarks self-service while protecting management views", () => {
+    expect(getAdminRouteAccess("/admin/admin-profiles?tab=self&profile=me").requiredPermission).toBeNull();
+    expect(getAdminRouteAccess("/admin/admin-profiles?tab=directory").requiredPermission).toBe("admin.admin_profiles.manage");
+    expect(getAdminRouteAccess("/admin/admin-profiles?tab=self&tab=access").requiredPermission).toBe("admin.admin_profiles.manage");
+  });
+});

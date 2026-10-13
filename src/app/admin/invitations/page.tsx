@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 
 import {
@@ -192,6 +193,7 @@ export default async function InvitationsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requireAdminPermission("admin.membership.manage", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const flexibleAdmin = asFlexibleClient(admin);
   const cookieStore = await cookies();

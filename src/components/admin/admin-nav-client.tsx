@@ -41,7 +41,7 @@ type NavItem = {
   href: string;
   label: string;
   icon: ComponentType<{ size?: number; className?: string }>;
-  badge?: number;
+  badge?: number | null;
 };
 
 type NavGroup = {
@@ -105,12 +105,14 @@ interface Props {
   badgeCounts: AdminBadgeCounts;
   children?: React.ReactNode;
   navigationItems: AdminShellNavigationItem[];
+  queueCountsUnavailable?: boolean;
 }
 
 export function AdminNavClient({
   badgeCounts,
   children,
   navigationItems,
+  queueCountsUnavailable = false,
 }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -258,7 +260,7 @@ export function AdminNavClient({
           {groups.map((group) => {
             const collapsible = collapsibleGroups.has(group.label);
             const expanded = !collapsible || expandedGroups.has(group.label);
-            const groupBadgeCount = group.items.reduce(
+            const groupBadgeCount = group.items.some(item => item.badge === null) ? 0 : group.items.reduce(
               (total, item) => total + (item.badge || 0),
               0
             );
@@ -365,6 +367,7 @@ export function AdminNavClient({
         </header>
 
         <main id="admin-main" tabIndex={-1} className="admin-content">
+          {queueCountsUnavailable ? <p className="flash-panel" data-tone="warning" role="status" aria-label="Queue counts">Queue counts are temporarily unavailable. Open a queue to retry; dashboard controls remain available.</p> : null}
           {children}
         </main>
       </div>

@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
@@ -114,6 +115,7 @@ export default async function BlogsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireAdminPermission("cms.blogs.review", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);

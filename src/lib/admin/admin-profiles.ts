@@ -1,5 +1,7 @@
 import "server-only";
 
+import { hasPermission, requireAdminPermission, requireAdminUser } from "@/lib/auth/session";
+
 import {
   canActorSeeTarget,
   normalizeAdminLifecycleStatus,
@@ -523,14 +525,27 @@ export async function loadAdminProfileDirectory(options: {
   actorUserId: string;
   canManageAdminRoles: boolean;
   filters: AdminProfileFilters;
+  scope?: "self" | "management";
 }): Promise<AdminProfileDirectoryData> {
+  const selfOnly = options.scope === "self" || (options.scope === undefined && options.filters.tab === "self");
+  const auth = selfOnly
+    ? await requireAdminUser({ fallbackPath: "/admin" })
+    : await requireAdminPermission("admin.admin_profiles.manage", { fallbackPath: "/admin/dashboard" });
+  if (!auth.user?.id || options.actorUserId !== auth.user.id) {
+    throw new Error("Admin profile actor does not match the current session.");
+  }
+  const actorUserId = auth.user.id;
+  const actorAdminRole = normalizeAdminRoleCode(auth.user.adminRole);
+  const canManageAdminRoles = !selfOnly && await hasPermission("admin.roles.manage_admin");
   const admin = createAdminClient();
   const flexibleAdmin = asFlexibleClient(admin);
 
-  const { data: profileRows, error: profileError } = await flexibleAdmin
+  let profilesQuery = flexibleAdmin
     .from("admin_profiles" as string)
     .select("*")
     .order("updated_at", { ascending: false });
+  if (selfOnly) profilesQuery = profilesQuery.eq("user_id", actorUserId).limit(1);
+  const { data: profileRows, error: profileError } = await profilesQuery;
 
   if (profileError) {
     throw profileError;
@@ -598,9 +613,9 @@ export async function loadAdminProfileDirectory(options: {
     const isSuperAdmin = roles.some((role) => role.code === "super_admin");
     const lifecycle = toAdminLifecycleStatus(profile.status, profile.is_active);
     const capabilities = resolveAdminAccountCapabilities({
-      actorRole: options.actorAdminRole,
-      actorUserId: options.actorUserId,
-      hasManageAdminRoles: options.canManageAdminRoles,
+      actorRole: actorAdminRole,
+      actorUserId: actorUserId,
+      hasManageAdminRoles: canManageAdminRoles,
       targetLifecycleStatus: lifecycle.status,
       targetRole: primaryRole?.code || null,
       targetUserId: profile.user_id,
@@ -638,15 +653,15 @@ export async function loadAdminProfileDirectory(options: {
 
   const profiles = allProfiles.filter((profile) =>
     canActorSeeTarget({
-      actorRole: options.actorAdminRole,
-      actorUserId: options.actorUserId,
+      actorRole: actorAdminRole,
+      actorUserId: actorUserId,
       targetRole: profile.primaryRole?.code || null,
       targetUserId: profile.userId,
     }),
   );
   const filteredProfiles = filterAdminProfiles(profiles, options.filters);
   const actorProfile =
-    profiles.find((profile) => profile.userId === options.actorUserId) || null;
+    profiles.find((profile) => profile.userId === actorUserId) || null;
   const requestedProfileId =
     options.filters.profile === "me"
       ? actorProfile?.id || ""
@@ -658,24 +673,24 @@ export async function loadAdminProfileDirectory(options: {
     null;
 
   return {
-    actorInviteRoles: resolveAllowedInviteRoles({
-      actorRole: options.actorAdminRole,
-      hasManageAdminRoles: options.canManageAdminRoles,
+    actorInviteRoles: selfOnly ? [] : resolveAllowedInviteRoles({
+      actorRole: actorAdminRole,
+      hasManageAdminRoles: canManageAdminRoles,
     }),
     actorProfile,
     activities: await loadSelectedProfileActivities(admin, selectedProfile),
     filteredProfiles,
-    invitationMemberCandidates: await loadAdminInviteMemberCandidates({
-      actorRole: options.actorAdminRole,
+    invitationMemberCandidates: selfOnly ? [] : await loadAdminInviteMemberCandidates({
+      actorRole: actorAdminRole,
       admin,
       filters: options.filters,
-      hasManageAdminRoles: options.canManageAdminRoles,
+      hasManageAdminRoles: canManageAdminRoles,
     }),
-    invitations: await loadAdminInvitations({
-      actorRole: options.actorAdminRole,
-      actorUserId: options.actorUserId,
+    invitations: selfOnly ? [] : await loadAdminInvitations({
+      actorRole: actorAdminRole,
+      actorUserId: actorUserId,
       admin,
-      hasManageAdminRoles: options.canManageAdminRoles,
+      hasManageAdminRoles: canManageAdminRoles,
     }),
     profiles,
     roleOptions: buildRoleOptions(profiles),

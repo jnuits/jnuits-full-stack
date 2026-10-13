@@ -1,3 +1,4 @@
+import { requireAdminUser } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import {
@@ -123,6 +124,7 @@ const adminQuickIconMap = {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function AdminPage() {
+  await requireAdminUser({ fallbackPath: "/admin" });
   const admin = createAdminClient();
   const dashboardCapabilities = await resolveAdminDashboardCapabilities();
   const canManageMembership = dashboardCapabilities.membershipManage;

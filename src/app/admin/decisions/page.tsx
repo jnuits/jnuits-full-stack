@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import Link from "next/link";
 import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
 import {
@@ -155,6 +156,7 @@ export default async function AdminDecisionsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requireAdminPermission("admin.decisions.read", { fallbackPath: "/admin/dashboard" });
   const resolved = await searchParams;
   const kind = parseString(resolved.kind);
   const status = parseString(resolved.status);

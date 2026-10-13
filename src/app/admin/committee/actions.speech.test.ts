@@ -95,7 +95,8 @@ describe("advisor management fields", () => {
       bio: "Public responsibility", speech: "Public welcome", status_note: "Current faculty advisor",
       joined_on: "2025-01-01", left_on: null, is_current: true, is_public: true, sort_order: 0,
       jnu_profile_url: "https://jnu.ac.bd/faculty/example", avatar_secure_url: "https://example.test/portrait.png",
-      tenure_display: "Serving since 2025", user_id: "linked-user" }));
+      tenure_display: "Serving since 2025" }));
+    expect(mocks.save.mock.calls[0][0]).not.toHaveProperty("user_id");
     expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "committee.advisor_updated" }));
     expect(mocks.revalidate).toHaveBeenCalledWith("/committee");
   });

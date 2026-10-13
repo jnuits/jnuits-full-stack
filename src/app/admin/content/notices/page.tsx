@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import {
@@ -201,6 +202,7 @@ export default async function NoticesAdminPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireAdminPermission("cms.notices.manage", { fallbackPath: "/admin/dashboard" });
   const params = await searchParams;
   const query = asString(params.q).trim();
   const status = asString(params.status).trim();

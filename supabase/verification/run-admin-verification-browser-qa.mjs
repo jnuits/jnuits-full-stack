@@ -14,6 +14,8 @@ import { disableReplayCatalogCache } from "./configure-bootstrap-replay.mjs";
 assert.equal(process.argv.length, 2, "Remote database/workdir arguments are forbidden.");
 assert.ok(!process.env.ADMIN_VERIFICATION_QA_WORKDIR && !process.env.SUPABASE_DB_URL, "External projects are forbidden.");
 const profileQA = process.env.PROFILE_SELF_SERVICE_QA === "DISPOSABLE_SCRATCH";
+const adminAuditQA = process.env.ADMIN_AUDIT_QA === "DISPOSABLE_SCRATCH";
+assert.ok(!adminAuditQA || profileQA, "Admin audit QA requires production-mode isolated fixtures.");
 const memberEditorQA = process.env.MEMBER_EDITOR_QA === "DISPOSABLE_SCRATCH";
 assert.ok(!memberEditorQA || profileQA, "Member editor QA requires the isolated profile fixtures.");
 const memberEditorProject = process.env.MEMBER_EDITOR_QA_PROJECT;
@@ -98,7 +100,7 @@ try {
   // Hosted service_role UPDATE on members was independently verified; mirror it
   // only in this isolated editor fixture. Browser grants and RLS stay unchanged.
   if (memberEditorQA) sql("grant update on public.members to service_role;");
-  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"]] : [])]) {
+  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"]] : []), ...(adminAuditQA ? [["audit", "content_admin"]] : [])]) {
     const email = `qa-${name}-${runId}@local.invalid`, password = `Qa!${randomBytes(18).toString("base64url")}`;
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     assert.ok(!created.error && created.data.user, "Synthetic account creation failed.");
@@ -139,6 +141,15 @@ try {
     if (index < 3) requestIds.push(uuid(sql(`insert into public.profile_update_requests(member_id,request_type,payload) values('${memberId}','alumni_conversion','{}') returning id;`).split(/\r?\n/)[0]));
     else renewalMember = memberId;
   }
+  const resetAuditFixtures = () => {
+    assert.ok(adminAuditQA);
+    sql(`grant insert,update on public.content_pages,public.projects to service_role; grant update on public.admin_profiles to service_role;
+      insert into public.content_pages(slug,title,status,body) values('home','Synthetic Home','published','{"stats":[{"value":"preserve"}],"sliderImages":["preserve"],"future":{"preserve":true},"heroSlides":[{"title":"First","effect":"fade"},{"title":"Second"}],"aboutSection":{"title":"About","future":true}}') on conflict(slug) do update set title=excluded.title,status=excluded.status,body=excluded.body;
+      insert into public.projects(id,slug,title,tagline,category,status,cover_image_url,is_featured,started_at) values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','synthetic-audit-project','Synthetic Audit Project','Preserved tagline','web','active','https://example.com/fixture-cover.jpg',true,'2026-01-01') on conflict(id) do update set title=excluded.title,tagline=excluded.tagline,status=excluded.status,cover_image_url=excluded.cover_image_url,is_featured=excluded.is_featured;
+      insert into public.advisor_profiles(id,advisor_jnuits_id,full_name,advisor_type,is_current,is_public,department) values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','JNUITS-RA0099','Synthetic Audit Advisor','honorable_advisor',true,true,'CSE') on conflict(id) do update set full_name=excluded.full_name,is_current=true,is_public=true;
+      insert into public.audit_events(actor_user_id,action,entity_type,entity_id,metadata) values('${uuid(accounts.get("audit").userId)}','fixture.audit_acceptance','fixture','fixture','{}');`);
+  };
+  if (adminAuditQA) resetAuditFixtures();
   bridge = createServer(async (request, response) => {
     response.setHeader("Cache-Control", "no-store");
     if (request.headers.authorization !== `Bearer ${bridgeToken}` || request.method !== "POST") { response.writeHead(403).end(); return; }
@@ -148,6 +159,9 @@ try {
       let result; const action = request.url.slice(1);
       const roleIntent = { operation: "admin.role.change", payload: { adminProfileId: accounts.get("target").profileId, roleCode: "admin", confirmation: accounts.get("target").adminCode } };
       if (action === "account") { assert.ok(account); result = { cookies: account.cookies.map(({ name, value }) => ({ name, value })), userId: account.userId, password: account.password, factorId: account.factorId }; }
+      else if (action === "audit_reset") { resetAuditFixtures(); result = {ok:true}; }
+      else if (action === "audit_state") { assert.ok(adminAuditQA); result=jsonSql("select json_build_object('home',(select body from public.content_pages where slug='home'),'project',(select json_build_object('title',title,'tagline',tagline,'cover',cover_image_url,'featured',is_featured,'status',status) from public.projects where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1')); "); }
+      else if (action === "audit_conflict") { assert.ok(adminAuditQA); sql("update public.content_pages set title='Concurrent synthetic edit' where slug='home';"); result={ok:true}; }
       else if (action === "transport") { assert.ok([...accounts.values()].some(item => item.email === body.to)); const code = body.html.match(/<code\b[^>]*>\s*([0-9]{6})\s*<\/code>/)?.[1]; if (code) mail.set(body.to, code); result = { id: "disposable-transport" }; }
       else if (action === "profile_password_state") {
         assert.ok(profileQA && typeof body.password === "string" && body.password.length < 256);
@@ -226,7 +240,7 @@ try {
   for (let attempt = 0; attempt < 120; attempt++) { if (next.exitCode !== null) break; try { const response = await fetch("http://127.0.0.1:3127/admin/login", { signal: AbortSignal.timeout(5000) }); if (response.status < 500) { ready = true; break; } } catch {} await new Promise(resolve => setTimeout(resolve, 500)); }
   assert.ok(ready, `Disposable Next.js server not ready. ${diagnostics}`);
   delete env.NODE_OPTIONS;
-  if (memberEditorQA) env.PLAYWRIGHT_RELEASE_SMOKE = "1";
+  if (memberEditorQA || adminAuditQA) env.PLAYWRIGHT_RELEASE_SMOKE = "1";
   Object.assign(env, { PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3127", PLAYWRIGHT_NO_COPY_PROMPT: "1", ADMIN_VERIFICATION_QA_SCREENSHOTS: screenshots, NODE_ENV: "test" });
   console.log("Running real Next/Supabase browser integration; transport does not certify mailbox delivery.");
   // Reuse this isolated stack/build for private password acceptance before the
@@ -234,6 +248,7 @@ try {
   const suites = memberEditorQA
     ? [["e2e/admin-verification.spec.ts", ["--project=chromium"]], ["e2e/profile-self-service.spec.ts", ["--project=chromium"]], ["e2e/member-editor.spec.ts", memberEditorProject ? [`--project=${memberEditorProject}`] : []]]
     : [[profileQA ? "e2e/profile-self-service.spec.ts" : "e2e/admin-verification.spec.ts", ["--project=chromium"]]];
+  if (adminAuditQA) suites.unshift(["e2e/admin-audit-normalization.spec.ts", memberEditorProject ? [`--project=${memberEditorProject}`] : []]);
   for (const [index, [spec, projects]] of suites.entries()) {
     const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", spec, ...projects, "--workers=1", "--output", join(screenshots, `playwright-output-${index}`), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
     const code = await new Promise(resolve => child.once("exit", resolve));

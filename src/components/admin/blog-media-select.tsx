@@ -2,6 +2,7 @@
 
 import { type KeyboardEvent, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { CLOUDINARY_PROJECT_ROOT_FOLDER } from "@/lib/branding";
 import {
   BLOG_COVER_UPLOAD_FOLDER,
   isValidBlogCoverUploadFile,
@@ -15,6 +16,10 @@ export type { BlogMediaOption } from "@/lib/content/blog-media";
 type BlogMediaSelectProps = {
   assets: BlogMediaOption[];
   defaultValue?: null | string;
+  fallbackSecureUrl?: null | string;
+  secureUrlFieldName?: string;
+  uploadEnabled?: boolean;
+  context?: "blog" | "project";
 };
 
 type BlogCoverUploadState = {
@@ -58,9 +63,16 @@ function preventCoverUploadEnter(event: KeyboardEvent<HTMLInputElement>) {
 export function BlogMediaSelect({
   assets,
   defaultValue = "",
+  fallbackSecureUrl = "",
+  secureUrlFieldName = "selectedMediaSecureUrl",
+  uploadEnabled = true,
+  context = "blog",
 }: BlogMediaSelectProps) {
   const [options, setOptions] = useState(assets);
-  const [value, setValue] = useState(defaultValue || "");
+  const retainedCoverValue = "__current_cover__";
+  const [value, setValue] = useState(defaultValue || (fallbackSecureUrl ? retainedCoverValue : ""));
+  const uploadFolder = context === "project" ? `${CLOUDINARY_PROJECT_ROOT_FOLDER}/projects` : BLOG_COVER_UPLOAD_FOLDER;
+  const selectedUrlFallback = value === retainedCoverValue ? fallbackSecureUrl || "" : "";
   const [query, setQuery] = useState("");
   const [upload, setUpload] = useState<BlogCoverUploadState>({
     error: null,
@@ -91,7 +103,7 @@ export function BlogMediaSelect({
     selected && !visibleAssets.some((asset) => asset.id === selected.id)
       ? [selected, ...visibleAssets]
       : visibleAssets;
-  const previewSrc = selected?.thumbnail_url || selected?.secure_url || "";
+  const previewSrc = selected?.thumbnail_url || selected?.secure_url || selectedUrlFallback;
   const selectedAltText =
     selected?.alt_text || selected?.title || selected?.public_id || "";
 
@@ -102,7 +114,7 @@ export function BlogMediaSelect({
 
     if (!file || !isValidBlogCoverUploadFile(file)) {
       setUpload({
-        error: "Choose an image file before uploading a blog cover.",
+        error: `Choose an image file before uploading a ${context} cover.`,
         message: null,
         pending: false,
       });
@@ -118,7 +130,7 @@ export function BlogMediaSelect({
     try {
       const signResponse = await fetch("/api/admin/cloudinary/sign", {
         body: JSON.stringify({
-          folder: BLOG_COVER_UPLOAD_FOLDER,
+          folder: uploadFolder,
           resourceType: "image",
         }),
         headers: {
@@ -180,7 +192,7 @@ export function BlogMediaSelect({
           mediaKind: "image",
           metadata: {
             folder: signBody.folder || BLOG_COVER_UPLOAD_FOLDER,
-            source: "blog-cover-upload",
+            source: `${context}-cover-upload`,
           },
           publicId: cloudinaryBody.public_id,
           resourceType: cloudinaryBody.resource_type || "image",
@@ -242,9 +254,9 @@ export function BlogMediaSelect({
   return (
     <div className="blog-media-select">
       <input
-        name="selectedMediaSecureUrl"
+        name={secureUrlFieldName}
         type="hidden"
-        value={selected?.secure_url || ""}
+        value={selected?.secure_url || selectedUrlFallback}
       />
       <input name="selectedMediaAltText" type="hidden" value={selectedAltText} />
       <label className="input-label">
@@ -264,6 +276,7 @@ export function BlogMediaSelect({
           value={value}
         >
           <option value="">No cover image</option>
+          {fallbackSecureUrl && !selected ? <option value={retainedCoverValue}>Keep current cover</option> : null}
           {selectAssets.map((asset) => (
             <option key={asset.id} value={asset.id}>
               {asset.title || asset.public_id} ({asset.media_kind})
@@ -274,7 +287,7 @@ export function BlogMediaSelect({
       <p className="blog-media-select__hint">
         Recommended: add a 16:9 Cloudinary cover image before publishing.
       </p>
-      <div className="blog-cover-upload">
+      {uploadEnabled ? <div className="blog-cover-upload">
         <p className="admin-section-label">Upload/select cover</p>
         <label className="input-label">
           Image file
@@ -284,7 +297,7 @@ export function BlogMediaSelect({
           Title
           <input
             onKeyDown={preventCoverUploadEnter}
-            placeholder="Blog cover title"
+            placeholder={context === "project" ? "Project cover title" : "Blog cover title"}
             ref={titleInputRef}
             type="text"
           />
@@ -312,7 +325,7 @@ export function BlogMediaSelect({
         {upload.error ? (
           <p className="portal-message portal-message--error">{upload.error}</p>
         ) : null}
-      </div>
+      </div> : null}
       <div className="blog-media-select__preview">
         {previewSrc ? (
           <Image
@@ -321,6 +334,7 @@ export function BlogMediaSelect({
             fill
             sizes="(min-width: 1024px) 18rem, 100vw"
             src={previewSrc}
+            unoptimized={Boolean(selectedUrlFallback)}
           />
         ) : (
           <div className="blog-media-select__placeholder">

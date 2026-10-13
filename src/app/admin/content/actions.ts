@@ -1,5 +1,6 @@
 "use server";
 
+import { buildSingletonBodyUpdate } from "@/lib/content/singleton-edit-policy";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -21,6 +22,7 @@ import {
 } from "@/lib/content/media-assets";
 import type { Json } from "@/lib/db/types";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PROJECT_CATEGORIES, PROJECT_STATUSES } from "@/lib/content/project-fields";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
 function asString(value: FormDataEntryValue | null) {
@@ -68,9 +70,10 @@ const mediaAssetFormSchema = z.object({
 });
 
 const contentPageFormSchema = z.object({
+  expectedUpdatedAt: optionalText(80),
   bodyJson: optionalText(500000),
   eyebrow: optionalText(120),
-  slug: z.string().trim().min(1, "Choose a page slug.").max(120),
+  slug: z.enum(["home", "about", "contact", "footer"]),
   status: optionalText(40).default("draft"),
   summary: optionalText(1000),
   title: z.string().trim().min(1, "Provide a title.").max(180),
@@ -116,16 +119,16 @@ const developerProfileFormSchema = z.object({
 });
 
 const projectFormSchema = z.object({
-  category: optionalText(80).default("other"),
+  category: z.preprocess(value => value === "" ? undefined : value, z.enum(PROJECT_CATEGORIES).optional().default("other")),
   completedAt: optionalText(80),
   coverImageUrl: optionalText(1000),
   demoUrl: optionalText(1000),
   description: optionalText(10000),
   githubUrl: optionalText(1000),
-  isFeatured: booleanStringSchema,
+  isFeatured: z.preprocess(value => value === "" ? undefined : value, booleanStringSchema),
   slug: optionalText(180),
   startedAt: optionalText(80),
-  status: optionalText(40).default("active"),
+  status: z.preprocess(value => value === "" ? undefined : value, z.enum(PROJECT_STATUSES).optional().default("active")),
   tagline: optionalText(300),
   techStack: optionalText(1000),
   title: z.string().trim().min(1, "Title is required.").max(180),
@@ -327,7 +330,7 @@ export async function saveContentPage(formData: FormData) {
 
   const admin = createAdminClient();
   const parsed = contentPageFormSchema.safeParse(
-    pickFormFields(formData, ["bodyJson", "eyebrow", "slug", "status", "summary", "title"])
+    pickFormFields(formData, ["bodyJson", "expectedUpdatedAt", "eyebrow", "slug", "status", "summary", "title"])
   );
 
   if (!parsed.success) {
@@ -339,32 +342,34 @@ export async function saveContentPage(formData: FormData) {
     redirect("/admin/content/pages");
   }
 
-  const { bodyJson, eyebrow, slug, status, summary, title } = parsed.data;
+  const { bodyJson, expectedUpdatedAt, eyebrow, slug, status, summary, title } = parsed.data;
 
   try {
-    const { data, error } = await admin
-      .from("content_pages")
-      .upsert(
-        {
-          body: parseJsonField(bodyJson, {}),
-          created_by_user_id: actorUserId,
-          eyebrow: eyebrow || null,
-          slug,
-          status,
-          summary: summary || null,
-          title,
-        },
-        { onConflict: "slug" }
-      )
-      .select("id")
-      .single();
+    const submittedBody: unknown = JSON.parse(bodyJson || "{}");
+    if (!submittedBody || typeof submittedBody !== "object" || Array.isArray(submittedBody)) {
+      throw new SafeAdminActionError("Content must be a JSON object.");
+    }
+    const currentResult = await admin.from("content_pages").select("id, body, updated_at").eq("slug", slug).maybeSingle();
+    if (currentResult.error) throw currentResult.error;
+    const current = currentResult.data;
+    if (current ? !expectedUpdatedAt || current.updated_at !== expectedUpdatedAt : Boolean(expectedUpdatedAt)) {
+      throw new SafeAdminActionError("This page changed since you opened it. Reload the editor before saving.");
+    }
+    const payload = {
+      body: buildSingletonBodyUpdate(slug, current?.body, submittedBody) as Json,
+      eyebrow: eyebrow || null, slug, status, summary: summary || null, title,
+    };
+    const query = current
+      ? admin.from("content_pages").update(payload).eq("id", current.id).eq("updated_at", expectedUpdatedAt!)
+      : admin.from("content_pages").insert({ ...payload, created_by_user_id: actorUserId });
+    const { data, error } = await query.select("id").maybeSingle();
 
     if (error) {
       throw error;
     }
 
     if (!data) {
-      throw new SafeAdminActionError("Unable to save the content page.");
+      throw new SafeAdminActionError("This page changed during your save. Reload the editor before saving.");
     }
 
     await insertAuditEvent({
@@ -1147,17 +1152,18 @@ export async function updateProject(formData: FormData) {
     const { error } = await admin
       .from("projects")
       .update({
-        category,
-        completed_at: completedAt,
-        cover_image_url: coverImageUrl || null,
-        demo_url: demoUrl || null,
-        description: description || "",
-        github_url: githubUrl || null,
-        is_featured: isFeatured,
-        started_at: startedAt,
-        status,
-        tagline: tagline || null,
-        tech_stack: techStack,
+        // Preserve unsubmitted fields; explicit empty values can clear optional fields.
+        ...(formData.has("category") ? { category } : {}),
+        ...(formData.has("completedAt") ? { completed_at: completedAt } : {}),
+        ...(formData.has("coverImageUrl") ? { cover_image_url: coverImageUrl || null } : {}),
+        ...(formData.has("demoUrl") ? { demo_url: demoUrl || null } : {}),
+        ...(formData.has("description") ? { description: description || "" } : {}),
+        ...(formData.has("githubUrl") ? { github_url: githubUrl || null } : {}),
+        ...(formData.has("isFeatured") ? { is_featured: isFeatured } : {}),
+        ...(formData.has("startedAt") ? { started_at: startedAt } : {}),
+        ...(formData.has("status") ? { status } : {}),
+        ...(formData.has("tagline") ? { tagline: tagline || null } : {}),
+        ...(formData.has("techStack") ? { tech_stack: techStack } : {}),
         title,
         updated_at: new Date().toISOString(),
       })

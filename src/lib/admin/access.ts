@@ -61,11 +61,7 @@ export type AdminNavIconKey =
   | "userCog"
   | "users";
 
-export type AdminBadgeKey =
-  | "pendingApps"
-  | "pendingProfile"
-  | "pendingProfileRequests"
-  | "pendingWorkplace";
+export type AdminBadgeKey = "pendingApps" | "pendingProfileRequests";
 
 export type AdminAccessItem = {
   badgeKey?: AdminBadgeKey;
@@ -244,10 +240,17 @@ export const adminAccessItems: readonly AdminAccessItem[] = [
   },
   {
     group: "Settings",
+    href: "/admin/settings/profile",
+    iconKey: "userCog",
+    label: "My Profile",
+    requiredPermission: null,
+  },
+  {
+    group: "Settings",
     href: "/admin/admin-profiles",
     iconKey: "userCog",
     label: "Admin Accounts",
-    requiredPermission: null,
+    requiredPermission: "admin.admin_profiles.manage",
   },
   {
     group: "Settings",
@@ -325,6 +328,12 @@ function routeMatches(pathname: string, href: string) {
 
 export function getAdminRouteAccess(pathname: string): AdminRouteAccess {
   const clean = cleanPathname(pathname);
+  const query = new URLSearchParams(pathname.split("?").slice(1).join("?"));
+  // Legacy self bookmarks render only the authenticated profile. Other tabs
+  // and ambiguous duplicate tab parameters retain the management boundary.
+  if (clean === "/admin/admin-profiles" && query.getAll("tab").length === 1 && query.get("tab") === "self") {
+    return { requiredPermission: null, requireAal2: false };
+  }
 
   if (clean === "/admin" || clean.startsWith("/admin/mfa/")) {
     return { requiredPermission: null, requireAal2: false };

@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 
 import {
@@ -416,6 +417,7 @@ async function loadDepartmentOptions(
 export const metadata = { title: "Committee — Admin | JnUITS" };
 
 export default async function AdminCommitteePage() {
+  await requireAdminPermission("admin.committee.manage", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const flexibleAdmin = asFlexibleClient(admin);
   const cookieStore = await cookies();
