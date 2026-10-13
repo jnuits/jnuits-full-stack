@@ -36,7 +36,8 @@ async function emailProof(context: BrowserContext, intent: Record<string, unknow
 
 test.describe("disposable admin authorization integration", () => {
   test.skip(!enabled, "Run through the disposable admin verification runner; never use hosted credentials.");
-  test.describe.configure({ mode: "serial" });
+  // These native fixtures mutate membership/roles. Replay requires a fresh stack.
+  test.describe.configure({ mode: "serial", retries: 0 });
   test.setTimeout(120_000);
   test.beforeEach(async ({ page }) => {
     // No authenticated dashboard operation may depend on the public CAPTCHA.
@@ -300,7 +301,23 @@ test.describe("disposable admin authorization integration", () => {
     await change.locator('select[name="roleCode"]').selectOption("admin");
     await change.locator('input[name="confirmation"]').fill(intent.payload.confirmation);
     await change.getByRole("button", { name: /role/i }).click();
-    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click();
+    // A viewport modal must stay reachable even if its local panel shrinks.
+    // Only the disposable fixture is constrained; product CSS stays intact.
+    await change.evaluate(form => {
+      form.style.transform = "translateY(0px)";
+      form.style.overflow = "hidden";
+      form.style.maxHeight = "40px";
+    });
+    const confirmation = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) });
+    await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(confirmation.getByRole("button", { name: "Change role", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+    await confirmation.getByRole("button", { name: "Change role", exact: true }).click({ timeout: 10_000 });
+    await change.evaluate(form => {
+      form.style.transform = ""; form.style.overflow = ""; form.style.maxHeight = "";
+    });
     const dialog = page.getByRole("dialog", { name: "Verify your account" });
     await expect(dialog.getByLabel("Current password")).toBeVisible();
     await expect(dialog.locator('[name="captchaToken"]')).toHaveCount(0);
@@ -310,7 +327,7 @@ test.describe("disposable admin authorization integration", () => {
     await dialog.getByRole("button", { name: "Cancel verification" }).click();
     await expect(change.locator('[name="confirmation"]')).toHaveValue(intent.payload.confirmation);
     await change.getByRole("button", { name: /role/i }).click();
-    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click();
+    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click({ timeout: 10_000 });
     await dialog.getByLabel("Current password").fill(account.password);
     await expect(dialog.getByRole("button", { name: "Verify password and continue" })).toBeEnabled();
     // One lost server-action request: preserve the form and force fresh
@@ -325,7 +342,7 @@ test.describe("disposable admin authorization integration", () => {
     expect((await fixture("target_role")).role).toBe("content_admin");
     await page.unroute("**/admin/admin-profiles*");
     await change.getByRole("button", { name: /role/i }).click();
-    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click();
+    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click({ timeout: 10_000 });
     await dialog.getByLabel("Current password").fill(account.password);
     await expect(dialog.getByRole("button", { name: "Verify password and continue" })).toBeEnabled();
     // Retain only the response in memory for a replay-denial assertion. Never

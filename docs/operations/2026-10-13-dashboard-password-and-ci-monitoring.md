@@ -102,3 +102,21 @@ gate. Before merging, verify the PR still has the same head and inspect all
 required non-Vercel checks. Verify the actual production deployment SHA and
 production smoke after release. A README edit is unnecessary merely to refresh a
 stale provider status when the deployment is already READY.
+
+## Confirmation-overlay follow-up
+
+Required CI exposed an unstable/intercepted admin-role confirmation click before
+password verification. Viewport confirmations now render outside the caller's
+fieldset and scroll layout, preserving the same buttons and confirmation before
+verification. Opening focuses Cancel, Tab/Shift+Tab stay within the dialog, and
+dismissal restores the opener. Native disabled submitters cannot be bypassed.
+Product styles, public CAPTCHA and authorization are unchanged.
+The disposable role scenario also constrains the local form while its viewport
+confirmation is open and still exercises cancellation, an uncertain network
+outcome and single-use native AAL2/password proof.
+
+The native admin scenarios mutate shared synthetic membership/role fixtures.
+Automatic Playwright retries are disabled only for this serial suite because
+replay requires a fresh disposable stack; rerunning already-reviewed requests
+is not a valid retry. All scenarios and Linux browser release gates remain
+required. A new workflow run creates fresh fixtures.
