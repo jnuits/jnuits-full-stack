@@ -38,7 +38,20 @@ from-zero replay is wrong, and the checker in §4 will say so.
 
 ## 2. Recovery and bootstrap command
 
-Requires Docker and Supabase CLI `2.109.1`.
+Requires Docker and Supabase CLI `2.109.1`. The runner rejects other CLI versions until their image mapping is verified.
+
+For type generation and database lint, `prepare-pgmeta-image.sh` uses the official
+GHCR copy of `supabase/postgres-meta:v0.96.6`. CLI `2.109.1` can pull that image
+from ECR directly despite a registry override ([upstream issue #5785](https://github.com/supabase/cli/issues/5785)).
+The helper pulls by immutable OCI digest
+`sha256:a84cc713585eea7b401e4a2561ec4a1e48c87083d1c7ecb4502f204bb4391300`,
+independently verified to match the ECR image, then assigns the local ECR name
+expected by the CLI. It rejects a cached image with unexpected provenance,
+failed mirror downloads, mismatched digests or mismatched local image IDs.
+Registry outages still fail the gate; SQL checks and generated-type validation
+are never skipped. When updating the CLI, verify its actual image tag and the
+matching official registry digests, then update the version/image pins together.
+
 
 ```bash
 npm run db:replay-bootstrap
