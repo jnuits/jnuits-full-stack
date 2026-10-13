@@ -1,29 +1,18 @@
 "use client";
 
 import { startTransition, useRef, useState } from "react";
-import { TurnstileField } from "@/components/auth/turnstile-field";
+import { ConfirmSubmitButton } from "@/components/admin/confirm-submit-button";
 import { getPasswordPolicyError } from "@/lib/security/password-policy";
 
-type CaptchaConfig = { required: boolean; siteKey: string };
-
 export function ChangePasswordForm({
-  captcha,
   username,
 }: {
-  captcha: CaptchaConfig;
   username?: null | string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState("");
-  const [captchaAttempt, setCaptchaAttempt] = useState(0);
-
-  function resetCaptcha() {
-    setCaptchaToken("");
-    setCaptchaAttempt((value) => value + 1);
-  }
 
   async function handleUpdate(formData: FormData) {
     const currentPassword = String(formData.get("currentPassword") || "");
@@ -54,17 +43,11 @@ export function ChangePasswordForm({
       return;
     }
 
-    if (captcha.required && !captchaToken) {
-      setError("Complete the verification challenge.");
-      return;
-    }
-
     setPending(true);
 
     try {
       const response = await fetch("/api/profile/change-password", {
         body: JSON.stringify({
-          captchaToken,
           confirmPassword,
           currentPassword,
           password,
@@ -78,16 +61,13 @@ export function ChangePasswordForm({
 
       if (!response.ok) {
         setError(body?.message || "Unable to update your password. Try again.");
-        resetCaptcha();
         return;
       }
 
       formRef.current?.reset();
-      resetCaptcha();
       setMessage(body?.message || "Password updated successfully.");
     } catch {
       setError("Password update failed. Check your connection and try again.");
-      resetCaptcha();
     } finally {
       setPending(false);
     }
@@ -146,23 +126,17 @@ export function ChangePasswordForm({
             type="password"
           />
         </label>
-        {captcha.required ? (
-          <div className="sm:col-span-2">
-            <TurnstileField
-              key={captchaAttempt}
-              onTokenChange={setCaptchaToken}
-              siteKey={captcha.siteKey}
-            />
-          </div>
-        ) : null}
         <div className="flex flex-wrap gap-3 sm:col-span-2">
-          <button
+          <ConfirmSubmitButton
             className="primary-button"
-            disabled={pending || (captcha.required && !captchaToken)}
-            type="submit"
+            confirmLabel="Confirm password change"
+            description="Use your new password the next time you sign in. You will need to verify again before editing your profile or making protected changes."
+            disabled={pending}
+            onClick={(event) => { if (!formRef.current?.reportValidity()) event.preventDefault(); }}
+            title="Change your password?"
           >
             {pending ? "Updating password..." : "Update password"}
-          </button>
+          </ConfirmSubmitButton>
         </div>
       </form>
 

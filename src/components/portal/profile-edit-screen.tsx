@@ -13,7 +13,6 @@ import { isStepUpActiveForUser } from "@/lib/auth/step-up";
 import { getActiveDepartmentOptions } from "@/lib/departments.server";
 import { formatMembershipIdForDisplay } from "@/lib/members/jnuits-id";
 import { getPortalMemberSnapshot } from "@/lib/portal/member";
-import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
 
 export async function ProfileEditScreen() {
   const auth = await requirePortalUser({ fallbackPath: "/portal/profile/edit" });
@@ -80,7 +79,6 @@ export async function ProfileEditScreen() {
       ) : (
         <div className="profile-edit-shell">
           <StepUpVerificationForm
-            captcha={getAuthCaptchaUiConfig()}
             initiallyActive={stepUpActive}
             username={user.email}
           />

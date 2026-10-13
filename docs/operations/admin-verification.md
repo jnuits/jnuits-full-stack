@@ -10,7 +10,7 @@ evidence belongs in the implementation plan.
 | --- | --- | --- |
 | Existing-member Alumni, departure and appeal reviews | Permission, review note and consequence confirmation | Normal authenticator workspace verification |
 | Renewal payment/waiver, security policy, retention, account freeze/unfreeze and invitation cancellation | Authenticator verification; confirmed-email code offered only to trusted never-enrolled accounts | Authenticator verification only |
-| Admin-role changes, removals and invitation issuance | Authenticator **and current password**, with configured CAPTCHA | Same dual verification |
+| Admin-role changes, removals and invitation issuance | Authenticator **and current password**; dashboard CAPTCHA is not required | Same dual verification |
 
 Voluntary authenticator enrollment continues to work when enforcement is off.
 Email verification never upgrades a session to AAL2, grants a permission or
@@ -116,12 +116,14 @@ node supabase/verification/run-admin-verification-browser-qa.mjs
 The runner creates its own unlinked local Supabase project, real Auth users,
 MFA factors and synthetic requests; it refuses remote/project arguments. It
 starts real Next.js and exercises narrow/wide screens in both themes. Only
-email HTTP transport and the CAPTCHA widget transport are fixtures. Document
-responses retain the real content-security policy with the exact disposable
-localhost Auth origin added to `connect-src`; production headers are unchanged.
-Application
-CAPTCHA-required configuration and missing-token denial remain enabled. This
-proves code/session handling, **not hosted CAPTCHA or mailbox delivery**.
+email HTTP transport is a fixture. The authenticated dashboard blocks the
+CAPTCHA widget transport deliberately, while local native Auth requires CAPTCHA
+for public sign-in. Trusted, isolated password verification still checks the
+current password after validating the original session, native AAL2 (for role
+operations), permissions and durable limits. Document responses retain the real
+content-security policy with the exact disposable localhost Auth origin added to
+`connect-src`; production headers are unchanged. This proves code/session
+handling, **not hosted CAPTCHA or mailbox delivery**.
 Credentials stay in memory; traces and automatic screenshots are disabled.
 Non-secret page screenshots go to an external temporary directory. The normal
 CI smoke run skips this suite unless launched by its disposable runner.
@@ -183,3 +185,14 @@ is the existing guarded RPC with its new proof argument. Keep those explicit
 authorization gates, rather than blindly revoking their intended entry points.
 Existing advisor notices, including the free-tier leaked-password feature,
 are unchanged; application-level compromised-password protection remains in use.
+
+## Dashboard CAPTCHA policy (2026-10-13)
+
+The owner explicitly approved removing CAPTCHA from every authenticated dashboard
+while keeping public login protected. Portal profile unlock, portal password
+change, admin password retry and admin-role password proofs follow this policy.
+Role operations still require native AAL2 and current-password verification,
+with exact-operation proofs bound to the original session and current policy.
+Public login, registration, recovery, email verification, and public submission
+CAPTCHA remain unchanged. An ignored legacy token and `required: false` response
+are retained on the admin verification API for already-open older tabs.

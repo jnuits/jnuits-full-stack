@@ -2,23 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { clearDirectoryVerificationCookies } from "@/lib/auth/directory-verification";
-import { buildPasswordSignInPayload } from "@/lib/auth/password-sign-in";
 import { PASSWORD_RECOVERY_COOKIE_NAME } from "@/lib/auth/password-recovery";
 import { getAuthContext } from "@/lib/auth/session";
 import { getStepUpCookieName } from "@/lib/auth/step-up";
 import { logServerError, rateLimitError } from "@/lib/errors/api-error";
-import { isCaptchaRequired } from "@/lib/security/captcha";
 import { getPasswordExposureError } from "@/lib/security/pwned-passwords";
 import { getPasswordPolicyError } from "@/lib/security/password-policy";
 import { checkRateLimitForApi, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { withApiGuard } from "@/lib/security/with-api-guard";
 import {
-  getSupabasePublishableKey,
+  getSupabaseAdminKey,
   getSupabaseUrl,
 } from "@/lib/supabase/config";
 
 const requestSchema = z.object({
-  captchaToken: z.string().trim().optional().default(""),
   confirmPassword: z.string(),
   currentPassword: z.string().min(1),
   password: z.string(),
@@ -76,8 +73,7 @@ async function handlePost(request: NextRequest) {
     );
   }
 
-  const { captchaToken, confirmPassword, currentPassword, password } =
-    parsed.data;
+  const { confirmPassword, currentPassword, password } = parsed.data;
   const policyError = getPasswordPolicyError(password, {
     email: auth.user.email,
   });
@@ -100,24 +96,21 @@ async function handlePost(request: NextRequest) {
     );
   }
 
-  if (isCaptchaRequired() && !captchaToken) {
-    return NextResponse.json(
-      { message: "Complete the verification challenge." },
-      { status: 400 }
-    );
-  }
-
   const exposureError = await getPasswordExposureError(password);
   if (exposureError) {
     return NextResponse.json({ message: exposureError }, { status: 400 });
   }
 
+  // A fresh, server-only client bypasses CAPTCHA only after session/origin
+  // checks and rate limiting. Password sign-in replaces its trusted bearer
+  // with this user's token; updateUser below remains a native user operation.
   const ephemeral = createSupabaseClient(
     getSupabaseUrl(),
-    getSupabasePublishableKey(),
+    getSupabaseAdminKey(),
     {
       auth: {
         autoRefreshToken: false,
+        detectSessionInUrl: false,
         persistSession: false,
       },
     }
@@ -125,11 +118,10 @@ async function handlePost(request: NextRequest) {
 
   const { data, error: signInError } =
     await ephemeral.auth.signInWithPassword(
-      buildPasswordSignInPayload({
-        captchaToken,
+      {
         email: auth.user.email,
         password: currentPassword,
-      })
+      }
     );
 
   if (signInError || data.user?.id !== auth.user.id) {

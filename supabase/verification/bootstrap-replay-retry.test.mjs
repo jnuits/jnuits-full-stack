@@ -52,6 +52,14 @@ case "$1" in
         printf 'docker: Error response from daemon: toomanyrequests: Rate exceeded\\n' >&2
         exit 125
       fi
+      if [[ "$FAIL_MODE" == registry-timeout ]]; then
+        printf 'docker: Error response from daemon: Get "https://public.ecr.aws/v2/": context deadline exceeded\\n' >&2
+        exit 125
+      fi
+      if [[ "$FAIL_MODE" == sql-timeout ]]; then
+        printf 'ERROR: canceling statement due to statement timeout (SQLSTATE 57014)\\n' >&2
+        exit 7
+      fi
       printf 'ERROR: column does not exist (SQLSTATE 42703)\\n' >&2
       exit 7
     fi
@@ -102,6 +110,26 @@ describe("disposable replay image-pull retry", () => {
     expect(result.attempts).toBe(3);
     expect(result.artifact).toBe("previous canonical artifact\n");
     expect(result.backoffs).toBe("5\n15\n");
+  }, testTimeout);
+  it("retries the observed Docker registry timeout and discards partial types", () => {
+    const result = runFixture({ mode: "registry-timeout" });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.attempts).toBe(2);
+    expect(result.artifact).toBe(types);
+    expect(result.backoffs).toBe("5\n");
+  }, testTimeout);
+  it("fails closed after three registry timeouts without replacing types", () => {
+    const result = runFixture({ mode: "registry-timeout", failures: 9 });
+    expect(result.status).toBe(125);
+    expect(result.attempts).toBe(3);
+    expect(result.artifact).toBe("previous canonical artifact\n");
+    expect(result.backoffs).toBe("5\n15\n");
+  }, testTimeout);
+  it("does not treat a database statement timeout as a registry failure", () => {
+    const result = runFixture({ mode: "sql-timeout", lint: true, failures: 9 });
+    expect(result.status).toBe(7);
+    expect(result.attempts).toBe(1);
+    expect(result.backoffs).toBe("");
   }, testTimeout);
   it("never retries SQL failures", () => {
     const result = runFixture({ mode: "sql", lint: true, failures: 9 });

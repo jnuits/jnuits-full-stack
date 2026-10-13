@@ -36,13 +36,12 @@ async function emailProof(context: BrowserContext, intent: Record<string, unknow
 
 test.describe("disposable admin authorization integration", () => {
   test.skip(!enabled, "Run through the disposable admin verification runner; never use hosted credentials.");
-  test.describe.configure({ mode: "serial" });
+  // These native fixtures mutate membership/roles. Replay requires a fresh stack.
+  test.describe.configure({ mode: "serial", retries: 0 });
   test.setTimeout(120_000);
   test.beforeEach(async ({ page }) => {
-    // Provider widget transport fixture only. Real application CAPTCHA-required
-    // configuration and missing-token denial remain enabled; local Auth does
-    // not certify the live provider's bot-detection behavior.
-    await page.route("https://challenges.cloudflare.com/turnstile/v0/api.js*", route => route.fulfill({ contentType: "application/javascript", body: 'window.turnstile={render:function(el,options){setTimeout(function(){options.callback("XXXX.DUMMY.TOKEN.XXXX")},0);return "qa-widget"},remove:function(){},reset:function(){}};' }));
+    // No authenticated dashboard operation may depend on the public CAPTCHA.
+    await page.route("https://challenges.cloudflare.com/turnstile/v0/api.js*", route => route.abort("blockedbyclient"));
   });
 
   test("AAL1 routine and bulk approval preserve fees/freezes at mobile and desktop in both themes", async ({ page, context }) => {
@@ -118,7 +117,11 @@ test.describe("disposable admin authorization integration", () => {
     await fixture("reset_limits", { name: "never" });
     await page.setViewportSize({ width: 360, height: 900 });
     await page.goto(`${baseURL}/admin/membership?renewalQueue=overdue`, { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: "Review anniversary" }).first().click();
+    await expect(page.getByRole("heading", { name: "Renewal and membership decisions" })).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Membership decisions are temporarily unavailable" })).toHaveCount(0);
+    const reviewAnniversary = page.getByRole("button", { name: "Review anniversary" }).first();
+    await expect(reviewAnniversary).toBeVisible();
+    await reviewAnniversary.click();
     const renewal = page.getByRole("dialog", { name: "Confirm one anniversary" });
     await renewal.getByLabel("Review note").fill("Synthetic office payment checked.");
     await renewal.getByLabel(/confirm only this anniversary/).check();
@@ -266,8 +269,15 @@ test.describe("disposable admin authorization integration", () => {
     expect((await fixture("session_assurance", { userId: account.userId })).aal).toBe("aal2");
     await fixture("policy", { enforced: true });
     try {
-      const response = await verificationRequest(context, { action: "prepare", intent: { operation: "admin.security.read", payload: {} } });
-      expect(response.ok).toBe(true); expect(response.value.decision.status).toBe("allowed");
+      // Production Auth cookies are Secure. Chromium accepts them on loopback,
+      // while Playwright's HTTP API client omits them; use the actual browser.
+      const response = await page.evaluate(async () => {
+        const result = await fetch("/api/admin/verification", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "prepare", intent: { operation: "admin.security.read", payload: {} } }) });
+        return { status: result.status, body: await result.json() };
+      });
+      expect(response.status).toBe(200);
+      expect(response.body.ok).toBe(true); expect(response.body.value.decision.status).toBe("allowed");
       await context.clearCookies(); await signedIn(context, "never");
       const denied = await verificationRequest(context, { action: "email_send", intent: { operation: "admin.security.read", payload: {} } });
       expect(denied.ok).toBe(false);
@@ -276,31 +286,48 @@ test.describe("disposable admin authorization integration", () => {
     } finally { await fixture("policy", { enforced: false }); }
   });
 
-  test("admin-role operation rejects email/MFA-only and requires current-password with CAPTCHA", async ({ page, context }) => {
+  test("admin-role operation rejects email/MFA-only and requires current-password without dashboard CAPTCHA", async ({ page, context }) => {
     const account = await signedIn(context, "super");
     const intent = await fixture("role_intent");
     expect((await verificationRequest(context, { action: "email_send", intent })).ok).toBe(false);
     expect((await fixture("role_rpc", { name: "super", intent })).allowed).toBe(false);
-    expect((await verificationRequest(context, { action: "password_verify", intent, password: account.password, captchaToken: "" })).ok).toBe(false);
+    expect((await verificationRequest(context, { action: "password_verify", intent, password: "" })).ok).toBe(false);
     await page.goto(`${baseURL}/admin/admin-profiles?profile=${encodeURIComponent(intent.payload.adminProfileId)}`, { waitUntil: "networkidle" });
     await expect(page.locator("body")).toContainText("Synthetic Target");
-    // The UI password stage and configured token propagation are exercised
-    // through the actual form; the widget uses a test-only provider fixture.
+    // The actual UI must work with the provider blocked. Native MFA and the
+    // current password still authorize an exact, single-use operation proof.
     const target = page.locator("form").filter({ has: page.locator('input[name="adminProfileId"]') }).filter({ has: page.locator('input[name="adminProfileId"][value="'+intent.payload.adminProfileId+'"]') });
     const change = target.filter({ has: page.locator('select[name="roleCode"]') }).first();
     await change.locator('select[name="roleCode"]').selectOption("admin");
     await change.locator('input[name="confirmation"]').fill(intent.payload.confirmation);
     await change.getByRole("button", { name: /role/i }).click();
-    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click();
+    // A viewport modal must stay reachable even if its local panel shrinks.
+    // Only the disposable fixture is constrained; product CSS stays intact.
+    await change.evaluate(form => {
+      form.style.transform = "translateY(0px)";
+      form.style.overflow = "hidden";
+      form.style.maxHeight = "40px";
+    });
+    const confirmation = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) });
+    await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(confirmation.getByRole("button", { name: "Change role", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+    await confirmation.getByRole("button", { name: "Change role", exact: true }).click({ timeout: 10_000 });
+    await change.evaluate(form => {
+      form.style.transform = ""; form.style.overflow = ""; form.style.maxHeight = "";
+    });
     const dialog = page.getByRole("dialog", { name: "Verify your account" });
     await expect(dialog.getByLabel("Current password")).toBeVisible();
+    await expect(dialog.locator('[name="captchaToken"]')).toHaveCount(0);
     await expect(dialog.getByRole("button", { name: "Verify by email" })).toHaveCount(0);
     await dialog.getByLabel("Current password").fill(account.password);
     await expect(dialog.getByRole("button", { name: "Verify password and continue" })).toBeEnabled();
     await dialog.getByRole("button", { name: "Cancel verification" }).click();
     await expect(change.locator('[name="confirmation"]')).toHaveValue(intent.payload.confirmation);
     await change.getByRole("button", { name: /role/i }).click();
-    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click();
+    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click({ timeout: 10_000 });
     await dialog.getByLabel("Current password").fill(account.password);
     await expect(dialog.getByRole("button", { name: "Verify password and continue" })).toBeEnabled();
     // One lost server-action request: preserve the form and force fresh
@@ -315,7 +342,7 @@ test.describe("disposable admin authorization integration", () => {
     expect((await fixture("target_role")).role).toBe("content_admin");
     await page.unroute("**/admin/admin-profiles*");
     await change.getByRole("button", { name: /role/i }).click();
-    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click();
+    await page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Change admin role?" }) }).getByRole("button", { name: "Change role", exact: true }).click({ timeout: 10_000 });
     await dialog.getByLabel("Current password").fill(account.password);
     await expect(dialog.getByRole("button", { name: "Verify password and continue" })).toBeEnabled();
     // Retain only the response in memory for a replay-denial assertion. Never

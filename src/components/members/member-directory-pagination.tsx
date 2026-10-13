@@ -86,7 +86,7 @@ export function MemberDirectoryPagination({
         <label className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
           <span>per page</span>
           <select
-            className="h-9 w-auto rounded-lg border border-[var(--line)] bg-[var(--background)] px-2 text-sm text-[var(--foreground)]"
+            className="h-9 w-auto rounded-lg border border-[var(--line)] bg-[var(--background)] px-2 py-0 leading-normal text-sm text-[var(--foreground)]"
             onChange={(event) => updatePerPage(event.target.value)}
             value={pageSize}
           >

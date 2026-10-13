@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe("StepUpVerificationForm", () => {
-  it("sends the CAPTCHA token with the single current-password unlock", async () => {
+  it("unlocks with the current password when no CAPTCHA is present", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(
       async (...args: [RequestInfo | URL, RequestInit?]) => {
@@ -48,23 +48,20 @@ describe("StepUpVerificationForm", () => {
 
     render(
       <StepUpVerificationForm
-        captcha={{ required: true, siteKey: "turnstile-site-key" }}
         initiallyActive={false}
         username="member@example.test"
       />
     );
 
     await user.type(screen.getByLabelText(/current password/i), "Current-pass-2046!");
-    await user.click(
-      screen.getByRole("button", { name: /complete verification challenge/i })
-    );
+    expect(screen.queryByRole("button", { name: /complete verification challenge/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /verify and unlock/i })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: /verify and unlock/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
     const [, options] = fetchMock.mock.calls[0] ?? [];
     expect(JSON.parse(String(options?.body))).toEqual({
-      captchaToken: "captcha-token",
       currentPassword: "Current-pass-2046!",
     });
     expect(mocks.refresh).toHaveBeenCalledTimes(1);

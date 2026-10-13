@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import type { MemberDepartmentOption } from "@/components/admin/member-profile-editor";
 import { IntakeWorkspace } from "@/components/admin/onboarding/intake-workspace";
 
 type CommitteeOnboardingTerm = {
@@ -10,9 +11,11 @@ type CommitteeOnboardingTerm = {
 };
 
 export function CommitteeOnboardingPanel({
+  departmentOptions = [],
   initialTermId,
   terms,
 }: {
+  departmentOptions?: readonly MemberDepartmentOption[];
   initialTermId: null | string;
   terms: CommitteeOnboardingTerm[];
 }) {
@@ -50,6 +53,7 @@ export function CommitteeOnboardingPanel({
 
       {targetTerm ? (
         <IntakeWorkspace
+          departmentOptions={departmentOptions}
           key={targetTerm.id}
           operationType="committee_roster_import"
           targetTermId={targetTerm.id}

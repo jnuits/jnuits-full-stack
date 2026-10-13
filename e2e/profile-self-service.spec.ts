@@ -22,8 +22,9 @@ test.describe("disposable profile self-service and review integration", () => {
   test.setTimeout(300_000);
   test("password unlock, direct saves, identity approval, and stale legacy decisions", async ({ page, context, browser }) => {
     const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
-    // Provider transport fixture; this does not certify production CAPTCHA.
-    await page.route("https://challenges.cloudflare.com/turnstile/v0/api.js*", route => route.fulfill({ contentType: "application/javascript", body: 'window.turnstile={render:function(el,options){setTimeout(function(){options.callback("XXXX.DUMMY.TOKEN.XXXX")},0);return "qa-widget"},remove:function(){},reset:function(){}};' }));
+    // Reproduce the reported unavailable challenge. Signed-in password flows
+    // must work even with the provider script blocked; public Auth stays protected.
+    await page.route("https://challenges.cloudflare.com/turnstile/v0/api.js*", route => route.abort("blockedbyclient"));
     const member = await signedIn(context, "profile");
     const adminContext = await browser.newContext();
     try {
@@ -54,6 +55,8 @@ test.describe("disposable profile self-service and review integration", () => {
       expect(locked.status()).toBe(403);
       await page.goto(`${baseURL}/portal/profile/edit`, { waitUntil: "networkidle" });
       await expect(page.locator("#direct-profile-edit-form")).toHaveCount(0);
+      await expect(page.locator('[name="captchaToken"]')).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Verify and unlock" })).toBeEnabled();
       await page.getByLabel("Current password", { exact: true }).fill("Incorrect-fixture-password");
       await page.getByRole("button", { name: "Verify and unlock" }).click();
       await expect(page.locator(".portal-message--error")).toBeVisible();
@@ -116,6 +119,33 @@ test.describe("disposable profile self-service and review integration", () => {
       await adminPage.getByRole("button", { name: "Approve profile update", exact: true }).click();
       await expect.poll(async () => (await fixture("profile_state")).studentId).toBe("ST-NEW");
       expect(await fixture("profile_state")).toMatchObject({ batch: 18, graduationYear: 2027, organization: "New Direct Workplace" });
+      await page.goto(`${baseURL}/portal/profile/change-password`, { waitUntil: "networkidle" });
+      await expect(page.locator('[name="captchaToken"]')).toHaveCount(0);
+      const nextPassword = `${member.password}-Changed`;
+      await page.getByLabel("Current password", { exact: true }).fill("Incorrect-fixture-password");
+      await page.getByLabel("New password", { exact: true }).fill(nextPassword);
+      await page.getByLabel("Confirm new password", { exact: true }).fill(nextPassword);
+      await expect(page.getByRole("button", { name: "Update password", exact: true })).toBeEnabled();
+      await page.getByRole("button", { name: "Update password", exact: true }).click();
+      const passwordWarning = page.getByRole("dialog", { name: "Change your password?", exact: true });
+      await expect(passwordWarning).toContainText("Use your new password the next time you sign in.");
+      await passwordWarning.getByRole("button", { name: "Cancel", exact: true }).click();
+      await expect(page.getByLabel("New password", { exact: true })).toHaveValue(nextPassword);
+      await page.getByRole("button", { name: "Update password", exact: true }).click();
+      await page.getByRole("button", { name: "Confirm password change", exact: true }).click();
+      await expect(page.locator(".portal-message--error")).toContainText("Current password is incorrect.");
+      // React form actions clear uncontrolled fields after submission. Re-enter
+      // the complete request for a real retry after the rejected password.
+      await page.getByLabel("Current password", { exact: true }).fill(member.password);
+      await page.getByLabel("New password", { exact: true }).fill(nextPassword);
+      await page.getByLabel("Confirm new password", { exact: true }).fill(nextPassword);
+      const passwordResponse = page.waitForResponse(response => response.url().endsWith("/api/profile/change-password") && response.request().method() === "POST");
+      await page.getByRole("button", { name: "Update password", exact: true }).click();
+      await page.getByRole("button", { name: "Confirm password change", exact: true }).click();
+      expect((await passwordResponse).status()).toBe(200);
+      await expect(page.locator(".portal-message--success")).toContainText("Password updated successfully.");
+      expect(await fixture("profile_password_state", { password: nextPassword })).toEqual({ newPasswordAccepted: true, oldPasswordRejected: true });
+      expect((await context.cookies()).some(cookie => cookie.name === "jnuits-step-up")).toBe(false);
       expect(errors).toEqual([]);
     } finally { await adminContext.close().catch(() => undefined); }
   });

@@ -3,16 +3,11 @@
 import { useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
 import { LockKeyhole, ShieldCheck } from "lucide-react";
-import { TurnstileField } from "@/components/auth/turnstile-field";
-
-type CaptchaConfig = { required: boolean; siteKey: string };
 
 export function StepUpVerificationForm({
-  captcha,
   initiallyActive,
   username,
 }: {
-  captcha: CaptchaConfig;
   initiallyActive: boolean;
   username?: null | string;
 }) {
@@ -25,13 +20,6 @@ export function StepUpVerificationForm({
   );
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState("");
-  const [captchaAttempt, setCaptchaAttempt] = useState(0);
-
-  function resetCaptcha() {
-    setCaptchaToken("");
-    setCaptchaAttempt((value) => value + 1);
-  }
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -41,7 +29,6 @@ export function StepUpVerificationForm({
     try {
       const response = await fetch("/api/profile/step-up", {
         body: JSON.stringify({
-          captchaToken,
           currentPassword: String(formData.get("currentPassword") || ""),
         }),
         headers: { "Content-Type": "application/json" },
@@ -54,17 +41,14 @@ export function StepUpVerificationForm({
       if (!response.ok || !body?.verified) {
         setActive(false);
         setError(body?.message || "Current password verification failed.");
-        resetCaptcha();
         return;
       }
 
       setActive(true);
       setMessage(body.message || "Profile editing is unlocked.");
-      resetCaptcha();
       router.refresh();
     } catch {
       setError("Verification failed. Check your connection and try again.");
-      resetCaptcha();
     } finally {
       setPending(false);
     }
@@ -148,19 +132,10 @@ export function StepUpVerificationForm({
               type="password"
             />
           </label>
-          {captcha.required ? (
-            <div className="profile-edit-span-2">
-              <TurnstileField
-                key={captchaAttempt}
-                onTokenChange={setCaptchaToken}
-                siteKey={captcha.siteKey}
-              />
-            </div>
-          ) : null}
           <div className="profile-edit-actions profile-edit-span-2">
             <button
               className="primary-button"
-              disabled={pending || (captcha.required && !captchaToken)}
+              disabled={pending}
               type="submit"
             >
               {pending ? "Verifying..." : "Verify and unlock"}

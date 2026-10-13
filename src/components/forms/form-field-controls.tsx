@@ -65,9 +65,9 @@ function fieldClass(base: string, invalid: boolean) {
   return invalid ? `${base} ${FIELD_INVALID_CLASS}` : base;
 }
 
-const TEXT_INPUT_CLASS = `${FIELD_BASE_CLASS} h-12 px-3`;
+const TEXT_INPUT_CLASS = `${FIELD_BASE_CLASS} h-12 px-3 py-0 leading-normal`;
 const TEXTAREA_CLASS = `${FIELD_BASE_CLASS} min-h-32 resize-y px-3 py-3`;
-const SELECT_CLASS = `${FIELD_BASE_CLASS} h-12 px-3`;
+const SELECT_CLASS = `${FIELD_BASE_CLASS} h-12 px-3 py-0 leading-normal`;
 
 /**
  * The visible part of a file input is the browser's own button, which no class

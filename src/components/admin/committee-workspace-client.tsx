@@ -49,6 +49,8 @@ import {
 } from "@/components/admin/committee-member-search";
 import { CommitteeOnboardingPanel } from "@/components/admin/committee-onboarding-panel";
 import { CommitteePositionEditor } from "@/components/admin/committee-position-editor";
+import type { MemberDepartmentOption } from "@/components/admin/member-profile-editor";
+import { buildAdvisorDepartmentOptions } from "@/lib/committee/advisor-departments";
 import {
   rolesForCommitteeTerm,
   sortCommitteeAssignmentsByTermRoles,
@@ -163,6 +165,7 @@ export type CommitteeHistoryRecord = {
 type CommitteeWorkspaceClientProps = {
   advisors: AdvisorProfileClientRecord[];
   assignments: CommitteeAssignmentClientRecord[];
+  departmentOptions?: readonly MemberDepartmentOption[];
   flash: AdminFlash;
   history: CommitteeHistoryRecord[];
   positions: CommitteeTermPositionClientRecord[];
@@ -630,7 +633,7 @@ function PanelInput({ className, ...props }: React.InputHTMLAttributes<HTMLInput
   return (
     <input
       className={cx(
-        "h-9 rounded-lg border border-border bg-background px-3 text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60",
+        "h-9 rounded-lg border border-border bg-background px-3 py-0 leading-normal text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60",
         className
       )}
       {...props}
@@ -642,7 +645,7 @@ function PanelSelect({ className, ...props }: React.SelectHTMLAttributes<HTMLSel
   return (
     <select
       className={cx(
-        "h-9 rounded-lg border border-border bg-background px-3 text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60",
+        "h-9 rounded-lg border border-border bg-background px-3 py-0 leading-normal text-sm font-medium normal-case tracking-normal text-foreground shadow-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60",
         className
       )}
       {...props}
@@ -1630,7 +1633,7 @@ function AssignmentForm({
         <Field>
           Term
           <input name="termId" type="hidden" value={assignment?.termId || selectedTerm?.id || ""} />
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm normal-case tracking-normal text-foreground">
+          <div className="flex h-9 items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 text-sm normal-case tracking-normal text-foreground">
             <Lock className="size-3.5 text-muted-foreground" aria-hidden="true" />
             {selectedTerm?.title || "Select a term from the roster header"}
           </div>
@@ -1720,11 +1723,14 @@ function AssignmentForm({
   );
 }
 
+
 function AdvisorForm({
   advisor,
+  departmentOptions = [],
   onCancel,
 }: {
   advisor: AdvisorProfileClientRecord | null;
+  departmentOptions?: readonly MemberDepartmentOption[];
   onCancel: () => void;
 }) {
   const [activePanel, setActivePanel] = useState<"access" | "content" | "profile">("profile");
@@ -1736,6 +1742,10 @@ function AdvisorForm({
   const computedTenure = (datesUnchanged && advisor?.tenureDisplay) || computeTenureDisplay(joinedOn, leftOn);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const linkFormId = advisor ? `advisor-link-${advisor.id}` : "advisor-link-new";
+  const advisorDepartmentOptions = useMemo(
+    () => buildAdvisorDepartmentOptions(departmentOptions, advisor?.department),
+    [departmentOptions, advisor?.department]
+  );
   const avatarToneClass =
     advisorType === "main_advisor"
       ? "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
@@ -1864,7 +1874,14 @@ function AdvisorForm({
               </Field>
               <Field>
                 Department
-                <PanelInput name="department" defaultValue={advisor?.department || ""} />
+                <PanelSelect name="department" defaultValue={advisor?.department?.trim() || ""}>
+                  <option value="">Choose a department</option>
+                  {advisorDepartmentOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </PanelSelect>
               </Field>
               <Field>
                 Designation
@@ -1893,7 +1910,7 @@ function AdvisorForm({
               <Field>
                 Tenure display
                 <input name="tenureDisplay" type="hidden" value={computedTenure === "Not set" ? "" : computedTenure} />
-                <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm font-medium normal-case tracking-normal text-foreground">
+                <div className="flex h-9 items-center rounded-lg border border-border bg-muted/40 px-3 text-sm font-medium normal-case tracking-normal text-foreground">
                   {computedTenure}
                 </div>
               </Field>
@@ -2130,6 +2147,7 @@ function ExpandedDiff({ metadata }: { metadata: Record<string, unknown> }) {
 export function CommitteeWorkspaceClient({
   advisors,
   assignments,
+  departmentOptions = [],
   flash,
   history,
   positions,
@@ -2875,6 +2893,7 @@ export function CommitteeWorkspaceClient({
             title="Build and publish a validated roster draft"
           >
             <CommitteeOnboardingPanel
+              departmentOptions={departmentOptions}
               initialTermId={selectedTerm?.id || initialTermId}
               key={selectedTerm?.id || "no-term"}
               terms={terms.map((term) => ({ id: term.id, title: term.title }))}
@@ -3250,6 +3269,7 @@ export function CommitteeWorkspaceClient({
         >
           <AdvisorForm
             advisor={selectedAdvisor}
+            departmentOptions={departmentOptions}
             onCancel={() => {
               setEditingAdvisorId(null);
               setShowNewAdvisor(false);

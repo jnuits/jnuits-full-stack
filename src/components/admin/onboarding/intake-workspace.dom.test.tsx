@@ -294,6 +294,17 @@ describe("shared onboarding intake workspace", () => {
     ]);
   });
 
+  it("explains a missing department catalog and prevents incomplete manual inspection", async () => {
+    const { user } = renderWorkspace({ departmentOptions: [] });
+    expect(screen.getByLabelText("Department code")).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent(/departments.*reload/i);
+    expect(screen.getByRole("button", { name: "Inspect source" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Inspect source" }));
+    expect(mocks.inspectSource).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("radio", { name: "CSV file" }));
+    expect(screen.getByRole("button", { name: "Inspect source" })).toBeEnabled();
+  });
+
   it("re-inspects a workbook using the selected sheet", async () => {
     mocks.inspectSource
       .mockResolvedValueOnce({

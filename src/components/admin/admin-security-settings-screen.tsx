@@ -3,7 +3,6 @@ import { AdminPasswordForm } from "@/components/admin/admin-password-form";
 import { saveAdminSecuritySettings } from "@/app/admin/settings/actions";
 import { getAdminSettingsSnapshot } from "@/lib/admin/settings";
 import { ShieldCheck, ShieldQuestion, Smartphone, UserLock } from "lucide-react";
-import { getAuthCaptchaUiConfig } from "@/lib/security/captcha";
 import { AdminVerifiedForm } from "./admin-verified-form";
 
 function formatDate(value: null | string | undefined) {
@@ -170,7 +169,7 @@ export async function AdminSecuritySettingsScreen() {
             Password changes run through the authenticated Supabase session and
             can request reauthentication when the provider requires it.
           </p>
-          <AdminPasswordForm captcha={getAuthCaptchaUiConfig()} />
+          <AdminPasswordForm />
         </article>
       </div>
 

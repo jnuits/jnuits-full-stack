@@ -33,7 +33,6 @@ import { POST } from "./route";
 function request(overrides: Record<string, string> = {}) {
   return new NextRequest("https://jnuits.org.bd/api/profile/change-password", {
     body: JSON.stringify({
-      captchaToken: "",
       confirmPassword: "River-Cedar-Glass-2046!",
       currentPassword: "Current-pass-2046!",
       password: "River-Cedar-Glass-2046!",
@@ -50,6 +49,7 @@ describe("profile password-change route", () => {
     vi.stubEnv("AUTH_CAPTCHA_REQUIRED", "false");
     vi.stubEnv("APP_MAC_SECRET", "test-mac-key");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "publishable-key");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "server-only-key");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://project.supabase.co");
     routeMocks.getAuthContext.mockResolvedValue({
       user: { email: "member@example.test", id: "user-1" },
@@ -60,6 +60,7 @@ describe("profile password-change route", () => {
       success: true,
     });
     routeMocks.getPasswordExposureError.mockResolvedValue(null);
+    routeMocks.createSupabaseClient.mockReset();
   });
 
   afterEach(() => {
@@ -67,7 +68,9 @@ describe("profile password-change route", () => {
     vi.restoreAllMocks();
   });
 
-  it("verifies the current password and updates through the same fresh session", async () => {
+  it("verifies and updates through a fresh user session without private-dashboard CAPTCHA", async () => {
+    vi.stubEnv("AUTH_CAPTCHA_REQUIRED", "true");
+    vi.stubEnv("VERCEL_ENV", "production");
     const signInWithPassword = vi.fn().mockResolvedValue({
       data: { user: { id: "user-1" } },
       error: null,
@@ -81,6 +84,9 @@ describe("profile password-change route", () => {
     const response = await POST(request(), { params: Promise.resolve({}) });
 
     expect(response.status).toBe(200);
+    expect(routeMocks.createSupabaseClient).toHaveBeenCalledWith("https://project.supabase.co", "server-only-key", {
+      auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
+    });
     expect(signInWithPassword).toHaveBeenCalledWith({
       email: "member@example.test",
       password: "Current-pass-2046!",
@@ -115,5 +121,35 @@ describe("profile password-change route", () => {
     await expect(response.json()).resolves.toEqual({
       message: "Current password is incorrect.",
     });
+  });
+  it("rejects an expired session before privileged verification", async () => {
+    routeMocks.getAuthContext.mockResolvedValue({ user: null });
+    routeMocks.createSupabaseClient.mockReset();
+    const response = await POST(request(), { params: Promise.resolve({}) });
+    expect(response.status).toBe(401);
+    expect(routeMocks.createSupabaseClient).not.toHaveBeenCalled();
+  });
+  it("ignores a body email and never updates another authenticated identity", async () => {
+    const signInWithPassword = vi.fn().mockResolvedValue({ data: { user: { id: "another-user" } }, error: null });
+    const signOut = vi.fn().mockResolvedValue({ error: null });
+    const updateUser = vi.fn();
+    routeMocks.createSupabaseClient.mockReturnValue({ auth: { signInWithPassword, signOut, updateUser } });
+    const response = await POST(request({ email: "another@example.test" }), { params: Promise.resolve({}) });
+    expect(response.status).toBe(403);
+    expect(signInWithPassword).toHaveBeenCalledWith({ email: "member@example.test", password: "Current-pass-2046!" });
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+  it("enforces the durable limiter before trusted verification", async () => {
+    routeMocks.checkRateLimitForApi.mockResolvedValue({ success: false, resetAt: Date.now() + 60_000 });
+    const response = await POST(request(), { params: Promise.resolve({}) });
+    expect(response.status).toBe(429);
+    expect(routeMocks.createSupabaseClient).not.toHaveBeenCalled();
+  });
+  it("rejects cross-origin requests before password verification", async () => {
+    const attempted = request(); attempted.headers.set("origin", "https://other.invalid");
+    const response = await POST(attempted, { params: Promise.resolve({}) });
+    expect(response.status).toBe(403);
+    expect(routeMocks.createSupabaseClient).not.toHaveBeenCalled();
   });
 });

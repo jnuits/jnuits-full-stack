@@ -5,11 +5,8 @@ import { getPasswordPolicyError } from "@/lib/security/password-policy";
 import { getPasswordExposureError } from "@/lib/security/pwned-passwords";
 import { startTransition, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { TurnstileField } from "@/components/auth/turnstile-field";
 
-type CaptchaConfig = { required: boolean; siteKey: string };
-
-export function AdminPasswordForm({ captcha }: { captcha: CaptchaConfig }) {
+export function AdminPasswordForm() {
   const [message, setMessage] = useState<null | string>(null);
   const [error, setError] = useState<null | string>(null);
   const [pending, setPending] = useState(false);
@@ -17,8 +14,6 @@ export function AdminPasswordForm({ captcha }: { captcha: CaptchaConfig }) {
   const [stepUpRequired, setStepUpRequired] = useState(false);
   const [stepUpPassword, setStepUpPassword] = useState("");
   const [verifyingStepUp, setVerifyingStepUp] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState("");
-  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const lastAttemptRef = useRef<{
     confirmPassword: string;
     nonce: string;
@@ -89,17 +84,12 @@ export function AdminPasswordForm({ captcha }: { captcha: CaptchaConfig }) {
       return;
     }
 
-    if (captcha.required && !captchaToken) {
-      setError("Complete the verification challenge.");
-      return;
-    }
-
     setVerifyingStepUp(true);
     setError(null);
 
     try {
       const response = await fetch("/api/profile/step-up", {
-        body: JSON.stringify({ captchaToken, currentPassword: stepUpPassword }),
+        body: JSON.stringify({ currentPassword: stepUpPassword }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
@@ -109,15 +99,11 @@ export function AdminPasswordForm({ captcha }: { captcha: CaptchaConfig }) {
           message?: string;
         } | null;
         setError(payload?.message || "Current password verification failed.");
-        setCaptchaToken("");
-        setCaptchaAttempt((value) => value + 1);
         setVerifyingStepUp(false);
         return;
       }
     } catch {
       setError("Verification request failed. Check your connection and retry.");
-      setCaptchaToken("");
-      setCaptchaAttempt((value) => value + 1);
       setVerifyingStepUp(false);
       return;
     }
@@ -203,20 +189,12 @@ export function AdminPasswordForm({ captcha }: { captcha: CaptchaConfig }) {
             <p className="-mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
               Password changes require a fresh current-password verification.
             </p>
-            {captcha.required ? (
-              <TurnstileField
-                key={captchaAttempt}
-                onTokenChange={setCaptchaToken}
-                siteKey={captcha.siteKey}
-              />
-            ) : null}
             <button
               className="secondary-button"
               disabled={
                 verifyingStepUp ||
                 !stepUpPassword ||
-                pending ||
-                (captcha.required && !captchaToken)
+                pending
               }
               onClick={() => startTransition(() => void verifyAndRetry())}
               type="button"
