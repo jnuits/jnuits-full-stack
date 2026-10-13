@@ -40,7 +40,11 @@ test.describe("production-mode disposable admin repairs",()=>{
   await page.getByRole("combobox",{name:/^Page/}).selectOption("footer");await expect(page).toHaveURL(/edit=footer/);await expect(page.getByRole("combobox",{name:/^Page/})).toHaveValue("footer");
   await page.goto(`${base}/admin/content/projects?editProject=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1`);
   const form=page.getByRole("button",{name:"Update project"}).locator("xpath=ancestor::form");
-  await expect(form.getByLabel("Tagline",{exact:true})).toHaveValue("Preserved tagline");await form.locator('input[name="title"]').fill("Synthetic project edited");await form.getByRole("button",{name:"Update project"}).click();
+  await expect(form.getByLabel("Tagline",{exact:true})).toHaveValue("Preserved tagline");
+  await form.locator('input[name="title"]').fill("Synthetic project edited");
+  const savedResponse=page.waitForResponse(response=>response.request().method()==="POST" && new URL(response.url()).pathname==="/admin/content/projects");
+  await form.getByRole("button",{name:"Update project"}).click();
+  expect((await savedResponse).status()).toBeLessThan(400);
   await expect(page.getByRole("heading",{name:"Project updated"})).toBeVisible();
   const after=await fixture("audit_state");expect(after.project).toMatchObject({title:"Synthetic project edited",tagline:"Preserved tagline",cover:"https://example.com/fixture-cover.jpg",featured:true,status:"active"});
  });
@@ -57,7 +61,12 @@ test.describe("production-mode disposable admin repairs",()=>{
   for(const width of [375,768,1280]) for(const theme of ["light","dark"]) {
    await page.setViewportSize({width,height:950});await page.goto(`${base}/admin/content/media?theme=${theme}`);await page.evaluate(t=>{document.documentElement.dataset.theme=t;document.documentElement.classList.toggle("dark",t==="dark");},theme);
    const disclosure=page.locator("details").filter({has:page.locator("summary",{hasText:"Advanced: register"})});await expect(disclosure).not.toHaveAttribute("open","");
-   await disclosure.locator("summary").focus();await page.keyboard.press("Enter");await expect(disclosure.getByRole("button",{name:"Save media asset"})).toBeVisible();
+   const summary=disclosure.locator("summary");
+   await expect(summary).toBeVisible(); await summary.focus();
+   await expect(summary, `Disclosure receives keyboard focus at ${width}px/${theme}`).toBeFocused();
+   await summary.press("Enter");
+   await expect(disclosure, `Native disclosure opens at ${width}px/${theme}`).toHaveAttribute("open", "");
+   await expect(disclosure.getByRole("button",{name:"Save media asset"})).toBeVisible();
    expect(await page.evaluate(()=>Math.max(document.body.scrollWidth,document.documentElement.scrollWidth)-document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
   }
  });
