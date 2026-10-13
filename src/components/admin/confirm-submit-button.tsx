@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 type ConfirmSubmitButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
@@ -22,6 +22,8 @@ export function ConfirmSubmitButton({
   ...buttonProps
 }: ConfirmSubmitButtonProps) {
   const [open, setOpen] = useState(false);
+  const titleId = useId();
+  const descriptionId = useId();
   const allowSubmitRef = useRef(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -83,10 +85,10 @@ export function ConfirmSubmitButton({
 
       {/* Viewport confirmations must escape the caller's fieldset and scroll layout. */}
       {open ? createPortal(
-        <div aria-modal="true" className="fixed inset-0 z-[100] grid place-items-center bg-black/45 p-4" ref={dialogRef} role="dialog">
+        <div aria-describedby={descriptionId} aria-labelledby={titleId} aria-modal="true" className="fixed inset-0 z-[100] grid place-items-center bg-black/45 p-4" ref={dialogRef} role="dialog">
           <div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--background)] p-5 shadow-2xl">
-            <h2 className="font-[family-name:var(--font-heading)] text-2xl font-semibold">{title}</h2>
-            <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">{description}</p>
+            <h2 id={titleId} className="font-[family-name:var(--font-heading)] text-2xl font-semibold">{title}</h2>
+            <p id={descriptionId} className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">{description}</p>
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button className="admin-btn admin-btn--ghost" onClick={() => { setOpen(false); buttonRef.current?.focus(); }} type="button">
                 {cancelLabel}

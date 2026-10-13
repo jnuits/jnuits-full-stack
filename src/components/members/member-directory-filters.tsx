@@ -77,7 +77,7 @@ function FilterSelectStack({
       <label className="grid gap-1.5 text-sm font-semibold text-[var(--foreground)] sm:block">
         <span className="sm:sr-only">Member type</span>
         <select
-          className="h-10 rounded-lg border border-[var(--line)] bg-[var(--background)] px-3 text-sm text-[var(--foreground)] transition focus:border-[var(--brand-blue)]"
+          className="h-10 rounded-lg border border-[var(--line)] bg-[var(--background)] px-3 py-0 leading-normal text-sm text-[var(--foreground)] transition focus:border-[var(--brand-blue)]"
           onChange={(event) => replaceParams({ type: event.target.value })}
           value={filters.type}
         >
@@ -91,7 +91,7 @@ function FilterSelectStack({
       <label className="grid gap-1.5 text-sm font-semibold text-[var(--foreground)] sm:block">
         <span className="sm:sr-only">Department</span>
         <select
-          className="h-10 rounded-lg border border-[var(--line)] bg-[var(--background)] px-3 text-sm text-[var(--foreground)] transition focus:border-[var(--brand-blue)]"
+          className="h-10 rounded-lg border border-[var(--line)] bg-[var(--background)] px-3 py-0 leading-normal text-sm text-[var(--foreground)] transition focus:border-[var(--brand-blue)]"
           onChange={(event) => replaceParams({ department: event.target.value })}
           value={filters.department}
         >
@@ -111,7 +111,7 @@ function FilterSelectStack({
       <label className="grid gap-1.5 text-sm font-semibold text-[var(--foreground)] sm:block">
         <span className="sm:sr-only">Sort</span>
         <select
-          className="h-10 rounded-lg border border-[var(--line)] bg-[var(--background)] px-3 text-sm text-[var(--foreground)] transition focus:border-[var(--brand-blue)]"
+          className="h-10 rounded-lg border border-[var(--line)] bg-[var(--background)] px-3 py-0 leading-normal text-sm text-[var(--foreground)] transition focus:border-[var(--brand-blue)]"
           onChange={(event) => replaceParams({ sort: event.target.value })}
           value={filters.sort}
         >
@@ -235,7 +235,7 @@ export function MemberDirectoryFilters({
           </label>
           <input
             autoComplete="off"
-            className="h-10 rounded-lg border border-[var(--line)] bg-[var(--background)] px-3 pr-9 text-sm text-[var(--foreground)] transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--brand-blue)]"
+            className="h-10 rounded-lg border border-[var(--line)] bg-[var(--background)] px-3 py-0 pr-9 leading-normal text-sm text-[var(--foreground)] transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--brand-blue)]"
             defaultValue={filters.search}
             id="dir-search"
             key={filters.search}

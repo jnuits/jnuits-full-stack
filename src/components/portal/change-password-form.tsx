@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useRef, useState } from "react";
+import { ConfirmSubmitButton } from "@/components/admin/confirm-submit-button";
 import { getPasswordPolicyError } from "@/lib/security/password-policy";
 
 export function ChangePasswordForm({
@@ -126,13 +127,16 @@ export function ChangePasswordForm({
           />
         </label>
         <div className="flex flex-wrap gap-3 sm:col-span-2">
-          <button
+          <ConfirmSubmitButton
             className="primary-button"
+            confirmLabel="Confirm password change"
+            description="Use your new password the next time you sign in. You will need to verify again before editing your profile or making protected changes."
             disabled={pending}
-            type="submit"
+            onClick={(event) => { if (!formRef.current?.reportValidity()) event.preventDefault(); }}
+            title="Change your password?"
           >
             {pending ? "Updating password..." : "Update password"}
-          </button>
+          </ConfirmSubmitButton>
         </div>
       </form>
 

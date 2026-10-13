@@ -243,27 +243,19 @@ function ManualRowsEditor({
           </label>
           <label className="input-label">
             Department code
-            {departmentOptions.length > 0 ? (
-              <select
-                onChange={(event) => updateRow(index, "departmentCode", event.currentTarget.value)}
-                required
-                value={row.departmentCode}
-              >
-                <option value="">Choose a department</option>
-                {departmentOptions.map((department) => (
-                  <option key={department.internalCode} value={department.internalCode}>
-                    {department.shortCode} — {department.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                onChange={(event) => updateRow(index, "departmentCode", event.currentTarget.value)}
-                placeholder="CSE"
-                required
-                value={row.departmentCode}
-              />
-            )}
+            <select
+              disabled={departmentOptions.length === 0}
+              onChange={(event) => updateRow(index, "departmentCode", event.currentTarget.value)}
+              required
+              value={row.departmentCode}
+            >
+              <option value="">Choose a department</option>
+              {departmentOptions.map((department) => (
+                <option key={department.internalCode} value={department.internalCode}>
+                  {department.shortCode} — {department.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="input-label">
             Batch
@@ -630,6 +622,11 @@ export function IntakeWorkspace({
           </div>
         </fieldset>
 
+        {sourceKind === "manual" && departmentOptions.length === 0 ? (
+          <p className="admin-feedback admin-feedback--error" role="alert">
+            Departments could not be loaded. Reload this page to retry before entering members manually. File and paste imports remain available.
+          </p>
+        ) : null}
         {sourceKind === "manual" ? (
           <ManualRowsEditor
             committee={committee}
@@ -680,7 +677,7 @@ export function IntakeWorkspace({
         ) : null}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button className="admin-btn admin-btn--primary" disabled={isPending} onClick={() => run("Inspecting source", () => inspectSource())} type="button">
+          <button className="admin-btn admin-btn--primary" disabled={isPending || (sourceKind === "manual" && departmentOptions.length === 0)} onClick={() => run("Inspecting source", () => inspectSource())} type="button">
             {isPending && pendingLabel === "Inspecting source" ? <Loader2 aria-hidden="true" className="animate-spin" size={15} /> : <Upload aria-hidden="true" size={15} />} Inspect source
           </button>
           <span aria-live="polite" className="text-sm text-[var(--muted-foreground)]">

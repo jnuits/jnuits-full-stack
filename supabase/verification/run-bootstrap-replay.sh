@@ -375,11 +375,11 @@ run_local_read_with_pull_retry() {
     cat "$attempt_output" >&2
     cat "$attempt_error" >&2
     if [[ "$attempt" -ge 3 ]] \
-      || ! grep -qiE '(docker|error pulling image|failed to pull image)' "$attempt_error" \
-      || ! grep -qiE 'toomanyrequests|rate exceeded' "$attempt_error"; then
+      || ! grep -qiE '(docker:.*(https://[^"]+/v2/|toomanyrequests|rate exceeded)|error pulling image|failed to pull image)' "$attempt_error" \
+      || ! grep -qiE 'toomanyrequests|rate exceeded|context deadline exceeded|TLS handshake timeout|i/o timeout|connection reset by peer' "$attempt_error"; then
       return "$status"
     fi
-    printf 'Registry image pull was rate-limited; retrying read-only CLI operation (%s/3) in %ss.\n' \
+    printf 'Transient registry image pull failure; retrying read-only CLI operation (%s/3) in %ss.\n' \
       "$((attempt + 1))" "$delay" >&2
     sleep "$delay"
     attempt=$((attempt + 1))

@@ -120,3 +120,47 @@ Automatic Playwright retries are disabled only for this serial suite because
 replay requires a fresh disposable stack; rerunning already-reviewed requests
 is not a valid retry. All scenarios and Linux browser release gates remain
 required. A new workflow run creates fresh fixtures.
+
+
+## Public CAPTCHA and serious-change confirmations
+
+Turnstile remains required on public login, registration/recovery/claim flows,
+Contact, Form Studio submission/upload/recovery forms, event registration and
+newsletter signup. Production requires it even if a local override says false.
+Authenticated member, alumni, admin and content dashboards do not render or
+require Turnstile. Native current-password checks, origin/session validation,
+durable rate limits and admin AAL2 plus intent/session-bound proof still apply.
+
+Password changes now show an explicit warning before submission. Cancel or
+Escape preserves the draft and sends no password-change request. Confirm uses
+the existing native password endpoint; it does not relax password policy or
+verification. Existing admin role/access/delete confirmations retain their
+specific consequences and keyboard focus containment.
+
+## AGY dropdown and control-height integration
+
+AGY's nine-file handover is integrated with the dashboard patch. Single-line
+inputs/selects retain usable content height; textareas and non-text controls
+keep their separate treatment. Committee onboarding and advisor editing receive
+active canonical departments. Existing advisor department values remain
+selectable on unchanged edits. A missing catalog explains how to retry and
+blocks incomplete manual intake while file/paste imports remain available.
+The release browser fixture checks member editor control heights and dropdown
+text space across mobile/tablet/desktop, both themes and all three CI engines.
+
+## Registry transport failure
+
+The clean replay completed its SQL/security/concurrency assertions before
+Supabase type-generation failed downloading postgres-meta from the registry.
+Only read-only type generation/function lint retry recognized transient
+registry timeouts or throttling, at most three attempts with 5/15-second delays.
+SQL errors and statement timeouts do not retry; failed/partial generated types
+never replace the previous artifact. Migration application is never retried.
+
+## Monitoring policy
+
+The owner removed the recurring AI follow-up. Keep it removed. The local
+read-only exact-commit completion helper may collect one terminal report; do not
+recreate a scheduled chat wakeup or confuse Vercel's pending provider status
+with incomplete GitHub Actions. Release still requires exact-head gates and
+actual production deployment plus three-engine smoke evidence.

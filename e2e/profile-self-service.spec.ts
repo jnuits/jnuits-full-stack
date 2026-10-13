@@ -127,6 +127,12 @@ test.describe("disposable profile self-service and review integration", () => {
       await page.getByLabel("Confirm new password", { exact: true }).fill(nextPassword);
       await expect(page.getByRole("button", { name: "Update password", exact: true })).toBeEnabled();
       await page.getByRole("button", { name: "Update password", exact: true }).click();
+      const passwordWarning = page.getByRole("dialog", { name: "Change your password?", exact: true });
+      await expect(passwordWarning).toContainText("Use your new password the next time you sign in.");
+      await passwordWarning.getByRole("button", { name: "Cancel", exact: true }).click();
+      await expect(page.getByLabel("New password", { exact: true })).toHaveValue(nextPassword);
+      await page.getByRole("button", { name: "Update password", exact: true }).click();
+      await page.getByRole("button", { name: "Confirm password change", exact: true }).click();
       await expect(page.locator(".portal-message--error")).toContainText("Current password is incorrect.");
       // React form actions clear uncontrolled fields after submission. Re-enter
       // the complete request for a real retry after the rejected password.
@@ -135,6 +141,7 @@ test.describe("disposable profile self-service and review integration", () => {
       await page.getByLabel("Confirm new password", { exact: true }).fill(nextPassword);
       const passwordResponse = page.waitForResponse(response => response.url().endsWith("/api/profile/change-password") && response.request().method() === "POST");
       await page.getByRole("button", { name: "Update password", exact: true }).click();
+      await page.getByRole("button", { name: "Confirm password change", exact: true }).click();
       expect((await passwordResponse).status()).toBe(200);
       await expect(page.locator(".portal-message--success")).toContainText("Password updated successfully.");
       expect(await fixture("profile_password_state", { password: nextPassword })).toEqual({ newPasswordAccepted: true, oldPasswordRejected: true });

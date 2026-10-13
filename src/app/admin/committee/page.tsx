@@ -16,6 +16,7 @@ import {
   formatAdvisorJnuitsIdForDisplay,
   formatMembershipIdForDisplay,
 } from "@/lib/members/jnuits-id";
+import type { MemberDepartmentOption } from "@/components/admin/member-profile-editor";
 import type { CommitteeTermPositionClientRecord } from "@/lib/committee/term-positions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
@@ -388,6 +389,30 @@ function mapAdvisor(advisor: AdvisorRecord): AdvisorProfileClientRecord {
   };
 }
 
+async function loadDepartmentOptions(
+  flexibleAdmin: ReturnType<typeof asFlexibleClient>
+): Promise<MemberDepartmentOption[]> {
+  const result = await flexibleAdmin
+    .from("departments" as string)
+    .select("code, name, short_code")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (result.error) return [];
+  return (
+    (result.data || []) as Array<{
+      code: string;
+      name: string;
+      short_code: string;
+    }>
+  ).map((department) => ({
+    internalCode: department.code,
+    name: department.name,
+    shortCode: department.short_code,
+  }));
+}
+
 export const metadata = { title: "Committee — Admin | JnUITS" };
 
 export default async function AdminCommitteePage() {
@@ -398,11 +423,12 @@ export default async function AdminCommitteePage() {
     cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value
   );
 
-  const [termsRawAll, rolesRaw, advisorsRaw, historyResult] =
+  const [termsRawAll, rolesRaw, advisorsRaw, departmentOptions, historyResult] =
     await Promise.all([
       loadTerms(flexibleAdmin),
       loadRoles(flexibleAdmin),
       loadAdvisors(flexibleAdmin),
+      loadDepartmentOptions(flexibleAdmin),
       flexibleAdmin
         .from("audit_events" as string)
         .select("id, action, entity_type, entity_id, actor_user_id, metadata, created_at")
@@ -452,6 +478,7 @@ export default async function AdminCommitteePage() {
     <CommitteeWorkspaceClient
       advisors={advisorsRaw.map(mapAdvisor)}
       assignments={assignmentsRaw.map(mapAssignment)}
+      departmentOptions={departmentOptions}
       flash={flash}
       history={history}
       positions={positionsRaw.map(mapPosition)}

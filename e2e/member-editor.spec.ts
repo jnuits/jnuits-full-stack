@@ -35,6 +35,22 @@ test.describe("isolated responsive member editor", () => {
       const rect = await dialog.boundingBox();
       expect(rect?.width).toBeLessThanOrEqual(width);
       if (width === 375) expect(Math.round(rect!.width)).toBe(width);
+      // Real computed styles catch global padding/grid regressions that DOM-only tests cannot.
+      for (const label of ["Full name", "Batch", "Joining date", "Phone"]) {
+        const metrics = await dialog.getByLabel(label, { exact: true }).evaluate(element => {
+          const style = getComputedStyle(element);
+          return { height: element.getBoundingClientRect().height, top: parseFloat(style.paddingTop), bottom: parseFloat(style.paddingBottom) };
+        });
+        expect(metrics.height, `${label} height at ${width}/${theme}`).toBe(44);
+        expect(metrics.top + metrics.bottom, `${label} vertical padding`).toBe(0);
+      }
+      const department = dialog.getByRole("combobox", { name: /^Department code/ });
+      const availableTextHeight = await department.evaluate(element => {
+        const style = getComputedStyle(element);
+        return element.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      });
+      expect(availableTextHeight, "Department option text must not be clipped").toBeGreaterThanOrEqual(20);
+
       for (let count = 0; count < 40; count++) {
         await page.keyboard.press("Tab");
         expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);

@@ -237,6 +237,7 @@ test("gallery search updates its route and settles the archive", async ({ page }
 test("contact fields accept input without sending a message", async ({ page }) => {
   const errors = trackErrors(page);
   await expectDocument(await page.goto("/contact"));
+  await expect(page.locator('input[name="cf_turnstile_token"]'), "Public Contact must retain CAPTCHA").toHaveCount(1);
   await page.locator("#contact-name").fill("Public smoke check");
   await expect(page.locator("#contact-name")).toHaveValue("Public smoke check");
   await page.locator("#contact-category").selectOption("certificate_verification");
