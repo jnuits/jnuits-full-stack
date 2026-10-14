@@ -155,14 +155,16 @@ export function MemberDirectoryCard({ member }: { member: MemberDirectoryEntry }
       tabIndex={0}
     >
       <div className="member-card-header">
-        <MemberAvatar name={member.fullName} src={member.avatarSecureUrl} />
+        <MemberAvatar name={member.fullName} size={80} src={member.avatarSecureUrl} />
         <div className="min-w-0">
           <h3 className="truncate text-lg font-semibold leading-6 text-[var(--foreground)]">
             {member.fullName}
           </h3>
           <div className="mt-1">
             <div className="flex flex-wrap justify-center gap-1.5">
-            <StatusBadge memberType={member.memberType} />
+            {!member.currentCommitteeTitles?.length ? (
+              <StatusBadge memberType={member.memberType} />
+            ) : null}
             {(member.currentCommitteeTitles || []).map((title) => (
               <span className="member-committee-title" key={title} title="Current committee position">{title}</span>
             ))}
