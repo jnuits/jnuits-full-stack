@@ -349,6 +349,8 @@ jobs:
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder-publishable-key
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: ci-placeholder-turnstile-site-key
+      # Fail a regression to build-time Google font fetching even when Google is healthy.
+      NEXT_FONT_GOOGLE_MOCKED_RESPONSES: ${{ github.workspace }}/scripts/fixtures/no-google-fonts.cjs
       PLAYWRIGHT_PORT: 3100
       RATE_LIMIT_BACKEND: supabase
       RATE_LIMIT_SECRET_SALT: ci-placeholder-rate-limit-secret-salt-000000

@@ -71,6 +71,28 @@ async function expectDocument(response: Response | null) {
   return html;
 }
 
+test("site font families and required weights load from the rendered CSS variables", async ({ page }) => {
+  await expectDocument(await page.goto("/certificates"));
+  const loaded = await page.evaluate(async () => {
+    const styles = getComputedStyle(document.documentElement);
+    const fonts = [
+      { variable: "--font-sans", weights: [400, 500, 600, 700, 800], text: "JnUITS Society" },
+      { variable: "--font-mono", weights: [400, 500, 600], text: "JnUITS-2023001" },
+      { variable: "--font-serif", weights: [400, 500, 600, 700], text: "Step Ahead with IT" },
+      { variable: "--font-bengali", weights: [400, 700], text: "সদস্য পরিচিতি" },
+    ];
+    return Promise.all(fonts.map(async ({ variable, weights, text }) => {
+      const family = styles.getPropertyValue(variable).split(",")[0].trim();
+      const faces = await Promise.all(weights.map(weight => document.fonts.load(`${weight} 16px ${family}`, text)));
+      return { variable, defined: Boolean(family), loaded: faces.every((result, index) => result.length > 0 && result.every(face => {
+        const range = face.weight.split(/\s+/).map(Number);
+        return face.status === "loaded" && range.every(Number.isFinite) && weights[index] >= range[0] && weights[index] <= (range[1] ?? range[0]);
+      })) };
+    }));
+  });
+  expect(loaded).toEqual(["--font-sans", "--font-mono", "--font-serif", "--font-bengali"].map(variable => ({ variable, defined: true, loaded: true })));
+});
+
 test("nonced HTML disallows intermediary transformations and uses fresh matching nonces", async ({ request }) => {
   const nonces: string[] = [];
   for (let attempt = 0; attempt < 2; attempt++) {

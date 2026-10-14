@@ -1,32 +1,32 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import localFont from "next/font/local";
-import {
-  Inter,
-  JetBrains_Mono,
-  Lora,
-} from "next/font/google";
 import { brandProfile } from "@/lib/branding";
 import { NonceProvider } from "@/components/security/nonce-provider";
 import { ThemeInitScript } from "@/components/theme/theme-init-script";
 import "./globals.css";
 
-const bodyFont = Inter({
+// Bundled fonts keep builds independent of Google response formats and availability.
+const bodyFont = localFont({
+  src: "../assets/fonts/inter/Inter-Variable.woff2",
   variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  weight: "400 800",
 });
 
-const monoFont = JetBrains_Mono({
+const monoFont = localFont({
+  src: "../assets/fonts/jetbrainsmono/JetBrainsMono-Variable.woff2",
   variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  display: "swap",
+  weight: "400 600",
 });
 
-const serifFont = Lora({
+const serifFont = localFont({
+  src: "../assets/fonts/lora/Lora-Variable.woff2",
   variable: "--font-serif",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  weight: "400 700",
+  adjustFontFallback: "Times New Roman",
 });
 
 const bengaliFont = localFont({
