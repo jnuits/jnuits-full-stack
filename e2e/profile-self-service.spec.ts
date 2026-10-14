@@ -35,10 +35,26 @@ test.describe("disposable profile self-service and review integration", () => {
         console.info(`Checking fictional workplace review: ${width}px ${theme}`);
         await adminPage.setViewportSize({ width, height: 900 });
         await adminPage.addInitScript(value => localStorage.setItem("jnuits-theme", value), theme);
-        await adminPage.goto(`${baseURL}/admin/workplace`, { waitUntil: "networkidle" });
+        const loaded = await adminPage.goto(`${baseURL}/admin/workplace`, { waitUntil: "networkidle" });
         await expect(adminPage.locator("html")).toHaveAttribute("data-theme", theme);
-        await adminPage.getByRole("button", { name: "Review Synthetic Profile Alumni's workplace request", exact: true }).first().focus();
-        await adminPage.keyboard.press("Enter");
+        const review = adminPage.getByRole("button", { name: "Review Synthetic Profile Alumni's workplace request", exact: true }).first();
+        try {
+          await review.focus();
+          await adminPage.keyboard.press("Enter");
+        } catch (error) {
+          // Failure-only, read-only diagnostics. Never dump cookies, input
+          // values, page HTML, account credentials or native MFA material.
+          try {
+            const state = await fixture("profile_state");
+            console.info("Synthetic workplace review failure", JSON.stringify({
+              width, theme, status: loaded?.status(), path: new URL(adminPage.url()).pathname,
+              reviewControls: await review.count(),
+              syntheticMemberVisible: await adminPage.getByText("Synthetic Profile Alumni", { exact: true }).count(),
+              pendingFixtureRequests: state.requests.filter((item: { status: string }) => item.status === "pending").length,
+            }));
+          } catch { console.info("Synthetic workplace failure diagnostics unavailable."); }
+          throw error;
+        }
         await expect(adminPage.getByRole("button", { name: "Approve", exact: true }).first()).toBeVisible();
         await expect(adminPage.getByRole("button", { name: "Reject", exact: true }).first()).toBeVisible();
         await expect(adminPage.locator("body")).toContainText("Initial Requested Workplace");

@@ -245,12 +245,14 @@ try {
   console.log("Running real Next/Supabase browser integration; transport does not certify mailbox delivery.");
   // Reuse this isolated stack/build for private password acceptance before the
   // editor matrix. Each suite has its own browser context and artifact folder.
+  // A failed mutable scenario may leave partial fixture state. Never retry it
+  // automatically against that same database; rerun the isolated harness instead.
   const suites = memberEditorQA
     ? [["e2e/admin-verification.spec.ts", ["--project=chromium"]], ["e2e/profile-self-service.spec.ts", ["--project=chromium"]], ["e2e/member-editor.spec.ts", memberEditorProject ? [`--project=${memberEditorProject}`] : []]]
     : [[profileQA ? "e2e/profile-self-service.spec.ts" : "e2e/admin-verification.spec.ts", ["--project=chromium"]]];
   if (adminAuditQA) suites.unshift(["e2e/admin-audit-normalization.spec.ts", memberEditorProject ? [`--project=${memberEditorProject}`] : []]);
   for (const [index, [spec, projects]] of suites.entries()) {
-    const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", spec, ...projects, "--workers=1", "--output", join(screenshots, `playwright-output-${index}`), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
+    const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", spec, ...projects, "--workers=1", "--retries=0", "--output", join(screenshots, `playwright-output-${index}`), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
     const code = await new Promise(resolve => child.once("exit", resolve));
     if (code !== 0) console.error(`Redacted disposable Next diagnostics: ${diagnostics}`);
     assert.equal(code, 0, `Disposable browser suite failed: ${spec}`);
