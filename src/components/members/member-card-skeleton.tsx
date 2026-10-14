@@ -2,7 +2,7 @@ export function MemberCardSkeleton() {
   return (
     <div className="member-card skeleton-card" aria-hidden="true">
       <div className="skeleton-header">
-        <div className="skeleton-circle" />
+        <div className="skeleton-circle" style={{ height: 80, width: 80 }} />
         <div>
           <div className="skeleton-line" style={{ width: 140 }} />
           <div className="skeleton-line short" style={{ marginTop: 6, width: 60 }} />

@@ -122,6 +122,47 @@ test("nonced HTML disallows intermediary transformations and uses fresh matching
   expect(nonces[0]).not.toBe(nonces[1]);
 });
 
+for (const width of [375, 768, 1280]) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`member directory badges and portraits at ${width}px in ${theme}`, async ({ page, baseURL }, info) => {
+      const errors = trackErrors(page);
+      await page.setViewportSize({ width, height: 900 });
+      await page.emulateMedia({ colorScheme: theme });
+      await page.addInitScript(value => localStorage.setItem("jnuits-theme", value), theme);
+      await expectDocument(await page.goto("/members"));
+      await expect(page.getByRole("heading", { name: "Members & alumni directory", exact: true })).toBeVisible();
+      if (theme === "dark") await expect(page.locator("html")).toHaveClass(/dark/);
+      else await expect(page.locator("html")).not.toHaveClass(/dark/);
+      const cards = page.locator(".member-card");
+      const syntheticDirectory = process.env.JNUITS_COMMITTEE_BROWSER_FIXTURES === "1"
+        && ["localhost", "127.0.0.1", "[::1]"].includes(new URL(baseURL!).hostname);
+      if (syntheticDirectory) {
+        await expect(cards).toHaveCount(3);
+        expect(await cards.locator(".member-committee-title").count()).toBeGreaterThan(0);
+        await expect(cards.locator("img.member-avatar")).toHaveCount(1);
+      } else if (await cards.count() === 0) {
+        await expect(page.getByText("No members found", { exact: true })).toBeVisible();
+      }
+      for (const card of await cards.all()) {
+        if (await card.locator(".member-committee-title").count()) {
+          await expect(card.getByText("Member", { exact: true })).toHaveCount(0);
+          await expect(card.getByText("Alumni", { exact: true })).toHaveCount(0);
+        } else {
+          await expect(card.getByText(/^(Member|Alumni)$/)).toBeVisible();
+        }
+        const portrait = card.locator(".member-avatar");
+        await expect(portrait).toBeVisible();
+        const box = await portrait.boundingBox();
+        expect(box?.width).toBeCloseTo(80, 2);
+        expect(box?.height).toBeCloseTo(80, 2);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await info.attach(`member-directory-${width}-${theme}`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      expect(errors).toEqual([]);
+    });
+  }
+}
+
 test("desktop menus expand by click and keyboard and close with Escape", async ({ page }) => {
   const errors = trackErrors(page);
   await page.setViewportSize({ width: 1280, height: 900 });
