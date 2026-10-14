@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { EventEditorScreen } from "@/components/admin/event-editor-screen";
@@ -14,6 +15,7 @@ export default async function EventEditorPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
+  await requireAdminPermission("cms.events.manage", { fallbackPath: "/admin/dashboard" });
   const { eventId } = await params;
   const [{ event }, cookieStore] = await Promise.all([
     getEventEditorData(eventId),

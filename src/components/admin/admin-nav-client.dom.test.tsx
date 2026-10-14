@@ -33,8 +33,6 @@ vi.mock("@/components/layout/site-brand", () => ({
 describe("AdminNavClient Responsive Shell & Navigation", () => {
   const badgeCounts = {
     pendingApps: 2,
-    pendingWorkplace: 0,
-    pendingProfile: 0,
     pendingProfileRequests: 1,
   };
 
@@ -170,4 +168,13 @@ describe("AdminNavClient Responsive Shell & Navigation", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Admin command palette" })).not.toBeInTheDocument();
   });
+});
+
+
+it("keeps dashboard controls usable while reporting unavailable queue counts", () => {
+  render(<AdminNavClient badgeCounts={{ pendingApps: 1, pendingProfileRequests: null }} queueCountsUnavailable navigationItems={[]}>
+    <button type="button">Fixture dashboard action</button>
+  </AdminNavClient>);
+  expect(screen.getByRole("status", { name: "Queue counts" })).toHaveTextContent(/temporarily unavailable/i);
+  expect(screen.getByRole("button", { name: "Fixture dashboard action" })).toBeEnabled();
 });

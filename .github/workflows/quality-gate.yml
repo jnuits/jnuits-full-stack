@@ -399,6 +399,7 @@ jobs:
         env:
           PROFILE_SELF_SERVICE_QA: DISPOSABLE_SCRATCH
           MEMBER_EDITOR_QA: DISPOSABLE_SCRATCH
+          ADMIN_AUDIT_QA: DISPOSABLE_SCRATCH
         run: |
           set -o pipefail
           mkdir -p artifacts/reports

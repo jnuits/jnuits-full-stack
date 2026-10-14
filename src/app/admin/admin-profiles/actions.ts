@@ -437,7 +437,7 @@ async function setFlashAndRedirect(
   message: string,
   path = "/admin/admin-profiles",
 ): Promise<never> {
-  await setAdminFlash({ tone, title, message }, "/admin/admin-profiles");
+  await setAdminFlash({ tone, title, message }, path === "/admin/settings/profile" ? "/admin" : "/admin/admin-profiles");
   redirect(path);
 }
 export async function updateAdminProfileAction(formData: FormData) {
@@ -456,14 +456,17 @@ export async function updateAdminProfileAction(formData: FormData) {
       "error",
       "Admin profile update failed",
       parsed.error.issues[0]?.message || "Invalid admin profile update.",
+      "/admin/settings/profile",
     );
   }
 
   const admin = createAdminClient();
   let target: TargetAccount;
+  let returnPath = "/admin/settings/profile";
 
   try {
     target = await loadTargetAccount(admin, parsed.data.adminProfileId);
+    returnPath = target.profile.user_id === actorUserId ? "/admin/settings/profile" : profileRedirectPath(target.profile.id);
     const capabilities = await actorCanManageTarget({ actorRole, actorUserId, admin, target });
 
     if (!capabilities.canEditProfile) {
@@ -471,7 +474,7 @@ export async function updateAdminProfileAction(formData: FormData) {
         "error",
         "Admin profile update blocked",
         "Your role cannot edit this admin profile.",
-        profileRedirectPath(target.profile.id),
+        returnPath,
       );
     }
 
@@ -497,20 +500,21 @@ export async function updateAdminProfileAction(formData: FormData) {
       "error",
       "Admin profile update failed",
       safeAdminProfileError(error, "Admin profile could not be updated."),
-      parsed.success ? profileRedirectPath(parsed.data.adminProfileId) : "/admin/admin-profiles",
+      returnPath,
     );
   }
 
   revalidatePath("/admin/admin-profiles");
+  revalidatePath("/admin/settings/profile");
   await setAdminFlash(
     {
       tone: "success",
       title: "Admin profile updated",
       message: "Admin profile metadata was updated.",
     },
-    "/admin/admin-profiles",
+    returnPath === "/admin/settings/profile" ? "/admin" : "/admin/admin-profiles",
   );
-  redirect(profileRedirectPath(target!.profile.id));
+  redirect(returnPath);
 }
 
 export async function updateAdminLifecycleAction(formData: FormData) {

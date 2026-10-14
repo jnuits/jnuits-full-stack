@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 
 import {
@@ -75,6 +76,7 @@ async function getSliderImages() {
 }
 
 export default async function AdminSliderImagesPage() {
+  await requireAdminPermission("cms.pages.manage", { fallbackPath: "/admin/dashboard" });
   const [images, cookieStore] = await Promise.all([getSliderImages(), cookies()]);
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
   const count = images.length;

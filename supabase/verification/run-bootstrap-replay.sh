@@ -39,6 +39,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 bootstrap_helper="$repo_root/supabase/verification/baseline/20260608092959_restore_rls_auto_enable.sql"
 config_helper="$repo_root/supabase/verification/configure-bootstrap-replay.mjs"
 types_writer="$repo_root/supabase/verification/write-generated-db-types.sh"
+image_preparer="$repo_root/supabase/verification/prepare-pgmeta-image.sh"
 bootstrap_version="20260608092959"
 pinned_cli_version="2.109.1"
 scratch_ack="${SCRATCH_ACK:-DISPOSABLE_SCRATCH}"
@@ -106,11 +107,15 @@ else
   exit 1
 fi
 
-if ! "${supabase_cli[@]}" --version >/dev/null 2>&1; then
+if ! actual_cli_version="$("${supabase_cli[@]}" --version 2>/dev/null | tr -d '\r')"; then
   printf 'The resolved Supabase CLI could not be executed: %s\n' "${supabase_cli[*]}" >&2
   exit 1
 fi
-printf 'Supabase CLI: %s (%s)\n' "${supabase_cli[*]}" "$("${supabase_cli[@]}" --version 2>/dev/null | tr -d '\r')"
+if [[ "$actual_cli_version" != "$pinned_cli_version" ]]; then
+  printf 'Replay requires verified Supabase CLI %s; resolved %s.\n' "$pinned_cli_version" "$actual_cli_version" >&2
+  exit 1
+fi
+printf 'Supabase CLI: %s (%s)\n' "${supabase_cli[*]}" "$actual_cli_version"
 
 mkdir -p "$scratch_root"
 scratch_dir="$(mktemp -d "$scratch_root/replay.XXXXXX")"
@@ -412,6 +417,10 @@ docker_run cp \
   "$db_container:/tmp/jnuits-replay/assert-member-directory-visibility.sql"
 docker_run exec "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
   -f /tmp/jnuits-replay/assert-member-directory-visibility.sql
+
+# Both type generation and database lint need the CLI's postgres-meta image.
+# Prepare it only after SQL assertions, outside the atomic generated-type output.
+bash "$image_preparer" "$actual_cli_version"
 
 if [[ "$generate_types" -eq 1 ]]; then
   generated_types="$scratch_dir/generated-db-types.ts"

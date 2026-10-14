@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
 import { ADMIN_FLASH_COOKIE_NAME, parseAdminFlash } from "@/lib/admin/flash";
@@ -28,6 +29,7 @@ type MediaAssetOption = {
 export const metadata = { title: "Media & Assets — Admin | JnUITS" };
 
 export default async function MediaPage() {
+  await requireAdminPermission("cms.media.manage", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
@@ -88,9 +90,9 @@ export default async function MediaPage() {
         defaultFolder={CLOUDINARY_PROJECT_ROOT_FOLDER}
       />
 
-      {/* Manual register form */}
-      <section>
-        <p className="admin-section-label">Register existing Cloudinary asset</p>
+      {/* Manual registration remains available for imported/legacy assets. */}
+      <details className="admin-expandable-details">
+        <summary className="cursor-pointer py-2 font-semibold">Advanced: register an existing Cloudinary asset</summary>
         <div className="admin-review-card">
           <form action={saveMediaAsset} className="grid gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -148,7 +150,7 @@ export default async function MediaPage() {
             </div>
           </form>
         </div>
-      </section>
+      </details>
 
       {/* Asset library */}
       <section>

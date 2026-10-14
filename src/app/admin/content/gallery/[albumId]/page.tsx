@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import Image from "next/image";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -142,6 +143,7 @@ export default async function GalleryAlbumEditorPage({
 }: {
   params: Promise<{ albumId: string }>;
 }) {
+  await requireAdminPermission("cms.gallery.manage", { fallbackPath: "/admin/dashboard" });
   const { albumId } = await params;
   const admin = createAdminClient();
   const cookieStore = await cookies();

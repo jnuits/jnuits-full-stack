@@ -1,3 +1,5 @@
+import { IDENTITY_PROFILE_REQUEST_TYPES } from "@/lib/admin/profile-request-types";
+import { requireAdminPermission } from "@/lib/auth/session";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
@@ -67,6 +69,7 @@ function formatRequestType(value: string) {
 export const metadata = { title: "Profile Requests — Admin | JnUITS" };
 
 export default async function ProfileChangesPage() {
+  await requireAdminPermission("admin.membership.manage", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
@@ -83,21 +86,21 @@ export default async function ProfileChangesPage() {
       .select(
         "id, member_id, payload, request_type, requested_at, review_note, reviewed_at, status, members!profile_update_requests_member_id_fkey(full_name, jnuits_id, email, phone, department_code, student_id, batch_no, graduation_year, facebook_url, linkedin_url, website_url)"
       )
-      .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
+      .in("request_type", IDENTITY_PROFILE_REQUEST_TYPES)
       .eq("status", "pending")
       .order("requested_at", { ascending: true })
       .limit(20),
     admin
       .from("profile_update_requests")
       .select("id, member_id, request_type, requested_at, reviewed_at, status, members!profile_update_requests_member_id_fkey(full_name, jnuits_id)")
-      .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
+      .in("request_type", IDENTITY_PROFILE_REQUEST_TYPES)
       .neq("status", "pending")
       .order("reviewed_at", { ascending: false })
       .limit(10),
     admin
       .from("profile_update_requests")
       .select("*", { count: "exact", head: true })
-      .in("request_type", ["profile_change", "email_change", "jnuits_id_change"])
+      .in("request_type", IDENTITY_PROFILE_REQUEST_TYPES)
       .eq("status", "pending"),
     admin
       .from("profile_update_requests")
@@ -124,7 +127,7 @@ export default async function ProfileChangesPage() {
           <p className="admin-page-header__breadcrumb">Admin / Membership</p>
           <h1 className="admin-page-header__title">Profile Requests</h1>
           <p className="admin-page-header__desc">
-            Review member-requested identity, contact, and social edits. Workplace requests remain linked here and open in the dedicated workplace workspace.
+            Review requested changes to names, membership IDs, login email, student IDs and departments. Everyday profile and workplace edits save directly after password verification; older workplace requests remain available in their dedicated workspace.
           </p>
         </div>
         {pendingCount > 0 && (

@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import Link from "next/link";
 import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
 import { Download, RotateCcw, Search, ShieldCheck } from "lucide-react";
@@ -71,9 +72,10 @@ export default async function AdminAuditPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requireAdminPermission("admin.audit.read", { fallbackPath: "/admin/dashboard" });
   const resolved = await searchParams;
   const filters = parseAuditFilters(resolved);
-  const { actions, entityTypes, events, totalCount } = await loadAuditExplorerData(filters);
+  const { actions, actorOptions, entityTypes, events, totalCount } = await loadAuditExplorerData(filters);
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(resolved)) {
@@ -128,7 +130,10 @@ export default async function AdminAuditPage({
             </label>
             <label className="input-label">
               Actor user ID
-              <input defaultValue={filters.actor} name="actor" placeholder="uuid" />
+              <input defaultValue={filters.actor} name="actor" placeholder="Choose an actor or enter a UUID" list="audit-actors" />
+              <datalist id="audit-actors">
+                {actorOptions.map(actor=><option key={actor.userId} value={actor.userId} label={actor.label} />)}
+              </datalist>
             </label>
             <label className="input-label">
               From

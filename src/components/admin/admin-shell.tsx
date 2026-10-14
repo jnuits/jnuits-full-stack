@@ -3,8 +3,9 @@ import {
   getAdminNavPermissionCodes,
   type AdminAccessItem,
 } from "@/lib/admin/access";
-import { hasPermission } from "@/lib/auth/session";
+import { hasPermission, requireAdminUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { IDENTITY_PROFILE_REQUEST_TYPES } from "@/lib/admin/profile-request-types";
 import { AdminNavClient } from "./admin-nav-client";
 import { AdminMfaSuggestion } from "./admin-mfa-suggestion";
 
@@ -15,10 +16,8 @@ import { AdminMfaSuggestion } from "./admin-mfa-suggestion";
  * Icons are defined inside the client component.
  */
 export type AdminBadgeCounts = {
-  pendingApps: number;
-  pendingWorkplace: number;
-  pendingProfile: number;
-  pendingProfileRequests: number;
+  pendingApps: number | null;
+  pendingProfileRequests: number | null;
 };
 
 export type AdminShellNavigationItem = Pick<
@@ -61,73 +60,26 @@ export async function AdminShell({
 }: {
   children: React.ReactNode;
 }) {
+  await requireAdminUser({ fallbackPath: "/admin" });
   const navigationItems = await getAllowedNavigationItems();
-  const showPendingApps = navigationItems.some(
-    (item) => item.badgeKey === "pendingApps"
-  );
-  const showPendingWorkplace = navigationItems.some(
-    (item) => item.badgeKey === "pendingWorkplace"
-  );
-  const showPendingProfile = navigationItems.some(
-    (item) => item.badgeKey === "pendingProfile"
-  );
-  const showPendingProfileRequests = navigationItems.some(
-    (item) => item.badgeKey === "pendingProfileRequests"
-  );
-
+  const showPendingApps = navigationItems.some(item => item.badgeKey === "pendingApps");
+  const showPendingProfileRequests = navigationItems.some(item => item.badgeKey === "pendingProfileRequests");
   const admin = createAdminClient();
-  const [
-    { count: pendingApps },
-    { count: pendingWorkplace },
-    { count: pendingProfile },
-    { count: pendingProfileRequests },
-  ] = await Promise.all([
+  const [appsResult, profilesResult] = await Promise.all([
     showPendingApps
-      ? admin
-          .from("membership_applications")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "pending")
-      : Promise.resolve({ count: 0 }),
-    showPendingWorkplace
-      ? admin
-          .from("profile_update_requests")
-          .select("*", { count: "exact", head: true })
-          .eq("request_type", "workplace_update")
-          .eq("status", "pending")
-      : Promise.resolve({ count: 0 }),
-    showPendingProfile
-      ? admin
-          .from("profile_update_requests")
-          .select("*", { count: "exact", head: true })
-          .eq("request_type", "profile_change")
-          .eq("status", "pending")
-      : Promise.resolve({ count: 0 }),
+      ? admin.from("membership_applications").select("id", { count: "exact", head: true }).eq("status", "pending")
+      : Promise.resolve({ count: 0, error: null }),
     showPendingProfileRequests
-      ? admin
-          .from("profile_update_requests")
-          .select("*", { count: "exact", head: true })
-          .in("request_type", [
-            "workplace_update",
-            "profile_change",
-            "email_change",
-            "jnuits_id_change",
-          ])
-          .eq("status", "pending")
-      : Promise.resolve({ count: 0 }),
+      ? admin.from("profile_update_requests").select("id", { count: "exact", head: true }).in("request_type", IDENTITY_PROFILE_REQUEST_TYPES).eq("status", "pending")
+      : Promise.resolve({ count: 0, error: null }),
   ]);
-
   const badgeCounts: AdminBadgeCounts = {
-    pendingApps: pendingApps ?? 0,
-    pendingWorkplace: pendingWorkplace ?? 0,
-    pendingProfile: pendingProfile ?? 0,
-    pendingProfileRequests: pendingProfileRequests ?? 0,
+    pendingApps: appsResult.error ? null : appsResult.count,
+    pendingProfileRequests: profilesResult.error ? null : profilesResult.count,
   };
-
+  const queueCountsUnavailable = (showPendingApps && badgeCounts.pendingApps === null) || (showPendingProfileRequests && badgeCounts.pendingProfileRequests === null);
   return (
-    <AdminNavClient
-      badgeCounts={badgeCounts}
-      navigationItems={navigationItems}
-    >
+    <AdminNavClient badgeCounts={badgeCounts} navigationItems={navigationItems} queueCountsUnavailable={queueCountsUnavailable}>
       <AdminMfaSuggestion />
       {children}
     </AdminNavClient>

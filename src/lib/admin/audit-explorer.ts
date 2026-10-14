@@ -1,5 +1,6 @@
 import "server-only";
 
+import { requireAdminPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
@@ -113,6 +114,7 @@ export async function loadAuditExplorerData(
   filters: AuditExplorerFilters,
   options: AuditExplorerOptions = {}
 ) {
+  await requireAdminPermission("admin.audit.read", { fallbackPath: "/admin/dashboard" });
   const admin = asFlexibleClient(createAdminClient());
   const pageSize = options.exportMode ? Math.min(filters.pageSize, 1000) : filters.pageSize;
   const from = options.exportMode ? 0 : (filters.page - 1) * filters.pageSize;
@@ -132,7 +134,7 @@ export async function loadAuditExplorerData(
     eventsQuery,
     admin
       .from("audit_events" as string)
-      .select("action, entity_type")
+      .select(options.exportMode ? "action, entity_type" : "action, entity_type, actor_user_id")
       .order("created_at", { ascending: false })
       .limit(500),
   ]);
@@ -143,10 +145,21 @@ export async function loadAuditExplorerData(
 
   const facetRows = (facetsResult.data || []) as Array<{
     action?: string | null;
+    actor_user_id?: string | null;
     entity_type?: string | null;
   }>;
 
+  const actorOptions: Array<{userId: string; label: string}> = [];
+  if (!options.exportMode) {
+    const actorIds = Array.from(new Set([filters.actor, ...facetRows.map(row=>row.actor_user_id)].filter((id): id is string => Boolean(id)))).slice(0,100);
+    const lookupIds = actorIds.filter(id=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+    const labels = lookupIds.length ? await admin.from("admin_profiles").select("user_id,display_name").in("user_id",lookupIds).limit(100) : {data:[]};
+    const names = new Map<string,string>((labels.data || []).map((row: {user_id: string; display_name: string | null})=>[row.user_id,row.display_name || row.user_id]));
+    for (const userId of actorIds) actorOptions.push({userId,label:names.get(userId) || (userId === filters.actor ? "Custom actor" : "Actor")});
+    actorOptions.sort((a,b)=>a.label.localeCompare(b.label));
+  }
   return {
+    actorOptions,
     actions: Array.from(
       new Set(facetRows.map((row) => row.action).filter(Boolean) as string[])
     ).sort((left, right) => left.localeCompare(right)),

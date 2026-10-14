@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cookies } from "next/headers";
 
 import {
@@ -11,7 +12,7 @@ import {
   getBulkOperationDefinition,
   type BulkOperationRowIssue,
 } from "@/lib/admin/bulk-operation-templates";
-import { requireAdminPermission } from "@/lib/auth/session";
+import { hasPermission, requireAdminPermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
@@ -56,6 +57,7 @@ export default async function AdminBulkOperationsPage({
   await requireAdminPermission("admin.bulk.manage", {
     fallbackPath: "/admin",
   });
+  const [canMembershipIntake, canCommitteeIntake] = await Promise.all([hasPermission("admin.membership.manage"), hasPermission("admin.committee.manage")]);
   const params = await searchParams;
   const operationId = typeof params.operationId === "string" ? params.operationId : "";
   const admin = createAdminClient();
@@ -97,6 +99,15 @@ export default async function AdminBulkOperationsPage({
         </div>
         <span className="status-pill">{operations.length} recent</span>
       </div>
+
+      {(canMembershipIntake || canCommitteeIntake) ? <section className="route-tile">
+        <h2>New member intake</h2>
+        <p className="mt-2 text-sm">For new records, use the Intake workspace. CSV operations below remain available for lifecycle, role, invitation and account-review workflows.</p>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {canMembershipIntake ? <Link className="queue-link" href="/admin/membership#member-profile-intake">Membership Intake</Link> : null}
+          {canCommitteeIntake ? <Link className="queue-link" href="/admin/committee#committee-imports">Committee Intake</Link> : null}
+        </div>
+      </section> : null}
 
       {flash ? (
         <section className="flash-panel" data-tone={flash.tone}>

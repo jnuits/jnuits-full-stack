@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 import { EventEditorScreen } from "@/components/admin/event-editor-screen";
 import {
@@ -8,6 +9,7 @@ import {
 export const metadata = { title: "New Event — Admin | JnUITS" };
 
 export default async function NewEventPage() {
+  await requireAdminPermission("cms.events.manage", { fallbackPath: "/admin/dashboard" });
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
 

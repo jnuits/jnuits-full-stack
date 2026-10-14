@@ -3,6 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const fixture = vi.hoisted(() => ({ client: null as unknown, fail: false }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => fixture.client }));
+vi.mock("@/lib/auth/session", () => ({
+  requireAdminPermission: async (permission: string) => {
+    if (permission !== "admin.membership.manage") throw new Error("Fixture permission denied");
+    return { user: { id: "fixture-admin" }, roles: ["super_admin"] };
+  },
+}));
 import WorkplacePage from "./page";
 
 describe("workplace queue member relationship", () => {

@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import {
@@ -91,6 +92,7 @@ function ReportActionCard({
 }
 
 export default async function AdminReportsPage() {
+  await requireAdminPermission("admin.reports.read", { fallbackPath: "/admin/dashboard" });
   const admin = createAdminClient();
   const [snapshot, cookieStore, recentReportsResult, reportCountResult] =
     await Promise.all([

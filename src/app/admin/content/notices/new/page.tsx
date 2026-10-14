@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 import {
   ADMIN_FLASH_COOKIE_NAME,
@@ -8,6 +9,7 @@ import { NoticeEditorForm } from "../notice-editor-form";
 export const metadata = { title: "New Notice — Admin | JnUITS" };
 
 export default async function NewNoticePage() {
+  await requireAdminPermission("cms.notices.manage", { fallbackPath: "/admin/dashboard" });
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
 

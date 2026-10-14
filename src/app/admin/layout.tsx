@@ -14,7 +14,7 @@ export default async function AdminLayout({
   await requireAdminUser({ fallbackPath: "/admin" });
   const requestHeaders = await headers();
   const requestedPath =
-    requestHeaders.get("x-jnuits-return-to")?.split("?")[0] || "/admin";
+    requestHeaders.get("x-jnuits-return-to") || "/admin";
   const routeAccess = getAdminRouteAccess(requestedPath);
   const requiredPermission = routeAccess.requiredPermission;
 

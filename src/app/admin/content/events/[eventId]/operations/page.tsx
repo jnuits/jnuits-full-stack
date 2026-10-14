@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import { notFound } from "next/navigation";
 import { EventOperationsScreen } from "@/components/admin/event-operations-screen";
 import { getAdminEventById } from "@/lib/content/events";
@@ -9,6 +10,7 @@ export default async function EventOperationsPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
+  await requireAdminPermission("cms.events.manage", { fallbackPath: "/admin/dashboard" });
   const { eventId } = await params;
   const event = await getAdminEventById(eventId);
 

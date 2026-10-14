@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/auth/session";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import {
@@ -90,6 +91,7 @@ export default async function EventsAdminPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireAdminPermission("cms.events.manage", { fallbackPath: "/admin/dashboard" });
   const params = await searchParams;
   const query = asString(params.q).trim();
   const status = asString(params.status).trim();
