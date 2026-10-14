@@ -92,6 +92,26 @@ describe("requireAdminUser lifecycle enforcement", () => {
     );
   });
 
+  it("allows privileged handler work only after a fresh successful retry of the permission read", async () => {
+    mocks.lifecycle.mockResolvedValue("active");
+    const client = createAuthenticatedClient();
+    client.rpc.mockResolvedValueOnce({ data: null, error: { message: "Gateway unavailable" }, status: 502 }).mockResolvedValueOnce({ data: true, error: null, status: 200 });
+    mocks.createClient.mockResolvedValue(client);
+    await expect(requireAdminPermission("admin.membership.manage")).resolves.toMatchObject({ user: { id: "admin-user-1" } });
+    expect(client.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("denies before privileged handler work when both permission reads fail", async () => {
+    mocks.lifecycle.mockResolvedValue("active");
+    const client = createAuthenticatedClient();
+    client.rpc.mockResolvedValue({ data: null, error: { message: "Gateway unavailable" }, status: 502 });
+    mocks.createClient.mockResolvedValue(client);
+    let handlerRan = false;
+    await expect(requireAdminPermission("admin.membership.manage").then(() => { handlerRan = true; })).rejects.toThrow("redirect:/admin/dashboard");
+    expect(handlerRan).toBe(false);
+    expect(client.rpc).toHaveBeenCalledTimes(2);
+  });
+
   it("requires actual MFA at a protected action even with workspace enforcement off", async () => {
     mocks.lifecycle.mockResolvedValue("active");
     mocks.checkAdminMFA.mockResolvedValue({ ok: true, currentLevel: "aal1", nextLevel: "aal2", enforced: false, redirectTo: null });

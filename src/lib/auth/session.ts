@@ -370,17 +370,25 @@ async function hasPermissionInternal(
   const supabase = await createClient();
 
   for (const permission of permissions) {
-    const { data, error } = await (supabase as never as {
-      rpc: (
-        fn: string,
-        args: Record<string, unknown>
-      ) => Promise<{ data: boolean | null; error: { message?: string } | null }>;
-    }).rpc("has_permission", {
-      requested_permission: permission,
-    });
+    // This STABLE RPC only reads authorization. Retry one transient gateway
+    // failure; do not repeat a denial, SQL error, proof consumption or mutation.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const { data, error, status } = await (supabase as never as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>
+        ) => Promise<{ data: boolean | null; error: { message?: string } | null; status?: number }>;
+      }).rpc("has_permission", {
+        requested_permission: permission,
+      });
 
-    if (!error && data) {
-      return true;
+      if (!error && data === true) {
+        return true;
+      }
+      if (!error || ![502, 503, 504].includes(status ?? 0) || attempt === 1) {
+        break;
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
     }
   }
 
