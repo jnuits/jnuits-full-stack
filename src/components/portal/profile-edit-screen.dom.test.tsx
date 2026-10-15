@@ -118,6 +118,7 @@ describe("ProfileEditScreen", () => {
     expect(within(direct as HTMLElement).queryByLabelText(/full name/i)).not.toBeInTheDocument();
     expect(within(direct as HTMLElement).queryByLabelText(/department/i)).not.toBeInTheDocument();
     expect(within(direct as HTMLElement).getByLabelText(/current organization/i)).toBeInTheDocument();
+    expect(within(direct as HTMLElement).getByLabelText("Workplace applicability")).toBeInTheDocument();
     const identity = container.querySelector("#profile-change-form")!;
     expect(within(identity as HTMLElement).getByLabelText(/university student id/i)).toBeInTheDocument();
     expect(within(identity as HTMLElement).getByLabelText(/^batch/i)).toBeInTheDocument();

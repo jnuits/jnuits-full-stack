@@ -1,3 +1,4 @@
+import { OwnAdminCompletionCards } from "@/components/profile/own-admin-completion-cards";
 import type { ReactNode } from "react";
 
 import { cookies } from "next/headers";
@@ -823,8 +824,10 @@ export default async function AdminProfilesPage({
   });
   const detailProfile = filters.tab === "self" ? actorProfile : selectedProfile;
 
+
   return (
     <div className="grid gap-8">
+      {selfOnly ? <OwnAdminCompletionCards /> : null}
       <div className="admin-page-header">
         <div>
           <p className="admin-page-header__breadcrumb">{selfOnly ? "Settings / My Profile" : "Admin / Admin Accounts"}</p>

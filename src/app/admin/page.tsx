@@ -1,3 +1,4 @@
+import { OwnAdminCompletionCards } from "@/components/profile/own-admin-completion-cards";
 import { requireAdminUser } from "@/lib/auth/session";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -125,6 +126,7 @@ const adminQuickIconMap = {
 
 export default async function AdminPage() {
   await requireAdminUser({ fallbackPath: "/admin" });
+
   const admin = createAdminClient();
   const dashboardCapabilities = await resolveAdminDashboardCapabilities();
   const canManageMembership = dashboardCapabilities.membershipManage;
@@ -255,6 +257,7 @@ export default async function AdminPage() {
     <div className="grid gap-8">
 
       {/* ── Page header ─────────────────────────────────────────────────────── */}
+      <OwnAdminCompletionCards />
       <div className="admin-page-header">
         <div>
           <p className="admin-page-header__breadcrumb">Admin</p>

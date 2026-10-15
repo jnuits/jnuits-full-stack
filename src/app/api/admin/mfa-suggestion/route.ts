@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { hasPermission } from "@/lib/auth/session";
+import { adminOperationRegistry } from "@/lib/auth/admin-verification/operations";
+import { buildAdminSecurityGuidance } from "@/lib/admin/security-guidance";
+import type { AdminOperation } from "@/lib/auth/admin-verification/types";
 import { loadAdminVerificationActor } from "@/lib/auth/admin-verification/actor";
 import { AdminVerificationStore } from "@/lib/auth/admin-verification/store";
 import { withApiGuard } from "@/lib/security/with-api-guard";
@@ -9,7 +13,14 @@ async function preferences(snooze: boolean) {
     const actor = await loadAdminVerificationActor();
     if (!actor.ok) return NextResponse.json(actor, { status: actor.code === "permission_denied" ? 403 : 503 });
     const result = await new AdminVerificationStore().suggestion(actor.value, snooze);
-    return NextResponse.json(result, { status: result.ok ? 200 : 503 });
+    if (!result.ok || snooze) return NextResponse.json(result, { status: result.ok ? 200 : 503 });
+    const operations = Object.keys(adminOperationRegistry) as AdminOperation[];
+    const permissions = [...new Set(operations.map(key => adminOperationRegistry[key].permission))];
+    const allowed = await Promise.all(permissions.map(async permission => [permission, await hasPermission(permission)] as const));
+    const permitted = new Map(allowed);
+    const guidance = buildAdminSecurityGuidance({actor: actor.value, permittedOperations: operations.filter(key => permitted.get(adminOperationRegistry[key].permission) === true)});
+    const snoozed = result.value.snoozedUntil !== null && Date.parse(result.value.snoozedUntil) > Date.now();
+    return NextResponse.json({ok:true,value:{...result.value,show:guidance.state !== "verified" && !snoozed,guidance}});
   } catch { return NextResponse.json({ ok: false, code: "verification_unavailable" }, { status: 503 }); }
 }
 const get = withApiGuard(() => preferences(false), { requireAuth: true });

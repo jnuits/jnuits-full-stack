@@ -12,7 +12,11 @@ export const directProfileSchema = z.object({
   designation: z.string().trim().max(160).optional(),
   workLocation: z.string().trim().max(160).optional(),
   professionalVisibility: z.enum(["public", "members-only", "private"]).optional(),
-}).strict().refine((value) => Object.keys(value).length > 0, "Provide at least one profile field.");
+  workplaceApplicability: z.enum(["applicable", "not_applicable", ""]).optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, "Provide at least one profile field.")
+  .refine((value) => value.workplaceApplicability !== "not_applicable" ||
+    ![value.currentOrganization, value.designation, value.workLocation].some((part) => part?.trim()),
+  "Clear workplace details before declaring them not applicable.");
 
 export const identityProfileSchema = z.object({
   requestType: z.literal("profile_change").optional(),

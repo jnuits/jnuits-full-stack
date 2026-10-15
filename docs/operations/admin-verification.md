@@ -196,3 +196,6 @@ with exact-operation proofs bound to the original session and current policy.
 Public login, registration, recovery, email verification, and public submission
 CAPTCHA remain unchanged. An ignored legacy token and `required: false` response
 are retained on the admin verification API for already-open older tabs.
+
+### Private completion guidance (Release 1, 2026-10-15)
+Own-profile completeness is advisory and separate from native assurance. MFA reminder guidance filters existing capabilities by permission, distinguishes configured factors from current AAL2, and preserves unknown enrollment. Unknown enrollment uses the self-service MFA setup route, which checks existing factors before offering enrollment; it grants no security-policy permission. Role invitations/change/removal still require native AAL2, current password and exact session/intent-bound proof. Seven-day snooze and optional routine enforcement remain intact.
