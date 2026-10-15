@@ -2910,6 +2910,7 @@ export type Database = {
           verification_code_hash: string | null
           website_url: string | null
           work_location: string | null
+          workplace_applicability: string | null
         }
         Insert: {
           alumni_since?: string | null
@@ -2960,6 +2961,7 @@ export type Database = {
           verification_code_hash?: string | null
           website_url?: string | null
           work_location?: string | null
+          workplace_applicability?: string | null
         }
         Update: {
           alumni_since?: string | null
@@ -3010,6 +3012,7 @@ export type Database = {
           verification_code_hash?: string | null
           website_url?: string | null
           work_location?: string | null
+          workplace_applicability?: string | null
         }
         Relationships: [
           {

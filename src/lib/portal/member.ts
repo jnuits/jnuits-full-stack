@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { isDirectoryVerifiedForUser } from "@/lib/auth/directory-verification";
@@ -67,7 +68,7 @@ async function loadPortalMemberRecord(
 ) {
   const result = await admin
     .from("members")
-    .select("id, jnuits_id, full_name, member_type, email, phone, batch_no, department_code, current_organization, designation, work_location, facebook_url, linkedin_url, website_url, professional_visibility, is_profile_claimed, student_id, graduation_year, lifecycle_status, portal_access_status, avatar_public_id, avatar_secure_url, departments(name)")
+    .select("id, user_id, jnuits_id, full_name, member_type, email, phone, batch_no, department_code, current_organization, designation, work_location, workplace_applicability, facebook_url, linkedin_url, website_url, professional_visibility, is_profile_claimed, student_id, graduation_year, lifecycle_status, portal_access_status, avatar_public_id, avatar_secure_url, departments(name)")
     .eq("user_id", userId)
     .maybeSingle();
   if (result.error) throw new Error("Member profile could not be loaded.");
@@ -98,7 +99,7 @@ function resolvePortalAccess(member: PortalMembershipState | null): PortalAccess
   };
 }
 
-export async function getPortalMemberSnapshot(userId: string) {
+export const getPortalMemberSnapshot = cache(async (userId: string) => {
   const auth = await requirePortalIdentity();
   if (auth.user?.id !== userId) throw new Error("You can only load your own member profile.");
   const admin = createAdminClient();
@@ -192,4 +193,4 @@ export async function getPortalMemberSnapshot(userId: string) {
       (request) => request.request_type === "workplace_update"
     ),
   };
-}
+});

@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHmac, randomBytes } from "node:crypto";
 import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
+import { createServer, request as proxyHttpRequest } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
 import { join, sep } from "node:path";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -34,7 +35,7 @@ const require = createRequire(join(repo, "package.json"));
 const { createClient } = require("@supabase/supabase-js");
 const { createServerClient } = require("@supabase/ssr");
 const accounts = new Map(); const mail = new Map(); const memberIds = []; const requestIds = [];
-let next; let bridge; let started = false; let renewalMember;
+let next; let tlsProxy; let bridge; let started = false; let renewalMember;
 function cli(args) {
   const result = process.platform === "win32"
     ? spawnSync("cmd.exe", ["/d", "/s", "/c", "npx", "--yes", "supabase@2.109.1", ...args], { cwd: scratch, encoding: "utf8", maxBuffer: 16e6 })
@@ -100,16 +101,23 @@ try {
   // Hosted service_role UPDATE on members was independently verified; mirror it
   // only in this isolated editor fixture. Browser grants and RLS stay unchanged.
   if (memberEditorQA) sql("grant update on public.members to service_role;");
-  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"]] : []), ...(adminAuditQA ? [["audit", "content_admin"]] : [])]) {
+  if (profileQA) sql("insert into public.departments(code,name,short_code,is_active) values('CSE','Computer Science & Engineering','CSE',true) on conflict do nothing;");
+  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"], ["completionmember","member"], ["completionalumni","alumni"], ["completionadmin","content_admin"]] : []), ...(adminAuditQA ? [["audit", "content_admin"]] : [])]) {
     const email = `qa-${name}-${runId}@local.invalid`, password = `Qa!${randomBytes(18).toString("base64url")}`;
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     assert.ok(!created.error && created.data.user, "Synthetic account creation failed.");
     const userId = uuid(created.data.user.id);
     const adminCode = `JNUITS-ADMIN-QA-${name.toUpperCase()}`;
-    const profileId = name === "profile"
-      ? uuid(sql(`insert into public.members(user_id,jnuits_id,full_name,email,member_type,lifecycle_status,portal_access_status,student_id,batch_no,graduation_year,current_organization,phone,professional_visibility) values('${userId}','JnUITS-2099961','Synthetic Profile Alumni','${email}','alumni','alumni','active','ST-OLD',17,2026,'Original Workplace','01700000000','private') returning id;`).split(/\r?\n/)[0])
+    const memberFixture = ["profile","completionmember","completionalumni"].includes(name);
+    const profileId = memberFixture
+      ? uuid(sql(`insert into public.members(user_id,jnuits_id,full_name,email,member_type,lifecycle_status,portal_access_status,student_id,batch_no,graduation_year,current_organization,phone,professional_visibility) values('${userId}','${name === 'profile' ? 'JnUITS-2099961' : name === 'completionmember' ? 'JnUITS-2099957' : 'JnUITS-2099956'}','${name === 'profile' ? 'Synthetic Profile Alumni' : 'Synthetic Completion Profile'}','${email}','${role === 'member' ? 'current' : 'alumni'}','${role === 'member' ? 'current' : 'alumni'}','active','${name === 'profile' ? 'ST-OLD' : 'ST-' + name}',17,2026,'Original Workplace','01700000000','private') returning id;`).split(/\r?\n/)[0])
       : uuid(sql(`insert into public.admin_profiles(user_id,admin_code,display_name,is_active,status) values('${userId}','${adminCode}','Synthetic ${name === "target" ? "Target" : name}',true,'active') returning id;`).split(/\r?\n/)[0]);
-    sql(`insert into public.rbac_user_platform_roles(user_id,role_id,scope,note) select '${userId}',id,'${name === "profile" ? "portal" : "admin"}','Disposable fixture' from public.rbac_platform_roles where code='${role}' and scope='${name === "profile" ? "portal" : "admin"}';`);
+    sql(`insert into public.rbac_user_platform_roles(user_id,role_id,scope,note) select '${userId}',id,'${memberFixture ? "portal" : "admin"}','Disposable fixture' from public.rbac_platform_roles where code='${role}' and scope='${memberFixture ? "portal" : "admin"}';`);
+    if (name.startsWith("completion")) sql(`update public.members set department_code=(select code from public.departments where upper(short_code)='CSE' limit 1), current_organization='Synthetic Workplace',designation='Engineer',work_location='Dhaka',current_membership_path_status='open',renewal_due_on=(current_date+interval '1 year')::date where id='${profileId}';`);
+    if (name === "completionadmin") {
+      sql(`insert into public.members(user_id,jnuits_id,full_name,email,member_type,lifecycle_status,portal_access_status,department_code,batch_no,student_id,current_membership_path_status,renewal_due_on,professional_visibility) values('${userId}','JnUITS-2099955','Synthetic Linked Admin','${email}','current','current','active',(select code from public.departments where upper(short_code)='CSE' limit 1),17,'ST-completionadmin','open',(current_date+interval '1 year')::date,'private');`);
+      sql(`insert into public.rbac_user_platform_roles(user_id,role_id,scope,note) select '${userId}',id,'portal','Disposable linked admin' from public.rbac_platform_roles where code='member' and scope='portal';`);
+    }
     const cookies = [];
     // Trusted fixture seeding bypasses CAPTCHA; after sign-in, requests use
     // the synthetic user's JWT. Application browser clients stay publishable.
@@ -159,6 +167,14 @@ try {
       let result; const action = request.url.slice(1);
       const roleIntent = { operation: "admin.role.change", payload: { adminProfileId: accounts.get("target").profileId, roleCode: "admin", confirmation: accounts.get("target").adminCode } };
       if (action === "account") { assert.ok(account); result = { cookies: account.cookies.map(({ name, value }) => ({ name, value })), userId: account.userId, password: account.password, factorId: account.factorId }; }
+      else if (action === "completion_reset") {
+        assert.ok(profileQA && account && ["completionmember","completionalumni"].includes(body.name));
+        // This bridge can reach only its freshly created, unlinked disposable
+        // database. Do not let earlier serial browser suites consume the next
+        // fixture's IP bucket; real limits and rejection behavior stay enabled.
+        sql("delete from public.security_rate_limits;");
+        sql(`update public.members set current_organization='Synthetic Workplace',designation='Engineer',work_location='Dhaka',workplace_applicability='applicable' where id='${uuid(account.profileId)}';`); result={ok:true};
+      }
       else if (action === "audit_reset") { resetAuditFixtures(); result = {ok:true}; }
       else if (action === "audit_state") { assert.ok(adminAuditQA); result=jsonSql("select json_build_object('home',(select body from public.content_pages where slug='home'),'project',(select json_build_object('title',title,'tagline',tagline,'cover',cover_image_url,'featured',is_featured,'status',status) from public.projects where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1')); "); }
       else if (action === "audit_conflict") { assert.ok(adminAuditQA); sql("update public.content_pages set title='Concurrent synthetic edit' where slug='home';"); result={ok:true}; }
@@ -211,12 +227,15 @@ try {
   for (const match of workflow.split("  build_and_browser:")[1].split("    steps:")[0].matchAll(/^      ([A-Z_]+): (.+)$/gm)) { const value = match[2].trim(); env[match[1]] = value.startsWith('"') ? JSON.parse(value) : value; }
   Object.assign(env, { NEXT_PUBLIC_SUPABASE_URL: status.API_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY, SUPABASE_SECRET_KEY: status.SERVICE_ROLE_KEY, APP_BASE_URL: "http://127.0.0.1:3127", NEXT_PUBLIC_SENTRY_DSN: "", SENTRY_AUTH_TOKEN: "", SENTRY_ORG: "", SENTRY_PROJECT: "", NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA", TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA" });
   assert.equal(env.AUTH_CAPTCHA_REQUIRED, "true");
+  // Match the production durable limiter with a fresh disposable salt.
+  env.RATE_LIMIT_BACKEND = "supabase";
+  env.RATE_LIMIT_SECRET_SALT = randomBytes(32).toString("hex");
   console.log("Synthetic AAL1/AAL2 identities and reviewed-member fixtures are ready.");
   env.NODE_OPTIONS = `--require "${join(repo, "supabase/verification/admin-verification-qa-preload.cjs").replaceAll("\\", "/")}"`;
   let diagnostics = "";
   const capture = chunk => {
     let safe = String(chunk);
-    for (const secret of [bridgeToken, status.SERVICE_ROLE_KEY, status.ANON_KEY, ...[...accounts.values()].flatMap(account => [account.password, account.secret].filter(Boolean)), ...mail.values()]) safe = safe.split(secret).join("[redacted]");
+    for (const secret of [bridgeToken, status.SERVICE_ROLE_KEY, status.ANON_KEY, env.RATE_LIMIT_SECRET_SALT, ...[...accounts.values()].flatMap(account => [account.password, account.secret].filter(Boolean)), ...mail.values()]) safe = safe.split(secret).join("[redacted]");
     diagnostics = `${diagnostics}${safe.replace(/eyJ[A-Za-z0-9._-]+/g, "[token redacted]").replace(/\b[0-9]{6}\b/g, "[code redacted]")}`.slice(-4000);
   };
   if (profileQA) {
@@ -239,6 +258,23 @@ try {
   let ready = false;
   for (let attempt = 0; attempt < 120; attempt++) { if (next.exitCode !== null) break; try { const response = await fetch("http://127.0.0.1:3127/admin/login", { signal: AbortSignal.timeout(5000) }); if (response.status < 500) { ready = true; break; } } catch {} await new Promise(resolve => setTimeout(resolve, 500)); }
   assert.ok(ready, `Disposable Next.js server not ready. ${diagnostics}`);
+  if (profileQA) {
+    const tlsKey = join(scratch, "fixture-tls.key"), tlsCert = join(scratch, "fixture-tls.crt");
+    const openssl = process.platform === "win32" ? "C:/Program Files/Git/usr/bin/openssl.exe" : "openssl";
+    const tlsConfig = join(scratch, "fixture-openssl.cnf");
+    writeFileSync(tlsConfig, "[req]\ndistinguished_name=dn\n[dn]\nCN=127.0.0.1\n");
+    execFileSync(openssl, ["req","-x509","-newkey","rsa:2048","-nodes","-keyout",tlsKey,"-out",tlsCert,"-days","1","-subj","/CN=127.0.0.1","-addext","subjectAltName=IP:127.0.0.1","-config",tlsConfig], {stdio:"ignore",windowsHide:true});
+    // Local TLS terminator preserves real production Secure cookies in WebKit.
+    // Only disposable browsers trust this one-day certificate; no OS trust change.
+    tlsProxy = createHttpsServer({key:readFileSync(tlsKey),cert:readFileSync(tlsCert)}, (incoming,outgoing)=>{
+      const upstream = proxyHttpRequest({hostname:"127.0.0.1",port:3127,path:incoming.url,method:incoming.method,headers:{...incoming.headers,"x-forwarded-proto":"https","x-forwarded-host":incoming.headers.host}},result=>{
+        outgoing.writeHead(result.statusCode || 502,result.headers);result.pipe(outgoing);
+      });
+      upstream.on("error",()=>outgoing.writeHead(502).end());incoming.pipe(upstream);
+    });
+    await new Promise((resolve,reject)=>{tlsProxy.once("error",reject);tlsProxy.listen(3130,"127.0.0.1",resolve);});
+    env.PROFILE_COMPLETION_QA_BASE_URL = "https://127.0.0.1:3130";
+  }
   delete env.NODE_OPTIONS;
   if (memberEditorQA || adminAuditQA) env.PLAYWRIGHT_RELEASE_SMOKE = "1";
   Object.assign(env, { PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3127", PLAYWRIGHT_NO_COPY_PROMPT: "1", ADMIN_VERIFICATION_QA_SCREENSHOTS: screenshots, NODE_ENV: "test" });
@@ -250,6 +286,7 @@ try {
   const suites = memberEditorQA
     ? [["e2e/admin-verification.spec.ts", ["--project=chromium"]], ["e2e/profile-self-service.spec.ts", ["--project=chromium"]], ["e2e/member-editor.spec.ts", memberEditorProject ? [`--project=${memberEditorProject}`] : []]]
     : [[profileQA ? "e2e/profile-self-service.spec.ts" : "e2e/admin-verification.spec.ts", ["--project=chromium"]]];
+  if (profileQA) { env.PLAYWRIGHT_RELEASE_SMOKE = "1"; suites.push(["e2e/profile-completion.spec.ts", (process.env.PROFILE_COMPLETION_QA_PROJECTS ? process.env.PROFILE_COMPLETION_QA_PROJECTS.split(",").map(project=>{assert.ok(["chromium","firefox","webkit"].includes(project));return `--project=${project}`;}) : [])]); }
   if (adminAuditQA) suites.unshift(["e2e/admin-audit-normalization.spec.ts", memberEditorProject ? [`--project=${memberEditorProject}`] : []]);
   for (const [index, [spec, projects]] of suites.entries()) {
     const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", spec, ...projects, "--workers=1", "--retries=0", "--output", join(screenshots, `playwright-output-${index}`), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
@@ -267,6 +304,7 @@ try {
     else next.kill();
     await new Promise(resolve => { if (next.exitCode !== null) resolve(); else { next.once("exit", resolve); setTimeout(resolve, 5000); } });
   }
+  if (tlsProxy) await new Promise(resolve => tlsProxy.close(resolve));
   if (bridge) await new Promise(resolve => bridge.close(resolve));
   if (started) { try { cli(["stop", "--project-id", projectId, "--no-backup"]); } catch { process.exitCode = 1; console.error("Disposable stack cleanup failed; exact project ID retained in scratch config."); } }
   const target = realpathSync(scratch);

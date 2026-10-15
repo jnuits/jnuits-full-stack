@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { ProfileCompletionCard } from "@/components/profile/profile-completion-card";
+import { getOwnCompletionPresentation } from "@/lib/profile/completion-server";
 import {
   requestAlumniConversionAction,
   requestProfileDeletionAction,
@@ -180,6 +182,7 @@ export async function PortalOverviewScreen({
     );
   }
 
+  const completion = member ? await getOwnCompletionPresentation(member.member_type === "alumni" ? "alumni" : "member") : null;
   const memberProjects = member
     ? await getMemberProjects(member.id).catch(() => [])
     : [];
@@ -223,6 +226,8 @@ export async function PortalOverviewScreen({
           </span>
         )}
       </div>
+
+      {completion ? <ProfileCompletionCard {...completion} className="mb-6" /> : null}
 
       {feedbackMessage ? (
         <div className="flash-panel" data-tone="success">

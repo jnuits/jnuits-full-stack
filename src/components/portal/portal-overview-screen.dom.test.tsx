@@ -10,6 +10,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/portal" }));
 vi.mock("next/link", () => ({ default: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props} /> }));
 vi.mock("@/components/auth/logout-button", () => ({ LogoutButton: () => <button>Sign out</button> }));
 vi.mock("@/components/theme/theme-toggle", () => ({ ThemeToggle: () => <button>Theme</button> }));
+vi.mock("@/lib/profile/completion-server", () => ({ getOwnCompletionPresentation: async () => ({summary:{version:1,status:"available",percent:89,completed:8,applicable:9,missing:["phone"]},nextSteps:[{field:"phone",label:"Complete your phone number",href:"/portal/profile/edit",mode:"self_edit",state:"missing",focusId:"dpe-phone"}]}) }));
 import { PortalOverviewScreen } from "./portal-overview-screen";
 beforeEach(() => {
   mocks.snapshot.mockResolvedValue({ member: { id: "member", full_name: "Fictional Current Member", jnuits_id: "JNUITS-2024001", member_type: "current" }, membership: { renewalState: "grace", renewalDueOn: "2025-07-01", graceEndsOn: "2026-01-01" }, access: { mode: "mutable", canMutate: true, isRestricted: false, portalAccessStatus: "active" }, timeline: [], workplaceRequests: [], accountRequests: [], directoryVerified: false });
@@ -20,4 +21,11 @@ it("shows the overdue grace warning on the normal current dashboard and links to
   expect(screen.getByRole("status")).toHaveTextContent("continue using your member portal");
   expect(screen.getByRole("link", { name: "Manage renewal" })).toHaveAttribute("href", "/portal/membership");
   expect(screen.getAllByRole("link", { name: "Edit Profile" }).length).toBeGreaterThan(0);
+});
+
+it("mounts private server completion without protected profile values",async()=>{
+ render(await PortalOverviewScreen());
+ expect(screen.getByRole("progressbar",{name:"Profile completeness progress"})).toHaveAttribute("aria-valuenow","89");
+ expect(screen.getByText("8 of 9 core checks complete")).toBeVisible();
+ expect(screen.getByRole("link",{name:"Update"})).toHaveAttribute("href","/portal/profile/edit#dpe-phone");
 });

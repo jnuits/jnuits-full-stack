@@ -178,3 +178,22 @@ it("keeps dashboard controls usable while reporting unavailable queue counts", (
   expect(screen.getByRole("status", { name: "Queue counts" })).toHaveTextContent(/temporarily unavailable/i);
   expect(screen.getByRole("button", { name: "Fixture dashboard action" })).toBeEnabled();
 });
+
+it("renders non-blocking authorized unread notification indicator when unreadNoticesCount is provided", () => {
+  render(
+    <AdminNavClient
+      badgeCounts={{ pendingApps: 0, pendingProfileRequests: 0 }}
+      navigationItems={[]}
+      unreadNoticesCount={3}
+    >
+      <div>Dashboard Content</div>
+    </AdminNavClient>
+  );
+
+  const indicator = screen.getByRole("link", {
+    name: "3 unread security notifications",
+  });
+  expect(indicator).toBeInTheDocument();
+  expect(indicator).toHaveAttribute("href", "/admin/notifications");
+  expect(indicator).toHaveTextContent("3");
+});

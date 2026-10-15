@@ -87,7 +87,7 @@ async function handleDirectEdit(
   if (result.error) {
     return apiError(result.error, {
       context: "profile/direct atomic save",
-      status: result.error.code === "42501" ? 423 : 500,
+      status: result.error.code === "42501" ? 423 : result.error.code === "22023" ? 400 : 500,
       fallback: "Your profile could not be updated right now. Unlock editing and try again.",
     });
   }

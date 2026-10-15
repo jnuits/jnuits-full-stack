@@ -101,11 +101,16 @@ function buildNavGroups(
   return groups;
 }
 
+export type ExtendedAdminBadgeCounts = AdminBadgeCounts & {
+  unreadNotices?: number | null;
+};
+
 interface Props {
-  badgeCounts: AdminBadgeCounts;
+  badgeCounts: AdminBadgeCounts | ExtendedAdminBadgeCounts;
   children?: React.ReactNode;
   navigationItems: AdminShellNavigationItem[];
   queueCountsUnavailable?: boolean;
+  unreadNoticesCount?: number | null;
 }
 
 export function AdminNavClient({
@@ -113,6 +118,7 @@ export function AdminNavClient({
   children,
   navigationItems,
   queueCountsUnavailable = false,
+  unreadNoticesCount = null,
 }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -120,6 +126,10 @@ export function AdminNavClient({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set()
   );
+  const effectiveUnreadCount =
+    unreadNoticesCount ??
+    (badgeCounts as ExtendedAdminBadgeCounts).unreadNotices ??
+    null;
   const groups = buildNavGroups(badgeCounts, navigationItems);
 
   function isActive(href: string): boolean {
@@ -358,6 +368,19 @@ export function AdminNavClient({
               <kbd className="admin-topbar__search-kbd">⌘K</kbd>
             </button>
             <AdminNetworkStatus />
+            {effectiveUnreadCount != null && effectiveUnreadCount > 0 ? (
+              <Link
+                href="/admin/notifications"
+                className="admin-topbar__unread-btn relative inline-flex items-center justify-center p-2 rounded-lg border border-[var(--line)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[color-mix(in_oklab,var(--background)_70%,var(--card))] transition-colors"
+                aria-label={`${effectiveUnreadCount} unread security notifications`}
+                title={`${effectiveUnreadCount} unread security notifications`}
+              >
+                <BellRing size={15} className="text-[var(--primary,#0284c7)]" aria-hidden="true" />
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--primary,#0284c7)] px-1 font-mono text-[10px] font-bold text-white">
+                  {effectiveUnreadCount > 99 ? "99+" : effectiveUnreadCount}
+                </span>
+              </Link>
+            ) : null}
             <LogoutButton
               className="secondary-button admin-topbar__logout inline-flex items-center gap-2 text-sm"
               redirectTo="/admin/login"

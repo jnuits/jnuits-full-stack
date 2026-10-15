@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ actor: vi.fn(), rpc: vi.fn() }));
 vi.mock("@/lib/auth/admin-verification/actor", () => ({ loadAdminVerificationActor: mocks.actor, adminVerificationActorSchema: undefined }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.rpc }) }));
-vi.mock("@/lib/auth/session", () => ({ getAuthContext: async () => ({ user: { id: "11111111-1111-4111-8111-111111111111" } }) }));
+vi.mock("@/lib/auth/session", () => ({ hasPermission: async () => false, getAuthContext: async () => ({ user: { id: "11111111-1111-4111-8111-111111111111" } }) }));
 import { GET, POST } from "./route";
 const actor = { userId: "11111111-1111-4111-8111-111111111111", sessionId: "22222222-2222-4222-8222-222222222222", email: "qa@local.invalid", emailConfirmed: true, roleVersion: 3, currentLevel: "aal1", enforced: false, enrollment: "never" };
 const context = { params: Promise.resolve({}) };

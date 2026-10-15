@@ -1,11 +1,16 @@
 import Link from "next/link";
 
 import type { AdminProfileActivity } from "@/lib/admin/admin-profile-model";
+import {
+  AdminActivitySummaryView,
+  type AdminActivitySummary,
+} from "./admin-activity-summary";
 
 type AdminProfileActivityListProps = {
   activities: AdminProfileActivity[];
   profileId: string;
   userId: string;
+  summary?: AdminActivitySummary | null;
 };
 
 function formatDate(value: string) {
@@ -30,12 +35,15 @@ export function AdminProfileActivityList({
   activities,
   profileId,
   userId,
+  summary,
 }: AdminProfileActivityListProps) {
   const actorHref = `/admin/audit?actor=${encodeURIComponent(userId)}`;
   const entityHref = `/admin/audit?entityType=admin_profile&q=${encodeURIComponent(profileId)}`;
 
   return (
-    <section className="grid gap-3 rounded-[0.9rem] border border-[var(--line)] bg-[color-mix(in_oklab,var(--background)_72%,var(--card))] p-4">
+    <div className="grid gap-4">
+      {summary ? <AdminActivitySummaryView summary={summary} /> : null}
+      <section className="grid gap-3 rounded-[0.9rem] border border-[var(--line)] bg-[color-mix(in_oklab,var(--background)_72%,var(--card))] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="section-kicker">Recent activity</p>
@@ -99,5 +107,6 @@ export function AdminProfileActivityList({
         </div>
       )}
     </section>
+    </div>
   );
 }

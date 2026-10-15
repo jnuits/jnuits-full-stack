@@ -115,6 +115,8 @@ export async function ProfileEditScreen() {
                   websiteUrl: member.website_url,
                 }}
                 stepUpActive
+                workplaceContractReady
+                workplaceApplicability={member.workplace_applicability === "applicable" || member.workplace_applicability === "not_applicable" ? member.workplace_applicability : null}
               />
 
               <AvatarUploadField canUpload currentUrl={member.avatar_secure_url ?? null} displayName={member.full_name} targetId={member.id} targetType="member" showLegacyAvatar={false} />
