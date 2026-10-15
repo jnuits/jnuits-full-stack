@@ -1,4 +1,5 @@
 import {test,expect,type BrowserContext} from "@playwright/test";
+import {collectPageErrors}from"./helpers/page-errors";
 const base=process.env.PROFILE_COMPLETION_QA_BASE_URL || "https://127.0.0.1:3130";
 const enabled=process.env.PROFILE_SELF_SERVICE_QA==="DISPOSABLE_SCRATCH";
 test.use({trace:"off",screenshot:"off",actionTimeout:15000,ignoreHTTPSErrors:true});
@@ -19,9 +20,9 @@ test.describe("real owned completion and workplace declaration",()=>{
    expect((await context.request.post(base+"/api/profile/direct",{headers:{Origin:base},data:{}})).status()).toBe(401);
   }finally{await context.close();}
  });
- test("current and alumni cards use canonical data with no locked-value leaks",async({browser})=>{
+ test("current and alumni cards use canonical data with no locked-value leaks",async({browser,browserName})=>{
   for(const [name,percent,count] of [["completionmember","89","8 of 9"],["completionalumni","88","7 of 8"]] as const){
-   const context=await browser.newContext({ignoreHTTPSErrors:true});const page=await context.newPage();const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+   const context=await browser.newContext({ignoreHTTPSErrors:true});const page=await context.newPage();const audit=collectPageErrors(page,browserName,base);
    try {
     const reset=await fetch(`${process.env.ADMIN_VERIFICATION_QA_BRIDGE}/completion_reset`,{method:"POST",headers:{Authorization:`Bearer ${process.env.ADMIN_VERIFICATION_QA_TOKEN}`,"Content-Type":"application/json"},body:JSON.stringify({name})});expect(reset.ok).toBe(true);
     const account=await login(context,name);
@@ -56,7 +57,8 @@ test.describe("real owned completion and workplace declaration",()=>{
     await page.getByRole("link",{name:"Overview",exact:true}).click();
     await expect(page).toHaveURL(`${base}/portal`);
     await expect(page.getByTestId("profile-completion-card")).toContainText(name==="completionmember"?"7 of 8":"6 of 7");
-    expect(errors).toEqual([]);
+    expect(audit.unexpectedErrors).toEqual([]);
+    if(audit.departingPrefetchCancellations.length)console.log(`Observed ${audit.departingPrefetchCancellations.length} departing-document WebKit RSC cancellations; active-page errors remain fatal.`);
    }finally{await context.close();}
   }
  });
