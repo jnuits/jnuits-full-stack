@@ -7,6 +7,18 @@ async function login(context:BrowserContext,name:string){const account=await fix
 test.describe("real owned completion and workplace declaration",()=>{
  test.skip(!enabled,"Only the production-mode disposable fixture runner is permitted.");
  test.describe.configure({mode:"serial",retries:0});test.setTimeout(120000);
+ test("isolates disposable IP buckets while keeping real throttling and authentication",async({browser})=>{
+  const context=await browser.newContext({ignoreHTTPSErrors:true});
+  try{
+   const reset=async()=>{const response=await fetch(`${process.env.ADMIN_VERIFICATION_QA_BRIDGE}/completion_reset`,{method:"POST",headers:{Authorization:`Bearer ${process.env.ADMIN_VERIFICATION_QA_TOKEN}`,"Content-Type":"application/json"},body:JSON.stringify({name:"completionmember"})});expect(response.ok).toBe(true);};
+   await reset();
+   let status=0;
+   for(let i=0;i<11;i++)status=(await context.request.post(base+"/api/profile/direct",{headers:{Origin:base},data:{}})).status();
+   expect(status).toBe(429);
+   await reset();
+   expect((await context.request.post(base+"/api/profile/direct",{headers:{Origin:base},data:{}})).status()).toBe(401);
+  }finally{await context.close();}
+ });
  test("current and alumni cards use canonical data with no locked-value leaks",async({browser})=>{
   for(const [name,percent,count] of [["completionmember","89","8 of 9"],["completionalumni","88","7 of 8"]] as const){
    const context=await browser.newContext({ignoreHTTPSErrors:true});const page=await context.newPage();const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));

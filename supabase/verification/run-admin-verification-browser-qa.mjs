@@ -169,6 +169,10 @@ try {
       if (action === "account") { assert.ok(account); result = { cookies: account.cookies.map(({ name, value }) => ({ name, value })), userId: account.userId, password: account.password, factorId: account.factorId }; }
       else if (action === "completion_reset") {
         assert.ok(profileQA && account && ["completionmember","completionalumni"].includes(body.name));
+        // This bridge can reach only its freshly created, unlinked disposable
+        // database. Do not let earlier serial browser suites consume the next
+        // fixture's IP bucket; real limits and rejection behavior stay enabled.
+        sql("delete from public.security_rate_limits;");
         sql(`update public.members set current_organization='Synthetic Workplace',designation='Engineer',work_location='Dhaka',workplace_applicability='applicable' where id='${uuid(account.profileId)}';`); result={ok:true};
       }
       else if (action === "audit_reset") { resetAuditFixtures(); result = {ok:true}; }
@@ -223,12 +227,15 @@ try {
   for (const match of workflow.split("  build_and_browser:")[1].split("    steps:")[0].matchAll(/^      ([A-Z_]+): (.+)$/gm)) { const value = match[2].trim(); env[match[1]] = value.startsWith('"') ? JSON.parse(value) : value; }
   Object.assign(env, { NEXT_PUBLIC_SUPABASE_URL: status.API_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY, SUPABASE_SECRET_KEY: status.SERVICE_ROLE_KEY, APP_BASE_URL: "http://127.0.0.1:3127", NEXT_PUBLIC_SENTRY_DSN: "", SENTRY_AUTH_TOKEN: "", SENTRY_ORG: "", SENTRY_PROJECT: "", NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA", TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA" });
   assert.equal(env.AUTH_CAPTCHA_REQUIRED, "true");
+  // Match the production durable limiter with a fresh disposable salt.
+  env.RATE_LIMIT_BACKEND = "supabase";
+  env.RATE_LIMIT_SECRET_SALT = randomBytes(32).toString("hex");
   console.log("Synthetic AAL1/AAL2 identities and reviewed-member fixtures are ready.");
   env.NODE_OPTIONS = `--require "${join(repo, "supabase/verification/admin-verification-qa-preload.cjs").replaceAll("\\", "/")}"`;
   let diagnostics = "";
   const capture = chunk => {
     let safe = String(chunk);
-    for (const secret of [bridgeToken, status.SERVICE_ROLE_KEY, status.ANON_KEY, ...[...accounts.values()].flatMap(account => [account.password, account.secret].filter(Boolean)), ...mail.values()]) safe = safe.split(secret).join("[redacted]");
+    for (const secret of [bridgeToken, status.SERVICE_ROLE_KEY, status.ANON_KEY, env.RATE_LIMIT_SECRET_SALT, ...[...accounts.values()].flatMap(account => [account.password, account.secret].filter(Boolean)), ...mail.values()]) safe = safe.split(secret).join("[redacted]");
     diagnostics = `${diagnostics}${safe.replace(/eyJ[A-Za-z0-9._-]+/g, "[token redacted]").replace(/\b[0-9]{6}\b/g, "[code redacted]")}`.slice(-4000);
   };
   if (profileQA) {
