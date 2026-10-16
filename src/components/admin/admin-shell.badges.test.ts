@@ -1,17 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const fixture = vi.hoisted(() => ({ client: null as unknown, membership: true, active: true, fail: false, requests: [] as URL[] }));
+const fixture = vi.hoisted(() => ({ client: null as unknown, membership: true, audit: false, notices: vi.fn(), active: true, fail: false, requests: [] as URL[] }));
+vi.mock("@/lib/admin/notifications/store",()=>({loadOwnAdminNotices:fixture.notices}));
 vi.mock("@/lib/admin/activity/capture-server",()=>({recordCurrentAdminWorkspaceAccess:vi.fn()}));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => fixture.client }));
 vi.mock("@/lib/auth/session", () => ({
   requireAdminUser: async () => { if (!fixture.active) throw new Error("Admin session denied"); return {user: {id: "fixture-admin"}, roles: ["admin"]}; },
-  hasPermission: async (permission: string) => permission === "admin.membership.manage" && fixture.membership,
+  hasPermission: async (permission: string) => permission === "admin.audit.read" ? fixture.audit : permission === "admin.membership.manage" && fixture.membership,
 }));
 import { AdminShell } from "./admin-shell";
 const rows = ["profile_change", "email_change", "jnuits_id_change", "workplace_update", "account_deletion"].map(request_type => ({ request_type, status: "pending" }));
 describe("sidebar queue counts", () => {
   beforeEach(() => {
-    fixture.membership = true; fixture.active = true; fixture.fail = false; fixture.requests = [];
+    fixture.membership = true; fixture.audit=false;fixture.notices.mockReset().mockResolvedValue({unreadCount:3});fixture.active = true; fixture.fail = false; fixture.requests = [];
     fixture.client = createClient("https://fixture.supabase.co", "fixture-key", {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { fetch: async input => {
@@ -49,5 +50,12 @@ describe("sidebar queue counts", () => {
     fixture.membership = false;
     await AdminShell({children: null});
     expect(fixture.requests).toEqual([]);
+    expect(fixture.notices).not.toHaveBeenCalled();
+  });
+  it("loads unread notices only for current audit readers and preserves unavailable counts",async()=>{
+    fixture.audit=true;const shell=await AdminShell({children:null});
+    expect(shell.props.unreadNoticesCount).toBe(3);expect(fixture.notices).toHaveBeenCalledWith({pageSize:1});
+    fixture.notices.mockRejectedValue(new Error("unavailable"));
+    expect((await AdminShell({children:null})).props.unreadNoticesCount).toBeNull();
   });
 });

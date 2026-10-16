@@ -944,3 +944,11 @@ export function buildAdminVerificationEmail(props: { code: string; operationLabe
     p("Never share this code. If you did not request this action, ignore this email."),
   ].join(""));
 }
+
+/** Advisory mail only; no credentials, raw event metadata or recipient lists. */
+export function buildAdminAdvisoryEmail(props: { title: string; paragraphs: readonly string[]; links: readonly {label: string; href: string}[] }): string {
+  return wrap(props.title, [h1(esc(props.title)), ...props.paragraphs.map(value => p(esc(value))),
+    ...props.links.map(item => p(link(esc(item.label), item.href))), hr(),
+    p('This optional email is controlled by your JnUITS admin profile preferences. Account-holder security mail follows separate provider settings.'),
+    p(link('Manage optional email preferences', 'https://jnuits.org.bd/admin/settings/profile'))].join(''));
+}

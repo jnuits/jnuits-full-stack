@@ -7,6 +7,20 @@ const baseEnv = {
   NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
   SUPABASE_SECRET_KEY: "sb_secret_test",
 };
+
+describe("optional admin-delivery activation preflight",()=>{
+  it("requires private collection and transactional delivery configuration only when requested",()=>{
+    const result=validateEnv(baseEnv,{adminDelivery:true});
+    expect(result.missing).toEqual(expect.arrayContaining(["CRON_SECRET","RESEND_API_KEY","RESEND_FROM_EMAIL","RESEND_WEBHOOK_SECRET"]));
+    expect(validateEnv(baseEnv).ok).toBe(true);
+  });
+  it("checks the approved sender and a sufficiently strong cron credential without printing values",()=>{
+    const config={...baseEnv,CRON_SECRET:"c".repeat(64),RESEND_API_KEY:"fixture-key",RESEND_FROM_EMAIL:"JnUITS <no-reply@jnuits.org.bd>",RESEND_WEBHOOK_SECRET:"whsec_fixture"};
+    expect(validateEnv(config,{adminDelivery:true}).ok).toBe(true);
+    const invalid=validateEnv({...config,CRON_SECRET:"short",RESEND_FROM_EMAIL:"Other <other@example.test>"},{adminDelivery:true});
+    expect(invalid.ok).toBe(false);expect(JSON.stringify(invalid)).not.toContain("fixture-key");
+  });
+});
 const completeProductionEnv = {
   ...baseEnv,
   APP_MAC_SECRET: "12345678901234567890123456789012",

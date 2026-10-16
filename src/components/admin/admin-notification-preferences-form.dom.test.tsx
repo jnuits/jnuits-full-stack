@@ -4,6 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 import { AdminNotificationPreferencesForm } from "./admin-notification-preferences-form";
 
 describe("AdminNotificationPreferencesForm Component", () => {
+  it("describes empty recommendations rather than promising silence for a complete profile with pending duties",()=>{
+    render(<AdminNotificationPreferencesForm/>);
+    expect(screen.queryByText(/No email is sent if your profile and security checks are 100% complete/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/No email is sent when there are no remaining recommendations/i)).toBeInTheDocument();
+  });
+  it("does not assert activated delivery for unverified provider settings",()=>{
+    render(<AdminNotificationPreferencesForm ready={false}/>);
+    expect(screen.queryByText("Essential account security notices are always active")).not.toBeInTheDocument();
+    expect(screen.queryByText(/MFA factor enrollments, and recovery requests/i)).not.toBeInTheDocument();
+  });
   it("renders essential security notice callout and optional toggles with loaded defaults", () => {
     render(
       <AdminNotificationPreferencesForm
@@ -14,7 +24,7 @@ describe("AdminNotificationPreferencesForm Component", () => {
     );
 
     expect(
-      screen.getByText("Essential account security notices are always active")
+      screen.getByText("Your own account security mail is separate")
     ).toBeInTheDocument();
 
     const securityCheckbox = screen.getByLabelText(

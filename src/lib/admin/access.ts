@@ -211,6 +211,13 @@ export const adminAccessItems: readonly AdminAccessItem[] = [
   },
   {
     group: "Organization",
+    href: "/admin/notifications",
+    iconKey: "shield",
+    label: "Security Notices",
+    requiredPermission: "admin.audit.read",
+  },
+  {
+    group: "Organization",
     href: "/admin/reports",
     iconKey: "barChart",
     label: "Reports",

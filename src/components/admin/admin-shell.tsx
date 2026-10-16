@@ -9,6 +9,7 @@ import { IDENTITY_PROFILE_REQUEST_TYPES } from "@/lib/admin/profile-request-type
 import { AdminNavClient } from "./admin-nav-client";
 import { AdminMfaSuggestion } from "./admin-mfa-suggestion";
 import { recordCurrentAdminWorkspaceAccess } from "@/lib/admin/activity/capture-server";
+import { loadOwnAdminNotices } from "@/lib/admin/notifications/store";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -80,8 +81,12 @@ export async function AdminShell({
     pendingProfileRequests: profilesResult.error ? null : profilesResult.count,
   };
   const queueCountsUnavailable = (showPendingApps && badgeCounts.pendingApps === null) || (showPendingProfileRequests && badgeCounts.pendingProfileRequests === null);
+  let unreadNoticesCount: number | null = null;
+  if (navigationItems.some(item => item.href === "/admin/notifications")) {
+    try { unreadNoticesCount = (await loadOwnAdminNotices({ pageSize: 1 })).unreadCount; } catch { /* Unknown must not be reported as zero. */ }
+  }
   return (
-    <AdminNavClient badgeCounts={badgeCounts} navigationItems={navigationItems} queueCountsUnavailable={queueCountsUnavailable}>
+    <AdminNavClient badgeCounts={badgeCounts} navigationItems={navigationItems} queueCountsUnavailable={queueCountsUnavailable} unreadNoticesCount={unreadNoticesCount}>
       <AdminMfaSuggestion />
       {children}
     </AdminNavClient>

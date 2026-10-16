@@ -1,4 +1,5 @@
 import { OwnAdminCompletionCards } from "@/components/profile/own-admin-completion-cards";
+import { OwnAdminEmailPreferencesSection } from "@/components/admin/own-admin-email-preferences-section";
 import { AdminAccountabilitySummarySection } from "@/components/admin/admin-accountability-summary-section";
 import type { ReactNode } from "react";
 
@@ -278,7 +279,7 @@ function MemberCandidateCard({
     >
       <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
         <input
-          className="mt-1 shrink-0"
+          className="mt-1 size-4 shrink-0 p-0"
           disabled={!candidate.canInvite}
           name="memberId"
           required={candidate.canInvite}
@@ -831,6 +832,7 @@ export default async function AdminProfilesPage({
   return (
     <div className="grid gap-8">
       {selfOnly ? <OwnAdminCompletionCards /> : null}
+      {selfOnly ? <OwnAdminEmailPreferencesSection /> : null}
       {detailProfile && (selfOnly || (canViewDirectory && canViewAudit)) ? <AdminAccountabilitySummarySection targetUserId={detailProfile.userId} /> : null}
       <div className="admin-page-header">
         <div>

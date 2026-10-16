@@ -1,4 +1,5 @@
 import { OwnAdminCompletionCards } from "@/components/profile/own-admin-completion-cards";
+import { AdminRecommendationsSection } from "@/components/admin/admin-recommendations-section";
 import { AdminAccountabilitySummarySection } from "@/components/admin/admin-accountability-summary-section";
 import { requireAdminPageUser as requireAdminUser } from "@/lib/admin/activity/page-access";
 import { cookies } from "next/headers";
@@ -259,6 +260,7 @@ export default async function AdminPage() {
 
       {/* ── Page header ─────────────────────────────────────────────────────── */}
       <OwnAdminCompletionCards />
+      <AdminRecommendationsSection />
       <AdminAccountabilitySummarySection />
       <div className="admin-page-header">
         <div>

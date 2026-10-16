@@ -35,6 +35,17 @@ function request() {
 }
 
 describe("Resend delivery webhook", () => {
+  it("updates the private admin-notice ledger only after all earlier ledgers decline a verified event",async()=>{
+    mocks.rpc.mockResolvedValue({data:[{tracked:false}],error:null});
+    mocks.rpc.mockResolvedValueOnce({data:[{tracked:false}],error:null}).mockResolvedValueOnce({data:[{tracked:false}],error:null}).mockResolvedValueOnce({data:[{tracked:false}],error:null}).mockResolvedValueOnce({data:{tracked:false},error:null}).mockResolvedValueOnce({data:{tracked:true,duplicate:false},error:null});
+    const response=await POST(request());expect(await response.json()).toEqual({received:true,tracked:true,duplicate:false});
+    expect(mocks.rpc).toHaveBeenNthCalledWith(5,"record_admin_notification_webhook_event",{p_provider_event_id:"msg_test",p_provider_message_id:"provider-message-test",p_event_type:"email.delivered",p_occurred_at:"2026-07-19T07:00:00.000Z"});
+  });
+  it("acknowledges unrelated verified event types without sending them to the notice state machine",async()=>{
+    mocks.rpc.mockResolvedValue({data:{tracked:false},error:null});
+    mocks.verifyResendWebhook.mockReturnValue({createdAt:"2026-07-19T07:00:00.000Z",eventId:"unrelated",providerMessageId:"provider",type:"email.opened"});
+    expect((await POST(request())).status).toBe(200);expect(mocks.rpc).toHaveBeenCalledTimes(4);
+  });
   it("records newsletter suppression only after verified events match no earlier ledger", async () => {
     mocks.rpc.mockResolvedValue({data:[{tracked:false}],error:null});
     mocks.rpc.mockResolvedValueOnce({data:[{tracked:false}],error:null}).mockResolvedValueOnce({data:[{tracked:false}],error:null}).mockResolvedValueOnce({data:[{tracked:false}],error:null}).mockResolvedValueOnce({data:{tracked:true,duplicate:true},error:null});

@@ -55,7 +55,8 @@ export function validateEnv(env, options = {}) {
   const production = Boolean(options.production);
   const missing = [];
   const invalid = [];
-  const required = production ? [...baseRequiredEnv, ...productionRequiredEnv] : baseRequiredEnv;
+  const required = [...new Set([...(production ? [...baseRequiredEnv, ...productionRequiredEnv] : baseRequiredEnv),
+    ...(options.adminDelivery ? ["CRON_SECRET", "RESEND_API_KEY", "RESEND_FROM_EMAIL", "RESEND_WEBHOOK_SECRET"] : [])])];
 
   for (const key of required) if (isBlank(env[key])) missing.push(key);
 
@@ -78,6 +79,11 @@ export function validateEnv(env, options = {}) {
   if (production && !isBlank(env.APP_MAC_SECRET) && env.APP_MAC_SECRET.trim().length < 32) invalid.push("APP_MAC_SECRET must be at least 32 characters.");
   if (production && !isBlank(env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL) && !EMAIL_ADDRESS_PATTERN.test(env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL.trim())) invalid.push("GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL must be a valid email address.");
   if (production && !isBlank(env.RESEND_FROM_EMAIL) && !SENDER_ADDRESS_PATTERN.test(env.RESEND_FROM_EMAIL.trim())) invalid.push("RESEND_FROM_EMAIL must include a valid sender email address.");
+  if (options.adminDelivery) {
+    if (!isBlank(env.CRON_SECRET) && env.CRON_SECRET.trim().length < 32) invalid.push("CRON_SECRET must be at least 32 characters for admin delivery.");
+    if (!isBlank(env.RESEND_FROM_EMAIL) && env.RESEND_FROM_EMAIL !== "JnUITS <no-reply@jnuits.org.bd>") invalid.push("RESEND_FROM_EMAIL must use the approved JnUITS notification sender.");
+    if (!isBlank(env.RESEND_REPLY_TO) && !SENDER_ADDRESS_PATTERN.test(env.RESEND_REPLY_TO.trim())) invalid.push("RESEND_REPLY_TO must be a valid reply address.");
+  }
 
   return { ok: missing.length === 0 && invalid.length === 0, missing, invalid };
 }
@@ -93,7 +99,7 @@ function formatFailure(result) {
 export function runValidateEnvCli(argv = process.argv, env = process.env) {
   const production = argv.includes("--production") || env.NODE_ENV === "production";
   loadEnvConfig(process.cwd(), !production);
-  const result = validateEnv(env, { production });
+  const result = validateEnv(env, { production, adminDelivery: argv.includes("--admin-delivery") });
   if (!result.ok) { console.error(formatFailure(result)); return 1; }
   console.log(production ? "Environment validation passed for production." : "Environment validation passed.");
   return 0;

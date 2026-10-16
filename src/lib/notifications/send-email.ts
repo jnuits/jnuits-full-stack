@@ -15,10 +15,12 @@ interface SendEmailOptions {
   redactProviderErrors?: boolean;
 }
 
-interface SendEmailResult {
+export interface SendEmailResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  failureKind?: "configuration" | "rejected" | "rate_limited" | "uncertain";
+  httpStatus?: number;
 }
 
 function summarizeResendError(status: number, body: unknown) {
@@ -64,7 +66,7 @@ export async function sendEmail(
       hasApiKey: Boolean(apiKey),
       hasFrom: Boolean(from),
     });
-    return { success: false, error: "Email delivery not configured." };
+    return { success: false, error: "Email delivery not configured.", failureKind: "configuration" };
   }
 
   try {
@@ -99,13 +101,21 @@ export async function sendEmail(
         to: options.to,
         subject: options.subject,
       });
-      return { success: false, error: options.redactProviderErrors ? "Email delivery failed." : summarizeResendError(res.status, errorBody) };
+      // Timeouts, conflicts and server errors may follow an accepted send.
+      // Durable callers must keep the original payload/key and retry window.
+      const failureKind = res.status === 429 ? "rate_limited"
+        : res.status >= 500 || res.status === 408 || res.status === 409 ? "uncertain" : "rejected";
+      return { success: false, failureKind, httpStatus: res.status,
+        error: options.redactProviderErrors ? "Email delivery failed." : summarizeResendError(res.status, errorBody) };
     }
 
     const body = await res.json().catch(() => null);
-    return { success: true, messageId: body?.id };
+    if (typeof body?.id !== "string" || !body.id.trim()) {
+      return { success: false, failureKind: "uncertain", error: "Email acceptance could not be confirmed." };
+    }
+    return { success: true, messageId: body.id };
   } catch (err) {
     logServerError("sendEmail: fetch failed", options.redactProviderErrors ? { kind: "transport_error" } : err);
-    return { success: false, error: "Network error sending email." };
+    return { success: false, failureKind: "uncertain", error: "Network error sending email." };
   }
 }

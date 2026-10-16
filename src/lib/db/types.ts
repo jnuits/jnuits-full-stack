@@ -3489,6 +3489,8 @@ export type Database = {
       }
       portal_user_settings: {
         Row: {
+          admin_recommendation_email_opt_in: boolean
+          admin_security_email_opt_in: boolean
           created_at: string
           member_id: string | null
           mentorship_opt_in: boolean
@@ -3499,6 +3501,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          admin_recommendation_email_opt_in?: boolean
+          admin_security_email_opt_in?: boolean
           created_at?: string
           member_id?: string | null
           mentorship_opt_in?: boolean
@@ -3509,6 +3513,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          admin_recommendation_email_opt_in?: boolean
+          admin_security_email_opt_in?: boolean
           created_at?: string
           member_id?: string | null
           mentorship_opt_in?: boolean
@@ -4283,6 +4289,15 @@ export type Database = {
         Returns: Json
       }
       admin_verification_suggestion: { Args: { p_input: Json }; Returns: Json }
+      advance_admin_digest_cursor: {
+        Args: {
+          p_lease_id: string
+          p_month: string
+          p_reset?: boolean
+          p_subject: string
+        }
+        Returns: boolean
+      }
       allocate_membership_id: { Args: { year_block: string }; Returns: string }
       append_admin_activity: {
         Args: { p_event: Json; p_session_id: string }
@@ -4365,7 +4380,15 @@ export type Database = {
         }[]
       }
       claim_admin_accountability_job: { Args: never; Returns: Json }
+      claim_admin_notification_delivery: {
+        Args: { p_id: string; p_lease_id: string }
+        Returns: Json
+      }
       collect_admin_auth_activity: {
+        Args: { p_dry_run: boolean; p_lease_id: string; p_limit: number }
+        Returns: Json
+      }
+      collect_admin_security_notices: {
         Args: { p_dry_run: boolean; p_lease_id: string; p_limit: number }
         Returns: Json
       }
@@ -4467,6 +4490,10 @@ export type Database = {
         }
         Returns: Json
       }
+      enqueue_admin_security_notice: {
+        Args: { p_event_id: string }
+        Returns: Json
+      }
       finalize_member_invitation_claim: {
         Args: {
           target_email: string
@@ -4480,12 +4507,35 @@ export type Database = {
         Args: { target_email: string }
         Returns: string
       }
+      finish_admin_notification_delivery: {
+        Args: {
+          p_claim_token: string
+          p_failure_kind?: string
+          p_id: string
+          p_message_id?: string
+          p_state: string
+        }
+        Returns: boolean
+      }
       format_jnuits_id: { Args: { raw_id: string }; Returns: string }
       get_admin_activity_summary: {
         Args: { p_actor: Json; p_target: string }
         Returns: Json
       }
       get_admin_notice_summary: { Args: never; Returns: Json }
+      get_admin_notification_batch: {
+        Args: {
+          p_account_limit?: number
+          p_lease_id: string
+          p_month: string
+          p_notice_limit?: number
+        }
+        Returns: Json
+      }
+      get_admin_recommendation_inputs: {
+        Args: { p_require_opt_in?: boolean; p_subject: string }
+        Returns: Json
+      }
       get_event_registration_counts: {
         Args: { p_event_ids: string[] }
         Returns: {
@@ -4542,6 +4592,14 @@ export type Database = {
         Returns: boolean
       }
       jnuits_custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      list_admin_notification_deliveries: {
+        Args: { p_channel?: string; p_lease_id: string; p_limit?: number }
+        Returns: Json
+      }
+      mark_own_admin_notice_read: {
+        Args: { p_actor: Json; p_notice_id?: string }
+        Returns: boolean
+      }
       membership_anniversary: {
         Args: { p_joined_on: string; p_year: number }
         Returns: string
@@ -4559,6 +4617,10 @@ export type Database = {
         Returns: Json
       }
       normalize_jnuits_id: { Args: { raw_id: string }; Returns: string }
+      own_admin_email_preferences: {
+        Args: { p_actor: Json; p_preferences?: Json }
+        Returns: Json
+      }
       preview_admin_activity_retention: { Args: never; Returns: Json }
       preview_bulk_membership_operation: {
         Args: { target_operation_id: string }
@@ -4599,15 +4661,50 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: Json
       }
+      query_admin_accountability_health: {
+        Args: { p_actor: Json }
+        Returns: Json
+      }
       query_admin_activity: {
         Args: { p_actor: Json; p_filters: Json; p_full_network_id?: string }
         Returns: Json
+      }
+      query_own_admin_notices: {
+        Args: { p_actor: Json; p_page?: number; p_page_size?: number }
+        Returns: Json
+      }
+      queue_admin_notice_email: {
+        Args: { p_notice_id: string; p_payload: Json }
+        Returns: string
+      }
+      queue_admin_recommendation_email: {
+        Args: {
+          p_month: string
+          p_payload: Json
+          p_recommendation_ids: string[]
+          p_rubric: number
+          p_subject: string
+        }
+        Returns: string
       }
       reconcile_membership_lifecycle: {
         Args: {
           p_batch_size?: number
           p_effective_date?: string
           p_member_id?: string
+        }
+        Returns: Json
+      }
+      record_admin_accountability_health: {
+        Args: { p_lease_id: string; p_result: Json }
+        Returns: Json
+      }
+      record_admin_notification_webhook_event: {
+        Args: {
+          p_event_type: string
+          p_occurred_at: string
+          p_provider_event_id: string
+          p_provider_message_id: string
         }
         Returns: Json
       }
@@ -4829,6 +4926,10 @@ export type Database = {
         Returns: {
           form_version_id: string
         }[]
+      }
+      validate_admin_notification_delivery: {
+        Args: { p_claim_token: string; p_id: string; p_lease_id: string }
+        Returns: boolean
       }
       validate_onboarding_draft: {
         Args: { p_expected_revision: number; p_operation_id: string }
