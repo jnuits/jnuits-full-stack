@@ -8,5 +8,15 @@
     "gitBlob": "b0f56892aaa5ee4ca5530616f12f627d15980c9a",
     "verifiedAt": "2026-10-12T09:04:00Z",
     "verification": "Hosted schema_migrations.statements joined by LF equals the committed Git SQL payload byte-for-byte; 119 versions; records/grants/policies unchanged."
+  },
+  {
+    "oldPath": "supabase/migrations/20261016034828_admin_notifications_foundation.sql",
+    "newPath": "supabase/migrations/20261016162158_admin_notifications_foundation.sql",
+    "projectId": "fsirdkjgrcocowxqjhjg",
+    "hostedVersion": "20261016162158",
+    "sha256": "fa06305bb61829558f32f145075a1e57b5b7b46881d8224d06b32534bfc0619a",
+    "gitBlob": "acc43eeea41d751331e4b147844698d6a0afe2cb",
+    "verifiedAt": "2026-10-16T16:23:27Z",
+    "verification": "Hosted schema_migrations.statements joined by LF equals the reviewed PR191 SQL payload byte-for-byte: 45825 bytes; 123 migrations. Nine private notification tables have RLS and no browser access. Seventeen public RPCs are service-only with empty search_path. Delivery remains disabled; existing migrations were not reapplied."
   }
 ]

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use superpowers:executing-plans for Codex-owned work. Frontend ownership follows docs/operations/2026-10-14-gemini-frontend-accountability-handover.md. Codex retains backend and release ownership. Steps use checkbox syntax for tracking.
 
-**Status:** Approved by the owner on 2026-10-14; implementation and final review fixes are in local acceptance. Linux CI, hosted migration, deployment and owner-mailbox acceptance remain pending. Delivery is disabled. Execution receipts are recorded in the plan's ignored progress ledger and the operations guide.
+**Status:** Approved by the owner on 2026-10-14; implementation, local acceptance and initial Linux three-engine CI passed. Hosted migration was applied with exact byte parity as version 20261016162158. Final filename-reconciliation CI, merge, deployment and owner-mailbox acceptance remain pending. Delivery is disabled. Execution receipts are recorded in the plan's ignored progress ledger and the operations guide.
 **Goal:** Deliver relevant security notices and optional monthly personal recommendations without duplicate mail, privacy leaks or a recurring AI task.
 **Architecture:** Trusted Release 2 events create recipient-bound private notices and durable delivery records. The existing Resend transport delivers checked recipients; one bounded daily application job handles ingestion/retry and due monthly recommendations.
 **Tech Stack:** Installed Next.js/TypeScript, Supabase Postgres/Auth, existing Resend HTTP transport/preferences/webhook, ordinary Vercel cron, Vitest, Playwright.
