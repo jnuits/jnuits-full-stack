@@ -1,7 +1,7 @@
 import "server-only";
 
 import { checkAdminMFA } from "@/lib/auth/mfa";
-import { requireAdminUser } from "@/lib/auth/session";
+import { requireAdminPageUser as requireAdminUser } from "@/lib/admin/activity/page-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createClient } from "@/lib/supabase/server";

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { formatDhakaDateTime } from "@/lib/admin/activity/format";
+export { formatDhakaDateTime } from "@/lib/admin/activity/format";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -64,6 +66,7 @@ export type ActivityFilterOptions = {
 };
 
 export type AdminActivityPanelProps = {
+  navigation?: { previousHref: string | null; nextHref: string | null; resetHref: string; networkHrefs: Readonly<Record<string,string>> };
   items: readonly ActivityItem[];
   coverage: ActivityCoverage;
   page: number;
@@ -76,19 +79,6 @@ export type AdminActivityPanelProps = {
   onRequestFullNetwork?: (itemId: string) => void;
   className?: string;
 };
-
-export function formatDhakaDateTime(isoString: string | null | undefined): string {
-  if (!isoString) return "Not recorded";
-  try {
-    return new Intl.DateTimeFormat("en-BD", {
-      timeZone: "Asia/Dhaka",
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(isoString));
-  } catch {
-    return String(isoString);
-  }
-}
 
 function renderOutcomeBadge(outcome: ActivityOutcome) {
   switch (outcome) {
@@ -166,6 +156,7 @@ function renderCoverageBanner(coverage: ActivityCoverage) {
 }
 
 export function AdminActivityPanel({
+  navigation,
   items,
   coverage,
   page,
@@ -190,8 +181,8 @@ export function AdminActivityPanel({
       actor: String(formData.get("actor") ?? "").trim() || undefined,
       action: String(formData.get("action") ?? "").trim() || undefined,
       outcome: String(formData.get("outcome") ?? "").trim() || undefined,
-      dateFrom: String(formData.get("dateFrom") ?? "").trim() || undefined,
-      dateTo: String(formData.get("dateTo") ?? "").trim() || undefined,
+      dateFrom: String(formData.get("from") ?? "").trim() || undefined,
+      dateTo: String(formData.get("to") ?? "").trim() || undefined,
     });
   }
 
@@ -208,21 +199,28 @@ export function AdminActivityPanel({
 
       {/* Filter Toolbar */}
       <form
+        action={navigation ? "/admin/audit" : undefined}
+        method={navigation ? "get" : undefined}
         onSubmit={handleFilterSubmit}
         className="rounded-[0.9rem] border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm"
         aria-label="Activity filter controls"
       >
+        {navigation ? <><input type="hidden" name="view" value="activity"/><input type="hidden" name="page" value="1"/><input type="hidden" name="pageSize" value={pageSize}/></> : null}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
           <label className="input-label text-xs" htmlFor="activity-filter-actor">
             Actor
-            <input
+            {filterOptions.actors ? <select id="activity-filter-actor" name="actor" defaultValue={filters.actor ?? ""} className="text-xs">
+              <option value="">All actors</option>
+              {filters.actor && !filterOptions.actors.some(actor => actor.value === filters.actor) ? <option value={filters.actor}>Selected actor</option> : null}
+              {filterOptions.actors.map(actor => <option key={actor.value} value={actor.value}>{actor.label}</option>)}
+            </select> : <input
               id="activity-filter-actor"
               name="actor"
               type="text"
-              placeholder="Actor label or ID"
+              placeholder="Actor UUID"
               defaultValue={filters.actor ?? ""}
               className="text-xs"
-            />
+            />}
           </label>
 
           <label className="input-label text-xs" htmlFor="activity-filter-action">
@@ -267,7 +265,7 @@ export function AdminActivityPanel({
             From date
             <input
               id="activity-filter-date-from"
-              name="dateFrom"
+              name="from"
               type="date"
               defaultValue={filters.dateFrom ?? ""}
               className="text-xs"
@@ -278,7 +276,7 @@ export function AdminActivityPanel({
             To date
             <input
               id="activity-filter-date-to"
-              name="dateTo"
+              name="to"
               type="date"
               defaultValue={filters.dateTo ?? ""}
               className="text-xs"
@@ -287,14 +285,14 @@ export function AdminActivityPanel({
         </div>
 
         <div className="mt-3.5 flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line)] pt-3">
-          <button
+          {navigation ? <Link href={navigation.resetHref} prefetch={false} className="ghost-button flex items-center gap-1.5 text-xs"><RotateCcw size={13} aria-hidden="true"/><span>Reset</span></Link> : <button
             type="button"
             onClick={handleResetFilters}
             className="ghost-button flex items-center gap-1.5 text-xs"
           >
             <RotateCcw size={13} aria-hidden="true" />
             <span>Reset</span>
-          </button>
+          </button>}
           <button type="submit" className="primary-button flex items-center gap-1.5 text-xs">
             <Filter size={13} aria-hidden="true" />
             <span>Apply filters</span>
@@ -352,24 +350,24 @@ export function AdminActivityPanel({
 
                   return (
                     <tr key={item.id} className="transition-colors hover:bg-[color-mix(in_oklab,var(--background)_60%,var(--card))]">
-                      <td className="px-3.5 py-3 whitespace-nowrap text-[var(--foreground)]">
+                      <td data-label="Timestamp (Dhaka)" className="px-3.5 py-3 whitespace-nowrap text-[var(--foreground)]">
                         {formatDhakaDateTime(item.occurredAt)}
                       </td>
-                      <td className="px-3.5 py-3 font-medium text-[var(--foreground)]">
+                      <td data-label="Actor" className="px-3.5 py-3 font-medium text-[var(--foreground)]">
                         {item.actorLabel}
                       </td>
-                      <td className="px-3.5 py-3">
+                      <td data-label="Action" className="px-3.5 py-3">
                         <span className="font-mono text-[11px] text-[var(--foreground)]">
                           {item.actionLabel}
                         </span>
                       </td>
-                      <td className="px-3.5 py-3 text-[var(--muted-foreground)]">
+                      <td data-label="Target" className="px-3.5 py-3 text-[var(--muted-foreground)]">
                         {item.targetLabel || "None"}
                       </td>
-                      <td className="px-3.5 py-3 whitespace-nowrap">
+                      <td data-label="Outcome" className="px-3.5 py-3 whitespace-nowrap">
                         {renderOutcomeBadge(item.outcome)}
                       </td>
-                      <td className="px-3.5 py-3">
+                      <td data-label="Context" className="px-3.5 py-3">
                         <div className="flex flex-col gap-0.5 text-[11px]">
                           <span>
                             {item.context?.ipDisplay || "Unknown IP"}
@@ -382,11 +380,11 @@ export function AdminActivityPanel({
                           )}
                         </div>
                       </td>
-                      <td className="px-3.5 py-3 text-[11px] text-[var(--muted-foreground)]">
+                      <td data-label="Provenance" className="px-3.5 py-3 text-[11px] text-[var(--muted-foreground)]">
                         <span>{item.provenanceLabel}</span>
                         <span className="block text-[10px] opacity-75">via {item.sourceLabel}</span>
                       </td>
-                      <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                      <td data-label="Details" className="px-3.5 py-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
                           {item.href && (
                             <Link
@@ -397,7 +395,7 @@ export function AdminActivityPanel({
                               <ExternalLink size={11} aria-hidden="true" />
                             </Link>
                           )}
-                          {item.canRequestFullNetwork && onRequestFullNetwork && (
+                          {item.canRequestFullNetwork && navigation?.networkHrefs[item.id] ? <Link href={navigation.networkHrefs[item.id]} prefetch={false} className="ghost-button text-[11px] inline-flex items-center gap-1"><Shield size={11} aria-hidden="true"/><span>Network</span></Link> : item.canRequestFullNetwork && onRequestFullNetwork && (
                             <button
                               type="button"
                               onClick={() => onRequestFullNetwork(item.id)}
@@ -470,7 +468,7 @@ export function AdminActivityPanel({
                           <ExternalLink size={11} aria-hidden="true" />
                         </Link>
                       )}
-                      {item.canRequestFullNetwork && onRequestFullNetwork && (
+                      {item.canRequestFullNetwork && navigation?.networkHrefs[item.id] ? <Link href={navigation.networkHrefs[item.id]} prefetch={false} className="ghost-button text-[11px]">Request full network</Link> : item.canRequestFullNetwork && onRequestFullNetwork && (
                         <button
                           type="button"
                           onClick={() => onRequestFullNetwork(item.id)}
@@ -494,25 +492,25 @@ export function AdminActivityPanel({
           aria-label="Activity log pagination"
           className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-3 text-xs"
         >
-          <button
+          {navigation ? navigation.previousHref ? <Link href={navigation.previousHref} prefetch={false} className="secondary-button">Previous</Link> : <span aria-disabled="true" className="secondary-button opacity-50">Previous</span> : <button
             type="button"
             onClick={() => onPageChange(Math.max(1, page - 1))}
             disabled={page <= 1}
             className="secondary-button"
           >
             Previous
-          </button>
+          </button>}
           <span className="text-[var(--muted-foreground)]">
             Page {page} of {totalPages}
           </span>
-          <button
+          {navigation ? navigation.nextHref ? <Link href={navigation.nextHref} prefetch={false} className="secondary-button">Next</Link> : <span aria-disabled="true" className="secondary-button opacity-50">Next</span> : <button
             type="button"
             onClick={() => onPageChange(Math.min(totalPages, page + 1))}
             disabled={page >= totalPages}
             className="secondary-button"
           >
             Next
-          </button>
+          </button>}
         </nav>
       )}
     </div>

@@ -13,7 +13,8 @@ export function isDepartingWebKitPrefetchError({message,name="",browserName,base
     const base=new URL(baseURL);
     const url=new URL(full?full[1]:engineName![1]+"://"+short![1]);
     return url.origin===base.origin&&url.searchParams.has("_rsc")
-      &&(url.pathname==="/"||url.pathname==="/portal"||url.pathname.startsWith("/portal/"));
+      &&!/(?:^|\/)(?:export|download)(?:\/|$)/.test(url.pathname)
+      &&(url.pathname==="/"||["/portal","/admin"].some(root=>url.pathname===root||url.pathname.startsWith(root+"/")));
   }catch{return false;}
 }
 

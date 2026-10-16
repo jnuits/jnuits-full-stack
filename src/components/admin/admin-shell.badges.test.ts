@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const fixture = vi.hoisted(() => ({ client: null as unknown, membership: true, active: true, fail: false, requests: [] as URL[] }));
+vi.mock("@/lib/admin/activity/capture-server",()=>({recordCurrentAdminWorkspaceAccess:vi.fn()}));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => fixture.client }));
 vi.mock("@/lib/auth/session", () => ({
   requireAdminUser: async () => { if (!fixture.active) throw new Error("Admin session denied"); return {user: {id: "fixture-admin"}, roles: ["admin"]}; },

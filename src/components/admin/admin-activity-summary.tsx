@@ -7,7 +7,7 @@ import {
   ShieldAlert,
   UserCheck,
 } from "lucide-react";
-import { formatDhakaDateTime } from "./admin-activity-panel";
+import { formatDhakaDateTime } from "@/lib/admin/activity/format";
 
 export type AdminActivityStatus =
   | "invitation_pending"

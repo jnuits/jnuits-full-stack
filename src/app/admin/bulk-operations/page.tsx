@@ -12,7 +12,8 @@ import {
   getBulkOperationDefinition,
   type BulkOperationRowIssue,
 } from "@/lib/admin/bulk-operation-templates";
-import { hasPermission, requireAdminPermission } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/session";
+import { requireAdminPagePermission as requireAdminPermission } from "@/lib/admin/activity/page-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 
