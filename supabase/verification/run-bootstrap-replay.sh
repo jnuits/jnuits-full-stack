@@ -345,6 +345,9 @@ docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP
 docker_run cp "$(to_native "$repo_root/supabase/verification/assert-workplace-applicability.sql")" "$db_container:/tmp/jnuits-replay/assert-workplace-applicability.sql"
 docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/jnuits-replay/assert-workplace-applicability.sql
 
+docker_run cp "$(to_native "$repo_root/supabase/verification/assert-admin-activity.sql")" "$db_container:/tmp/jnuits-replay/assert-admin-activity.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/jnuits-replay/assert-admin-activity.sql
+
 SCRATCH_ACK=DISPOSABLE_SCRATCH node "$repo_root/supabase/verification/run-admin-verification-concurrency.mjs" "$db_container"
 
 docker_run cp \
@@ -438,5 +441,11 @@ lint_output="$scratch_dir/database-lint.stdout"
 run_local_read_with_pull_retry "$lint_output" \
   db lint --local --schema public,private --level error --fail-on error
 cat "$lint_output"
+
+printf 'Checking disposable database security/performance advisors for errors.\n'
+advisors_output="$scratch_dir/database-advisors.stdout"
+run_local_read_with_pull_retry "$advisors_output" \
+  db advisors --local --type all --level error --fail-on error
+cat "$advisors_output"
 
 printf 'BOOTSTRAP REPLAY COMPLETE\n'

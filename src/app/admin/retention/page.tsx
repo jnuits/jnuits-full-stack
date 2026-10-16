@@ -1,5 +1,6 @@
 import { RetentionWorkspace } from "@/components/admin/retention-workspace";
-import { authorizeAdminRead, adminReadVerificationNotice } from "@/lib/auth/admin-verification/read-boundary";
+import { adminReadVerificationNotice } from "@/lib/auth/admin-verification/read-boundary";
+import { authorizeAdminPageRead as authorizeAdminRead } from "@/lib/admin/activity/page-access";
 
 export const metadata = { title: "Data Retention — Admin | JnUITS" };
 

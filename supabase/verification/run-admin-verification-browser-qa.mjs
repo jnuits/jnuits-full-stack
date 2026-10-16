@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { disableReplayCatalogCache } from "./configure-bootstrap-replay.mjs";
+import { finishLocalProxyError } from "./local-proxy-error.mjs";
 
 // Only creates its own isolated, unlinked project. There is deliberately no
 // --db-url, --linked, existing workdir or hosted-credentials argument.
@@ -102,7 +103,7 @@ try {
   // only in this isolated editor fixture. Browser grants and RLS stay unchanged.
   if (memberEditorQA) sql("grant update on public.members to service_role;");
   if (profileQA) sql("insert into public.departments(code,name,short_code,is_active) values('CSE','Computer Science & Engineering','CSE',true) on conflict do nothing;");
-  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"], ["completionmember","member"], ["completionalumni","alumni"], ["completionadmin","content_admin"]] : []), ...(adminAuditQA ? [["audit", "content_admin"]] : [])]) {
+  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"], ["completionmember","member"], ["completionalumni","alumni"], ["completionadmin","content_admin"]] : []), ...(adminAuditQA ? [["audit", "content_admin"], ["activityreader", "admin"]] : [])]) {
     const email = `qa-${name}-${runId}@local.invalid`, password = `Qa!${randomBytes(18).toString("base64url")}`;
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     assert.ok(!created.error && created.data.user, "Synthetic account creation failed.");
@@ -176,6 +177,53 @@ try {
         sql(`update public.members set current_organization='Synthetic Workplace',designation='Engineer',work_location='Dhaka',workplace_applicability='applicable' where id='${uuid(account.profileId)}';`); result={ok:true};
       }
       else if (action === "audit_reset") { resetAuditFixtures(); result = {ok:true}; }
+      else if (action === "activity_reset") {
+        assert.ok(adminAuditQA);
+        const actorId = uuid(accounts.get("never").userId);
+        sql(`delete from public.security_rate_limits; update public.security_settings set admin_totp_enforced=false;
+          delete from private.admin_activity_events; delete from private.admin_activity_receipts; delete from private.admin_activity_summaries;
+          update private.admin_activity_ingestion_state set lease_id=null,lease_until=null,purge_enabled=false;
+          delete from public.rbac_role_permissions where role_id=(select id from public.rbac_platform_roles where code='admin'and scope='admin')and permission_code='admin.security.read';
+          do $fixture$ begin for i in 1..126 loop
+           perform private.admin_activity_append(jsonb_build_object('id',extensions.gen_random_uuid(),'source','application_commit','sourceId','fixture:'||i,'actorUserId','${actorId}','targetUserId',null,'action','fixture.work','outcome','succeeded','occurredAt',transaction_timestamp(),'recordedAt',clock_timestamp(),'context',jsonb_build_object('observedIp','198.51.100.20','clientIp',null,'countryCode',null,'browser','Synthetic browser','os','Synthetic OS','deviceClass','desktop','networkSource','vercel_edge'),'provenance','Disposable committed source fixture'),false);
+          end loop; end $fixture$;`);
+        assert.ok(!(await accounts.get("activityreader").session.auth.refreshSession()).error, "Synthetic permission refresh failed.");
+        result = {ok:true};
+      }
+      else if (action === "activity_state") {
+        assert.ok(adminAuditQA && account);
+        result = jsonSql(`select json_build_object('workCount',coalesce((select completed_work_count from private.admin_activity_summaries where user_id='${uuid(account.userId)}'),0),'entries',(select count(*)from private.admin_activity_events where source='workspace_entry'and actor_user_id='${uuid(account.userId)}'),'access',(select count(*)from private.admin_activity_events where source='workspace_access'and actor_user_id='${uuid(account.userId)}'));`);
+      }
+      else if (action === "activity_previous_day") {
+        assert.ok(adminAuditQA && account);
+        const id=uuid(account.userId);
+        // Move only this synthetic session's prior daily receipt to yesterday.
+        // The application/DB clocks and real sessions are never overridden.
+        sql(`update private.admin_activity_receipts set source_id='access:${id}:'||((clock_timestamp()at time zone 'UTC')::date-1)::text where source='workspace_access'and actor_user_id='${id}';
+          update private.admin_activity_events set source_id='access:${id}:'||((clock_timestamp()at time zone 'UTC')::date-1)::text,occurred_at=clock_timestamp()-interval '1 day'where source='workspace_access'and actor_user_id='${id}';
+          update private.admin_activity_summaries set last_workspace_access_at=clock_timestamp()-interval '1 day'where user_id='${id}';`);
+        result={ok:true};
+      }
+      else if (action === "activity_collect") {
+        assert.ok(adminAuditQA);
+        const lease = jsonSql("select public.claim_admin_accountability_job();"); assert.ok(lease.claimed);
+        try { result = jsonSql(`select public.collect_admin_auth_activity(500,false,'${uuid(lease.leaseId)}');`); }
+        finally { sql(`select public.release_admin_accountability_job('${uuid(lease.leaseId)}');`); }
+      }
+      else if (action === "activity_password_state") {
+        assert.ok(adminAuditQA && account && body.name === "completionadmin");
+        if (body.password !== undefined) {
+          assert.ok(typeof body.password === "string" && body.password.length < 256);
+          // Native password changes invalidate the older fixture session. Issue
+          // a fresh real session and SSR cookies before the next engine uses it.
+          const checked=await account.session.auth.signInWithPassword({email:account.email,password:body.password});
+          assert.ok(!checked.error && checked.data.user?.id === account.userId,"Synthetic password acceptance failed.");
+          const claims=await account.session.auth.getClaims();
+          assert.ok(!claims.error && claims.data.claims.role === "authenticated","Synthetic replacement session failed.");
+          account.sessionId=uuid(claims.data.claims.session_id); account.password=body.password;
+        }
+        result=jsonSql(`select json_build_object('providerPasswordIds',(select coalesce(json_agg(id order by id),'[]')from auth.audit_log_entries where payload->>'actor_id'='${uuid(account.userId)}'and payload->>'action'='user_updated_password'),'projectedPasswordIds',(select coalesce(json_agg(source_id order by source_id),'[]')from private.admin_activity_events where actor_user_id='${uuid(account.userId)}'and source='native_auth'and action='auth.user_updated_password'));`);
+      }
       else if (action === "audit_state") { assert.ok(adminAuditQA); result=jsonSql("select json_build_object('home',(select body from public.content_pages where slug='home'),'project',(select json_build_object('title',title,'tagline',tagline,'cover',cover_image_url,'featured',is_featured,'status',status) from public.projects where id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1')); "); }
       else if (action === "audit_conflict") { assert.ok(adminAuditQA); sql("update public.content_pages set title='Concurrent synthetic edit' where slug='home';"); result={ok:true}; }
       else if (action === "transport") { assert.ok([...accounts.values()].some(item => item.email === body.to)); const code = body.html.match(/<code\b[^>]*>\s*([0-9]{6})\s*<\/code>/)?.[1]; if (code) mail.set(body.to, code); result = { id: "disposable-transport" }; }
@@ -270,7 +318,7 @@ try {
       const upstream = proxyHttpRequest({hostname:"127.0.0.1",port:3127,path:incoming.url,method:incoming.method,headers:{...incoming.headers,"x-forwarded-proto":"https","x-forwarded-host":incoming.headers.host}},result=>{
         outgoing.writeHead(result.statusCode || 502,result.headers);result.pipe(outgoing);
       });
-      upstream.on("error",()=>outgoing.writeHead(502).end());incoming.pipe(upstream);
+      upstream.on("error",()=>finishLocalProxyError(outgoing));incoming.pipe(upstream);
     });
     await new Promise((resolve,reject)=>{tlsProxy.once("error",reject);tlsProxy.listen(3130,"127.0.0.1",resolve);});
     env.PROFILE_COMPLETION_QA_BASE_URL = "https://127.0.0.1:3130";
@@ -288,7 +336,10 @@ try {
     : [[profileQA ? "e2e/profile-self-service.spec.ts" : "e2e/admin-verification.spec.ts", ["--project=chromium"]]];
   if (profileQA) { env.PLAYWRIGHT_RELEASE_SMOKE = "1"; suites.push(["e2e/profile-completion.spec.ts", (process.env.PROFILE_COMPLETION_QA_PROJECTS ? process.env.PROFILE_COMPLETION_QA_PROJECTS.split(",").map(project=>{assert.ok(["chromium","firefox","webkit"].includes(project));return `--project=${project}`;}) : [])]); }
   if (adminAuditQA) suites.unshift(["e2e/admin-audit-normalization.spec.ts", memberEditorProject ? [`--project=${memberEditorProject}`] : []]);
-  for (const [index, [spec, projects]] of suites.entries()) {
+  if (adminAuditQA) suites.push(["e2e/admin-activity.spec.ts", (process.env.ADMIN_ACTIVITY_QA_PROJECTS ? process.env.ADMIN_ACTIVITY_QA_PROJECTS.split(",").map(project=>{assert.ok(["chromium","firefox","webkit"].includes(project));return `--project=${project}`;}) : [])]);
+  const activityOnly = process.env.ADMIN_ACTIVITY_QA_ONLY === "DISPOSABLE_SCRATCH";
+  assert.ok(!activityOnly || adminAuditQA, "Focused activity QA requires the same disposable production fixtures.");
+  for (const [index, [spec, projects]] of (activityOnly ? suites.filter(([spec])=>spec === "e2e/admin-activity.spec.ts") : suites).entries()) {
     const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", spec, ...projects, "--workers=1", "--retries=0", "--output", join(screenshots, `playwright-output-${index}`), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
     const code = await new Promise(resolve => child.once("exit", resolve));
     if (code !== 0) console.error(`Redacted disposable Next diagnostics: ${diagnostics}`);

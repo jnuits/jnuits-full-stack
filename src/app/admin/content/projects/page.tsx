@@ -1,4 +1,5 @@
-import { hasPermission, requireAdminPermission } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/session";
+import { requireAdminPagePermission as requireAdminPermission } from "@/lib/admin/activity/page-access";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";

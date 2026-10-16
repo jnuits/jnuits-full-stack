@@ -7,6 +7,9 @@ describe("WebKit departing-document error classification",()=>{
  it("recognizes only the locally reproduced same-origin RSC cancellation while a replacement document is pending",()=>{
   expect(isDepartingWebKitPrefetchError({message:error,name,browserName:"webkit",baseURL,replacingDocument:true})).toBe(true);
  });
+ it("recognizes the same engine cancellation on an admin UI route",()=>{
+  expect(isDepartingWebKitPrefetchError({message:error.replace("/portal/projects","/admin/committee"),name,browserName:"webkit",baseURL,replacingDocument:true})).toBe(true);
+ });
  it.each([
   {message:error,replacingDocument:false},
   {message:error,browserName:"chromium"},
@@ -14,6 +17,8 @@ describe("WebKit departing-document error classification",()=>{
   {message:error,name:"Error"},
   {message:error.replace("127.0.0.1:3130","attacker.test")},
   {message:error.replace("/portal/projects","/api/profile/direct")},
+  {message:error.replace("/portal/projects","/admin/audit/export")},
+  {message:error.replace("/portal/projects","/admin/reports/download")},
   {message:error.replace("?_rsc=fixture","")},
   {message:"Refused to load script due to Content Security Policy"},
   {message:"Hydration failed"},

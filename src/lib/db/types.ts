@@ -4284,6 +4284,10 @@ export type Database = {
       }
       admin_verification_suggestion: { Args: { p_input: Json }; Returns: Json }
       allocate_membership_id: { Args: { year_block: string }; Returns: string }
+      append_admin_activity: {
+        Args: { p_event: Json; p_session_id: string }
+        Returns: string
+      }
       apply_admin_role_operation: {
         Args: { p_operation: string; p_payload: Json; p_proof: string }
         Returns: Json
@@ -4359,6 +4363,11 @@ export type Database = {
           registration_id: string
           result_status: string
         }[]
+      }
+      claim_admin_accountability_job: { Args: never; Returns: Json }
+      collect_admin_auth_activity: {
+        Args: { p_dry_run: boolean; p_lease_id: string; p_limit: number }
+        Returns: Json
       }
       commit_bulk_membership_operation: {
         Args: { target_operation_id: string }
@@ -4472,6 +4481,10 @@ export type Database = {
         Returns: string
       }
       format_jnuits_id: { Args: { raw_id: string }; Returns: string }
+      get_admin_activity_summary: {
+        Args: { p_actor: Json; p_target: string }
+        Returns: Json
+      }
       get_admin_notice_summary: { Args: never; Returns: Json }
       get_event_registration_counts: {
         Args: { p_event_ids: string[] }
@@ -4546,10 +4559,12 @@ export type Database = {
         Returns: Json
       }
       normalize_jnuits_id: { Args: { raw_id: string }; Returns: string }
+      preview_admin_activity_retention: { Args: never; Returns: Json }
       preview_bulk_membership_operation: {
         Args: { target_operation_id: string }
         Returns: Json
       }
+      preview_routine_auth_retention: { Args: never; Returns: Json }
       promote_event_waitlist_registration: {
         Args: {
           p_actor_user_id: string
@@ -4572,8 +4587,20 @@ export type Database = {
           form_version_id: string
         }[]
       }
+      purge_expired_admin_activity: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
       purge_retention_job: {
         Args: { p_actor_user_id: string; p_job_id: string; p_scope: string }
+        Returns: Json
+      }
+      purge_routine_auth_retention: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      query_admin_activity: {
+        Args: { p_actor: Json; p_filters: Json; p_full_network_id?: string }
         Returns: Json
       }
       reconcile_membership_lifecycle: {
@@ -4697,6 +4724,10 @@ export type Database = {
         Returns: {
           result_status: string
         }[]
+      }
+      release_admin_accountability_job: {
+        Args: { p_failed?: boolean; p_lease_id: string }
+        Returns: undefined
       }
       request_membership_transition: {
         Args: {

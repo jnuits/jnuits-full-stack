@@ -500,6 +500,10 @@ async function loginForPortal(portal: LoginPortal, formData: FormData) {
     });
   }
 
+  if (portal === "admin") {
+    const { recordCurrentAdminSignIn } = await import("@/lib/admin/activity/capture-server");
+    await recordCurrentAdminSignIn();
+  }
   let redirectPath = nextPath;
   if (portal === "admin") {
     const mfa = await checkAdminMFA(supabase);

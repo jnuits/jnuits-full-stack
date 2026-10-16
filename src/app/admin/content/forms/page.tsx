@@ -1,4 +1,4 @@
-import { requireAdminPermission } from "@/lib/auth/session";
+import { requireAdminPagePermission as requireAdminPermission } from "@/lib/admin/activity/page-access";
 import { FormInventoryProvider } from "@/components/admin/form-inventory-context";
 import { FormLifecyclePanel } from "@/components/admin/form-lifecycle-panel";
 import { ModernFormStudioScreen } from "@/components/admin/modern-form-studio-screen";

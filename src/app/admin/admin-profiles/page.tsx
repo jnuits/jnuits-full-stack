@@ -1,4 +1,5 @@
 import { OwnAdminCompletionCards } from "@/components/profile/own-admin-completion-cards";
+import { AdminAccountabilitySummarySection } from "@/components/admin/admin-accountability-summary-section";
 import type { ReactNode } from "react";
 
 import { cookies } from "next/headers";
@@ -41,7 +42,8 @@ import {
   type AdminProfileStats,
 } from "@/lib/admin/admin-profile-model";
 import { loadAdminProfileDirectory } from "@/lib/admin/admin-profiles";
-import { hasPermission, requireAdminUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/session";
+import { requireAdminPageUser as requireAdminUser } from "@/lib/admin/activity/page-access";
 
 export const metadata = { title: "Admin Accounts | JnUITS Admin" };
 
@@ -802,6 +804,7 @@ export default async function AdminProfilesPage({
   const filters = parseAdminProfileFilters(resolvedSearchParams);
   const selfOnly = filters.tab === "self";
   const canViewDirectory = await hasPermission("admin.admin_profiles.manage");
+  const canViewAudit = await hasPermission("admin.audit.read");
   const cookieStore = await cookies();
   const flash = parseAdminFlash(cookieStore.get(ADMIN_FLASH_COOKIE_NAME)?.value);
   const {
@@ -828,6 +831,7 @@ export default async function AdminProfilesPage({
   return (
     <div className="grid gap-8">
       {selfOnly ? <OwnAdminCompletionCards /> : null}
+      {detailProfile && (selfOnly || (canViewDirectory && canViewAudit)) ? <AdminAccountabilitySummarySection targetUserId={detailProfile.userId} /> : null}
       <div className="admin-page-header">
         <div>
           <p className="admin-page-header__breadcrumb">{selfOnly ? "Settings / My Profile" : "Admin / Admin Accounts"}</p>

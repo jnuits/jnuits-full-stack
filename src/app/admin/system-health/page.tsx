@@ -1,5 +1,6 @@
 import { Activity, AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
-import { authorizeAdminRead, adminReadVerificationNotice } from "@/lib/auth/admin-verification/read-boundary";
+import { adminReadVerificationNotice } from "@/lib/auth/admin-verification/read-boundary";
+import { authorizeAdminPageRead as authorizeAdminRead } from "@/lib/admin/activity/page-access";
 import {
   buildSystemHealthSnapshot,
   type HealthStatus,

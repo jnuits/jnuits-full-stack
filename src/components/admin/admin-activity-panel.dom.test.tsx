@@ -57,6 +57,15 @@ describe("AdminActivityPanel Component", () => {
     },
   ];
 
+  it("uses server-supplied actor options without asking operators to guess UUIDs", async () => {
+    const onFilterChange = vi.fn();
+    const user = userEvent.setup();
+    render(<AdminActivityPanel items={[]} coverage={coverage} page={1} totalItems={0} filterOptions={{ actors: [{ value: "fixture-actor-id", label: "Fixture operator" }] }} onFilterChange={onFilterChange} />);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Actor" }), "fixture-actor-id");
+    await user.click(screen.getByRole("button", { name: "Apply filters" }));
+    expect(onFilterChange).toHaveBeenCalledWith(expect.objectContaining({ actor: "fixture-actor-id" }));
+  });
+
   it("renders coverage banner, event table, and distinct outcome badges", () => {
     render(
       <AdminActivityPanel
@@ -69,6 +78,9 @@ describe("AdminActivityPanel Component", () => {
     );
 
     expect(screen.getByTestId("activity-coverage-banner")).toBeInTheDocument();
+    for (const cell of document.querySelectorAll("tbody td")) {
+      expect(cell.getAttribute("data-label")).toBeTruthy();
+    }
     expect(screen.getByText(/Coverage: current/i)).toBeInTheDocument();
 
     const actors = screen.getAllByText("Super Admin (Redwan)");

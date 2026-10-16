@@ -1,10 +1,12 @@
 import { Phone } from "lucide-react";
 import { ContactSettingsEditor } from "./contact-settings-editor";
 import { getContactSettingRows } from "@/lib/contact-settings";
+import { requireAdminPagePermission } from "@/lib/admin/activity/page-access";
 
 export const metadata = { title: "Contact Page Settings | JnUITS" };
 
 export default async function AdminContactSettingsPage() {
+  await requireAdminPagePermission("admin.settings.read", {fallbackPath:"/admin"});
   const rows = await getContactSettingRows({ includePrivate: true });
 
   return (

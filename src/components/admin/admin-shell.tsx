@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { IDENTITY_PROFILE_REQUEST_TYPES } from "@/lib/admin/profile-request-types";
 import { AdminNavClient } from "./admin-nav-client";
 import { AdminMfaSuggestion } from "./admin-mfa-suggestion";
+import { recordCurrentAdminWorkspaceAccess } from "@/lib/admin/activity/capture-server";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ export async function AdminShell({
   children: React.ReactNode;
 }) {
   await requireAdminUser({ fallbackPath: "/admin" });
+  await recordCurrentAdminWorkspaceAccess();
   const navigationItems = await getAllowedNavigationItems();
   const showPendingApps = navigationItems.some(item => item.badgeKey === "pendingApps");
   const showPendingProfileRequests = navigationItems.some(item => item.badgeKey === "pendingProfileRequests");

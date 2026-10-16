@@ -1,5 +1,6 @@
 import { AdminSecuritySettingsScreen } from "@/components/admin/admin-security-settings-screen";
-import { authorizeAdminRead, adminReadVerificationNotice } from "@/lib/auth/admin-verification/read-boundary";
+import { adminReadVerificationNotice } from "@/lib/auth/admin-verification/read-boundary";
+import { authorizeAdminPageRead as authorizeAdminRead } from "@/lib/admin/activity/page-access";
 
 export const metadata = { title: "Admin Security Settings | JnUITS" };
 

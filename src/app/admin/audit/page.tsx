@@ -1,4 +1,5 @@
-import { requireAdminPermission } from "@/lib/auth/session";
+import { requireAdminPagePermission as requireAdminPermission } from "@/lib/admin/activity/page-access";
+import { AdminActivityView } from "@/components/admin/admin-activity-view";
 import Link from "next/link";
 import { AutoSubmitForm } from "@/components/admin/auto-submit-form";
 import { Download, RotateCcw, Search, ShieldCheck } from "lucide-react";
@@ -74,6 +75,9 @@ export default async function AdminAuditPage({
 }) {
   await requireAdminPermission("admin.audit.read", { fallbackPath: "/admin/dashboard" });
   const resolved = await searchParams;
+  if (resolved.view === "activity") {
+    return <div className="grid gap-6"><div className="admin-page-header"><div><p className="admin-page-header__breadcrumb">Admin / Security</p><h1 className="admin-page-header__title">Admin activity</h1></div></div><nav aria-label="Audit views" className="flex flex-wrap gap-3"><Link className="ghost-button" href="/admin/audit">Legacy audit</Link><Link className="secondary-button" aria-current="page" href="/admin/audit?view=activity">Admin activity</Link></nav><AdminActivityView params={resolved}/></div>;
+  }
   const filters = parseAuditFilters(resolved);
   const { actions, actorOptions, entityTypes, events, totalCount } = await loadAuditExplorerData(filters);
   const params = new URLSearchParams();
@@ -90,6 +94,7 @@ export default async function AdminAuditPage({
 
   return (
     <div className="grid gap-8">
+      <nav aria-label="Audit views" className="flex flex-wrap gap-3"><Link className="secondary-button" aria-current="page" href="/admin/audit">Legacy audit</Link><Link className="ghost-button" href="/admin/audit?view=activity">Admin activity</Link></nav>
       <div className="admin-page-header">
         <div>
           <p className="admin-page-header__breadcrumb">Admin / Security</p>

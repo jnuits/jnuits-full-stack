@@ -1,4 +1,4 @@
-import { requireAdminPermission } from "@/lib/auth/session";
+import { requireAdminPagePermission as requireAdminPermission } from "@/lib/admin/activity/page-access";
 import { cookies } from "next/headers";
 import {
   ADMIN_FLASH_COOKIE_NAME,

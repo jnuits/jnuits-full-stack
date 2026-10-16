@@ -1,4 +1,4 @@
-import { requireAdminPermission } from "@/lib/auth/session";
+import { requireAdminPagePermission as requireAdminPermission } from "@/lib/admin/activity/page-access";
 import Image from "next/image";
 import Link from "next/link";
 import { cookies } from "next/headers";

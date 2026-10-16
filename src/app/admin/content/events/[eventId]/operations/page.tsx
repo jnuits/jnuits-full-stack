@@ -1,4 +1,4 @@
-import { requireAdminPermission } from "@/lib/auth/session";
+import { requireAdminPagePermission as requireAdminPermission } from "@/lib/admin/activity/page-access";
 import { notFound } from "next/navigation";
 import { EventOperationsScreen } from "@/components/admin/event-operations-screen";
 import { getAdminEventById } from "@/lib/content/events";

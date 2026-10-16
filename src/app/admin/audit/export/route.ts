@@ -6,6 +6,7 @@ import {
 } from "@/lib/admin/audit-explorer";
 import { requireAdminPermission } from "@/lib/auth/session";
 import { apiError } from "@/lib/errors/api-error";
+import { loadAdminActivity, activityItemsToCsv } from "@/lib/admin/activity/query";
 
 // Auth gate runs outside the catch-all so unauthenticated visitors receive
 // the normal admin redirect (not a JSON 500 from a swallowed NEXT_REDIRECT).
@@ -15,6 +16,11 @@ export async function GET(request: NextRequest) {
   });
 
   try {
+    if (request.nextUrl.searchParams.get("view") === "activity") {
+      const read=(key:string)=>request.nextUrl.searchParams.get(key)||"";
+      const {items}=await loadAdminActivity({page:Number(read("page"))||1,pageSize:Number(read("pageSize"))||25,actor:read("actor"),action:read("action"),outcome:read("outcome"),from:read("from"),to:read("to")});
+      return new NextResponse(activityItemsToCsv(items),{headers:{"Cache-Control":"private, no-store","Content-Type":"text/csv; charset=utf-8","Content-Disposition":"attachment; filename=\"jnuits-admin-activity.csv\""}});
+    }
 
     const filters = parseAuditFilters(
       Object.fromEntries(request.nextUrl.searchParams.entries())

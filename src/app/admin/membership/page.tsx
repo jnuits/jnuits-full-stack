@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { loadCurrentPublicCommitteeTitles } from "@/lib/committee/current-titles.server";
-import { requireAdminPermission } from "@/lib/auth/session";
+import { requireAdminPagePermission as requireAdminPermission } from "@/lib/admin/activity/page-access";
 
 import {
   MembershipDbClient,

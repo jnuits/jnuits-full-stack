@@ -1,4 +1,4 @@
-import { requireAdminPermission } from "@/lib/auth/session";
+import { requireAdminPagePermission as requireAdminPermission } from "@/lib/admin/activity/page-access";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { EventEditorScreen } from "@/components/admin/event-editor-screen";

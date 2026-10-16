@@ -15,7 +15,7 @@ const fixtures = [];
 const tables = ["form_definitions", "form_versions", "form_submissions", "form_submission_assets", "form_export_jobs", "form_archive_jobs", "alumni_onboarding_cases"];
 const types = `export type Database = {\n${tables.map((table) => `  ${table}: never`).join("\n")}\n}\n`;
 
-function runFixture({ mode = "pull", failures = 1, lint = false, imageMode = "cached", cliVersion = "2.109.1", generateTypes = true } = {}) {
+function runFixture({ mode = "pull", failures = 1, lint = false, advisor = false, imageMode = "cached", cliVersion = "2.109.1", generateTypes = true } = {}) {
   const root = mkdtempSync(join(tmpdir(), "jnuits-replay-retry-test-"));
   fixtures.push(root);
   const verification = join(root, "supabase/verification");
@@ -43,6 +43,7 @@ case "$1" in
   start|stop) exit 0;;
   gen|db)
     operation="$1"
+    if [[ "$operation" == db && "$2" == advisors ]]; then operation=advisors; fi
     count_file="$FIXTURE_ROOT/$operation-attempts"
     count=0; [[ ! -f "$count_file" ]] || count="$(cat "$count_file")"
     count=$((count + 1)); printf '%s' "$count" > "$count_file"
@@ -93,9 +94,9 @@ fi
     cwd: root,
     encoding: "utf8",
     timeout: fixtureTimeout,
-    env: { ...process.env, SUPABASE_BIN: cli.replaceAll("\\", "/"), SUPABASE_CLI_COMMAND: "", SUPABASE_REPLAY_DB_PORT: "", DB_TYPES_OUTPUT: join(root, "database.types.ts").replaceAll("\\", "/"), SCRATCH_ACK: "DISPOSABLE_SCRATCH", FIXTURE_ROOT: root.replaceAll("\\", "/"), IMAGE_MODE: imageMode, CLI_VERSION: cliVersion, GENERATE_TYPES: generateTypes ? "--generate-types" : "", FAIL_MODE: mode, FAILURES: String(failures), FAIL_OPERATION: lint ? "db" : "gen" },
+    env: { ...process.env, SUPABASE_BIN: cli.replaceAll("\\", "/"), SUPABASE_CLI_COMMAND: "", SUPABASE_REPLAY_DB_PORT: "", DB_TYPES_OUTPUT: join(root, "database.types.ts").replaceAll("\\", "/"), SCRATCH_ACK: "DISPOSABLE_SCRATCH", FIXTURE_ROOT: root.replaceAll("\\", "/"), IMAGE_MODE: imageMode, CLI_VERSION: cliVersion, GENERATE_TYPES: generateTypes ? "--generate-types" : "", FAIL_MODE: mode, FAILURES: String(failures), FAIL_OPERATION: advisor ? "advisors" : lint ? "db" : "gen" },
   });
-  const attemptsFile = join(root, lint ? "db-attempts" : "gen-attempts");
+  const attemptsFile = join(root, advisor ? "advisors-attempts" : lint ? "db-attempts" : "gen-attempts");
   const attempts = existsSync(attemptsFile) ? readFileSync(attemptsFile, "utf8") : "0";
   return { ...result, dockerCalls: readFileSync(join(root, "docker-calls"), "utf8"), attempts: Number(attempts), backoffs: existsSync(join(root, "backoffs")) ? readFileSync(join(root, "backoffs"), "utf8") : "", artifact: readFileSync(join(root, "database.types.ts"), "utf8") };
 }
@@ -105,6 +106,11 @@ afterEach(() => {
 });
 
 describe("disposable replay image-pull retry", () => {
+  it("runs advisors separately from function lint and fails closed on an advisor SQL error",()=>{
+    const result=runFixture({advisor:true,mode:"sql",generateTypes:false,failures:9});
+    expect(result.status).toBe(7);expect(result.attempts).toBe(1);expect(result.backoffs).toBe("");
+    expect(result.artifact).toBe("previous canonical artifact\n");
+  },testTimeout);
   it("rejects an unverified CLI version without applying migrations or generating types", () => {
     const result = runFixture({ cliVersion: "2.110.0", failures: 0 });
     expect(result.status).not.toBe(0);

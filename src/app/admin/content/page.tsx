@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BookOpen, Calendar, Image as ImageIcon, FolderOpen, FileText, Upload, BarChart2 } from "lucide-react";
-import { hasPermission, requireAdminPermission } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/session";
+import { requireAdminPagePermission as requireAdminPermission } from "@/lib/admin/activity/page-access";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isCloudinaryConfigured } from "@/lib/cloudinary/config";
