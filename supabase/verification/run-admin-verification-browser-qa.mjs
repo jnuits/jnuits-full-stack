@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { disableReplayCatalogCache } from "./configure-bootstrap-replay.mjs";
 import { finishLocalProxyError } from "./local-proxy-error.mjs";
+import { createAdminNotificationsFixture } from "./admin-notifications-fixture.mjs";
 
 // Only creates its own isolated, unlinked project. There is deliberately no
 // --db-url, --linked, existing workdir or hosted-credentials argument.
@@ -30,6 +31,8 @@ const runId = randomBytes(6).toString("hex");
 const projectId = `jnuits-admin-qa-${runId}`;
 const dbContainer = `supabase_db_${projectId}`;
 const bridgeToken = randomBytes(32).toString("base64url");
+const notificationCronSecret = randomBytes(32).toString("base64url");
+const notificationWebhookSecret = "whsec_" + randomBytes(32).toString("base64");
 const screenshots = memberEditorQA ? join(repo, "artifacts/reports/member-editor-browser") : mkdtempSync(join(tmpdir(), "jnuits-admin-qa-"));
 mkdirSync(screenshots, { recursive: true });
 const require = createRequire(join(repo, "package.json"));
@@ -99,11 +102,16 @@ try {
   // Mirror existing hosted explicit exposure. Never grant browser RBAC/proof
   // table writes; authorization RPC ACLs remain exactly as migrated.
   sql("grant select on all tables in schema public to service_role; grant insert,update on public.profile_update_requests to service_role; grant insert on public.audit_events to service_role; update public.security_settings set admin_totp_enforced=false where id;");
+  // Hosted read-only inspection verified these existing invoker-webhook grants.
+  // SELECT FOR UPDATE needs UPDATE even for an untracked provider message.
+  if (adminAuditQA) sql("grant update on public.invitation_email_deliveries,public.form_confirmation_deliveries,public.event_registration_deliveries to service_role;");
+  // Existing invitation/security bookkeeping grants verified in hosted catalog.
+  if (adminAuditQA) sql("grant insert,update on public.admin_invitations,public.member_invitations,public.security_events to service_role;");
   // Hosted service_role UPDATE on members was independently verified; mirror it
   // only in this isolated editor fixture. Browser grants and RLS stay unchanged.
   if (memberEditorQA) sql("grant update on public.members to service_role;");
   if (profileQA) sql("insert into public.departments(code,name,short_code,is_active) values('CSE','Computer Science & Engineering','CSE',true) on conflict do nothing;");
-  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"], ["completionmember","member"], ["completionalumni","alumni"], ["completionadmin","content_admin"]] : []), ...(adminAuditQA ? [["audit", "content_admin"], ["activityreader", "admin"]] : [])]) {
+  for (const [name, role] of [["never", "super_admin"], ["voluntary", "super_admin"], ["super", "super_admin"], ["target", "content_admin"], ["setup", "super_admin"], ...(profileQA ? [["profile", "alumni"], ["completionmember","member"], ["completionalumni","alumni"], ["completionadmin","content_admin"]] : []), ...(adminAuditQA ? [["audit", "content_admin"], ["activityreader", "admin"], ["noticeactor","super_admin"]] : [])]) {
     const email = `qa-${name}-${runId}@local.invalid`, password = `Qa!${randomBytes(18).toString("base64url")}`;
     const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     assert.ok(!created.error && created.data.user, "Synthetic account creation failed.");
@@ -159,6 +167,7 @@ try {
       insert into public.audit_events(actor_user_id,action,entity_type,entity_id,metadata) values('${uuid(accounts.get("audit").userId)}','fixture.audit_acceptance','fixture','fixture','{}');`);
   };
   if (adminAuditQA) resetAuditFixtures();
+  const notificationFixture = createAdminNotificationsFixture({dbContainer,appBaseUrl:"http://127.0.0.1:3127",accounts,sql,jsonSql,uuid,totp,cronSecret:notificationCronSecret,webhookSecret:notificationWebhookSecret});
   bridge = createServer(async (request, response) => {
     response.setHeader("Cache-Control", "no-store");
     if (request.headers.authorization !== `Bearer ${bridgeToken}` || request.method !== "POST") { response.writeHead(403).end(); return; }
@@ -166,6 +175,11 @@ try {
       let raw = ""; for await (const chunk of request) { raw += chunk; if (raw.length > 32_000) throw new Error("Fixture body too large."); }
       const body = JSON.parse(raw); const account = accounts.get(body.name);
       let result; const action = request.url.slice(1);
+      if (action.startsWith("notice_")) {
+        assert.ok(adminAuditQA, "Notifications require isolated production fixtures.");
+        const value = await notificationFixture.handle(action, body);
+        response.writeHead(value.status || 200, {"Content-Type":"application/json"}).end(JSON.stringify(value.value));return;
+      }
       const roleIntent = { operation: "admin.role.change", payload: { adminProfileId: accounts.get("target").profileId, roleCode: "admin", confirmation: accounts.get("target").adminCode } };
       if (action === "account") { assert.ok(account); result = { cookies: account.cookies.map(({ name, value }) => ({ name, value })), userId: account.userId, password: account.password, factorId: account.factorId }; }
       else if (action === "completion_reset") {
@@ -274,6 +288,7 @@ try {
   const workflow = readFileSync(join(repo, ".github/workflows/quality-gate.yml"), "utf8");
   for (const match of workflow.split("  build_and_browser:")[1].split("    steps:")[0].matchAll(/^      ([A-Z_]+): (.+)$/gm)) { const value = match[2].trim(); env[match[1]] = value.startsWith('"') ? JSON.parse(value) : value; }
   Object.assign(env, { NEXT_PUBLIC_SUPABASE_URL: status.API_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY, SUPABASE_SECRET_KEY: status.SERVICE_ROLE_KEY, APP_BASE_URL: "http://127.0.0.1:3127", NEXT_PUBLIC_SENTRY_DSN: "", SENTRY_AUTH_TOKEN: "", SENTRY_ORG: "", SENTRY_PROJECT: "", NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA", TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA" });
+  if (adminAuditQA) Object.assign(env, {VERCEL_ENV:"production",CRON_SECRET:notificationCronSecret,RESEND_WEBHOOK_SECRET:notificationWebhookSecret,RESEND_FROM_EMAIL:"JnUITS <no-reply@jnuits.org.bd>",RESEND_REPLY_TO:"no-reply@jnuits.org.bd"});
   assert.equal(env.AUTH_CAPTCHA_REQUIRED, "true");
   // Match the production durable limiter with a fresh disposable salt.
   env.RATE_LIMIT_BACKEND = "supabase";
@@ -283,7 +298,7 @@ try {
   let diagnostics = "";
   const capture = chunk => {
     let safe = String(chunk);
-    for (const secret of [bridgeToken, status.SERVICE_ROLE_KEY, status.ANON_KEY, env.RATE_LIMIT_SECRET_SALT, ...[...accounts.values()].flatMap(account => [account.password, account.secret].filter(Boolean)), ...mail.values()]) safe = safe.split(secret).join("[redacted]");
+    for (const secret of [bridgeToken, notificationCronSecret, notificationWebhookSecret, status.SERVICE_ROLE_KEY, status.ANON_KEY, env.RATE_LIMIT_SECRET_SALT, ...[...accounts.values()].flatMap(account => [account.password, account.secret].filter(Boolean)), ...mail.values()]) safe = safe.split(secret).join("[redacted]");
     diagnostics = `${diagnostics}${safe.replace(/eyJ[A-Za-z0-9._-]+/g, "[token redacted]").replace(/\b[0-9]{6}\b/g, "[code redacted]")}`.slice(-4000);
   };
   if (profileQA) {
@@ -337,9 +352,12 @@ try {
   if (profileQA) { env.PLAYWRIGHT_RELEASE_SMOKE = "1"; suites.push(["e2e/profile-completion.spec.ts", (process.env.PROFILE_COMPLETION_QA_PROJECTS ? process.env.PROFILE_COMPLETION_QA_PROJECTS.split(",").map(project=>{assert.ok(["chromium","firefox","webkit"].includes(project));return `--project=${project}`;}) : [])]); }
   if (adminAuditQA) suites.unshift(["e2e/admin-audit-normalization.spec.ts", memberEditorProject ? [`--project=${memberEditorProject}`] : []]);
   if (adminAuditQA) suites.push(["e2e/admin-activity.spec.ts", (process.env.ADMIN_ACTIVITY_QA_PROJECTS ? process.env.ADMIN_ACTIVITY_QA_PROJECTS.split(",").map(project=>{assert.ok(["chromium","firefox","webkit"].includes(project));return `--project=${project}`;}) : [])]);
+  if (adminAuditQA) suites.push(["e2e/admin-notifications.spec.ts", (process.env.ADMIN_NOTIFICATIONS_QA_PROJECTS ? process.env.ADMIN_NOTIFICATIONS_QA_PROJECTS.split(",").map(project=>{assert.ok(["chromium","firefox","webkit"].includes(project));return `--project=${project}`;}) : [])]);
   const activityOnly = process.env.ADMIN_ACTIVITY_QA_ONLY === "DISPOSABLE_SCRATCH";
+  const notificationsOnly = process.env.ADMIN_NOTIFICATIONS_QA_ONLY === "DISPOSABLE_SCRATCH";
   assert.ok(!activityOnly || adminAuditQA, "Focused activity QA requires the same disposable production fixtures.");
-  for (const [index, [spec, projects]] of (activityOnly ? suites.filter(([spec])=>spec === "e2e/admin-activity.spec.ts") : suites).entries()) {
+  assert.ok(!notificationsOnly || (adminAuditQA && !activityOnly), "Focused notifications require the same disposable production fixtures and one focused selector.");
+  for (const [index, [spec, projects]] of (notificationsOnly ? suites.filter(([spec])=>spec === "e2e/admin-notifications.spec.ts") : activityOnly ? suites.filter(([spec])=>spec === "e2e/admin-activity.spec.ts") : suites).entries()) {
     const child = spawn(process.execPath, [join(repo, "node_modules/@playwright/test/cli.js"), "test", spec, ...projects, "--workers=1", "--retries=0", "--output", join(screenshots, `playwright-output-${index}`), "--last-failed-file", join(repo, "test-results/playwright/.last-run.json")], { cwd: repo, env, stdio: "inherit" });
     const code = await new Promise(resolve => child.once("exit", resolve));
     if (code !== 0) console.error(`Redacted disposable Next diagnostics: ${diagnostics}`);

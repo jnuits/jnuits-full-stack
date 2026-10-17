@@ -29,10 +29,10 @@ export function AdminRecommendationsCard({
       >
         <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
           <CheckCircle2 size={16} aria-hidden="true" />
-          <span className="font-semibold">All recommendations complete</span>
+          <span className="font-semibold">No recommendations right now</span>
         </div>
         <p className="mt-1 text-[11px] text-[var(--muted-foreground)]">
-          Your profile, security settings, and assigned duty queues have no pending action items.
+          Review your profile and account protection whenever your details change.
         </p>
       </div>
     );

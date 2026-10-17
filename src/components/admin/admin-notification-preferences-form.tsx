@@ -107,11 +107,11 @@ export function AdminNotificationPreferencesForm({
       <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-sky-200/60 bg-sky-50/60 p-3 text-xs text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/20 dark:text-sky-200">
         <ShieldCheck size={16} className="mt-0.5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" />
         <div className="space-y-0.5 leading-relaxed">
-          <p className="font-semibold">Essential account security notices are always active</p>
+          <p className="font-semibold">Your own account security mail is separate</p>
           <p className="opacity-90">
-            Critical security events affecting your own login account (such as password changes,
-            MFA factor enrollments, and recovery requests) are sent directly to your verified Auth
-            email address and cannot be turned off.
+            Password-change messages follow the authentication provider&apos;s security settings and
+            verified account address. These preferences control optional peer security alerts
+            and monthly recommendations.
           </p>
         </div>
       </div>
@@ -167,8 +167,8 @@ export function AdminNotificationPreferencesForm({
                   </span>
                   <p className="text-[11px] text-[var(--muted-foreground)]">
                     Receive at most one personalized digest per month highlighting remaining profile
-                    checks, authenticator setup status, and pending review queues. No email is sent if your
-                    profile and security checks are 100% complete.
+                    checks, authenticator setup status, and pending review queues. No email is sent when there are no
+                    remaining recommendations.
                   </p>
                 </div>
               </label>

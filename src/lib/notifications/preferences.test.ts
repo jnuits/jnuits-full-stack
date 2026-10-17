@@ -42,6 +42,21 @@ describe("optional email preferences", () => {
     vi.clearAllMocks();
   });
 
+  it.each(["admin_security_email_opt_in","admin_recommendation_email_opt_in"]as const)("defaults new optional preference %s to off",async preference=>{
+    mocks.from.mockReturnValue(preferenceQuery({data:null,error:null}));
+    expect(await allowsOptionalEmail("user-1",preference)).toBe(false);
+    expect(await getOptionalEmailRecipient("user-1",preference)).toBeNull();
+    expect(mocks.getUserById).not.toHaveBeenCalled();
+  });
+
+  it("requires a verified Auth address for the new admin email channels",async()=>{
+    mocks.from.mockReturnValue(preferenceQuery({data:{admin_security_email_opt_in:true},error:null}));
+    mocks.getUserById.mockResolvedValue({data:{user:{email:"operator@example.test",email_confirmed_at:null}},error:null});
+    expect(await getOptionalEmailRecipient("user-1","admin_security_email_opt_in")).toBeNull();
+    mocks.getUserById.mockResolvedValue({data:{user:{email:"operator@example.test",email_confirmed_at:"2026-10-16T00:00:00Z"}},error:null});
+    expect(await getOptionalEmailRecipient("user-1","admin_security_email_opt_in")).toBe("operator@example.test");
+  });
+
   it("uses the opt-in default when no preference row exists", async () => {
     mocks.from.mockReturnValue(preferenceQuery({ data: null, error: null }));
 

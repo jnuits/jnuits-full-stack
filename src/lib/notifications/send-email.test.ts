@@ -11,6 +11,29 @@ vi.mock("@/lib/errors/api-error", () => ({
 import { sendEmail } from "@/lib/notifications/send-email";
 
 describe("sendEmail", () => {
+  it("reports missing configuration without attempting a provider request",async()=>{
+    vi.stubEnv("RESEND_API_KEY","");vi.stubEnv("RESEND_FROM_EMAIL","");
+    const transport=vi.fn();vi.stubGlobal("fetch",transport);
+    expect(await sendEmail({to:"operator@example.test",subject:"Security notice",html:"<p>Change recorded</p>"})).toMatchObject({success:false,failureKind:"configuration"});
+    expect(transport).not.toHaveBeenCalled();
+  });
+  it.each([[400,"rejected"],[429,"rate_limited"],[503,"uncertain"]])("classifies HTTP %s without claiming delivery",async(status,kind)=>{
+    vi.stubEnv("RESEND_API_KEY","test-api-key");vi.stubEnv("RESEND_FROM_EMAIL","no-reply@example.test");
+    vi.stubGlobal("fetch",vi.fn().mockResolvedValue(Response.json({message:"private provider details"},{status:status as number})));
+    const result=await sendEmail({to:"operator@example.test",subject:"Security notice",html:"<p>Change recorded</p>",redactProviderErrors:true});
+    expect(result).toMatchObject({success:false,failureKind:kind,httpStatus:status});
+    expect(JSON.stringify([result,mocks.logServerError.mock.calls])).not.toContain("private provider details");
+  });
+  it("preserves an unknown outcome after transport loss",async()=>{
+    vi.stubEnv("RESEND_API_KEY","test-api-key");vi.stubEnv("RESEND_FROM_EMAIL","no-reply@example.test");
+    vi.stubGlobal("fetch",vi.fn().mockRejectedValue(new Error("connection lost after send")));
+    expect(await sendEmail({to:"operator@example.test",subject:"Security notice",html:"<p>Change recorded</p>",redactProviderErrors:true})).toMatchObject({success:false,failureKind:"uncertain"});
+  });
+  it("does not invent acceptance when a successful HTTP response has no message receipt",async()=>{
+    vi.stubEnv("RESEND_API_KEY","test-api-key");vi.stubEnv("RESEND_FROM_EMAIL","no-reply@example.test");
+    vi.stubGlobal("fetch",vi.fn().mockResolvedValue(Response.json({})));
+    expect(await sendEmail({to:"operator@example.test",subject:"Security notice",html:"<p>Change recorded</p>",redactProviderErrors:true})).toMatchObject({success:false,failureKind:"uncertain"});
+  });
   it("sends newsletter plaintext with a dedicated key without changing transactional credentials",async()=>{
     vi.stubEnv("RESEND_API_KEY","transactional-fixture-key");vi.stubEnv("RESEND_FROM_EMAIL","JnUITS <no-reply@example.test>");
     const fetchMock=vi.fn().mockImplementation(async()=>Response.json({id:"newsletter-message"}));vi.stubGlobal("fetch",fetchMock);

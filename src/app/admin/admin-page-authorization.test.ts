@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const denial = vi.hoisted(() => ({
   permission: vi.fn(async (permission: string) => { throw new Error(`Denied: ${permission}`); }),
@@ -48,10 +48,19 @@ const pages = [
 ] as const;
 
 describe("admin page authorization before privileged reads", () => {
+  const loadedPages = new Map<string, (props: unknown) => unknown>();
+  let dashboard: () => Promise<unknown>;
+  // Cold transforms of whole server pages are fixture setup, not guard work.
+  // Keep each actual authorization assertion under the normal five-second limit.
+  beforeAll(async () => {
+    await Promise.all(pages.map(async ([path, , load]) => {
+      loadedPages.set(path, (await load()).default as (props: unknown) => unknown);
+    }));
+    dashboard = (await import("./page")).default;
+  }, 60_000);
   beforeEach(() => vi.clearAllMocks());
-  it.each(pages)("denies %s with its own permission before privileged work", async (_path, permission, load) => {
-    const pageModule = await load();
-    const page = pageModule.default as (props: unknown) => unknown;
+  it.each(pages)("denies %s with its own permission before privileged work", async (path, permission) => {
+    const page = loadedPages.get(path)!;
     await expect(Promise.resolve().then(() => page({
       searchParams: Promise.resolve({}),
       params: Promise.resolve({ eventId: "fixture", noticeId: "fixture", albumId: "fixture" }),
@@ -59,8 +68,7 @@ describe("admin page authorization before privileged reads", () => {
     expect(denial.database).not.toHaveBeenCalled();
   });
   it("denies the general dashboard before its privileged readers", async () => {
-    const { default: page } = await import("./page");
-    await expect(page()).rejects.toThrow("Denied: active admin");
+    await expect(dashboard()).rejects.toThrow("Denied: active admin");
     expect(denial.database).not.toHaveBeenCalled();
   });
 });

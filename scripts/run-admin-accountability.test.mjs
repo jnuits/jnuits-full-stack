@@ -26,4 +26,9 @@ describe("bounded accountability operator", () => {
       expect(await runAccountabilityOperator([], env, { fetchImpl: async () => response })).toEqual({ ok: false, error: "collection_unavailable" });
     }
   });
+  it("reports bounded notification counters as acceptance, preserving older collection-only receipts",async()=>{
+    const result=await runAccountabilityOperator(["--apply"],env,{fetchImpl:async()=>Response.json({...receipt,notices:4,sends:2,digests:1,recipientEmails:["must-not-print@local.invalid"]})});
+    expect(result).toEqual({ok:true,dryRun:false,...receipt,notices:4,sends:2,digests:1});
+    expect(await runAccountabilityOperator(["--apply"],env,{fetchImpl:async()=>Response.json({...receipt,sends:11})})).toEqual({ok:false,error:"collection_unavailable"});
+  });
 });

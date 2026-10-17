@@ -101,6 +101,14 @@ export async function POST(request: Request) {
       if (newsletter.error) throw new Error("Delivery webhook ledger write failed.");
       result = newsletter.data;
     }
+    if (!result?.tracked && ["email.sent", "email.delivered", "email.bounced", "email.complained", "email.failed", "email.delivery_delayed", "email.suppressed"].includes(event.type)) {
+      const notice = await admin.rpc("record_admin_notification_webhook_event", {
+        p_provider_event_id: event.eventId, p_provider_message_id: event.providerMessageId,
+        p_event_type: event.type, p_occurred_at: event.createdAt,
+      });
+      if (notice.error) throw new Error("Delivery webhook ledger write failed.");
+      result = notice.data;
+    }
     return NextResponse.json({
       duplicate: Boolean(result?.duplicate),
       received: true,

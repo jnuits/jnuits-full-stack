@@ -4,8 +4,16 @@ import {
   AdminRecommendationsCard,
   type AdminRecommendation,
 } from "./admin-recommendations-card";
+import {unavailableCompletion} from "@/lib/profile/completion";
+import {buildAdminRecommendations} from "@/lib/admin/recommendations";
 
 describe("AdminRecommendationsCard Component", () => {
+  it("does not claim verified profile/security completion when source data is unavailable",()=>{
+    const recommendations=buildAdminRecommendations({ownCompletion:{admin:unavailableCompletion(),member:null},accountProtection:{enrollment:"unknown"},permittedQueueCounts:[]});
+    render(<AdminRecommendationsCard recommendations={recommendations}/>);
+    expect(screen.queryByText("All recommendations complete")).not.toBeInTheDocument();
+    expect(screen.queryByText(/security settings.*have no pending/i)).not.toBeInTheDocument();
+  });
   it("renders up to 3 recommendations with labels, explanations, and action links", () => {
     const items: AdminRecommendation[] = [
       {
@@ -57,12 +65,12 @@ describe("AdminRecommendationsCard Component", () => {
     expect(links[2]).toHaveAttribute("href", "/admin/applications");
   });
 
-  it("renders friendly all-complete state when recommendations are empty", () => {
+  it("renders a neutral empty state when no recommendation is available", () => {
     render(<AdminRecommendationsCard recommendations={[]} />);
 
-    expect(screen.getByText("All recommendations complete")).toBeInTheDocument();
+    expect(screen.getByText("No recommendations right now")).toBeInTheDocument();
     expect(
-      screen.getByText(/Your profile, security settings, and assigned duty queues have no pending action items/i)
+      screen.getByText(/Review your profile and account protection whenever your details change/i)
     ).toBeInTheDocument();
   });
 });

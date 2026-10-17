@@ -20,15 +20,28 @@ ServerResponse.prototype.setHeader = function fixtureSetHeader(name, value) {
   return nativeSetHeader.call(this, name, value);
 };
 const nativeFetch = globalThis.fetch;
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Node synchronous test preload.
+const {classifyFixtureResendRequest} = require("./admin-notification-qa-policy.cjs");
 globalThis.fetch = async function fixtureFetch(input, init) {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  if (url !== "https://api.resend.com/emails") return nativeFetch(input, init);
+  const fixture = classifyFixtureResendRequest(url, init);
+  if (!fixture) return nativeFetch(input, init);
+  if (fixture.kind === "suppression") {
+    const response = await nativeFetch(`${process.env.ADMIN_VERIFICATION_QA_BRIDGE}/notice_suppression`, {
+      method:"POST",headers:{Authorization:`Bearer ${process.env.ADMIN_VERIFICATION_QA_TOKEN}`,"Content-Type":"application/json"},body:JSON.stringify({to:fixture.to}),
+    });
+    if (!response.ok) throw new Error("Disposable suppression bridge unavailable.");
+    const state = await response.json();
+    return state.blocked ? Response.json({object:"suppression"}) : new Response(null,{status:404});
+  }
   const body = JSON.parse(init?.body || "{}");
   if (!Array.isArray(body.to) || body.to.length !== 1 || !/^qa-[a-z]+-[a-f0-9]+@local\.invalid$/.test(body.to[0])) {
     throw new Error("Refusing mail outside disposable fixture identities.");
   }
-  return nativeFetch(`${process.env.ADMIN_VERIFICATION_QA_BRIDGE}/transport`, {
+  const idempotencyKey = new Headers(init?.headers).get("Idempotency-Key") || "";
+  const notice = idempotencyKey.startsWith("jnuits-admin/");
+  return nativeFetch(`${process.env.ADMIN_VERIFICATION_QA_BRIDGE}/${notice ? "notice_transport" : "transport"}`, {
     method: "POST", headers: { Authorization: `Bearer ${process.env.ADMIN_VERIFICATION_QA_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ to: body.to[0], html: body.html }),
+    body: JSON.stringify({ to: body.to[0], html: body.html, ...(notice ? {text:body.text,subject:body.subject,from:body.from,replyTo:body.reply_to,idempotencyKey} : {}) }),
   });
 };

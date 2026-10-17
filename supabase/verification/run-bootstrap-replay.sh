@@ -348,6 +348,19 @@ docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP
 docker_run cp "$(to_native "$repo_root/supabase/verification/assert-admin-activity.sql")" "$db_container:/tmp/jnuits-replay/assert-admin-activity.sql"
 docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/jnuits-replay/assert-admin-activity.sql
 
+docker_run cp "$(to_native "$repo_root/supabase/verification/assert-admin-notifications.sql")" "$db_container:/tmp/jnuits-replay/assert-admin-notifications.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/jnuits-replay/assert-admin-notifications.sql
+
+docker_run cp "$(to_native "$repo_root/supabase/verification/assert-admin-notification-delivery.sql")" "$db_container:/tmp/jnuits-replay/assert-admin-notification-delivery.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/jnuits-replay/assert-admin-notification-delivery.sql
+
+docker_run cp "$(to_native "$repo_root/supabase/verification/assert-admin-native-mfa-notices.sql")" "$db_container:/tmp/jnuits-replay/assert-admin-native-mfa-notices.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/jnuits-replay/assert-admin-native-mfa-notices.sql
+docker_run cp "$(to_native "$repo_root/supabase/verification/assert-admin-notification-health.sql")" "$db_container:/tmp/jnuits-replay/assert-admin-notification-health.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/jnuits-replay/assert-admin-notification-health.sql
+docker_run cp "$(to_native "$repo_root/supabase/verification/assert-admin-notification-review.sql")" "$db_container:/tmp/jnuits-replay/assert-admin-notification-review.sql"
+docker_run exec "$db_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/jnuits-replay/assert-admin-notification-review.sql
+
 SCRATCH_ACK=DISPOSABLE_SCRATCH node "$repo_root/supabase/verification/run-admin-verification-concurrency.mjs" "$db_container"
 
 docker_run cp \
