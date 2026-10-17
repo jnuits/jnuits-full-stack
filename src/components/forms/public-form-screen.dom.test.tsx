@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   collectPendingPublicFormUploads,
   PublicFormScreen,
+  uploadToCloudinary,
 } from "@/components/forms/public-form-screen";
 import { PUBLIC_FORM_HONEYPOT_CONTROL_NAME } from "@/lib/forms/control-names";
 import { parseFormDefinition, type FormKind } from "@/lib/forms/definition";
@@ -94,6 +95,23 @@ function uploadFile() {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("private upload transport", () => {
+  it("sends the authenticated delivery type to the signed upload endpoint", async () => {
+    const upload = { fieldId: "identity_document", file: uploadFile(), mimeType: "application/pdf" as const, sha256: "a".repeat(64), size: 3 };
+    const instruction = { ...upload, allowedFormats: "pdf", apiKey: "public-key", assetFolder: "private/forms/fixture", context: "field_id=identity_document", publicId: "fixture.pdf", resourceType: "raw" as const, signature: "b".repeat(64), timestamp: 123, uploadId: "fixture", uploadUrl: "https://api.cloudinary.com/v1_1/fixture/raw/upload" };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue({ ok: true, json: async () => ({ asset_id: "c".repeat(32), bytes: 3, public_id: "fixture.pdf", resource_type: "raw", version: 123 }) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(uploadToCloudinary(upload, instruction)).resolves.toMatchObject({ cloudinaryPublicId: "fixture.pdf", bytes: 3 });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(instruction.uploadUrl);
+    const body = init?.body as FormData;
+    expect(body.get("type")).toBe("authenticated");
+    expect(body.get("signature")).toBe(instruction.signature);
+    expect(body.get("public_id")).toBe(instruction.publicId);
+    expect(body.get("file")).toBeInstanceOf(File);
+  });
 });
 
 describe("the submission success state", () => {

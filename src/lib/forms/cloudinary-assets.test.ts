@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/cloudinary/config", () => ({
@@ -52,6 +53,15 @@ describe("Cloudinary form asset verification", () => {
     expect(fetchImpl).toHaveBeenCalledWith(expect.stringContaining(`/resources/${asset.cloudinaryAssetId}`),
       expect.objectContaining({ headers: { Authorization: expect.stringMatching(/^Basic /) } }));
   });
+  it("accepts native raw PDF metadata without an image format field", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify(providerDetails({ format: undefined })), { status: 200 }));
+    await expect(loadVerifiedCloudinaryFormAsset(asset, { ...ownership, fetchImpl })).resolves.toMatchObject({ resource_type: "raw", type: "authenticated" });
+  });
+  it("still requires an image format and the expected resource type", async () => {
+    const image = { ...asset, contentType: "image/png" as const, resourceType: "image" as const };
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify(providerDetails({ format: undefined, resource_type: "image" })), { status: 200 }));
+    await expect(loadVerifiedCloudinaryFormAsset(image, { ...ownership, fetchImpl })).rejects.toThrow("does not match");
+  });
 
   it.each([
     ["public delivery", { type: "upload" }],
@@ -70,5 +80,13 @@ describe("Cloudinary form asset verification", () => {
     const url = buildSignedCloudinaryFormAssetUrl(asset);
     expect(url).toMatch(/^https:\/\/res\.cloudinary\.com\/test-cloud\/raw\/authenticated\/s--[A-Za-z0-9_-]{8}--\/v1234567890\//);
     expect(url).not.toContain("secret");
+  });
+  it.each([
+    [asset, "11111111-1111-4111-8111-111111111111.pdf"],
+    [{ ...asset, resourceType: "image" as const, contentType: "image/jpeg" as const, cloudinaryPublicId: "portrait" }, "portrait.jpg"],
+  ])("preserves the provider-supported version-inclusive delivery signature", (input, leaf) => {
+    const signature = createHash("sha256").update(`v1234567890/${leaf}secret`).digest("base64url").slice(0, 8);
+    expect(buildSignedCloudinaryFormAssetUrl(input)).toBe(`https://res.cloudinary.com/test-cloud/${input.resourceType}/authenticated/s--${signature}--/v1234567890/${leaf}`);
+    expect(buildSignedCloudinaryFormAssetUrl({ ...input, cloudinaryVersion: "1234567891" })).not.toContain(`/s--${signature}--/`);
   });
 });

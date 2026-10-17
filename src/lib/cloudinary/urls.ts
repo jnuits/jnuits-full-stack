@@ -11,7 +11,7 @@ export type CloudinaryImageVariant = keyof typeof CLOUDINARY_IMAGE_TRANSFORMS;
 export const CLOUDINARY_SRCSET_WIDTHS = [640, 960, 1280, 1600, 1800] as const;
 
 function insertCloudinaryTransform(secureUrl: string, transform: string) {
-  const uploadMarker = "/upload/";
+  const uploadMarker = "/image/upload/";
   const markerIndex = secureUrl.indexOf(uploadMarker);
 
   if (markerIndex === -1) {
@@ -24,12 +24,10 @@ function insertCloudinaryTransform(secureUrl: string, transform: string) {
   return `${prefix}${transform}/${suffix}`;
 }
 
-function isCloudinaryImageDeliveryUrl(value: string) {
+export function isCloudinaryImageDeliveryUrl(value: string) {
   try {
     const url = new URL(value);
-    const [cloudName, resourceType, deliveryType] = url.pathname
-      .split("/")
-      .filter(Boolean);
+    const [, cloudName, resourceType, deliveryType, ...asset] = url.pathname.split("/");
 
     return (
       url.protocol === "https:" &&
@@ -39,11 +37,19 @@ function isCloudinaryImageDeliveryUrl(value: string) {
       !url.password &&
       Boolean(cloudName) &&
       resourceType === "image" &&
-      deliveryType === "upload"
+      deliveryType === "upload" &&
+      asset.length > 0 && asset.every(Boolean)
     );
   } catch {
     return false;
   }
+}
+
+/** Leave local and external images byte-for-byte unchanged. */
+export function transformCloudinaryImageUrl(secureUrl: string, transform: string) {
+  return isCloudinaryImageDeliveryUrl(secureUrl)
+    ? insertCloudinaryTransform(secureUrl, transform)
+    : secureUrl;
 }
 
 export function transformCloudinaryUrl(
@@ -54,7 +60,7 @@ export function transformCloudinaryUrl(
     return "";
   }
 
-  return insertCloudinaryTransform(secureUrl, CLOUDINARY_IMAGE_TRANSFORMS[variant]);
+  return transformCloudinaryImageUrl(secureUrl, CLOUDINARY_IMAGE_TRANSFORMS[variant]);
 }
 
 /**

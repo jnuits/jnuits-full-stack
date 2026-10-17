@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import type { FormDefinition } from "./definition";
@@ -56,9 +57,11 @@ describe("form upload signing", () => {
         publicId: "22222222-2222-4222-8222-222222222222.pdf",
         resourceType: "raw",
         timestamp: 1784354400,
-        uploadUrl: "https://api.cloudinary.com/v1_1/jnuits-test/raw/authenticated/upload",
+        uploadUrl: "https://api.cloudinary.com/v1_1/jnuits-test/raw/upload",
       }),
     ]);
+    const signedPayload = "allowed_formats=pdf&asset_folder=jnuits/jnuits-full-stack/private/forms/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222&context=form_definition_id=11111111-1111-4111-8111-111111111111|form_version_id=33333333-3333-4333-8333-333333333333|field_id=identity_document|upload_id=22222222-2222-4222-8222-222222222222|sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&discard_original_filename=true&overwrite=false&public_id=22222222-2222-4222-8222-222222222222.pdf&timestamp=1784354400&type=authenticated&unique_filename=false&use_filename=false";
+    expect(result.uploads[0].signature).toBe(createHash("sha256").update(signedPayload + config.apiSecret).digest("hex"));
   });
 
   it("rejects MIME, size, and field mismatches before issuing a signature", () => {
