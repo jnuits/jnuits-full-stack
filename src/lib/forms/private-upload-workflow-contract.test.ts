@@ -34,7 +34,9 @@ describe("private form upload workflow contract", () => {
     expect(signer).toContain('"image/jpeg"');
     expect(signer).toContain('"image/png"');
     expect(signer).toContain('"image/webp"');
-    expect(signer).toContain("/authenticated/upload");
+    expect(signer).toContain('${resourceType}/upload');
+    expect(signer).toContain('type: "authenticated"');
+    expect(source("src/components/forms/public-form-screen.tsx")).toContain('body.set("type", "authenticated")');
     expect(signer).toContain("randomUUID");
     expect(signer).toContain("private/forms/${options.formDefinitionId}/${sessionId}");
     expect(signer).toContain("FORM_UPLOAD_PROOF_TTL_MS = 10 * 60 * 1000");

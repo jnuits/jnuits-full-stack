@@ -12,13 +12,12 @@ import {
 } from "@/lib/content/public-content";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createPublicClient } from "@/lib/supabase/public";
+import { transformCloudinaryImageUrl } from "@/lib/cloudinary/urls";
 
 export const revalidate = 60;
 
 function toCloudinaryOptimizedSrc(src: string) {
-  return src.includes("res.cloudinary.com")
-    ? src.replace("/upload/", "/upload/f_auto,q_auto,w_1200/")
-    : src;
+  return transformCloudinaryImageUrl(src, "f_auto,q_auto,w_1200");
 }
 
 function toCloudinaryAvatarSrc(src: string | null) {
@@ -26,9 +25,7 @@ function toCloudinaryAvatarSrc(src: string | null) {
     return null;
   }
 
-  return src.includes("res.cloudinary.com")
-    ? src.replace("/upload/", "/upload/f_auto,q_auto,w_240/")
-    : src;
+  return transformCloudinaryImageUrl(src, "f_auto,q_auto,w_240");
 }
 
 type TimelineSource = {

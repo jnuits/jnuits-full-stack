@@ -208,7 +208,7 @@ function assertUploadInstruction(upload: PendingFormUpload, instruction: FormUpl
   }
 }
 
-async function uploadToCloudinary(upload: PendingFormUpload, instruction: FormUploadInstruction): Promise<StoredFormUploadAsset> {
+export async function uploadToCloudinary(upload: PendingFormUpload, instruction: FormUploadInstruction): Promise<StoredFormUploadAsset> {
   const body = new FormData();
   body.set("file", upload.file);
   body.set("api_key", instruction.apiKey);
@@ -220,6 +220,7 @@ async function uploadToCloudinary(upload: PendingFormUpload, instruction: FormUp
   body.set("public_id", instruction.publicId);
   body.set("signature", instruction.signature);
   body.set("timestamp", String(instruction.timestamp));
+  body.set("type", "authenticated");
   body.set("unique_filename", "false");
   body.set("use_filename", "false");
 

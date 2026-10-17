@@ -20,6 +20,7 @@ import {
 } from "@/lib/content/public-content";
 import { asFlexibleClient } from "@/lib/supabase/flexible";
 import { createPublicClient } from "@/lib/supabase/public";
+import { transformCloudinaryImageUrl } from "@/lib/cloudinary/urls";
 
 export const revalidate = 60;
 
@@ -74,9 +75,7 @@ function toCloudinaryAvatarSrc(src: string | null) {
     return null;
   }
 
-  return src.includes("res.cloudinary.com")
-    ? src.replace("/upload/", "/upload/f_auto,q_auto,w_180/")
-    : src;
+  return transformCloudinaryImageUrl(src, "f_auto,q_auto,w_180");
 }
 
 function formatAdvisorName(title: string | null, fullName: string) {

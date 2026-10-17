@@ -127,7 +127,7 @@ export function createCloudinarySignature(
     .map(([key, value]) => `${key}=${String(value)}`)
     .join("&");
 
-  return createHash("sha1")
+  return createHash("sha256")
     .update(`${serialized}${apiSecret}`)
     .digest("hex");
 }

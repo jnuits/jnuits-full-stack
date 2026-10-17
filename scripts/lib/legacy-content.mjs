@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { isIP } from "node:net";
 import dotenv from "dotenv";
 import mysql from "mysql2/promise";
 import { createClient } from "@supabase/supabase-js";
@@ -117,16 +118,19 @@ export async function buildLegacyMysqlConnection() {
   const legacyEnv = loadLegacyEnv();
 
   const caPath = process.env.LEGACY_DATABASE_CA_PATH?.trim();
-  const insecureTls = process.env.LEGACY_DATABASE_TLS_INSECURE === "1";
-  let ssl;
-
-  if (caPath) {
-    ssl = { ca: fs.readFileSync(caPath, "utf8"), rejectUnauthorized: true };
-  } else if (insecureTls) {
-    ssl = { rejectUnauthorized: false };
-  } else {
-    ssl = { rejectUnauthorized: true };
+  if (process.env.LEGACY_DATABASE_TLS_INSECURE === "1") {
+    throw new Error("Insecure legacy database TLS is no longer supported. Configure LEGACY_DATABASE_CA_PATH with the trusted PEM CA instead.");
   }
+  // mysql2 skips its server identity check for IP hosts. Require the DNS name
+  // covered by the server certificate rather than silently weakening TLS.
+  if (!legacyEnv.DATABASE_HOST || isIP(legacyEnv.DATABASE_HOST)) {
+    throw new Error("Legacy database recovery requires a certificate-matching DNS hostname in DATABASE_HOST.");
+  }
+  const ssl = {
+    rejectUnauthorized: true,
+    verifyIdentity: true,
+    ...(caPath ? { ca: fs.readFileSync(caPath, "utf8") } : {}),
+  };
 
   return mysql.createConnection({
     database: legacyEnv.DATABASE_NAME,
@@ -169,7 +173,7 @@ export function createCloudinarySignature(params, apiSecret) {
     .map(([key, value]) => `${key}=${String(value)}`)
     .join("&");
 
-  return crypto.createHash("sha1").update(`${serialized}${apiSecret}`).digest("hex");
+  return crypto.createHash("sha256").update(`${serialized}${apiSecret}`).digest("hex");
 }
 
 function resolveNextStaticAssetPath(candidatePath) {

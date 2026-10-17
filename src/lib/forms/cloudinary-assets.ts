@@ -32,7 +32,10 @@ function basicAuthorization(apiKey: string, apiSecret: string) {
   return `Basic ${Buffer.from(`${apiKey}:${apiSecret}`, "utf8").toString("base64")}`;
 }
 
-function normalizedFormat(contentType: FormSubmissionAsset["contentType"], format: string) {
+function normalizedFormat(contentType: FormSubmissionAsset["contentType"], format: string | undefined, resourceType: FormSubmissionAsset["resourceType"]) {
+  // Raw PDF resources have no image-format field in Cloudinary's Admin API.
+  if (contentType === "application/pdf") return resourceType === "raw" && (format === undefined || format === "pdf");
+  if (resourceType !== "image") return false;
   if (contentType === "image/jpeg") return format === "jpg" || format === "jpeg";
   return format === FORMAT_BY_CONTENT_TYPE[contentType];
 }
@@ -62,8 +65,7 @@ export async function loadVerifiedCloudinaryFormAsset(
     details.resource_type !== asset.resourceType ||
     details.type !== "authenticated" ||
     details.bytes !== asset.bytes ||
-    !details.format ||
-    !normalizedFormat(asset.contentType, details.format) ||
+    !normalizedFormat(asset.contentType, details.format, asset.resourceType) ||
     context.form_definition_id !== options.expectedFormDefinitionId ||
     context.form_version_id !== options.expectedFormVersionId ||
     context.field_id !== asset.fieldId ||
@@ -84,8 +86,10 @@ export function buildSignedCloudinaryFormAssetUrl(asset: FormSubmissionAsset) {
   const config = getCloudinaryConfig();
   const format = FORMAT_BY_CONTENT_TYPE[asset.contentType];
   const leaf = asset.resourceType === "raw" ? asset.cloudinaryPublicId : `${asset.cloudinaryPublicId}.${format}`;
-  const deliveryPath = `v${asset.cloudinaryVersion}/${leaf}`;
-  const signature = createHash("sha1")
+  // Preserve the existing version-inclusive manual delivery signature. Both
+  // this and SDK-style signatures were verified against the live provider.
+  const deliveryPath = `v${asset.cloudinaryVersion}/${encodePublicId(leaf)}`;
+  const signature = createHash("sha256")
     .update(`${deliveryPath}${config.apiSecret}`)
     .digest("base64url")
     .slice(0, 8);

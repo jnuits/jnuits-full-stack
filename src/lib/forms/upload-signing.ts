@@ -1,6 +1,7 @@
 import "server-only";
 
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { createCloudinarySignature } from "@/lib/cloudinary/config";
 import type { FormDefinition, FormField } from "./definition";
 import { createFormUploadProof, hashFormUploadManifest, type FormUploadProofUpload } from "./upload-proof";
 
@@ -11,11 +12,6 @@ export type FormUploadRequest = { fieldId: string; mimeType: SupportedMimeType; 
 export type FormUploadSigningConfig = { apiKey: string; apiSecret: string; cloudName: string };
 export type FormUploadInstruction = FormUploadProofUpload & { allowedFormats: string; apiKey: string; context: string; signature: string; timestamp: number; uploadUrl: string };
 const IMAGE_MIME_TYPES = new Set<SupportedMimeType>(["image/jpeg", "image/png", "image/webp"]);
-function cloudinarySignature(parameters: Record<string, string | number>, apiSecret: string) {
-  const payload = Object.entries(parameters).filter(([, value]) => value !== "").sort(([l], [r]) => l.localeCompare(r))
-    .map(([key, value]) => `${key}=${value}`).join("&");
-  return createHash("sha1").update(`${payload}${apiSecret}`).digest("hex");
-}
 function asUploadField(definition: FormDefinition, fieldId: string): Extract<FormField, { type: "image" | "pdf" }> {
   const field = definition.fields.find((candidate) => candidate.id === fieldId);
   if (!field || (field.type !== "image" && field.type !== "pdf")) throw new Error("This form field does not accept file uploads.");
@@ -49,11 +45,11 @@ export function buildFormUploadInstructions(options: {
     const field = fields[index]; const uploadId = createId(); const resourceType = field.type === "pdf" ? "raw" : "image";
     const allowedFormats = field.type === "pdf" ? "pdf" : "jpg,jpeg,png,webp"; const publicId = field.type === "pdf" ? `${uploadId}.pdf` : uploadId;
     const context = [`form_definition_id=${options.formDefinitionId}`, `form_version_id=${options.formVersionId}`, `field_id=${field.id}`, `upload_id=${uploadId}`, `sha256=${upload.sha256}`].join("|");
-    const signedParameters = { allowed_formats: allowedFormats, asset_folder: assetFolder, context, discard_original_filename: "true", overwrite: "false", public_id: publicId, timestamp, unique_filename: "false", use_filename: "false" };
+    const signedParameters = { allowed_formats: allowedFormats, asset_folder: assetFolder, context, discard_original_filename: "true", overwrite: "false", public_id: publicId, timestamp, type: "authenticated", unique_filename: "false", use_filename: "false" };
     const proofUpload: FormUploadProofUpload = { assetFolder, fieldId: field.id, mimeType: upload.mimeType, publicId, resourceType, sha256: upload.sha256, size: upload.size, uploadId };
     proofUploads.push(proofUpload); instructions.push({ ...proofUpload, allowedFormats, apiKey: options.config.apiKey, context,
-      signature: cloudinarySignature(signedParameters, options.config.apiSecret), timestamp,
-      uploadUrl: `https://api.cloudinary.com/v1_1/${options.config.cloudName}/${resourceType}/authenticated/upload` });
+      signature: createCloudinarySignature(signedParameters, options.config.apiSecret), timestamp,
+      uploadUrl: `https://api.cloudinary.com/v1_1/${options.config.cloudName}/${resourceType}/upload` });
   }
   return { expiresAt: expiresAt.toISOString(), formVersionId: options.formVersionId,
     manifestSha256: hashFormUploadManifest(proofUploads),

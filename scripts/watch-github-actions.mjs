@@ -23,6 +23,9 @@ export function classifyRuns(runs, { sha, requiredPaths = defaults }) {
     if (run.head_sha !== sha) continue;
     const path = String(run.path).split("@")[0];
     if (!requiredPaths.includes(path) && path !== productionPath) continue;
+    // deployment_status also fires before promotion and for non-production
+    // targets. A skipped event is no smoke result; a requested smoke stays missing.
+    if (path === productionPath && run.status === "completed" && run.conclusion === "skipped") continue;
     matched.push(run);
     const previous = latest.get(path);
     const started = attemptTime(run);

@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { isCloudinaryAssetUrl } from "./config";
+import { createCloudinarySignature, isCloudinaryAssetUrl } from "./config";
+
+describe("Cloudinary request signature protocol", () => {
+  it("uses SHA-256 with sorted, non-empty parameters and unchanged false/zero values", () => {
+    expect(createCloudinarySignature({ timestamp: 1315060510 }, "abcd"))
+      .toBe("5652e549a70bdc03f73a633a23b7d3f3b067d72fff26dd15b25997f46fdf6439");
+    expect(createCloudinarySignature({ z: "", unused: null, missing: undefined, timestamp: 0, overwrite: false }, "abcd"))
+      .toBe(createCloudinarySignature({ overwrite: false, timestamp: 0 }, "abcd"));
+  });
+});
 
 describe("isCloudinaryAssetUrl", () => {
   afterEach(() => vi.unstubAllEnvs());

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createCloudinarySignature, getCloudinaryConfig } from "@/lib/cloudinary/config";
+import { createCloudinarySignature, getCloudinaryConfig, isCloudinaryAssetUrl } from "@/lib/cloudinary/config";
 import {
   CLOUDINARY_PROJECT_ROOT_FOLDER,
   CLOUDINARY_SLIDER_FOLDER,
@@ -93,13 +93,16 @@ export async function copySliderImageToCloudinary(imageUrl: string, fallbackName
 
 export function isSliderCloudinaryUrl(imageUrl: string) {
   try {
+    if (!isCloudinaryAssetUrl(imageUrl)) return false;
     const url = new URL(imageUrl);
-    const pathname = decodeURIComponent(url.pathname);
-
-    return (
-      url.hostname.endsWith("res.cloudinary.com") &&
-      pathname.includes(`/${CLOUDINARY_SLIDER_FOLDER}/`)
-    );
+    const segments = url.pathname.split("/").slice(4);
+    // Our uploader emits literal folder separators. Encoded separators, empty
+    // segments and malformed escapes must not turn another ID into this folder.
+    if (segments.some((segment) => !segment || /[\\/]/.test(decodeURIComponent(segment)))) return false;
+    while (segments[0] && /^[a-z]{1,3}_[^/]+(?:,[a-z]{1,3}_[^/]+)*$/i.test(segments[0])) segments.shift();
+    if (segments[0] && /^v\d+$/.test(segments[0])) segments.shift();
+    const folder = CLOUDINARY_SLIDER_FOLDER.split("/");
+    return folder.every((segment, index) => segments[index] === segment) && segments.length > folder.length;
   } catch {
     return false;
   }
