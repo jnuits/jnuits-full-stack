@@ -35,16 +35,24 @@ test.describe("production-mode disposable admin repairs",()=>{
   await page.getByLabel("Title",{exact:true}).fill("Synthetic home edited");await page.getByRole("button",{name:/Save content page/}).click();
   await expect(page.getByRole("heading",{name:"Content page saved"})).toBeVisible();
   const state=await fixture("audit_state");expect(state.home.stats).toEqual([{value:"preserve"}]);expect(state.home.sliderImages).toEqual(["preserve"]);expect(state.home.heroSlides[1].title).toBe("Second");expect(state.home.aboutSection.future).toBe(true);
-  await page.getByLabel("Title",{exact:true}).fill("Stale synthetic edit");await fixture("audit_conflict");await page.getByRole("button",{name:/Save content page/}).click();
+  // Exercise native keyboard submission for the conflict path, alongside the
+  // pointer save above, without another long-page scroll while the title is focused.
+  const title=page.getByLabel("Title",{exact:true});
+  await title.fill("Stale synthetic edit");await fixture("audit_conflict");await title.press("Enter");
   await expect(page.getByRole("heading",{name:"Content page not saved"})).toBeVisible();await expect(page.getByLabel("Title",{exact:true})).toHaveValue("Concurrent synthetic edit");
   await page.getByRole("combobox",{name:/^Page/}).selectOption("footer");await expect(page).toHaveURL(/edit=footer/);await expect(page.getByRole("combobox",{name:/^Page/})).toHaveValue("footer");
   await page.goto(`${base}/admin/content/projects?editProject=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1`);
   const form=page.getByRole("button",{name:"Update project"}).locator("xpath=ancestor::form");
   await expect(form.getByLabel("Tagline",{exact:true})).toHaveValue("Preserved tagline");
   await form.locator('input[name="title"]').fill("Synthetic project edited");
-  const savedResponse=page.waitForResponse(response=>response.request().method()==="POST" && new URL(response.url()).pathname==="/admin/content/projects");
-  await form.getByRole("button",{name:"Update project"}).click();
-  expect((await savedResponse).status()).toBeLessThan(400);
+  const saveProject=form.getByRole("button",{name:"Update project"});
+  await expect(saveProject).toBeVisible();await expect(saveProject).toBeEnabled();
+  await saveProject.focus();await expect(saveProject).toBeFocused();
+  const [savedResponse]=await Promise.all([
+   page.waitForResponse(response=>response.request().method()==="POST" && new URL(response.url()).pathname==="/admin/content/projects"),
+   saveProject.press("Enter"),
+  ]);
+  expect(savedResponse.status()).toBeLessThan(400);
   await expect(page.getByRole("heading",{name:"Project updated"})).toBeVisible();
   const after=await fixture("audit_state");expect(after.project).toMatchObject({title:"Synthetic project edited",tagline:"Preserved tagline",cover:"https://example.com/fixture-cover.jpg",featured:true,status:"active"});
  });

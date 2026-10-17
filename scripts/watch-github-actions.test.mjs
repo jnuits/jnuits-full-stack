@@ -16,6 +16,18 @@ describe("Actions completion watcher", () => {
     expect(classifyRuns([run(paths[0])], options).state).toBe("waiting");
     expect(classifyRuns(paths.map((path, index) => run(path, "completed", "success", index + 1)), options).state).toBe("complete");
   });
+  it("ignores a non-applicable production event before promotion", () => {
+    const production = ".github/workflows/production-browser-smoke.yml";
+    const runs = [...paths.map(path => run(path)), run(production, "completed", "skipped", 10)];
+    expect(classifyRuns(runs, options).state).toBe("complete");
+    const requiredProduction = classifyRuns(runs, { ...options, requiredPaths: [...paths, production] });
+    expect(requiredProduction.state).toBe("waiting");
+    expect(requiredProduction.missing).toEqual([production]);
+  });
+  it("keeps an actual production smoke failure actionable", () => {
+    const production = ".github/workflows/production-browser-smoke.yml";
+    expect(classifyRuns([...paths.map(path => run(path)), run(production, "completed", "failure", 10)], options).state).toBe("failed");
+  });
   it("uses the latest run rather than an earlier successful attempt", () => {
     const result = classifyRuns([run(paths[0]), run(paths[0], "completed", "failure", 3), run(paths[1], "completed", "success", 2)], options);
     expect(result.state).toBe("failed");
